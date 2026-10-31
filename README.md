@@ -12,13 +12,13 @@ Open `index.html` in a browser. No build, no server.
 
 1. The app as a mind map: what is built, and the decision the team made on each part.
 2. You ask for a password reset flow. Claude plans it on the map first.
-3. The plan: the feature as the user walks it, left to right. Under each step, what Claude
-   assumed (purple), what the team already settled there and why (green, deployed), and
-   where to look twice: ⚠ think about this, ! risky.
-4. Click the ⚠ box: a side chat slides in that knows the map and the chat. You ask why,
+3. The plan as a list, worst first: ! critical, ⚠ warning (worth a glance), ✓ fair. Each
+   row says what Claude assumed, what it means, the deployed team decision it touches,
+   and the fix already named on the button. The path it sits on is the strip below.
+4. Click the ⚠ row: a side chat slides in that knows the map and the chat. You ask why,
    Claude answers and proposes the change.
-5. Apply it from there; fix and confirm the other two on their boxes. The chat hears
-   about it from the map.
+5. Apply it from there; fix the critical one and OK the fair one on their rows. The chat
+   hears about it from the map.
 6. Run. Each step ticks off as it is built.
 7. Back out to the map, the branch checked.
 

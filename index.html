@@ -38,7 +38,11 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 .crow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:#8a877f}
 .send{width:26px;height:26px;border-radius:8px;background:#c96442;color:#fff;display:grid;place-items:center;font-size:14px;opacity:.45;transition:opacity .2s ease-out}
 .composer.has .send{opacity:1}
+.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
+.spin{width:12px;height:12px;border:1.5px solid #4a4944;border-top-color:#e8e6e1;border-radius:50%;animation:spin .8s linear infinite}
+.frommap{font-size:12.5px;color:#b8a6f0}
 @keyframes blink{50%{opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 
 /* map, inside the app's browser pane */
@@ -49,7 +53,7 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
   background-image:radial-gradient(circle,#1a1e24 1px,transparent 1.3px);background-size:24px 24px}
 #canvas.notrans *{transition:none !important}
 
-/* a side chat on one box: slides in over the right of the map, and the map makes room */
+/* a side chat on one row: slides in over the right of the map, and the map makes room */
 #canvas{--shift:0px}
 #canvas.panel{--shift:-150px}
 #panel{position:absolute;top:0;right:0;bottom:0;width:300px;background:#15171b;border-left:1px solid #262b32;transform:translateX(100%);
@@ -69,7 +73,6 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 .prop .k{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--purple)}
 .prop .btns{justify-content:flex-start;margin-top:7px}
 .pin{margin:0 14px 14px;background:#1a1e24;border:1px solid #2d3239;border-radius:10px;padding:8px 11px;color:#6b727b;font-size:12px}
-.card.hl{box-shadow:0 0 0 4px rgba(217,160,84,.35)}
 
 /* level 1: the app as a mind map, root on the left; a click zooms into one branch */
 #tree{position:absolute;left:50%;top:50%;width:880px;height:640px;transition:opacity .4s ease-out}
@@ -95,91 +98,69 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 .tn.fresh.built .td{color:#8fb8a0}
 .cb{width:16px;height:16px;border:1.5px solid #4b515a;border-radius:4px;margin-top:2px;flex:none;display:grid;place-items:center;font:700 11px/1 var(--sans);color:#0d0f12}
 .cb.done{background:var(--green);border-color:var(--green)}
-/* a box spins while someone is working on that thing */
 .cb.busy{border-color:#3a4048;border-top-color:var(--purple);border-radius:50%;background:transparent;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
-.spin{width:12px;height:12px;border:1.5px solid #4a4944;border-top-color:#e8e6e1;border-radius:50%;animation:spin .8s linear infinite}
 
-/* level 2: one note opened, as the path the user walks */
+/* level 2: one note opened, as a list of what Claude assumed, worst first */
 #stage{position:absolute;left:50%;top:50%;width:880px;height:640px;opacity:0;transition:opacity .4s ease-out,transform .4s var(--ease)}
 #stage.on{opacity:1}
-#stage.on.dim{opacity:.22}
 #edges{position:absolute;left:0;top:0;width:880px;height:640px;overflow:visible}
-#edges path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
+#edges path{fill:none;transition:opacity .3s ease-out}
 path.flow{stroke:#3d434b;stroke-width:1.4}
-path.cedge{stroke:#4b515a;stroke-width:1.4}
-/* an assumption to the team decision it touches: dashed while open, red where it is a risk, solid green once settled */
-path.rel{stroke:#5b626c;stroke-width:1.6;stroke-dasharray:6 5}
-path.rel.warn{stroke:var(--amber)}
-path.rel.bad{stroke:var(--red)}
-path.rel.green{stroke:var(--green);stroke-dasharray:none}
 
 .abs{position:absolute;transform:translate(-50%,-50%)}
 .fade{opacity:0;transition:opacity .35s ease-out}
 .fade.on{opacity:1}
 .crumb{left:75px;transform:translateY(-50%);display:flex;align-items:center;gap:8px;font:13px var(--sans);color:#6b727b;white-space:nowrap}
 .crumb b{font-weight:500;color:#eef0f3;font-size:14px}
+.phead{left:75px;transform:translateY(-50%);font:13px var(--sans);color:#6b727b;white-space:nowrap}
+.phead b{color:#eef0f3;font-weight:600}
 
-/* each step on the path is a task: empty box in the plan, spinning while built, ticked when done */
+.xf{display:grid}
+.xf>span{grid-area:1/1;transition:opacity .35s ease-out}
+.xf>.b{opacity:0}
+.xf.alt>.a{opacity:0}
+.xf.alt>.b{opacity:1}
+
+/* one row per assumption: red is critical, amber is a warning to glance at, green is fair or settled */
+.row{position:absolute;left:75px;width:730px;display:flex;gap:12px;align-items:flex-start;background:#15181d;border:1.5px solid #343a42;border-radius:10px;
+  padding:10px 12px 9px;font:12.5px/1.4 var(--sans);color:#e3e6ea;opacity:0;transform:translateX(-10px);
+  transition:opacity .32s ease-out,transform .4s var(--ease),border-color .35s ease-out,background .35s ease-out,box-shadow .35s ease-out}
+.row.on{opacity:1;transform:none}
+.row.bad{border-color:var(--red);background:#1c1413}
+.row.warn{border-color:var(--amber);background:#1a1711}
+.row.fair,.row.green{border-color:var(--green);background:#111a15}
+.row.hl{box-shadow:0 0 0 4px rgba(217,160,84,.35)}
+.row .ic{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 12px/1 var(--sans);color:#fff;margin-top:1px;transition:background .35s ease-out}
+.row.bad .ic{background:var(--red)}
+.row.warn .ic{background:var(--amber);color:#0d0f12}
+.row.fair .ic,.row.green .ic{background:var(--green)}
+.row .body{flex:1;min-width:0}
+.tl{display:flex;align-items:baseline;gap:10px}
+.row .g{min-width:66px;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.row.bad .g{color:#ee9a93}
+.row.warn .g{color:#e0b26a}
+.row.fair .g,.row.green .g{color:#8fd3ae}
+.row .t{font-size:13.5px;color:#f1f3f5}
+.row .so{font-size:11.5px;color:#aab2bc;margin-top:3px}
+.row .ts{font-size:11.5px;color:#9fb5a8;margin-top:4px;display:flex;align-items:center;gap:8px}
+.row .ts .k{color:#6b727b}
+.row .ts .w{color:#66766d;font-size:10.5px}
+.dep{font:600 9px/1.7 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#0d0f12;background:var(--green);border-radius:999px;padding:0 7px}
+.btns{display:flex;justify-content:flex-start;gap:5px;margin-top:8px}
+.btns button{font:10.5px/1 var(--sans);color:#9aa1ab;background:#1a1e24;border:1px solid #2d3239;border-radius:5px;padding:4px 8px;cursor:pointer}
+.btns button.pressed{background:#1d3328;border-color:var(--green);color:#bfe8d0}
+
+/* the path at the bottom says where each one sits; each step is a task that ticks when built */
 .node{display:flex;align-items:center;gap:8px;background:#15181d;border:1px solid #343a42;border-radius:8px;padding:6px 13px 6px 10px;font:13px/1.4 var(--sans);color:#c9cfd6;white-space:nowrap}
 .node .cb{width:14px;height:14px;margin-top:0;font-size:10px}
+.node .mk{position:absolute;top:-9px;right:-8px;width:16px;height:16px;border-radius:50%;font:700 10px/16px var(--sans);text-align:center;opacity:0;transition:opacity .3s ease-out}
+.node .mk.on{opacity:1}
+.mk.bad{background:var(--red);color:#fff}
+.mk.warn{background:var(--amber);color:#0d0f12}
 .run{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;font:12px var(--sans);color:#6b727b;white-space:nowrap}
 .run .rb{font:600 13px/1 var(--sans);color:#0d0f12;background:#4b515a;border-radius:8px;padding:9px 18px;transition:background .3s ease-out,box-shadow .3s ease-out}
 .run.ready .rb{background:var(--green)}
 .run.pressed .rb{background:#2f8a62;box-shadow:0 0 0 4px rgba(63,179,127,.25)}
-.btns button.pressed{background:#1d3328;border-color:var(--green);color:#bfe8d0}
-.frommap{font-size:12.5px;color:#b8a6f0}
-
-/* a team decision says "deployed" when it is live; it takes the colour of a warning on the assumption above it */
-.tchip{width:150px;background:#0f1512;border:1px solid rgba(63,179,127,.6);border-radius:8px;padding:7px 10px;font:11.5px/1.35 var(--sans);
-  transition:border-color .35s ease-out,background .35s ease-out}
-.tchip .dep{position:absolute;top:-9px;right:8px;font:600 9px/1.5 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#0d0f12;background:var(--green);border-radius:999px;padding:0 7px}
-.tchip.warn{border-color:var(--amber);background:#1a1711}
-.tchip.bad{border-color:var(--red);background:#1c1413}
-.tchip .l{color:#d3e6da;font-weight:500}
-.tchip .w{color:#66766d;font-size:10.5px;margin-top:1px}
-.tchip .y{color:#9fb5a8;margin-top:3px}
-
-.xf{display:grid}
-.xf>span{grid-area:1/1;transition:opacity .35s ease-out}
-.xf>.b,.xf>.w{opacity:0}
-.xf.warn>.a{opacity:0}
-.xf.warn>.w{opacity:1}
-.xf.alt>.a,.xf.alt>.w{opacity:0}
-.xf.alt>.b{opacity:1}
-
-/* an assumption is purple; a ⚠ in the corner says think about this one; green once a person settles it */
-.card{width:150px;background:#17141f;border:1.5px solid var(--purple);border-radius:10px;padding:8px 10px 7px;font:12.5px/1.35 var(--sans);color:#e9e5f3;
-  box-shadow:0 0 0 3px rgba(167,139,250,.08);
-  opacity:0;transform:translate(-50%,-50%) translate(0,var(--dy)) scale(.94);
-  transition:transform .4s var(--ease),opacity .32s ease-out,border-color .35s ease-out,box-shadow .35s ease-out}
-.card.on{opacity:1;transform:translate(-50%,-50%) translate(0,0) scale(1)}
-.card.warn{border-color:var(--amber);background:#1a1711;box-shadow:0 0 0 3px rgba(217,160,84,.1)}
-.card.bad{border-color:var(--red);background:#1c1413;box-shadow:0 0 0 3px rgba(229,83,75,.12)}
-.card.green{border-color:var(--green);background:#111a15;box-shadow:0 0 0 3px rgba(63,179,127,.1)}
-.card .lab{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--purple)}
-.card.warn .lab{color:#e0b26a}
-.card.bad .lab{color:#ee9a93}
-.card .lab .b{color:#8fd3ae}
-.card .corner{position:absolute;top:-11px;right:-9px;font-size:15px;line-height:1;background:#0d0f12;border-radius:50%;padding:2px;
-  opacity:0;transform:scale(.6);transition:opacity .3s ease-out,transform .3s var(--ease)}
-.card .corner.bad{top:-9px;right:-8px;width:18px;height:18px;padding:0;background:var(--red);color:#fff;font:700 12px/18px var(--sans);text-align:center}
-.card .corner.ok{top:-9px;right:-8px;width:18px;height:18px;padding:0;background:var(--green);color:#fff;font:700 11px/18px var(--sans);text-align:center}
-.card.warn .corner,.card.isfair .corner{opacity:1;transform:scale(1)}
-.card .lab .b{color:#8fd3ae}
-.card .t{margin-top:3px}
-.btns{display:flex;justify-content:flex-end;gap:5px;margin-top:7px}
-.btns button{font:10.5px/1 var(--sans);color:#9aa1ab;background:#1a1e24;border:1px solid #2d3239;border-radius:5px;padding:3px 7px;cursor:pointer}
-
-.so{width:150px;transform:translate(-50%,0);font:11.5px/1.35 var(--sans);color:#b3bbc5}
-
-.badge{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;font:700 11px/18px var(--sans);text-align:center;
-  transform:translate(-50%,-50%) scale(0);transition:transform .3s var(--ease)}
-.badge.on{transform:translate(-50%,-50%) scale(1)}
-
-.pulse2{animation:pulse2 .6s ease-out 2}
-@keyframes pulse2{0%{box-shadow:0 0 0 0 rgba(205,214,228,.55)}100%{box-shadow:0 0 0 9px rgba(205,214,228,0)}}
 
 #overlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-46%);text-align:center;opacity:0;pointer-events:none;
   transition:opacity .4s ease-out,transform .4s ease-out;width:90%}
@@ -216,14 +197,14 @@ path.rel.green{stroke:var(--green);stroke-dasharray:none}
         <div class="omono"><div>$ git clone https://github.com/HiAnur/living-map ~/living-map</div><div>github.com/HiAnur/living-map</div></div>
       </div>
       <div id="panel">
-        <div class="ph2"><div class="k">side chat · this box</div><div class="t">sends the email through SendGrid</div><span class="x">×</span></div>
+        <div class="ph2"><div class="k">side chat · this row</div><div class="t">the email goes through SendGrid</div><span class="x">×</span></div>
         <div class="pctx"><b>team settled:</b> Postmark, not SendGrid · @harshit · Sep 30<br>why: one vendor, one bill</div>
         <div class="pmsgs">
           <div class="pm me">why SendGrid?</div>
           <div class="pm">The notification templates import the SendGrid client, so I followed them. Postmark is already wired for notifications; moving the reset email over is a small change in services/email.ts.</div>
           <div class="pm prop"><div class="k">proposed change</div><div>send the reset email through Postmark</div><div class="btns"><button id="papply">Apply to the map</button><button>Not now</button></div></div>
         </div>
-        <div class="pin">Ask about this box…</div>
+        <div class="pin">Ask about this row…</div>
       </div>
     </div>
   </section>
@@ -232,21 +213,20 @@ path.rel.green{stroke:var(--green);stroke-dasharray:none}
 
 <script>
 const LAST = 7, W = 880, H = 640;
-const panel = document.getElementById('panel');
-const pms = [...panel.querySelectorAll('.pm')];
-const papply = document.getElementById('papply');
 const canvas = document.getElementById('canvas');
 const tree = document.getElementById('tree');
 const treeIn = document.getElementById('treeIn');
 const tsvg = document.getElementById('tedges');
 const stage = document.getElementById('stage');
 const svg = document.getElementById('edges');
-const defs = svg.querySelector('defs');
 const overlay = document.getElementById('overlay');
 const msgs = document.getElementById('msgs');
 const input = document.getElementById('input');
 const composer = document.getElementById('composer');
 const counter = document.getElementById('counter');
+const panel = document.getElementById('panel');
+const pms = [...panel.querySelectorAll('.pm')];
+const papply = document.getElementById('papply');
 
 // Level 1: the app as a mind map, one node per thing built, with the decision made there.
 const TREE = {
@@ -265,27 +245,25 @@ const TREE = {
     {g:'admin',    x:520, y:540, l:'admin panel'},
     {g:'admin',    x:520, y:606, l:'audit log', d:'every change logged · @duy · Oct 2'},
   ],
-  fresh: {g:'accounts', x:520, y:268, l:'password reset flow', d:'Claude · plan · 3 assumptions · 2 to think about'},
+  fresh: {g:'accounts', x:520, y:268, l:'password reset flow', d:'Claude · plan · 3 assumptions · 1 critical, 1 warning'},
 };
 
-// Level 2: one note opened. The feature as the user walks it, left to right. Under each
-// step: what Claude chose, what the team settled there (and why), and what that means.
+// Level 2: the plan as a list, worst first. Each row is one thing Claude assumed, what it
+// means, the deployed team decision it touches, and the fix already on the button.
 const COLS = [150, 310, 470, 630, 790];
-const Y = {crumb:34, flow:108, card:200, chip:332, so:448, run:590};
+const Y = {crumb:34, head:74, rows:[100, 222, 344], flow:478, run:572};
 const STEPS = ['forgot password', 'email arrives', 'opens the link', 'new password', 'signed in'];
-const K = {
-  rate:     {col:0, l:'5 tries per 10 min',         who:'@priyanka · Oct 9', why:'bots were hammering it'},
-  email:    {col:1, l:'Postmark, not SendGrid',     who:'@harshit · Sep 30', why:'one vendor, one bill'},
-  audit:    {col:3, l:'every change logged',        who:'@duy · Oct 2',      why:'auditors ask who did what'},
-  sessions: {col:2, l:'signed in 15 min, then out', who:'@harshit · Oct 14', why:'shared laptops at the clinic'},
-};
-const C = [
-  {col:1, a:'sends the email through SendGrid', b:'sends the email through Postmark',
-   so:'two vendors, two bills, two places to break', so2:'one vendor, as the team agreed', chip:'email'},
-  {col:2, a:'the reset link never expires', b:'the reset link dies after 15 min', bad:true,
-   so:'a reset email left open in June still opens the account in October', so2:'a stale reset email is useless after 15 min', chip:'sessions'},
-  {col:3, a:'keeps the reset code on the users table', so:'nothing the team settled says otherwise'},
+const ROWS = [
+  {k:'bad',  g:'critical', ic:'!', a:'the reset link never expires', b:'the reset link dies after 15 min',
+   so:'an old email still opens the account, for good', so2:'a stale reset email is useless after 15 min',
+   ts:'signed in 15 min, then out', dep:'@harshit · Oct 14', btns:['Match it: 15 min', 'Keep', 'Ask']},
+  {k:'warn', g:'warning', ic:'⚠', a:'the email goes through SendGrid', b:'the email goes through Postmark',
+   so:'a second vendor, a second bill', so2:'one vendor, as the team agreed',
+   ts:'Postmark, not SendGrid', dep:'@harshit · Sep 30', btns:['Use Postmark', 'Keep', 'Ask']},
+  {k:'fair', g:'fair', ic:'✓', a:'the reset code lives on the users table',
+   so:'nothing settled says otherwise', btns:['OK']},
 ];
+const MARKS = {1:'warn', 2:'bad'};
 const T = [
   {s:1, k:'type', t:'add a password reset flow'},
   {s:2, k:'submit'},
@@ -294,7 +272,7 @@ const T = [
   {s:2, k:'spin'},
   {s:2, k:'tool', v:'Read', p:'auth/routes.ts'},
   {s:2, k:'tool', v:'Read', p:'services/email.ts'},
-  {s:2, k:'say', t:'Plan is on the map: 5 steps, 3 assumptions. Two are worth a look against what the team settled. Confirm or fix them there, then hit Run.'},
+  {s:2, k:'say', t:'Plan is on the map: 5 steps, 3 assumptions. One is critical, one worth a glance. Fix or keep them there, then hit Run.'},
   {s:5, k:'map', t:'From your map: @duy fixed 2 assumptions and confirmed 1.'},
   {s:5, k:'say', t:'Plan updated. Hit Run when you are ready.'},
   {s:6, k:'submit', t:'Run the plan'},
@@ -319,17 +297,13 @@ function fit(){
 }
 function div(cls, text){ const d = document.createElement('div'); d.className = cls; if (text) d.textContent = text; return d; }
 function span(cls, t){ const s = document.createElement('span'); s.className = cls; s.textContent = t; return s; }
-// text with a before state, an optional warning state, and an after state, crossfaded in place
-function xf(a, b, cls, w){
-  const d = div('xf ' + (cls || ''));
-  d.appendChild(span('a', a)); if (w) d.appendChild(span('w', w)); d.appendChild(span('b', b || ''));
-  return d;
-}
+function xf(a, b, cls){ const d = div('xf ' + (cls || '')); d.appendChild(span('a', a)); d.appendChild(span('b', b || '')); return d; }
 function place(el, x, y){ el.style.left = x + 'px'; el.style.top = y + 'px'; stage.appendChild(el); return el; }
 const svgEl = t => document.createElementNS('http://www.w3.org/2000/svg', t);
 function box(el, cx, cy){ const w = el.offsetWidth, h = el.offsetHeight; return {l:cx - w/2, r:cx + w/2, t:cy - h/2, b:cy + h/2}; }
+function setCb(cb, state){ cb.className = 'cb' + (state ? ' ' + state : ''); cb.textContent = state === 'done' ? '✓' : ''; }
 
-// Lines that appear later draw in through a mask, so dashed ones draw in too.
+// Lines that appear later draw in through a mask.
 let masks = 0;
 function mkPath(d, cls, marker, into = svg){
   const defs = into.querySelector('defs');
@@ -359,7 +333,6 @@ function tnode(n, cls){
   if (cls !== 'root') d.appendChild(div('cb' + (cls === 'fresh' ? '' : ' done'), cls === 'fresh' ? '' : '✓'));
   const body = div('');
   body.appendChild(div('tt', n.l));
-  // a group's decision hangs under its box, so the box stays narrow
   if (n.d && cls === 'group') d.appendChild(div('gp', n.d));
   else if (n.d) body.appendChild(n.td = div('td', n.d));
   d.appendChild(body);
@@ -368,7 +341,6 @@ function tnode(n, cls){
   n.el = d; n.cb = d.firstChild;
   return n;
 }
-// parent's right edge to child's left edge, with one bend halfway
 function hElbow(p, c, r = 8){
   const x1 = p.x + p.el.offsetWidth, y1 = p.y, x2 = c.x, y2 = c.y, xm = (x1 + x2) / 2;
   if (Math.abs(y2 - y1) < 1) return `M${x1} ${y1}H${x2}`;
@@ -389,54 +361,44 @@ treeIn.style.transformOrigin = `${fresh.x + fresh.el.offsetWidth / 2}px ${fresh.
 const crumb = place(div('abs crumb fade'), 0, Y.crumb);
 const crumbCb = div('cb', '');
 crumb.append(span('', 'acme-app  ›  accounts  ›'), crumbCb, (() => { const b = document.createElement('b'); b.textContent = TREE.fresh.l; return b; })());
-function setCb(cb, state){ cb.className = 'cb' + (state ? ' ' + state : ''); cb.textContent = state === 'done' ? '✓' : ''; }
-const steps = STEPS.map((l, i) => {
-  const el = div('abs node fade'), cb = div('cb', '');
-  el.append(cb, span('', l));
-  place(el, COLS[i], Y.flow);
-  return {el, cb};
-});
-const run = place(div('abs run fade'), 470, Y.run);
-const runNote = span('', ''), runBtn = div('rb', '▶ Run');
-run.append(runNote, runBtn);
+const phead = place(div('abs phead fade'), 0, Y.head);
+const pcount = span('', ' · 3 assumptions · 1 critical, 1 warning');
+phead.append((() => { const b = document.createElement('b'); b.textContent = "Claude's plan"; return b; })(), pcount);
 
-for (const k of Object.values(K)){
-  k.el = div('abs tchip fade');
-  k.el.append(div('dep', 'deployed'), div('l', k.l), div('w', k.who), div('y', 'why: ' + k.why));
-  place(k.el, COLS[k.col], Y.chip);
-}
-C.forEach(c => {
-  c.x = COLS[c.col];
-  c.el = div('abs card open');
-  c.el.style.setProperty('--dy', (Y.flow - Y.card) + 'px');
-  c.lab = xf(c.chip ? 'Claude assumed' : 'Claude assumed · fair', c.chip ? '@duy fixed · today' : '@duy confirmed · today', 'lab',
-    c.bad ? 'Claude assumed · risky' : c.chip ? 'Claude assumed · think about this' : ''); c.el.appendChild(c.lab);
-  c.el.appendChild(c.bad ? div('corner bad', '!') : c.chip ? div('corner', '⚠') : div('corner ok', '✓'));
-  c.txt = xf(c.a, c.b, 't'); c.el.appendChild(c.txt);
+ROWS.forEach((r, i) => {
+  r.el = div('row ' + r.k); r.el.style.top = Y.rows[i] + 'px';
+  r.icEl = div('ic', r.ic);
+  const body = div('body'), tl = div('tl');
+  r.gEl = xf(r.g, (r.k === 'fair' ? 'confirmed' : 'fixed') + ' · @duy · today', 'g');
+  r.tEl = xf(r.a, r.b || '', 't');
+  tl.append(r.gEl, r.tEl);
+  r.soEl = xf((r.k === 'fair' ? '' : 'so: ') + r.so, r.so2 ? 'so: ' + r.so2 : '', 'so');
+  body.append(tl, r.soEl);
+  if (r.ts){
+    const ts = div('ts');
+    ts.append(span('k', 'team settled:'), span('', r.ts), div('dep', 'deployed'), span('w', r.dep));
+    body.appendChild(ts);
+  }
   const btns = div('btns');
-  [['btnConfirm', 'Confirm'], ['btnFix', 'Fix']].forEach(([k, t]) => { const b = document.createElement('button'); b.textContent = t; btns.appendChild(c[k] = b); });
-  c.el.appendChild(btns);
-  place(c.el, c.x, Y.card);
-  c.soBody = xf('so: ' + c.so, c.so2 ? 'so: ' + c.so2 : '');
-  c.soEl = div('abs so fade'); c.soEl.appendChild(c.soBody);
-  place(c.soEl, c.x, Y.so);
+  r.btn = r.btns.map(t => { const b = document.createElement('button'); b.textContent = t; btns.appendChild(b); return b; });
+  body.appendChild(btns);
+  r.el.append(r.icEl, body);
+  stage.appendChild(r.el);
 });
 
-// lines, now that every box has a size
+const steps = STEPS.map((l, i) => {
+  const el = div('abs node fade'), cb = div('cb', ''), mk = div('mk' + (MARKS[i] ? ' ' + MARKS[i] : ''), MARKS[i] === 'bad' ? '!' : MARKS[i] ? '⚠' : '');
+  el.append(cb, span('', l), mk);
+  place(el, COLS[i], Y.flow);
+  return {el, cb, mk};
+});
 const arrows = steps.slice(0, -1).map((st, i) => {
   const a = box(st.el, COLS[i], Y.flow), b = box(steps[i + 1].el, COLS[i + 1], Y.flow);
   return mkPath(`M${a.r + 4} ${Y.flow}H${b.l - 5}`, 'flow', true);
 });
-C.forEach(c => {
-  const sb = box(steps[c.col].el, c.x, Y.flow), cb = box(c.el, c.x, Y.card);
-  c.edge = mkPath(`M${c.x} ${sb.b}V${cb.t}`, 'cedge');
-  c.bottom = cb.b;
-});
-C.filter(c => c.chip).forEach(c => {
-  const chipTop = Y.chip - K[c.chip].el.offsetHeight / 2;
-  c.rel = mkPath(`M${c.x} ${c.bottom}V${chipTop}`, 'rel');
-  c.badge = place(div('abs badge', '✓'), c.x, (c.bottom + chipTop) / 2);
-});
+const run = place(div('abs run fade'), 470, Y.run);
+const runNote = span('', ''), runBtn = div('rb', '▶ Run');
+run.append(runNote, runBtn);
 
 /* ---------- primitives ---------- */
 let step = 0, token = 0, timers = [];
@@ -457,14 +419,17 @@ function setLine(L, on, A){
   };
   L.raf = requestAnimationFrame(tick);
 }
-function pulse(el, cls){
-  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
-  el.addEventListener('animationend', function h(e){
-    if (e.target !== el) return;
-    el.classList.remove(cls); el.removeEventListener('animationend', h);
-  });
+// a row keeps its grade until a person settles it; then it is green with their name on it
+function setRow(r, fixed){
+  const flips = fixed && r.k !== 'fair';
+  r.el.classList.toggle('green', flips);
+  r.el.classList.toggle(r.k, !flips);
+  r.icEl.textContent = fixed ? '✓' : r.ic;
+  r.gEl.classList.toggle('alt', fixed);
+  r.tEl.classList.toggle('alt', fixed && !!r.b);
+  r.soEl.classList.toggle('alt', fixed && !!r.so2);
+  r.btn[0].classList.toggle('pressed', fixed);
 }
-function setState(c, st){ c.el.classList.remove('open', 'green'); c.el.classList.add(st); }
 
 /* ---------- map ---------- */
 function renderMap(s, A){
@@ -487,71 +452,36 @@ function renderMap(s, A){
   at(closing ? 0 : sw + (opening ? 250 : 0), () => stage.classList.toggle('on', inside));
   at(closing ? 1100 : 0, () => tree.classList.toggle('dim', s >= 7));
 
-  // level 2: one click and the whole plan builds out: the path, what the team settled on
-  // it, every assumption Claude made, and a warning where it should not have assumed
+  // level 2: the list builds, worst first, then the path it sits on
   const d0 = sw + (opening ? 450 : 0);
   at(d0, () => crumb.classList.toggle('on', s >= 3));
-  steps.forEach((st, i) => at(d0 + i * 90, () => st.el.classList.toggle('on', s >= 3)));
-  arrows.forEach((L, i) => at(d0 + 120 + i * 90, () => setLine(L, s >= 3, A)));
-  at(d0 + 450, () => { for (const k of Object.values(K)) k.el.classList.toggle('on', s >= 3); });
-  C.forEach((c, i) => {
-    const d = d0 + (opening ? 650 + i * 260 : 0);
-    at(d, () => c.el.classList.toggle('on', s >= 3));
-    at(d + 80, () => setLine(c.edge, s >= 3, A));
-  });
-  at(d0 + (opening ? 850 : 0), () => C.filter(c => c.chip).forEach(c => setLine(c.rel, s >= 3, A)));
-  at(d0 + (opening ? 2900 : 0), () => run.classList.toggle('on', s >= 3));
+  at(d0 + 100, () => phead.classList.toggle('on', s >= 3));
+  ROWS.forEach((r, i) => at(d0 + (opening ? 350 + i * 500 : 0), () => r.el.classList.toggle('on', s >= 3)));
+  steps.forEach((st, i) => at(d0 + (opening ? 1900 + i * 90 : 0), () => st.el.classList.toggle('on', s >= 3)));
+  arrows.forEach((L, i) => at(d0 + (opening ? 2020 + i * 90 : 0), () => setLine(L, s >= 3, A)));
+  at(d0 + (opening ? 2500 : 0), () => steps.forEach(st => st.mk.classList.toggle('on', s >= 3 && s < 5)));
+  at(d0 + (opening ? 2700 : 0), () => run.classList.toggle('on', s >= 3));
 
-  // a side chat on the ⚠ box: click it, a panel slides in that knows the map and this
-  // chat, and the fix comes out of that conversation
+  // a side chat on the warning row: click it, a panel slides in that knows the map and
+  // this chat, and the fix comes out of that conversation
   const open = s === 4;
-  at(0, () => C[0].el.classList.toggle('hl', open));
-  at(chatting ? 350 : fixing ? 500 : 0, () => { canvas.classList.toggle('panel', open); panel.classList.toggle('on', open); });
+  at(0, () => ROWS[1].el.classList.toggle('hl', open));
+  at(chatting ? 350 : fixing ? 900 : 0, () => { canvas.classList.toggle('panel', open); panel.classList.toggle('on', open); });
   pms.forEach((m, i) => at(chatting ? 900 + i * 1000 : 0, () => m.classList.toggle('on', s >= 4)));
-  at(0, () => papply.classList.toggle('pressed', s >= 5));
+  at(fixing ? 700 : 0, () => papply.classList.toggle('pressed', s >= 5));
 
-  // two assumptions get a ⚠ to think about; the first is fixed from its side chat, the
-  // second with its Fix button, the third confirmed
-  [0, 1].forEach(i => {
-    const c = C[i], d = opening ? d0 + 1500 + i * 650 : fixing ? 300 + i * 700 : 0;
-    if (fixing && i === 1) at(d - 300, () => c.btnFix.classList.add('pressed'));
-    at(d, () => {
-      setState(c, s >= 5 ? 'green' : 'open');
-      const warn = s >= 3 && s < 5;
-      c.el.classList.toggle('warn', warn);
-      c.el.classList.toggle('bad', !!c.bad && warn);
-      c.lab.classList.toggle('warn', warn);
-      c.lab.classList.toggle('alt', s >= 5);
-      c.txt.classList.toggle('alt', s >= 5);
-      c.soEl.classList.toggle('on', s >= 3);
-      c.soBody.classList.toggle('alt', s >= 5);
-      c.btnFix.classList.toggle('pressed', s >= 5 && i === 1);
-      // the decision box under it takes the same colour, so the column reads as one
-      const grade = s >= 5 ? 'green' : warn ? (c.bad ? 'bad' : 'warn') : '';
-      K[c.chip].el.classList.toggle('warn', grade === 'warn');
-      K[c.chip].el.classList.toggle('bad', grade === 'bad');
-      c.rel.p.setAttribute('class', 'rel ' + grade);
-    });
-    if (opening) at(d + 200, () => pulse(K[c.chip].el, 'pulse2'));
-    at(fixing ? d + 150 : 0, () => c.badge.classList.toggle('on', s >= 5));
+  // your fixes and confirm: the critical one from its button, the warning from the side
+  // chat, the fair one with OK
+  ROWS.forEach((r, i) => {
+    const d = fixing ? [300, 1300, 2100][i] : 0;
+    if (fixing && i !== 1) at(d - 250, () => r.btn[0].classList.add('pressed'));
+    at(d, () => setRow(r, s >= 5));
   });
-  {
-    const c = C[2], d = fixing ? 1700 : 0;
-    // a fair assumption is green from the start; confirming it only puts a name on it
-    at(opening ? d0 + 2600 : 0, () => { c.el.classList.toggle('isfair', s >= 3); setState(c, s >= 3 ? 'green' : 'open'); });
-    if (fixing) at(d, () => c.btnConfirm.classList.add('pressed'));
-    at(d + (fixing ? 300 : 0), () => {
-      c.lab.classList.toggle('alt', s >= 5);
-      c.soEl.classList.toggle('on', s >= 5);
-      c.btnConfirm.classList.toggle('pressed', s >= 5);
-    });
-  }
-
-  // Run waits until nothing clashes; the tasks tick off as they are built
-  at(fixing ? 2300 : 0, () => {
+  at(fixing ? 2400 : 0, () => {
+    pcount.textContent = s >= 5 ? ' · 3 assumptions · all settled' : ' · 3 assumptions · 1 critical, 1 warning';
     run.classList.toggle('ready', s >= 5);
     run.classList.toggle('pressed', s >= 6);
-    runNote.textContent = s >= 6 ? 'built' : s >= 5 ? 'all settled' : '2 assumptions to think about';
+    runNote.textContent = s >= 6 ? 'built' : s >= 5 ? 'all settled' : 'waits on 1 critical';
     runBtn.textContent = s >= 6 ? '✓ Ran' : '▶ Run';
   });
   if (!running){
@@ -579,13 +509,7 @@ function apply(e, anim){
   }
   else if (e.k === 'say'){
     if (spinEl){ spinEl.remove(); spinEl = null; }
-    const d = div('say', e.t);
-    if (e.li){
-      const ul = document.createElement('ul');
-      e.li.forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
-      d.appendChild(ul);
-    }
-    addMsg(d, anim);
+    addMsg(div('say', e.t), anim);
   } else {
     // tool calls in a row share one group, as the app shows them
     let g = spinEl ? spinEl.previousElementSibling : msgs.lastElementChild;
@@ -648,7 +572,7 @@ function go(t, A){
   if (t === 5 || t === 6){
     // you act on the map first; the chat hears about it after
     renderMap(t, true);
-    timers.push(setTimeout(() => chatAnim(t, tok), t === 5 ? 2600 : 700));
+    timers.push(setTimeout(() => chatAnim(t, tok), t === 5 ? 2800 : 700));
   } else chatAnim(t, tok).then(() => { if (tok === token) renderMap(t, true); });
 }
 const next = () => step >= LAST ? go(0, false) : go(step + 1, true);
