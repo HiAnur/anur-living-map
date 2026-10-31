@@ -79,9 +79,7 @@
       "y": 370,
       "w": 230,
       "file": "jobs/renewal.ts",
-      "desc": "Runs nightly, bills annual plans that are due, mails the receipt.",
-      "sub": "Bills 312 annual plans nightly",
-      "note": "Claude assumed: retire it"
+      "desc": "Runs nightly, bills annual plans that are due, mails the receipt."
     }
   ],
   "edges": [

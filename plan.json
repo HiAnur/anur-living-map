@@ -10,7 +10,7 @@
       "y": 150,
       "w": 180,
       "state": "new",
-      "sub": "New: Pro via the provider",
+      "sub": "Pro plan",
       "file": "services/billing/",
       "by": "Claude",
       "desc": "Takes the upgrade from the web app, hands the charge to the payment provider and hears back when it is paid. Not built yet: this is the plan.",
@@ -81,7 +81,6 @@
     {
       "id": "db",
       "state": "todo",
-      "sub": "+ plan column",
       "file": "migrations/007_plan.sql",
       "by": "Claude",
       "desc": "Postgres. The plan adds a plan column on users: free, annual, pro."
@@ -89,14 +88,13 @@
     {
       "id": "renewal",
       "state": "assumed-gone",
-      "sub": "Bills 312 annual plans nightly",
+      "sub": "Assumed: can go",
       "file": "jobs/renewal.ts:18",
       "by": "Claude",
       "fact": {
         "text": "312 annual customers renew through this job",
         "from": "Claude, from data/customers.csv (read-only copy)"
-      },
-      "note": "Claude assumed: retire it"
+      }
     }
   ],
   "edges": [
@@ -136,12 +134,12 @@
       "from": "Claude",
       "ticket": "ACME-212",
       "kind": "Product call",
-      "text": "Who still renews through our own job? Retiring it moves every customer to the provider.",
+      "text": "Can the renewal job go?",
       "status": "open",
       "dispute": {
         "node": "renewal",
         "state": "todo",
-        "sub": "Keep for annual customers",
+        "sub": "Keep for annual",
         "edge": "renewal>provider",
         "edgeState": "",
         "says": "Annual customers keep renewing through our job; new and upgraded customers bill through the provider.",
@@ -161,11 +159,11 @@
       "from": "Claude",
       "ticket": "ACME-212",
       "kind": "Engineering call, follows Priyanka's policy",
-      "text": "The renewal job skips anyone the provider now bills. Otherwise an annual customer who upgrades mid-term is charged twice.",
+      "text": "Should the renewal job skip anyone the provider bills?",
       "status": "open",
       "confirm": {
         "node": "renewal",
-        "sub": "Keeps annual; skips provider-billed",
+        "sub": "Keep for annual, skip provider-billed",
         "says": "Confirmed.",
         "chat": "Duy confirmed: the renewal job skips anyone the provider bills. Added to the plan."
       },
