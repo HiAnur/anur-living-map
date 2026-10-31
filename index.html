@@ -106,7 +106,8 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 #stage.on{opacity:1}
 #stage.on.dim{opacity:.22}
 #edges{position:absolute;left:0;top:0;width:880px;height:640px;overflow:visible}
-#edges path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
+/* only the lines themselves are hollow; the arrowhead inside the marker keeps its fill */
+#edges > path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
 /* sequence-diagram bones: a dashed lifeline under each step, hand-offs as arrows between lifelines */
 path.flow{stroke:#8a929c;stroke-width:1.6}
 path.life{stroke:#2f353c;stroke-width:1.2;stroke-dasharray:4 5}

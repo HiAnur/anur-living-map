@@ -92,7 +92,8 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 #stage{position:absolute;left:50%;top:50%;width:880px;height:660px;opacity:0;transition:opacity .4s ease-out}
 #stage.on{opacity:1}
 #edges{position:absolute;left:0;top:0;width:880px;height:660px;overflow:visible}
-#edges path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
+/* only the lines themselves are hollow; the arrowhead inside the marker keeps its fill */
+#edges > path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
 path.flow{stroke:#3d434b;stroke-width:1.4}
 path.flow.blocked{stroke:#2a2f36;stroke-dasharray:4 4}
 path.cedge{stroke:#4b515a;stroke-width:1.4}
