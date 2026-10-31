@@ -61,6 +61,13 @@ button,input{font:inherit;color:inherit}
 .node.actor{width:110px;border-radius:999px;align-items:center}
 .node.ext{border-style:solid}
 .node.ghost{opacity:.5}
+/* outside your reach: hatched, a lock before the name, nothing to drag or open */
+.node.locked{cursor:not-allowed;color:var(--text-3);border-style:dashed;border-color:var(--box-line);background:repeating-linear-gradient(135deg,#fff 0 6px,#f3f2ee 6px 8px)}
+.node.locked .n{color:var(--text-3)}
+.node.locked.new,.node.locked.todo,.node.locked.assumed-gone{border-color:var(--box-line);background:repeating-linear-gradient(135deg,#fff 0 6px,#f3f2ee 6px 8px)}
+.node.locked .n{text-decoration:none}
+.nope{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:#f8f7f3;font-size:13px}
+.nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
 .node.new{border:1.5px solid var(--new);background:var(--new-tint)}
 .node.new .n{color:var(--new)}
 /* something to do on this box: a small Pending pill on its top-right corner */
@@ -198,9 +205,10 @@ const toStage = (cx, cy) => [(cx - cam.x) / cam.z, (cy - cam.y) / cam.z];
 /* the view: the system, or the inside of one box */
 const scope = () => {
   const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
-  const nodes = all.nodes.filter(canSee), ids = new Set(nodes.map((n) => n.id));
-  return { nodes, edges: all.edges.filter((e) => ids.has(e.from) && ids.has(e.to)) };
+  // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
+  return all;
 };
+const locked = (n) => !canSee(n);
 const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === id);
 
 function fit(){
@@ -217,7 +225,10 @@ function fit(){
 }
 
 // a database is drawn as the usual cylinder before its name
-const ICON = { db: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="3.5" rx="5.5" ry="2.2"/><path d="M2.5 3.5v9c0 1.2 2.5 2.2 5.5 2.2s5.5-1 5.5-2.2v-9M2.5 8c0 1.2 2.5 2.2 5.5 2.2s5.5-1 5.5-2.2"/></svg>' };
+const ICON = {
+  db: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><ellipse cx="8" cy="3.5" rx="5.5" ry="2.2"/><path d="M2.5 3.5v9c0 1.2 2.5 2.2 5.5 2.2s5.5-1 5.5-2.2v-9M2.5 8c0 1.2 2.5 2.2 5.5 2.2s5.5-1 5.5-2.2"/></svg>',
+  lock: '<svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0v2"/></svg>',
+};
 
 /* arrowheads, one per line colour */
 const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32' };
@@ -261,9 +272,9 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id ? 'sel' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
-    html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px">
-      <div class="n">${n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub ? `<div class="s">${n.sub}</div>` : ''}
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
+      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${open.length ? `<span class="mk p" style="background:${pcol(open[0].for)}" title="Waiting on ${open[0].for}">${open[0].for}</span>` : ''}
       </div>`;
@@ -313,6 +324,12 @@ function renderSide(){
   const n = selected && nodeById(selected);
   el.classList.toggle('on', !!n);
   if (!n) return;
+  if (locked(n)){
+    const admin = S.people.find((p) => p.role === 'Admin')?.id || 'an admin';
+    el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
+      <div class="nope">${ICON.lock}<div><b>You don't have access to ${n.label}.</b><br>Your access covers ${me().sees}. Ask ${admin} to open this one.</div></div>`;
+    return;
+  }
   const calls = S.calls.filter((c) => c.node === n.id);
   const thread = S.threads[n.id] || [];
   const stateWord = { new: 'not built yet', todo: 'something to do', 'assumed-gone': 'an agent assumed it goes', gone: 'retired' }[n.state];
@@ -347,7 +364,12 @@ let drag = null, panning = null, moved = false;
 canvas.addEventListener('pointerdown', (e) => {
   const nd = e.target.closest('.node');
   moved = false;
-  if (nd){ const n = nodeById(nd.dataset.id); const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy }; }
+  if (nd){
+    const n = nodeById(nd.dataset.id);
+    // a locked box opens its "no access" card and never moves
+    if (locked(n)){ selected = selected === n.id ? null : n.id; render(); return; }
+    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy };
+  }
   else { panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
   canvas.setPointerCapture(e.pointerId);
 });
@@ -363,7 +385,7 @@ canvas.addEventListener('pointerup', (e) => {
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; render(); } }
 });
 canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
-canvas.addEventListener('dblclick', (e) => { const nd = e.target.closest('.node'); const n = nd && nodeById(nd.dataset.id); if (n?.inside) enter(n.id); });
+canvas.addEventListener('dblclick', (e) => { const nd = e.target.closest('.node'); const n = nd && nodeById(nd.dataset.id); if (n?.inside && !locked(n)) enter(n.id); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){ const z = Math.min(2.5, Math.max(.3, cam.z * (e.deltaY < 0 ? 1.08 : .92))); const [sx, sy] = toStage(e.clientX, e.clientY); cam.x = e.clientX - sx * z; cam.y = e.clientY - sy * z; cam.z = z; }
