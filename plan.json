@@ -1,0 +1,51 @@
+{
+  "type": "plan",
+  "by": "Claude",
+  "note": "ACME-212: a new Billing service in front of the payment provider, a plan column on users, the renewal job assumed retired",
+  "nodes": [
+    { "id": "billing", "label": "Billing", "x": 540, "y": 150, "w": 180, "state": "new", "sub": "New: Pro via the provider", "file": "services/billing/", "by": "Claude",
+      "desc": "Takes the upgrade from the web app, hands the charge to the payment provider and hears back when it is paid. Not built yet: this is the plan.",
+      "inside": {
+        "nodes": [
+          { "id": "web2", "label": "Web app", "x": 110, "y": 190, "ghost": true },
+          { "id": "lb", "label": "Load balancer", "x": 360, "y": 190, "file": "infra/lb.tf" },
+          { "id": "svc", "label": "Billing service", "x": 420, "y": 305, "w": 200, "state": "new", "sub": "Checkout · Payment confirmed", "file": "services/billing/routes/", "by": "Claude",
+            "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back." },
+          { "id": "db2", "label": "Users DB", "x": 110, "y": 305, "ghost": true },
+          { "id": "ren2", "label": "Renewal job", "x": 420, "y": 425, "w": 200, "file": "jobs/renewal.ts", "desc": "Runs nightly. Bills annual plans that are due." }
+        ],
+        "edges": [
+          { "from": "web2", "to": "lb" },
+          { "from": "lb", "to": "svc", "state": "new" },
+          { "from": "svc", "to": "db2", "state": "new" }
+        ]
+      } },
+    { "id": "db", "state": "todo", "sub": "+ plan column", "file": "migrations/007_plan.sql", "by": "Claude", "desc": "Postgres. The plan adds a plan column on users: free, annual, pro." },
+    { "id": "renewal", "state": "assumed-gone", "sub": "Claude assumed: retire it", "file": "jobs/renewal.ts:18", "by": "Claude",
+      "fact": { "text": "312 annual customers renew through this job", "from": "Claude, from data/customers.csv (read-only copy)" } }
+  ],
+  "edges": [
+    { "from": "web", "to": "billing", "state": "new", "label": "Upgrade" },
+    { "from": "billing", "to": "provider", "state": "new" },
+    { "from": "provider", "to": "billing", "state": "new", "label": "Payment confirmed" },
+    { "from": "billing", "to": "db", "state": "new" },
+    { "from": "renewal", "to": "provider", "state": "assumed-gone" }
+  ],
+  "calls": [
+    { "id": "a", "node": "renewal", "for": "Priyanka", "from": "Claude", "ticket": "ACME-212", "kind": "Product call",
+      "text": "Who still renews through our own job? Retiring it moves every customer to the provider.",
+      "status": "open",
+      "dispute": { "node": "renewal", "state": "todo", "sub": "Keep for annual customers", "edge": "renewal>provider", "edgeState": "",
+        "says": "Annual customers keep renewing through our job; new and upgraded customers bill through the provider.",
+        "chat": "Updated the plan: the renewal job stays for annual customers." },
+      "confirm": { "node": "renewal", "state": "gone", "sub": "Retired", "says": "Fine to retire it." } },
+    { "id": "b", "node": "billing", "for": "Duy", "from": "Claude", "ticket": "ACME-212", "kind": "Engineering call, follows Priyanka's policy",
+      "text": "The renewal job skips anyone the provider now bills. Otherwise an annual customer who upgrades mid-term is charged twice.",
+      "status": "open",
+      "confirm": { "node": "renewal", "sub": "Keeps annual; skips provider-billed", "says": "Confirmed.", "chat": "Duy confirmed: the renewal job skips anyone the provider bills. Added to the plan." },
+      "dispute": { "says": "Not like that." } }
+  ],
+  "answers": {
+    "billing": "Billing is the new service in the plan: Checkout starts an upgrade, the provider charges the card and calls Payment confirmed. The route must verify the sender and ignore repeats, or anyone could mark themselves paid."
+  }
+}

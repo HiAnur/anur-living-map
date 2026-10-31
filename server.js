@@ -65,6 +65,24 @@ const ACTS = {
     return true;
   },
   reset() { state = fresh(); try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+  // an agent draws its plan: boxes, lines and calls are added or updated by id,
+  // so Claude Code (or Codex) can put "Billing" on the map from a chat
+  plan(a) {
+    const merge = (list, key, items = []) => {
+      for (const it of items) {
+        const k = key(it), had = list.find((x) => key(x) === k);
+        if (had) Object.assign(had, it); else list.push(it);
+      }
+    };
+    merge(state.nodes, (n) => n.id, a.nodes);
+    merge(state.edges, (e) => `${e.from}>${e.to}`, a.edges);
+    merge(state.calls, (c) => c.id, a.calls);
+    Object.assign(state.answers, a.answers || {});
+    for (const id of a.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
+    state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
+    tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
+    return true;
+  },
 };
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
