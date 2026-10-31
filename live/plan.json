@@ -163,7 +163,10 @@
       "needs": "Confirm to retire it, or Dispute to keep it",
       "assume": "The renewal job can be retired.",
       "short": "Annual customers still renew only through it.",
-      "ask": "Retire the renewal job?"
+      "ask": "Retire the renewal job?",
+      "plain": "Pro bills through the payment provider. Annual customers still renew only through our job.",
+      "yes": "The job is deleted. Annual customers stop renewing.",
+      "no": "The job stays for annual customers."
     },
     {
       "id": "b",
@@ -187,7 +190,10 @@
       "needs": "Confirm the fix, or Dispute it",
       "assume": "The renewal job will skip anyone the provider bills.",
       "short": "Otherwise an annual customer who upgrades is billed twice.",
-      "ask": "Skip Pro customers in renewals?"
+      "ask": "Skip Pro customers in renewals?",
+      "plain": "An annual customer who upgrades to Pro would be billed by the provider and by our job.",
+      "yes": "Renewals skip anyone on Pro, so no one is billed twice.",
+      "no": "Claude asks you how to handle it."
     }
   ],
   "answers": {

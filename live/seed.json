@@ -132,7 +132,10 @@
       "needs": "Confirm to stop them, or Dispute to keep them",
       "assume": "Trial-reminder emails can stop.",
       "short": "ACME-219 removes the schedule that sends them.",
-      "ask": "Stop trial-reminder emails?"
+      "ask": "Stop trial-reminder emails?",
+      "plain": "Codex's ACME-219 deletes the schedule that sends trial reminders.",
+      "yes": "Trial reminders stop.",
+      "no": "Trial reminders keep sending."
     }
   ],
   "prs": [

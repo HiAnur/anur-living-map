@@ -158,10 +158,17 @@ button,input{font:inherit;color:inherit}
 .ca-btns{display:flex;gap:6px;flex:none}
 .ca-btns .gb{height:26px;padding:0 10px}
 .ca-btns .gb.yes{background:#141413;color:#fff;border-color:#141413}
-.ca-on{font-size:11.5px !important;color:var(--text-3);margin-top:2px}
+.ca-on{font-size:11.5px !important;color:var(--text-3);margin-top:2px;display:flex}
+.ca-more{margin-left:auto;color:var(--new);font-weight:500}
+.row.ca.open{background:#f6f8fe}
+.ca-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);font-size:13px;line-height:1.45}
+.ca-x p{margin:0 0 8px;color:var(--text)}
+.ca-if{display:flex;gap:10px;padding:3px 0}
+.ca-if b{flex:none;width:30px;font-weight:600}
+.ca-if span{color:var(--text-2)}
 /* a box with a yes/no waiting on you: a small orange question mark */
 /* a box with a question for you: a small "Clarify" tag on its top-right corner */
-.node .mk.q{left:auto;right:8px;top:-9px;width:auto;height:18px;padding:0 7px;border-radius:999px;background:var(--claude);color:#fff;font:500 10.5px/18px var(--plex);letter-spacing:.02em;text-align:center;box-shadow:0 0 0 2px #fff}
+.node .mk.q{left:auto;right:8px;top:-7px;width:auto;height:14px;padding:0 5px;border-radius:999px;background:var(--claude);color:#fff;font:500 8.5px/14px var(--plex);letter-spacing:.02em;text-align:center;white-space:nowrap;box-shadow:0 0 0 1.5px #fff}
 .ca-head{font-size:12px;color:var(--text-2)}
 .ca-ag{color:var(--claude);font-weight:500}.ca-ag.cx{color:var(--text)}
 .ca-on{color:var(--text-3)}
@@ -245,7 +252,7 @@ body.rec #foot,body.rec #legend{display:none}
 <div class="panel" id="prs"></div>
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
-<div id="legend"><span><i class="n"></i>Plan changes it</span><span><i class="d"></i>Plan removes it</span><span><i class="q">Clarify</i>Needs your answer</span></div>
+<div id="legend"><span><i class="n"></i>Plan changes it</span><span><i class="d"></i>Plan removes it</span><span><i class="q">Need clarify</i>Your answer</span></div>
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
   <span class="tb" data-tool="hand" title="Pan"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
@@ -380,11 +387,11 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Clarify</span>` : ''}
+      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -407,19 +414,25 @@ function renderTop(){
 }
 
 // What the agent needs your yes or no on before it builds: one short question, the box it is on, Yes / No.
-// The reason is one click away, on the box's card. Talking to people is comments.
-const callRow = (c, withButtons) => `<div class="row open-node ca" data-node="${c.node}" title="${c.short || ''} Click to see it on the map.">
+// Click it and it opens in place: why it is asked, and what Yes and No each do; its box lights up on the map.
+let expanded = null;
+const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
   <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open'
     ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
     : c.status !== 'open' ? `<span class="ca-done">${c.status === 'confirmed' ? 'Yes' : 'No'}</span>` : ''}</div>
-  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${nodeById(c.node)?.label || c.node}</div></div>`;
+  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${nodeById(c.node)?.label || c.node}<span class="ca-more">${expanded === c.id ? 'Less' : 'Why?'}</span></div>
+  ${expanded === c.id ? `<div class="ca-x">
+    ${c.plain || c.context ? `<p>${c.plain || c.context}</p>` : ''}
+    ${c.yes ? `<div class="ca-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}
+    ${c.no ? `<div class="ca-if"><b>No</b><span>${c.no}</span></div>` : ''}
+  </div>` : ''}</div>`;
 
 function renderQueue(){
   const open = S.calls.filter((c) => c.for === ME && c.status === 'open');
   const q = $('queue');
   q.classList.toggle('quiet-card', !open.length);
   if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to answer</span>'; return; }
-  q.innerHTML = `<div class="ct">Clarify <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
+  q.innerHTML = `<div class="ct">Need clarify <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
 }
 
 function renderSide(){
@@ -463,7 +476,7 @@ function renderCursors(){
 }
 
 /* comments */
-let tool = 'select', openThread = null, draft = null, panelOpen = false, panelQuery = '', pendingOpen = false, showResolved = false;
+let tool = 'select', openThread = null, draft = null, panelOpen = false, panelQuery = '', pendingOpen = false, showResolved = false, lit = null;
 document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQuery = e.target.value; renderComments(); const q = $('cpq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.closest('input, textarea')) setTool(tool === 'comment' ? 'select' : 'comment'); if (e.key === 'Escape'){ draft = null; openThread = null; render(); } });
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
@@ -568,7 +581,13 @@ document.addEventListener('click', (e) => {
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
-  else if (t.closest('.open-node') && !t.closest('.gb')){ const id = t.closest('.open-node').dataset.node; const n = nodeById(id); if (n){ selected = id; render(); } }
+  else if (t.closest('[data-call-row]') && !t.closest('.gb')){
+    // the call opens in place; its box lights up on the map, and no other card opens
+    const row = t.closest('[data-call-row]'), id = row.dataset.callRow;
+    expanded = expanded === id ? null : id;
+    lit = expanded ? row.dataset.node : null;
+    render();
+  }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.dataset.call){ t.classList.add('pressed'); act('call', { id: t.dataset.call, answer: t.dataset.ans }); toast(`${t.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
