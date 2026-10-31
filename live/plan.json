@@ -21,14 +21,16 @@
             "label": "Web app",
             "x": 110,
             "y": 190,
-            "ghost": true
+            "ghost": true,
+            "area": "billing"
           },
           {
             "id": "lb",
             "label": "Load balancer",
             "x": 360,
             "y": 190,
-            "file": "infra/lb.tf"
+            "file": "infra/lb.tf",
+            "area": "billing"
           },
           {
             "id": "svc",
@@ -40,7 +42,8 @@
             "sub": "Checkout · Payment confirmed",
             "file": "services/billing/routes/",
             "by": "Claude",
-            "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back."
+            "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back.",
+            "area": "billing"
           },
           {
             "id": "db2",
@@ -48,7 +51,8 @@
             "icon": "db",
             "x": 110,
             "y": 305,
-            "ghost": true
+            "ghost": true,
+            "area": "billing"
           },
           {
             "id": "ren2",
@@ -57,7 +61,8 @@
             "y": 425,
             "w": 200,
             "file": "jobs/renewal.ts",
-            "desc": "Runs nightly. Bills annual plans that are due."
+            "desc": "Runs nightly. Bills annual plans that are due.",
+            "area": "billing"
           }
         ],
         "edges": [
@@ -76,7 +81,8 @@
             "state": "new"
           }
         ]
-      }
+      },
+      "area": "billing"
     },
     {
       "id": "db",
@@ -94,7 +100,8 @@
       "fact": {
         "text": "312 annual customers renew through this job",
         "from": "Claude, from data/customers.csv (read-only copy)"
-      }
+      },
+      "area": "billing"
     }
   ],
   "edges": [

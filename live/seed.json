@@ -5,20 +5,19 @@
   "prompt": "Plan ACME-212: add a Pro plan with our payment provider, and retire the old renewal job.",
   "people": [
     {
-      "id": "You",
-      "role": "Engineer, runs Claude Code"
+      "id": "Duy",
+      "role": "Admin",
+      "sees": "all"
     },
     {
       "id": "Priyanka",
-      "role": "Product"
+      "role": "CFO",
+      "sees": "billing"
     },
     {
-      "id": "Duy",
-      "role": "Owns billing"
-    },
-    {
-      "id": "Sam",
-      "role": "Engineer, runs Codex"
+      "id": "Harshit",
+      "role": "Engineer, runs Claude Code and Codex",
+      "sees": "all"
     }
   ],
   "nodes": [
@@ -45,7 +44,8 @@
       "x": 840,
       "y": 150,
       "w": 150,
-      "desc": "Third party. Charges cards, sends Payment confirmed."
+      "desc": "Third party. Charges cards, sends Payment confirmed.",
+      "area": "billing"
     },
     {
       "id": "core",
@@ -79,7 +79,8 @@
       "y": 370,
       "w": 230,
       "file": "jobs/renewal.ts",
-      "desc": "Runs nightly, bills annual plans that are due, mails the receipt."
+      "desc": "Runs nightly, bills annual plans that are due, mails the receipt.",
+      "area": "billing"
     }
   ],
   "edges": [
@@ -112,7 +113,7 @@
     {
       "id": "c",
       "node": "email",
-      "for": "Priyanka",
+      "for": "Duy",
       "from": "Codex",
       "ticket": "ACME-219",
       "kind": "Product call",
@@ -133,7 +134,7 @@
     {
       "id": "#219",
       "agent": "Codex",
-      "by": "Sam",
+      "by": "Harshit",
       "title": "Remove schedules the provider replaced",
       "status": "open",
       "checks": [

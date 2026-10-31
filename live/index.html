@@ -173,10 +173,13 @@ body.rec #foot,body.rec #legend{display:none}
 
 <script>
 const $ = (id) => document.getElementById(id);
-const ME = new URLSearchParams(location.search).get('as') || 'You';
+const ME = new URLSearchParams(location.search).get('as') || 'Duy';
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
-const PCOL = { You: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', Sam: '#B45309' };
+const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' };
+// who I am on this map, and how far I see: an admin or engineer sees the whole system, the CFO only the billing boxes
+const me = () => (S && S.people.find((p) => p.id === ME)) || { id: ME, sees: 'all' };
+const canSee = (n) => !me().sees || me().sees === 'all' || n.area === me().sees;
 const pcol = (who) => PCOL[who] || '#141413';
 const act = (type, extra = {}) => fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
@@ -195,7 +198,11 @@ const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) 
 const toStage = (cx, cy) => [(cx - cam.x) / cam.z, (cy - cam.y) / cam.z];
 
 /* the view: the system, or the inside of one box */
-const scope = () => view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
+const scope = () => {
+  const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
+  const nodes = all.nodes.filter(canSee), ids = new Set(nodes.map((n) => n.id));
+  return { nodes, edges: all.edges.filter((e) => ids.has(e.from) && ids.has(e.to)) };
+};
 const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === id);
 
 function fit(){
@@ -254,11 +261,11 @@ function render(){
   edgesEl.innerHTML = defsHtml + svg;
   // boxes
   let html = '';
-  if (view === 'system'){
+  if (view === 'system' && nodes.some((n) => !n.kind)){
     const inner = nodes.filter((n) => !n.kind);
     const x1 = Math.min(...inner.map((n) => n.x - W(n) / 2)) - 50, x2 = Math.max(...inner.map((n) => n.x + W(n) / 2)) + 50;
     const y1 = Math.min(...inner.map((n) => n.y)) - 70, y2 = Math.max(...inner.map((n) => n.y)) + 70;
-    html += `<div class="region" style="left:${x1}px;top:${y1}px;width:${x2 - x1}px;height:${y2 - y1}px"><span>${S.title}, ${S.env}</span></div>`;
+    html += `<div class="region" style="left:${x1}px;top:${y1}px;width:${x2 - x1}px;height:${y2 - y1}px"><span>${S.title}, ${S.env}${me().sees && me().sees !== 'all' ? ` · ${me().sees}` : ''}</span></div>`;
   }
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
@@ -279,7 +286,7 @@ function renderTop(){
   const inside = view !== 'system' ? nodeById(view) : null;
   $('crumbs').innerHTML = `<b data-v="system">System</b>${inside ? ` <span>›</span> <b>${inside.label}</b>` : ''}`;
   $('ticket').innerHTML = `<b>${S.ticket}</b> · ${S.prompt}`;
-  $('me').innerHTML = `You are <b>${ME}</b>`;
+  $('me').innerHTML = `You are <b>${ME}</b>${me().role ? ` · ${me().role.split(',')[0]}` : ''}${me().sees && me().sees !== 'all' ? ` · ${me().sees} only` : ''}`;
   const names = S.people.map((p) => p.id);
   // click a person to see the map as them: their queue, their cursor, their clicks
   $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}" data-as="${p}" title="${p === ME ? `You are ${p}` : `See the map as ${p}`}" style="background:${pcol(p)}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl" title="Claude Code">✳<span class="n">Claude Code</span></span>`;

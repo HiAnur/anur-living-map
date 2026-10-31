@@ -1,6 +1,6 @@
 # acme-app
 
-A small SaaS: web app, Core API, Users DB (Postgres), email service, a nightly renewal job, and a third-party payment provider. The team keeps its shared map of this system on **Living Map**, a local server at `http://localhost:4322`. Priyanka (product), Duy (owns billing) and Sam (runs Codex) read that map, not this chat.
+A small SaaS: web app, Core API, Users DB (Postgres), email service, a nightly renewal job, and a third-party payment provider. The team keeps its shared map of this system on **Living Map**, a local server at `http://localhost:4322`. Duy (admin, sees everything), Priyanka (CFO, sees only the billing boxes) and Harshit (engineer) read that map, not this chat. A money question goes to Priyanka; a product or engineering call goes to Duy.
 
 ## Plan mode: draw the plan on the map before writing code
 
