@@ -24,6 +24,22 @@ The live, shared version (pan, drag, click a box, Confirm or Dispute from a queu
 6. Run. Each step ticks off as it is built.
 7. Back out to the map, the branch checked.
 
+## Journey (`journey.html`)
+
+The plan-first story rebuilt as one person's screen, in light mode, with Claude Code docked on the left and the map beside it. Standard shapes; questions are pending on the box they are about, in the colour of the person they wait on (the same colours as `live/`).
+
+0. Acme's system, and you ask Claude Code to add a Pro plan with Stripe and remove the old renewal job.
+1. Claude's plan is drawn on the map, no code yet: Billing new, Users DB changed, the renewal job dashed red because Claude assumed it could go. It waits on Priyanka.
+2. Priyanka gets a notification, opens it and disputes: keep the job for annual customers. Her answer goes to ACME-212 and to Claude.
+3. You open the renewal job's infrastructure: Codex's plan removes three schedules Stripe now handles, not this one.
+4. You open Payment confirmed as a sequence diagram and ask about upgrades: charged twice. It waits on Duy.
+5. Duy confirms and approves; Claude leaves plan mode, builds #212, and the map checks it against the plan.
+6. Sam's Codex opens #219: its code removes what Priyanka kept, and the Living Map check blocks the merge.
+7. Sam says fix it; Codex reads the decision from Living Map and restores the schedule.
+8. Nov 1: the map is redrawn from main and the decision held up.
+
+`journey.html#5` opens at step 5, `#5a` plays step 5 from its start, and `?rec` hides Back/Next for recording. The whiteboard fills the space between the two side panels at any window size.
+
 ## Plan first (`plan-first.html`)
 
 The YC demo. Two agents and a team, one record, before and after the code.
