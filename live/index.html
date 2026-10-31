@@ -96,6 +96,8 @@ button,input{font:inherit;color:inherit}
 .x{cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:0 4px}
 .row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--rule)}
 .row:first-of-type{border-top:0}
+.row.open-node{cursor:pointer;border-radius:6px}
+.row.open-node:hover{background:#f8f7f3}
 .row .mk{flex:none;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center;margin-top:3px}
 .row .mk.g{background:var(--line)}
 .who{display:block;font-size:12px;color:var(--text-2)}
@@ -309,7 +311,8 @@ function renderTop(){
   $('prbtn').classList.toggle('on', prsOpen);
 }
 
-const callRow = (c, withButtons) => `<div class="row"><span class="mk ${c.from === 'Codex' ? 'g' : ''}">${c.id}</span><div style="flex:1">${c.text}<span class="who">${c.kind} · ${c.from}, ${c.ticket}${c.status !== 'open' ? ` · <b>${c.status} by ${c.by}, ${c.at}</b>${c.said ? `: ${c.said}` : ''}` : ''}</span>
+// a call in the queue is a door to its box: click the row to open the box's card
+const callRow = (c, withButtons) => `<div class="row open-node" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}"><span class="mk ${c.from === 'Codex' ? 'g' : ''}">${c.id}</span><div style="flex:1">${c.text}<span class="who">${c.kind} · ${c.from}, ${c.ticket}${c.status !== 'open' ? ` · <b>${c.status} by ${c.by}, ${c.at}</b>${c.said ? `: ${c.said}` : ''}` : ''}</span>
   ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Dispute</span></div>` : ''}</div></div>`;
 
 function renderQueue(){
@@ -413,6 +416,7 @@ document.addEventListener('click', (e) => {
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
+  else if (t.closest('.open-node') && !t.closest('.gb')){ const id = t.closest('.open-node').dataset.node; const n = nodeById(id); if (n){ selected = id; render(); } }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.dataset.call){ t.classList.add('pressed'); act('call', { id: t.dataset.call, answer: t.dataset.ans }); toast(`${t.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
