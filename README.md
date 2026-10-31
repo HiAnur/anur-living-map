@@ -38,7 +38,7 @@ The plan-first story rebuilt as one person's screen, in light mode, with Claude 
 7. Sam says fix it; Codex reads the decision from Living Map and restores the schedule.
 8. Nov 1: the map is redrawn from main and the decision held up.
 
-`journey.html#5` opens at step 5, `#5a` plays step 5 from its start, and `?rec` hides Back/Next for recording. The whiteboard fills the space between the two side panels at any window size.
+`journey.html#5` opens at step 5, `#5a` plays step 5 from its start, and `?rec` hides Back/Next for recording. The whiteboard fills the space between the two side panels at any window size. The walkthrough voice-over (a narrator plus you, Priyanka and Duy in your own voices), timed to the steps, is in [journey-script.md](journey-script.md).
 
 ## Plan first (`plan-first.html`)
 
