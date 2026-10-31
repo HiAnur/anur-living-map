@@ -5,6 +5,8 @@ shows while you ask Claude Code for a feature, before it builds anything.
 
 Open `index.html` in a browser. No build, no server.
 
+The live, shared version (pan, drag, click a box, Confirm or Dispute from a queue, several people at once, Claude drawing its plan from a chat) is in [`live/`](live/): `node live/server.js`, then http://localhost:4322. Its own [README](live/README.md) says how.
+
 - **Next ›** or **→** / **Space**: one step forward. **‹ Back** or **←** / **Backspace**: one step back.
 - Nothing moves until you click. Each click plays one step, then waits.
 
