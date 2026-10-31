@@ -178,6 +178,8 @@ const W = (n) => n.w || (n.kind === 'actor' ? 110 : 140), H = 50;
 const HT = (n) => (n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50;
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
+// before any plan is drawn nothing fades: the whole system is the picture
+const anyFocus = () => scope().nodes.some(focused);
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; };
@@ -227,7 +229,7 @@ function render(){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
     const k = e.state || 'old';
-    const quiet = !e.state && !focused(a) && !focused(b);
+    const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup)}" marker-end="url(#a-${k})"/>`;
     // a line's words only when you are looking at one of its ends
     if (e.label && (selected === a.id || selected === b.id)){
@@ -248,7 +250,7 @@ function render(){
   }
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id ? 'sel' : '', focused(n) || view !== 'system' ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.state || '', selected === n.id ? 'sel' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px">
       <div class="n">${n.label}</div>${n.sub ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
