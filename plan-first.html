@@ -229,6 +229,8 @@ html,body{height:100%;background:#fbfaf7;overflow:hidden;user-select:none;cursor
 .tb.ask{padding:0 10px;font:500 12px var(--plex);color:var(--claude)}
 .tdiv{width:1px;height:18px;background:var(--rule-2);margin:0 4px}
 body.rec #nav{display:none}
+/* the chat pane is a stand-in for the real Claude Code beside the map: shown only with ?chat */
+body:not(.chat) #chat{display:none}
 #nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:10px;font:11px var(--mono-sys);color:#5d636b;z-index:9}
 #nav button{font:12px var(--sys);color:#141413;background:#ffffff;border:1px solid rgba(0,0,0,.15);border-radius:6px;padding:5px 11px;cursor:pointer}
 @media (prefers-reduced-motion: reduce){ #stage,.layer,.frame,.cur,#dock{transition:none !important} }
@@ -835,6 +837,7 @@ document.addEventListener('keydown', e => {
 window.addEventListener('resize', () => { mapEl.classList.add('notrans'); fit(); void mapEl.offsetWidth; mapEl.classList.remove('notrans'); });
 // plan-first.html?rec hides the demo's controls for recording; #4 opens straight at step 4
 if (/rec/.test(location.search)) document.body.classList.add('rec');
+if (/chat/.test(location.search)) document.body.classList.add('chat');
 frameFrom.F = rectInStage(rowPaid);
 go(Math.min(LAST, parseInt(location.hash.slice(1), 10) || 0), false);
 </script>

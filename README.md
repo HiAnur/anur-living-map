@@ -37,7 +37,7 @@ The YC demo. Two agents and a team, one record, before and after the code.
 8. Sam says fix it; Codex reads the agreement from Living Map and restores it.
 9. Nov 1, after the deploy: the decision held up, and the plan's ink settles into the system as it now runs.
 
-`plan-first.html#5` opens at step 5; `?rec` hides the controls for recording. The 60-second voice-over, timed to the steps, is in [plan-first-script.md](plan-first-script.md).
+`plan-first.html#5` opens at step 5; `?rec` hides the controls for recording; `?chat` shows a mock Claude Code chat beside the map (off by default: in the real demo the real chat sits there). The 60-second voice-over, timed to the steps, is in [plan-first-script.md](plan-first-script.md).
 
 ## Pro plan (`pro-plan.html`)
 
