@@ -14,42 +14,42 @@
   --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --plex-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
   --ease:cubic-bezier(.2,.7,.2,1);
-  /* the map: a planning drawing on black. Hue says what changes, dash says how sure */
-  --canvas:#000; --box:#0C0D0F; --box-line:#2F3338; --line:#3A3F46; --text:#EDEDED; --text-2:#8B919A; --text-3:#6f757d;
-  --rule:rgba(255,255,255,.10); --rule-2:rgba(255,255,255,.14); --card:#0E0F11; --raised:#1d1f23;
-  /* new: blueprint blue, a part not built yet; chg: a yellow dot on a black box, something to do there */
-  --new:#5B9DFF; --new-tint:rgba(91,157,255,.08); --chg:#E8C547; --gone:#E5534B; --assume:#A78BFA; --claude:#D97757;
+  /* the map: a planning drawing on paper. Hue says what changes, dash says how sure */
+  --canvas:#fbfaf7; --box:#ffffff; --box-line:#d6d3cb; --line:#b9b6ae; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
+  --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#ffffff; --raised:#f3f2ee;
+  /* new: blueprint blue, a part not built yet; chg: a yellow dot on a plain box, something to do there */
+  --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --chg:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:default}
+html,body{height:100%;background:#fbfaf7;overflow:hidden;user-select:none;cursor:default}
 #app{display:flex;height:100vh}
 
 /* chat: the Claude desktop app's Code tab */
-#chat{width:34%;flex:none;border-right:1px solid #2b2a27;background:#262624;color:#e8e6e1;display:flex;flex-direction:column;font:14px/1.55 var(--sys)}
-.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #31302d;font-size:13px;color:#c9c6be}
+#chat{width:34%;flex:none;border-right:1px solid #e5e3da;background:#f5f4ee;color:#141413;display:flex;flex-direction:column;font:14px/1.55 var(--sys)}
+.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #e5e3da;font-size:13px;color:#5c5a54}
 .chead .br{color:#86837b;font:12px var(--mono-sys)}
 .chead .mode{margin-left:auto;font-size:12px;color:#86837b}
 #msgs{flex:1;overflow:hidden;padding:22px 22px 4px;display:flex;flex-direction:column;gap:14px}
-.bubble{align-self:flex-end;max-width:84%;background:#3a3935;color:#f3f1ec;border-radius:14px;padding:8px 13px}
-.src{display:flex;align-items:center;gap:6px;font:500 11px var(--sys);color:#a8a49b;margin-bottom:3px}
+.bubble{align-self:flex-end;max-width:84%;background:#eceae2;color:#141413;border-radius:14px;padding:8px 13px}
+.src{display:flex;align-items:center;gap:6px;font:500 11px var(--sys);color:#6f6c64;margin-bottom:3px}
 .src i{width:6px;height:6px;border-radius:1.5px;background:#7fae8a;transform:rotate(45deg)}
-.tools{display:flex;flex-direction:column;gap:3px;border-left:1px solid #3d3c38;padding:2px 0 2px 12px;margin-left:2px}
+.tools{display:flex;flex-direction:column;gap:3px;border-left:1px solid #dcd9d0;padding:2px 0 2px 12px;margin-left:2px}
 .tool{font-size:12.5px;display:flex;gap:8px;align-items:baseline}
-.tool .v{color:#bdb9b0;font-weight:500;min-width:42px}
-.tool .p{font:12px var(--mono-sys);color:#a29e95}
-.tool .x{font:11.5px var(--mono-sys);color:#7fae8a}
+.tool .v{color:#4d4b45;font-weight:500;min-width:42px}
+.tool .p{font:12px var(--mono-sys);color:#6f6c64}
+.tool .x{font:11.5px var(--mono-sys);color:#3f8f5f}
 .anim{animation:fadein .3s ease-out}
-.composer{flex:none;margin:12px 18px 18px;background:#30302e;border:1px solid #3e3d39;border-radius:16px;padding:12px 14px 10px}
-.field{min-height:22px;color:#f3f1ec}
+.composer{flex:none;margin:12px 18px 18px;background:#ffffff;border:1px solid #dcd9d0;border-radius:16px;padding:12px 14px 10px}
+.field{min-height:22px;color:#141413}
 .ph{color:#7d7a72}
 .composer.has .ph{display:none}
 .composer:not(.has) .caret{display:none}
-.caret{display:inline-block;width:1.5px;height:1.1em;background:#e8e6e1;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
+.caret{display:inline-block;width:1.5px;height:1.1em;background:#141413;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
 .crow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:#8a877f}
 .send{width:26px;height:26px;border-radius:8px;background:#c96442;color:#fff;display:grid;place-items:center;font-size:14px;opacity:.45}
 .composer.has .send{opacity:1}
 .working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
-.spin{width:12px;height:12px;border:1.5px solid #4a4944;border-top-color:#e8e6e1;border-radius:50%;animation:spin .8s linear infinite}
+.spin{width:12px;height:12px;border:1.5px solid #dcd9d0;border-top-color:#141413;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes blink{50%{opacity:0}}
 @keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
@@ -65,10 +65,10 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 #status{font-size:12px;color:var(--text-2)}
 #onmap{margin-left:auto;font-size:12px;color:var(--text-2)}
 .faces{display:flex}
-.face{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#000;background:#EDEDED;border:2px solid #000;margin-left:-5px}
+.face{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-5px}
 .face.cl{background:var(--claude);color:#fff}
 #canvas{flex:1;position:relative;overflow:hidden;background-color:var(--canvas);
-  background-image:radial-gradient(circle,rgba(255,255,255,.12) 1px,transparent 1.3px);background-size:20px 20px}
+  background-image:radial-gradient(circle,rgba(0,0,0,.14) 1px,transparent 1.3px);background-size:20px 20px}
 
 #stage{position:absolute;left:50%;top:50%;width:960px;height:600px;transition:transform .6s var(--ease)}
 /* cursors ride above the cards and the dock, in the same coordinates as the drawing */
@@ -80,11 +80,11 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .edges .old{stroke:var(--line);stroke-width:1}
 .edges .new{stroke:var(--new)}
 .edges .gone{stroke:var(--gone);stroke-dasharray:5 4}
-.edges .flow{stroke:#9aa1ab}
-.edges .what{stroke:#EDEDED;stroke-dasharray:5 4}
-.edges .life{stroke:#24272c;stroke-width:1;stroke-dasharray:3 4}
+.edges .flow{stroke:#6c6a64}
+.edges .what{stroke:#141413;stroke-dasharray:5 4}
+.edges .life{stroke:#d6d3cb;stroke-width:1;stroke-dasharray:3 4}
 .edges .strike{stroke:var(--gone);stroke-dasharray:5 4;stroke-width:1.5}
-.edges rect.bound{fill:rgba(255,255,255,.012);stroke:var(--rule);stroke-width:1}
+.edges rect.bound{fill:rgba(0,0,0,.015);stroke:var(--rule);stroke-width:1}
 .blabel{position:absolute;font-size:12px;color:var(--text-3)}
 
 /* a system: grey as it is; ink once a plan proposes a change; dashed while an agent only assumed it */
@@ -106,7 +106,7 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .node.ghost{opacity:.55}
 .node.vh{opacity:0}
 .node.lane{width:112px;height:32px;align-items:center}
-.node.ring{box-shadow:0 0 0 4px rgba(255,255,255,.08)}
+.node.ring{box-shadow:0 0 0 4px rgba(0,0,0,.08)}
 /* once shipped and confirmed by the deploy, the plan's ink settles into the system */
 .node.settled{border:1px solid var(--box-line) !important;background:var(--box) !important;transition:border-color 1.2s ease-out,background 1.2s ease-out}
 .node.settled .n{color:var(--text-2);transition:color 1.2s ease-out}
@@ -124,10 +124,10 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .frame{position:absolute;border-radius:6px;opacity:0;pointer-events:none;border:1.5px solid var(--new);background:var(--new-tint);
   transition:left .6s var(--ease),top .6s var(--ease),width .6s var(--ease),height .6s var(--ease),border-radius .6s ease-out,background .6s ease-out,border-color .6s ease-out,opacity .3s ease-out}
 .frame.on{opacity:1}
-.frame.full{border-radius:10px;background:rgba(91,157,255,.03);border-color:rgba(91,157,255,.35);border-width:1px}
+.frame.full{border-radius:10px;background:rgba(47,111,228,.03);border-color:rgba(47,111,228,.35);border-width:1px}
 .frame.still{transition:none}
 .frame .ft{position:absolute;left:14px;top:12px;font:500 13.5px var(--plex);color:var(--text)}
-.frame.flowf{border-color:var(--rule-2);background:rgba(255,255,255,.012)}
+.frame.flowf{border-color:var(--rule-2);background:rgba(0,0,0,.015)}
 .frame.flowf.full{border-color:var(--rule-2)}
 .frame .fs{position:absolute;left:14px;top:32px;font:12px var(--plex);color:var(--text-2);opacity:0;transition:opacity .3s ease-out .4s}
 .frame.full .fs{opacity:1}
@@ -135,17 +135,17 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .box.on{opacity:1}
 .box .bt{position:absolute;left:14px;top:12px;font:500 13.5px var(--plex);color:var(--text)}
 .box .bs{position:absolute;left:14px;top:32px;font:12px var(--plex);color:var(--text-2)}
-.chk{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:#a9c9ff;background:#0b1220;border:1px solid rgba(91,157,255,.6);border-radius:6px;padding:3px 9px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.chk{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:#2a5bbf;background:#eef3fd;border:1px solid rgba(47,111,228,.5);border-radius:6px;padding:3px 9px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
 .chk.on{opacity:1}
 .slash{position:absolute;width:240px;height:0;border-top:2px dashed var(--gone);opacity:0;transition:opacity .3s ease-out}
 .slash.on{opacity:1}
 #l2.clash .ctx{opacity:0 !important}
-.rule{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:var(--text);background:#14130b;border:1.5px dashed var(--chg);border-radius:6px;padding:4px 10px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out,border-color .4s ease-out}
+.rule{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:var(--text);background:#fff8e1;border:1.5px dashed var(--chg);border-radius:6px;padding:4px 10px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out,border-color .4s ease-out}
 .rule.on{opacity:1}
 .rule.solid{border-style:solid}
 
-/* people: a white pin, a thread card; colour is kept for meaning */
-.pin{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%) scale(0);border-radius:50%;background:#fff;color:#000;
+/* people: an ink pin, a thread card; colour is kept for meaning */
+.pin{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%) scale(0);border-radius:50%;background:#141413;color:#fff;
   display:grid;place-items:center;font:500 11px/1 var(--plex);transition:transform .3s var(--ease)}
 .pin.on{transform:translate(-50%,-50%) scale(1)}
 .thread{position:absolute;width:280px;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;opacity:0;transform:translateY(4px);transition:opacity .3s ease-out,transform .3s ease-out}
@@ -161,8 +161,8 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .cur{position:absolute;left:0;top:0;opacity:0;transition:transform .9s var(--ease),opacity .3s ease-out;pointer-events:none;z-index:5}
 .cur.on{opacity:1}
 .cur svg{display:block}
-.cur .tag{position:absolute;left:14px;top:16px;font:500 11px/1 var(--plex);color:#000;background:#EDEDED;border-radius:6px;padding:4px 7px;white-space:nowrap}
-.ripple{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(255,255,255,.75);pointer-events:none;z-index:5;animation:rip .5s ease-out forwards}
+.cur .tag{position:absolute;left:14px;top:16px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
+.ripple{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(0,0,0,.5);pointer-events:none;z-index:5;animation:rip .5s ease-out forwards}
 @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
 
 /* overlays on the canvas, not scaled with the drawing */
@@ -178,15 +178,15 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .row .done{display:block;font-size:12px;color:var(--text-2)}
 .btns{display:flex;gap:6px;margin-top:6px}
 .gb{height:28px;padding:0 10px;display:inline-flex;align-items:center;border:1px solid var(--rule-2);border-radius:6px;font:12px var(--plex);color:var(--text);background:transparent;transition:background .2s ease-out,border-color .2s ease-out}
-.gb.pressed{background:rgba(255,255,255,.12);border-color:#fff}
+.gb.pressed{background:rgba(0,0,0,.08);border-color:#141413}
 .ok{font:12px var(--plex);color:var(--text-2)}
 .cline{font:13.5px/1.45 var(--plex);color:var(--text)}
 .cline + .cline{margin-top:6px;color:var(--text-2)}
 #note{position:absolute;right:16px;top:16px;width:270px;z-index:7;background:var(--raised);border:1px solid var(--rule-2);border-radius:10px;padding:12px 14px;
   opacity:0;transform:translateY(-6px);transition:opacity .3s ease-out,transform .3s ease-out}
 #note.on{opacity:1;transform:none}
-#note{border-radius:14px;background:#26282d;padding:12px 14px 12px 50px}
-#note::before{content:'';position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:7px;background:#000;border:1px solid var(--rule-2);box-shadow:inset 0 0 0 5px #000,inset 0 0 0 6px var(--new)}
+#note{border-radius:14px;background:#ffffff;padding:12px 14px 12px 50px}
+#note::before{content:'';position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:7px;background:#fff;border:1px solid var(--rule-2);box-shadow:inset 0 0 0 5px #fff,inset 0 0 0 6px var(--new)}
 #note .nf{font:12px var(--plex);color:var(--text-2);margin-bottom:4px}
 #note .nb{font:500 13.5px/1.4 var(--plex);color:var(--text)}
 #legend{position:absolute;left:16px;bottom:16px;z-index:4;display:flex;gap:16px;font:12px var(--plex);color:var(--text-2);transition:opacity .3s ease-out}
@@ -197,13 +197,13 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 #backb2{position:absolute;left:16px;bottom:16px;z-index:4}
 
 /* the right dock: a side chat, or another agent's session */
-#dock{position:absolute;top:0;right:0;bottom:0;width:320px;z-index:6;background:#0b0c0e;border-left:1px solid var(--rule);padding:16px;display:flex;flex-direction:column;gap:10px;
+#dock{position:absolute;top:0;right:0;bottom:0;width:320px;z-index:6;background:#ffffff;border-left:1px solid var(--rule);padding:16px;display:flex;flex-direction:column;gap:10px;
   transform:translateX(100%);transition:transform .45s var(--ease)}
 #dock.on{transform:none}
 .dh{font:500 13.5px var(--plex);color:var(--text)}
 .dh.cl{color:var(--claude)}
 .dsub{font:12px var(--plex);color:var(--text-2);margin-top:-6px}
-.dq{align-self:flex-end;max-width:90%;background:#25282d;border-radius:10px;padding:6px 10px;font:13.5px/1.4 var(--plex);color:var(--text)}
+.dq{align-self:flex-end;max-width:90%;background:#eceae2;border-radius:10px;padding:6px 10px;font:13.5px/1.4 var(--plex);color:var(--text)}
 .da{font:13.5px/1.45 var(--plex);color:var(--text)}
 .dm{font:13.5px/1.45 var(--plex);color:var(--text)}
 .dm b{font-weight:500}
@@ -221,16 +221,16 @@ html,body{height:100%;background:#000;overflow:hidden;user-select:none;cursor:de
 .fade.on{opacity:1}
 
 #tools{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:4;
-  background:#0e0f11;border:1px solid var(--rule-2);border-radius:10px;transition:opacity .3s ease-out}
+  background:#ffffff;border:1px solid var(--rule-2);border-radius:10px;transition:opacity .3s ease-out}
 #tools.off{opacity:0}
 .tb{height:30px;min-width:30px;border-radius:6px;display:grid;place-items:center;color:var(--text-2)}
 .tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.tb.on{background:#fff;color:#000}
+.tb.on{background:#141413;color:#fff}
 .tb.ask{padding:0 10px;font:500 12px var(--plex);color:var(--claude)}
 .tdiv{width:1px;height:18px;background:var(--rule-2);margin:0 4px}
 body.rec #nav{display:none}
 #nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:10px;font:11px var(--mono-sys);color:#5d636b;z-index:9}
-#nav button{font:12px var(--sys);color:#e6e8eb;background:#1d1f23;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:5px 11px;cursor:pointer}
+#nav button{font:12px var(--sys);color:#141413;background:#ffffff;border:1px solid rgba(0,0,0,.15);border-radius:6px;padding:5px 11px;cursor:pointer}
 @media (prefers-reduced-motion: reduce){ #stage,.layer,.frame,.cur,#dock{transition:none !important} }
 </style>
 </head>
@@ -402,7 +402,7 @@ function center(el, dx = 0, dy = 0){ const [x, y, w, h] = rectInStage(el); retur
 
 // arrowheads per layer, filled, sized in canvas units
 const SVGS = [e1, e2, e3];
-const INK = {old:'#4f555d', new:'#5B9DFF', gone:'#E5534B', flow:'#9aa1ab', what:'#EDEDED'};
+const INK = {old:'#9b988f', new:'#2F6FE4', gone:'#D23B32', flow:'#6c6a64', what:'#141413'};
 SVGS.forEach((into, li) => Object.entries(INK).forEach(([k, c]) => {
   const m = svgEl('marker');
   m.setAttribute('id', `a${li}${k}`); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', 9); m.setAttribute('refY', 5);
@@ -513,10 +513,10 @@ function grow(el, from, to, A, at){
   at(60, () => setFrame(el, to, true));
 }
 
-/* cursors: white, named; only for whoever is acting */
+/* cursors: ink, named; only for whoever is acting */
 function mkCursor(l){
   const el = div('cur');
-  el.innerHTML = `<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="#fff" stroke="#000" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+  el.innerHTML = `<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="#141413" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
   el.appendChild(span('tag', l)); curs.appendChild(el);
   return el;
 }
@@ -550,7 +550,7 @@ const Q_A = 'Who still renews through our own job? Retiring it moves every custo
 const ROW_A = `<div class="row"><span class="mk">a</span><div>${Q_A}<span class="who">Product call for Priyanka</span></div></div>`;
 const QUEUE = `<div class="ct">Waiting on Priyanka</div>
   <div class="row"><span class="mk">a</span><div>${Q_A}<span class="who">Claude, ACME‑212</span><div class="btns"><span class="gb">Confirm</span><span class="gb" id="dispA">Dispute</span></div></div></div>
-  <div class="row"><span class="mk" style="background:#3A3F46"></span><div>OK to stop trial-reminder emails?<span class="who">Codex, Sam, ACME‑219</span><div class="btns"><span class="gb" id="confC">Confirm</span><span class="gb">Dispute</span></div></div></div>`;
+  <div class="row"><span class="mk" style="background:#b9b6ae"></span><div>OK to stop trial-reminder emails?<span class="who">Codex, Sam, ACME‑219</span><div class="btns"><span class="gb" id="confC">Confirm</span><span class="gb">Dispute</span></div></div></div>`;
 const ANSWERED = `<div class="ct">Priyanka: all answered</div><div class="ok">Claude, ACME‑212: disputed 10:02<br>Codex, Sam, ACME‑219: confirmed 10:03</div>`;
 
 /* ---------- map ---------- */
