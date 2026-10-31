@@ -4,76 +4,319 @@
   "ticket": "ACME-212",
   "prompt": "Plan ACME-212: add a Pro plan with our payment provider, and retire the old renewal job.",
   "people": [
-    { "id": "You", "role": "Engineer, runs Claude Code" },
-    { "id": "Priyanka", "role": "Product" },
-    { "id": "Duy", "role": "Owns billing" },
-    { "id": "Sam", "role": "Engineer, runs Codex" }
+    {
+      "id": "You",
+      "role": "Engineer, runs Claude Code"
+    },
+    {
+      "id": "Priyanka",
+      "role": "Product"
+    },
+    {
+      "id": "Duy",
+      "role": "Owns billing"
+    },
+    {
+      "id": "Sam",
+      "role": "Engineer, runs Codex"
+    }
   ],
   "nodes": [
-    { "id": "customer", "label": "Customer", "kind": "actor", "x": 100, "y": 190, "desc": "Anyone with an account. 4,120 active, 312 on annual plans." },
-    { "id": "web", "label": "Web app", "x": 330, "y": 190, "file": "apps/web/", "desc": "The product people use in the browser." },
-    { "id": "billing", "label": "Billing", "x": 560, "y": 190, "w": 180, "state": "new", "sub": "New: Pro via the provider", "file": "services/billing/", "by": "Claude", "desc": "Takes the upgrade from the web app, hands the charge to the payment provider and hears back when it is paid. Not built yet: this is the plan.",
+    {
+      "id": "customer",
+      "label": "Customer",
+      "kind": "actor",
+      "x": 90,
+      "y": 150,
+      "desc": "Anyone with an account. 4,120 active, 312 on annual plans."
+    },
+    {
+      "id": "web",
+      "label": "Web app",
+      "x": 290,
+      "y": 150,
+      "file": "apps/web/",
+      "desc": "The product people use in the browser."
+    },
+    {
+      "id": "billing",
+      "label": "Billing",
+      "x": 540,
+      "y": 150,
+      "w": 180,
+      "state": "new",
+      "sub": "New: Pro via the provider",
+      "file": "services/billing/",
+      "by": "Claude",
+      "desc": "Takes the upgrade from the web app, hands the charge to the payment provider and hears back when it is paid. Not built yet: this is the plan.",
       "inside": {
         "nodes": [
-          { "id": "web2", "label": "Web app", "x": 110, "y": 190, "ghost": true },
-          { "id": "lb", "label": "Load balancer", "x": 360, "y": 190, "file": "infra/lb.tf" },
-          { "id": "svc", "label": "Billing service", "x": 420, "y": 305, "w": 200, "state": "new", "sub": "Checkout · Payment confirmed", "file": "services/billing/routes/", "by": "Claude", "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back." },
-          { "id": "db2", "label": "Users DB", "x": 110, "y": 305, "ghost": true },
-          { "id": "ren2", "label": "Renewal job", "x": 420, "y": 425, "w": 200, "file": "jobs/renewal.ts", "desc": "Runs nightly. Bills annual plans that are due." }
+          {
+            "id": "web2",
+            "label": "Web app",
+            "x": 110,
+            "y": 190,
+            "ghost": true
+          },
+          {
+            "id": "lb",
+            "label": "Load balancer",
+            "x": 360,
+            "y": 190,
+            "file": "infra/lb.tf"
+          },
+          {
+            "id": "svc",
+            "label": "Billing service",
+            "x": 420,
+            "y": 305,
+            "w": 200,
+            "state": "new",
+            "sub": "Checkout · Payment confirmed",
+            "file": "services/billing/routes/",
+            "by": "Claude",
+            "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back."
+          },
+          {
+            "id": "db2",
+            "label": "Users DB",
+            "x": 110,
+            "y": 305,
+            "ghost": true
+          },
+          {
+            "id": "ren2",
+            "label": "Renewal job",
+            "x": 420,
+            "y": 425,
+            "w": 200,
+            "file": "jobs/renewal.ts",
+            "desc": "Runs nightly. Bills annual plans that are due."
+          }
         ],
         "edges": [
-          { "from": "web2", "to": "lb" },
-          { "from": "lb", "to": "svc", "state": "new" },
-          { "from": "svc", "to": "db2", "state": "new" }
+          {
+            "from": "web2",
+            "to": "lb"
+          },
+          {
+            "from": "lb",
+            "to": "svc",
+            "state": "new"
+          },
+          {
+            "from": "svc",
+            "to": "db2",
+            "state": "new"
+          }
         ]
       }
     },
-    { "id": "provider", "label": "Payment provider", "kind": "ext", "x": 850, "y": 190, "w": 150, "desc": "Third party. Charges cards, sends Payment confirmed." },
-    { "id": "core", "label": "Core API", "x": 330, "y": 340, "file": "services/core/", "desc": "Accounts, plans, everything the web app asks for." },
-    { "id": "db", "label": "Users DB", "x": 560, "y": 340, "state": "todo", "sub": "+ plan column", "file": "migrations/007_plan.sql", "by": "Claude", "desc": "Postgres. The plan adds a plan column: free, annual, pro." },
-    { "id": "email", "label": "Email service", "x": 330, "y": 470, "file": "services/email/", "desc": "Receipts, renewal notices, trial reminders." },
-    { "id": "renewal", "label": "Renewal job", "x": 560, "y": 470, "w": 200, "state": "assumed-gone", "sub": "Claude assumed: retire it", "file": "jobs/renewal.ts:18", "by": "Claude", "desc": "Runs nightly, bills annual plans that are due, mails the receipt.",
-      "fact": { "text": "312 annual customers renew through this job", "from": "Claude, from the customer database (read-only copy)" } }
+    {
+      "id": "provider",
+      "label": "Payment provider",
+      "kind": "ext",
+      "x": 840,
+      "y": 150,
+      "w": 150,
+      "desc": "Third party. Charges cards, sends Payment confirmed."
+    },
+    {
+      "id": "core",
+      "label": "Core API",
+      "x": 290,
+      "y": 260,
+      "file": "services/core/",
+      "desc": "Accounts, plans, everything the web app asks for."
+    },
+    {
+      "id": "db",
+      "label": "Users DB",
+      "x": 540,
+      "y": 260,
+      "state": "todo",
+      "sub": "+ plan column",
+      "file": "migrations/007_plan.sql",
+      "by": "Claude",
+      "desc": "Postgres. The plan adds a plan column: free, annual, pro."
+    },
+    {
+      "id": "email",
+      "label": "Email service",
+      "x": 290,
+      "y": 370,
+      "file": "services/email/",
+      "desc": "Receipts, renewal notices, trial reminders."
+    },
+    {
+      "id": "renewal",
+      "label": "Renewal job",
+      "x": 540,
+      "y": 370,
+      "w": 200,
+      "state": "assumed-gone",
+      "sub": "Claude assumed: retire it",
+      "file": "jobs/renewal.ts:18",
+      "by": "Claude",
+      "desc": "Runs nightly, bills annual plans that are due, mails the receipt.",
+      "fact": {
+        "text": "312 annual customers renew through this job",
+        "from": "Claude, from the customer database (read-only copy)"
+      }
+    }
   ],
   "edges": [
-    { "from": "customer", "to": "web" },
-    { "from": "web", "to": "core" },
-    { "from": "core", "to": "db" },
-    { "from": "core", "to": "email" },
-    { "from": "renewal", "to": "email" },
-    { "from": "renewal", "to": "provider", "state": "assumed-gone" },
-    { "from": "web", "to": "billing", "state": "new", "label": "Upgrade" },
-    { "from": "billing", "to": "provider", "state": "new" },
-    { "from": "provider", "to": "billing", "state": "new", "label": "Payment confirmed" },
-    { "from": "billing", "to": "db", "state": "new" }
+    {
+      "from": "customer",
+      "to": "web"
+    },
+    {
+      "from": "web",
+      "to": "core"
+    },
+    {
+      "from": "core",
+      "to": "db"
+    },
+    {
+      "from": "core",
+      "to": "email"
+    },
+    {
+      "from": "renewal",
+      "to": "email"
+    },
+    {
+      "from": "renewal",
+      "to": "provider",
+      "state": "assumed-gone"
+    },
+    {
+      "from": "web",
+      "to": "billing",
+      "state": "new",
+      "label": "Upgrade"
+    },
+    {
+      "from": "billing",
+      "to": "provider",
+      "state": "new"
+    },
+    {
+      "from": "provider",
+      "to": "billing",
+      "state": "new",
+      "label": "Payment confirmed"
+    },
+    {
+      "from": "billing",
+      "to": "db",
+      "state": "new"
+    }
   ],
   "calls": [
-    { "id": "a", "node": "renewal", "for": "Priyanka", "from": "Claude", "ticket": "ACME-212", "kind": "Product call",
+    {
+      "id": "a",
+      "node": "renewal",
+      "for": "Priyanka",
+      "from": "Claude",
+      "ticket": "ACME-212",
+      "kind": "Product call",
       "text": "Who still renews through our own job? Retiring it moves every customer to the provider.",
       "status": "open",
-      "dispute": { "node": "renewal", "state": "todo", "sub": "Keep for annual customers", "edge": "renewal>provider", "edgeState": "",
+      "dispute": {
+        "node": "renewal",
+        "state": "todo",
+        "sub": "Keep for annual customers",
+        "edge": "renewal>provider",
+        "edgeState": "",
         "says": "Annual customers keep renewing through our job; new and upgraded customers bill through the provider.",
-        "chat": "Updated the plan: the renewal job stays for annual customers." },
-      "confirm": { "node": "renewal", "state": "gone", "sub": "Retired", "says": "Fine to retire it." } },
-    { "id": "c", "node": "email", "for": "Priyanka", "from": "Codex", "ticket": "ACME-219", "kind": "Product call",
+        "chat": "Updated the plan: the renewal job stays for annual customers."
+      },
+      "confirm": {
+        "node": "renewal",
+        "state": "gone",
+        "sub": "Retired",
+        "says": "Fine to retire it."
+      }
+    },
+    {
+      "id": "c",
+      "node": "email",
+      "for": "Priyanka",
+      "from": "Codex",
+      "ticket": "ACME-219",
+      "kind": "Product call",
       "text": "OK to stop trial-reminder emails?",
       "status": "open",
-      "confirm": { "node": "email", "state": "todo", "sub": "Trial reminders off", "says": "Yes, stop them." },
-      "dispute": { "says": "Keep them." } },
-    { "id": "b", "node": "billing", "for": "Duy", "from": "Claude", "ticket": "ACME-212", "kind": "Engineering call, follows Priyanka's policy",
+      "confirm": {
+        "node": "email",
+        "state": "todo",
+        "sub": "Trial reminders off",
+        "says": "Yes, stop them."
+      },
+      "dispute": {
+        "says": "Keep them."
+      }
+    },
+    {
+      "id": "b",
+      "node": "billing",
+      "for": "Duy",
+      "from": "Claude",
+      "ticket": "ACME-212",
+      "kind": "Engineering call, follows Priyanka's policy",
       "text": "The renewal job skips anyone the provider now bills. Otherwise an annual customer who upgrades mid-term is charged twice.",
       "status": "open",
-      "confirm": { "node": "renewal", "sub": "Keeps annual; skips provider-billed", "says": "Confirmed.", "chat": "Duy confirmed: the renewal job skips anyone the provider bills. Added to the plan." },
-      "dispute": { "says": "Not like that." } }
+      "confirm": {
+        "node": "renewal",
+        "sub": "Keeps annual; skips provider-billed",
+        "says": "Confirmed.",
+        "chat": "Duy confirmed: the renewal job skips anyone the provider bills. Added to the plan."
+      },
+      "dispute": {
+        "says": "Not like that."
+      }
+    }
   ],
   "prs": [
-    { "id": "#212", "agent": "Claude Code", "by": "You", "title": "Pro plan via the provider, plan column, renewal skips provider-billed", "status": "open",
-      "checks": [ { "name": "Living Map: matches the plan for ACME-212", "ok": true } ],
-      "files": ["services/billing/index.ts +128", "services/billing/routes/payment-confirmed.ts +64", "migrations/007_plan.sql +9", "jobs/renewal.ts +6"] },
-    { "id": "#219", "agent": "Codex", "by": "Sam", "title": "Remove schedules the provider replaced", "status": "blocked",
-      "checks": [ { "name": "Living Map: conflicts with Agreed (ACME-212)", "ok": false,
-        "detail": "Deletes jobs/renewal.ts. Priyanka agreed Oct 31 to keep it: 312 annual customers stop renewing, 9 of them tomorrow." } ],
-      "files": ["infra/scheduler.tf -31", "jobs/renewal.ts -212"] }
+    {
+      "id": "#212",
+      "agent": "Claude Code",
+      "by": "You",
+      "title": "Pro plan via the provider, plan column, renewal skips provider-billed",
+      "status": "open",
+      "checks": [
+        {
+          "name": "Living Map: matches the plan for ACME-212",
+          "ok": true
+        }
+      ],
+      "files": [
+        "services/billing/index.ts +128",
+        "services/billing/routes/payment-confirmed.ts +64",
+        "migrations/007_plan.sql +9",
+        "jobs/renewal.ts +6"
+      ]
+    },
+    {
+      "id": "#219",
+      "agent": "Codex",
+      "by": "Sam",
+      "title": "Remove schedules the provider replaced",
+      "status": "blocked",
+      "checks": [
+        {
+          "name": "Living Map: conflicts with Agreed (ACME-212)",
+          "ok": false,
+          "detail": "Deletes jobs/renewal.ts. Priyanka agreed Oct 31 to keep it: 312 annual customers stop renewing, 9 of them tomorrow."
+        }
+      ],
+      "files": [
+        "infra/scheduler.tf -31",
+        "jobs/renewal.ts -212"
+      ]
+    }
   ],
   "answers": {
     "renewal": "jobs/renewal.ts runs at 02:00 and bills every annual plan whose period ends that day, then mails the receipt through the email service. 312 customers are on it. If it goes, they stop renewing.",

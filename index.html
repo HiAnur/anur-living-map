@@ -40,10 +40,10 @@ button,input{font:inherit;color:inherit}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
-#edges path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .3s}
-#edges path.old{stroke:var(--line);stroke-width:1.2}
-#edges path.new{stroke:var(--new)}
-#edges path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
+#edges > path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .3s}
+#edges > path.old{stroke:var(--line);stroke-width:1.2}
+#edges > path.new{stroke:var(--new)}
+#edges > path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 .region{position:absolute;border:1px solid var(--rule);border-radius:14px;background:rgba(0,0,0,.015);pointer-events:none}
 .region span{position:absolute;left:16px;top:10px;font-size:12px;color:var(--text-3)}
@@ -65,7 +65,7 @@ button,input{font:inherit;color:inherit}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
 .node .mk.p{left:auto;right:-8px;background:#141413}
 .node .enter{position:absolute;right:8px;bottom:4px;font-size:11px;color:var(--text-3)}
-.file{position:absolute;transform:translate(-50%,0);font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
+.file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
 
@@ -88,6 +88,14 @@ button,input{font:inherit;color:inherit}
 .gb:hover{background:#f3f2ee}
 .gb.pressed{background:#141413;color:#fff;border-color:#141413}
 .done{font-size:12px;color:var(--text-2)}
+a{color:inherit;text-decoration:none}
+#queue.quiet-card{width:auto;padding:8px 12px;display:flex;align-items:center;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 4px;border:1px solid var(--rule-2);border-radius:999px;font-size:12px;background:#fff;cursor:pointer}
+.chip:hover{background:#f3f2ee}
+.chip i{width:20px;height:20px;border-radius:50%;background:#141413;color:#fff;font:500 10px/20px var(--plex);text-align:center;font-style:normal}
+.chip b{font-weight:500}
+.chip .c{width:16px;height:16px;border-radius:50%;background:var(--todo);color:#141413;font:500 10px/16px var(--plex);text-align:center}
 .quiet{color:var(--text-2);font-size:12.5px}
 .tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--rule-2);color:var(--text-2);margin-right:6px}
 .tag.new{color:var(--new);border-color:var(--new)}.tag.todo{color:#8a6a00;border-color:var(--todo)}.tag.assumed-gone,.tag.gone{color:var(--gone);border-color:var(--gone)}
@@ -123,7 +131,7 @@ body.rec #foot,body.rec #legend{display:none}
   <span id="me"></span>
   <div class="faces" id="faces"></div>
 </div>
-<div id="canvas"><div id="stage"><svg id="edges"><defs id="defs"></defs></svg><div id="nodes"></div><div id="curs"></div></div></div>
+<div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="curs"></div></div></div>
 <div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
 <div class="panel" id="prs"></div>
@@ -140,7 +148,7 @@ const act = (type, extra = {}) => fetch('/api/act', { method: 'POST', headers: {
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
 const cam = { x: 0, y: 0, z: 1 };
 const W = (n) => n.w || (n.kind === 'actor' ? 110 : 140), H = 50;
-const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges'), defs = $('defs');
+const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; };
 const toStage = (cx, cy) => [(cx - cam.x) / cam.z, (cy - cam.y) / cam.z];
@@ -154,19 +162,22 @@ function fit(){
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
   const minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
   const r = canvas.getBoundingClientRect();
-  const left = 392, right = ($('side').classList.contains('on') || prsOpen) ? 440 : 40;
-  const z = Math.min(1.3, (r.width - left - right) / (maxX - minX), (r.height - 60) / (maxY - minY));
+  // room for the queue on the left and an open card on the right, no more
+  const q = $('queue').getBoundingClientRect();
+  const left = q.height > 60 ? q.width + 48 : 40, right = ($('side').classList.contains('on') || prsOpen) ? 440 : 40;
+  const z = Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - 60) / (maxY - minY));
   cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = 30 + ((r.height - 60) - (maxY - minY) * z) / 2 - minY * z;
   place();
 }
 
 /* arrowheads, one per line colour */
 const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32' };
-for (const [k, c] of Object.entries(COL)) defs.insertAdjacentHTML('beforeend', `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`);
+const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`).join('')}</defs>`;
 
 // out of one box, into the next: straight when they line up, one elbow otherwise
 function route(a, b, dup){
-  const aw = W(a) / 2, bw = W(b) / 2, off = dup ? 10 : 0;
+  // two lines between the same boxes sit 7px either side of the middle
+  const aw = W(a) / 2, bw = W(b) / 2, off = dup === null ? 0 : dup ? 7 : -7;
   if (Math.abs(a.y - b.y) < 2) return a.x < b.x ? `M${a.x + aw} ${a.y + off}H${b.x - bw - 2}` : `M${a.x - aw} ${a.y + off}H${b.x + bw + 2}`;
   if (Math.abs(a.x - b.x) < 2) return a.y < b.y ? `M${a.x} ${a.y + H / 2}V${b.y - H / 2 - 2}` : `M${a.x} ${a.y - H / 2}V${b.y + H / 2 + 2}`;
   // sideways first, then up or down into the target
@@ -180,22 +191,27 @@ function render(){
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
   let svg = '';
+  const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set();
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
-    const dup = seen.has(`${e.to}>${e.from}`); seen.add(`${e.from}>${e.to}`);
+    const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
     const k = e.state || 'old';
-    const d = route(a, b, dup);
-    svg += `<path class="${k}" d="${d}" marker-end="url(#a-${k})"/>`;
-    if (e.label){ const mx = (a.x + b.x) / 2, my = Math.abs(a.y - b.y) < 2 ? a.y + (dup ? 24 : -10) : a.y - 8; svg += `<text x="${mx}" y="${my}" text-anchor="middle">${e.label}</text>`; }
+    svg += `<path class="${k}" d="${route(a, b, dup)}" marker-end="url(#a-${k})"/>`;
+    if (e.label){
+      const level = Math.abs(a.y - b.y) < 2;
+      const mx = level ? (a.x + b.x) / 2 : a.x < b.x ? a.x + W(a) / 2 + 8 : a.x - W(a) / 2 - 8;
+      const my = level ? a.y + (dup ? 22 : -12) : a.y - 8;
+      svg += `<text x="${mx}" y="${my}" text-anchor="${level ? 'middle' : a.x < b.x ? 'start' : 'end'}">${e.label}</text>`;
+    }
   }
-  edgesEl.innerHTML = defs.outerHTML + svg;
+  edgesEl.innerHTML = defsHtml + svg;
   // boxes
   let html = '';
   if (view === 'system'){
     const inner = nodes.filter((n) => !n.kind);
     const x1 = Math.min(...inner.map((n) => n.x - W(n) / 2)) - 50, x2 = Math.max(...inner.map((n) => n.x + W(n) / 2)) + 50;
-    const y1 = Math.min(...inner.map((n) => n.y)) - 100, y2 = Math.max(...inner.map((n) => n.y)) + 90;
+    const y1 = Math.min(...inner.map((n) => n.y)) - 70, y2 = Math.max(...inner.map((n) => n.y)) + 70;
     html += `<div class="region" style="left:${x1}px;top:${y1}px;width:${x2 - x1}px;height:${y2 - y1}px"><span>${S.title}, ${S.env}</span></div>`;
   }
   for (const n of nodes){
@@ -205,8 +221,9 @@ function render(){
       <div class="n">${n.label}</div>${n.sub ? `<div class="s">${n.sub}</div>` : ''}
       ${n.state === 'assumed-gone' ? '<span class="mk" title="An agent assumed this">a</span>' : ''}
       ${open.length ? `<span class="mk p" title="Waiting on ${open[0].for}">${open[0].for[0]}</span>` : ''}
-      ${n.inside ? '<span class="enter">open ›</span>' : ''}</div>`;
-    if (n.file && (n.state || n.decided)) html += `<div class="file" style="left:${n.x}px;top:${n.y + H / 2 + 6}px">${n.file}</div>`;
+      </div>`;
+    // under the box's left edge, clear of a line leaving its middle
+    if (n.file && (n.state || n.decided)) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + H / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
   renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors();
@@ -231,10 +248,18 @@ function renderQueue(){
   const mine = S.calls.filter((c) => c.for === ME), open = mine.filter((c) => c.status === 'open');
   const others = S.calls.filter((c) => c.for !== ME && c.status === 'open');
   const by = {}; for (const c of others) by[c.for] = (by[c.for] || 0) + 1;
-  $('queue').innerHTML = `<div class="ct">${open.length ? `${open.length} waiting on ${ME}` : `Nothing waits on ${ME}`}</div>
+  const chips = Object.entries(by).map(([p, n]) => `<a class="chip" href="?as=${p}" title="See the map as ${p}"><i>${p[0]}</i><b>${p}</b><span class="c">${n}</span></a>`).join('');
+  const q = $('queue');
+  // nothing on you: one quiet line with who is up instead of an empty card
+  q.classList.toggle('quiet-card', !open.length);
+  if (!open.length){
+    q.innerHTML = `<span class="quiet">${chips ? 'Waiting on' : 'Nothing waiting'}</span><div class="chips">${chips}</div>`;
+    return;
+  }
+  q.innerHTML = `<div class="ct">${open.length} waiting on ${ME}</div>
     ${open.map((c) => callRow(c, true)).join('')}
     ${mine.filter((c) => c.status !== 'open').map((c) => `<div class="done">${c.status} ${c.at}: ${c.text}</div>`).join('')}
-    ${Object.keys(by).length ? `<div class="quiet" style="margin-top:8px">Also waiting: ${Object.entries(by).map(([p, n]) => `<a href="?as=${p}">${p} ${n}</a>`).join(' · ')}</div>` : ''}`;
+    ${chips ? `<div class="chips" style="margin-top:10px">${chips}</div>` : ''}`;
 }
 
 function renderSide(){
