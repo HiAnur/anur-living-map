@@ -97,6 +97,14 @@ button,input{font:inherit;color:inherit}
 .row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--rule)}
 .row:first-of-type{border-top:0}
 .row.open-node{cursor:pointer;border-radius:6px}
+.row.req{display:block;padding:10px 0}
+.rq-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2);margin-bottom:6px}
+.rq-head .mk{margin-top:0}
+.rq-head .rq-st{margin-left:auto;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--todo);background:#fff6d6;color:#7a5a00}
+.rq{display:grid;grid-template-columns:52px 1fr;gap:3px 10px;font-size:13px}
+.rq dt{color:var(--text-3);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding-top:2px}
+.rq dd{margin:0;color:var(--text)}
+.rq .rq-q{font-weight:500;font-size:13.5px}
 .row.open-node:hover{background:#f8f7f3}
 .row .mk{flex:none;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center;margin-top:3px}
 .row .mk.g{background:var(--line)}
@@ -312,8 +320,18 @@ function renderTop(){
 }
 
 // a call in the queue is a door to its box: click the row to open the box's card
-const callRow = (c, withButtons) => `<div class="row open-node" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}"><span class="mk ${c.from === 'Codex' ? 'g' : ''}">${c.id}</span><div style="flex:1">${c.text}<span class="who">${c.kind} · ${c.from}, ${c.ticket}${c.status !== 'open' ? ` · <b>${c.status} by ${c.by}, ${c.at}</b>${c.said ? `: ${c.said}` : ''}` : ''}</span>
-  ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Dispute</span></div>` : ''}</div></div>`;
+// written as a formal request: who asks whom, about which box, what they ask, what they need
+const agentOwner = (from) => from === 'Claude' ? 'Claude, for Harshit' : from === 'Codex' ? 'Codex, for Harshit' : from;
+const callRow = (c, withButtons) => `<div class="row open-node req" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}">
+  <div class="rq-head"><span class="mk ${c.from === 'Codex' ? 'g' : ''}">${c.id}</span><span>${c.ticket}</span><span class="rq-st">${c.status === 'open' ? 'needs an answer' : `${c.status} · ${c.at}`}</span></div>
+  <dl class="rq">
+    <dt>From</dt><dd>${agentOwner(c.from)}</dd>
+    <dt>To</dt><dd>${c.for}</dd>
+    <dt>About</dt><dd>${nodeById(c.node)?.label || c.node}</dd>
+    <dt>Asks</dt><dd class="rq-q">${c.text}</dd>
+    ${c.status === 'open' ? `<dt>Needs</dt><dd>${c.kind}: confirm or dispute</dd>` : `<dt>Answer</dt><dd><b>${c.by} ${c.status}</b>${c.said ? `: ${c.said}` : ''}</dd>`}
+  </dl>
+  ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Dispute</span></div>` : ''}</div>`;
 
 function renderQueue(){
   const mine = S.calls.filter((c) => c.for === ME), open = mine.filter((c) => c.status === 'open');
