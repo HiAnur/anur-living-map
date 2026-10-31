@@ -22,6 +22,23 @@ Open `index.html` in a browser. No build, no server.
 6. Run. Each step ticks off as it is built.
 7. Back out to the map, the branch checked.
 
+## Plan first (`plan-first.html`)
+
+The YC demo. Two agents and a team, one record, before and after the code.
+
+0. The prompt, in plan mode.
+1. Claude's plan is drawn on the team map in ink, no code yet; its guess (retire the renewal job) is dashed.
+2. A notification brings Priyanka (PM) to her queue: one call from Claude, one from Codex.
+3. She disputes with a click; the dashed line closes: keep the job for 312 annual customers.
+4. Inside Billing, Sam's Codex plan sits on the same map and checks out against what was agreed.
+5. You ask about upgrades on the flow: charged twice. Duy settles it.
+6. Duy approves; Claude builds; the map checks #212's diff against the plan.
+7. Sam's Codex opens #219: its code deletes the agreed schedule. The map strikes it and a check blocks the merge.
+8. Sam says fix it; Codex reads the agreement from Living Map and restores it.
+9. Nov 1, after the deploy: the decision held up, and the plan's ink settles into the system as it now runs.
+
+`plan-first.html#5` opens at step 5; `?rec` hides the controls for recording.
+
 ## Pro plan (`pro-plan.html`)
 
 The map zooms like Google Maps: the system, then one box's infrastructure, then one route's
@@ -44,3 +61,10 @@ controls for recording; the arrow keys still step. **‹ System** and **‹ Bill
 
 `scenario-2.html` is a draft of a second story: you come back to a chat that is a wall of
 tool lines, Claude asked something 58 steps ago, and the map has the question on top.
+
+## Skills (`.claude/skills/`)
+
+Claude Code picks these up in this repo.
+
+- `review-council`: the panel of subagent reviewers that must all approve a plan, and then the built screenshots, before the founder sees it. The panel is a thesis guardian (judged against the YC application), a Sr SDE, a Principal Engineer, a PM, a beautiful-UI reviewer, a keep-it-simple reviewer and an Anthropic "sherlock test". `plan-first.html` went through it.
+- `frontend-design`: Anthropic's frontend-design skill, copied unchanged from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design) under its Apache 2.0 license (`LICENSE.txt`). The UI reviewer judges against it.
