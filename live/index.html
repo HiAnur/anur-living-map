@@ -235,14 +235,25 @@ const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32' };
 const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`).join('')}</defs>`;
 
 // out of one box, into the next: straight when they line up, one elbow otherwise
+// A line leaves and enters on the sides that face each other: boxes mostly side
+// by side join left-to-right with one jog in the gap; boxes mostly above each
+// other join bottom-to-top the same way. So a line never runs along a box edge
+// or arrives where another line already does.
 function route(a, b, dup){
   // two lines between the same boxes sit 7px either side of the middle
-  const aw = W(a) / 2, bw = W(b) / 2, off = dup === null ? 0 : dup ? 7 : -7;
-  if (Math.abs(a.y - b.y) < 2) return a.x < b.x ? `M${a.x + aw} ${a.y + off}H${b.x - bw - 2}` : `M${a.x - aw} ${a.y + off}H${b.x + bw + 2}`;
-  if (Math.abs(a.x - b.x) < 2) return a.y < b.y ? `M${a.x} ${a.y + HT(a) / 2}V${b.y - HT(b) / 2 - 2}` : `M${a.x} ${a.y - HT(a) / 2}V${b.y + HT(b) / 2 + 2}`;
-  // sideways first, then up or down into the target
-  const sx = a.x < b.x ? a.x + aw : a.x - aw, ty = a.y < b.y ? b.y - HT(b) / 2 - 2 : b.y + HT(b) / 2 + 2;
-  return `M${sx} ${a.y}H${b.x}V${ty}`;
+  const off = dup === null ? 0 : dup ? 7 : -7;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  if (Math.abs(dx) >= Math.abs(dy)){
+    const sx = dx > 0 ? a.x + W(a) / 2 : a.x - W(a) / 2, tx = dx > 0 ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
+    const y1 = a.y + off, y2 = b.y + off;
+    if (Math.abs(dy) < 2) return `M${sx} ${y1}H${tx}`;
+    const mx = (sx + tx) / 2;
+    return `M${sx} ${y1}H${mx}V${y2}H${tx}`;
+  }
+  const sy = dy > 0 ? a.y + HT(a) / 2 : a.y - HT(a) / 2, ty = dy > 0 ? b.y - HT(b) / 2 - 2 : b.y + HT(b) / 2 + 2;
+  if (Math.abs(dx) < 2) return `M${a.x} ${sy}V${ty}`;
+  const my = (sy + ty) / 2;
+  return `M${a.x} ${sy}V${my}H${b.x}V${ty}`;
 }
 
 function render(){
@@ -303,7 +314,8 @@ const callRow = (c, withButtons) => `<div class="row"><span class="mk ${c.from =
 
 function renderQueue(){
   const mine = S.calls.filter((c) => c.for === ME), open = mine.filter((c) => c.status === 'open');
-  const others = S.calls.filter((c) => c.for !== ME && c.status === 'open');
+  // other people's queues are the admin's to see; everyone else sees only their own
+  const others = me().sees === 'all' ? S.calls.filter((c) => c.for !== ME && c.status === 'open') : [];
   const by = {}; for (const c of others) by[c.for] = (by[c.for] || 0) + 1;
   const chips = Object.entries(by).map(([p, n]) => `<a class="chip" href="?as=${p}" title="See the map as ${p}"><i style="background:${pcol(p)}">${p[0]}</i><b>${p}</b><span class="c">${n}</span></a>`).join('');
   const q = $('queue');
