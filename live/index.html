@@ -101,6 +101,9 @@ button,input{font:inherit;color:inherit}
 .pinc .cnt{position:absolute;right:-6px;top:-6px;min-width:16px;height:16px;border-radius:8px;background:#141413;color:#fff;font:500 10px/16px var(--plex);text-align:center;padding:0 4px}
 #thread{position:fixed;width:340px;z-index:18;display:none;padding:0}
 #thread.on{display:block}
+#thread.draft{width:300px;border-radius:18px}
+#thread.draft .th-reply{padding:6px}
+#thread.draft .th-reply input{border:0;background:transparent;height:32px}
 .th-head{display:flex;align-items:center;gap:6px;padding:12px 14px;border-bottom:1px solid var(--rule);font-weight:500}
 .th-head .sp{flex:1}
 .th-head .ib{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;cursor:pointer;color:var(--text-2)}
@@ -459,14 +462,21 @@ function renderComments(){
   const c = openThread && (S.comments || []).find((x) => x.id === openThread);
   if (!c && !draft){ th.classList.remove('on'); }
   else {
-    const p = c || draft, sx = p.x * cam.z + cam.x, sy = p.y * cam.z + cam.y + 44;
-    th.style.left = Math.min(innerWidth - 356, sx + 28) + 'px'; th.style.top = Math.max(56, Math.min(innerHeight - 320, sy - 40)) + 'px';
+    const p = c || draft;
+    th.classList.toggle('draft', !c);
     th.innerHTML = c ? `<div class="th-head">Comment<span class="sp"></span><span class="ib ${c.resolved ? 'done' : ''}" data-resolve="${c.id}" title="${c.resolved ? 'Reopen' : 'Resolve'}">✓</span><span class="ib" data-close-th title="Close">✕</span></div>
       <div class="th-body">${c.msgs.map((m) => `<div class="th-msg">${av(m.who)}<div><span class="who">${m.who}</span><span class="ago">${ago(m.at)}</span><div class="tx">${mention(m.text)}</div></div></div>`).join('')}</div>
       <form class="th-reply" data-reply="${c.id}">${av(ME)}<input placeholder="Reply" autocomplete="off"><button type="submit" title="Send">↑</button></form>`
-      : `<div class="th-head">New comment<span class="sp"></span><span class="ib" data-close-th title="Cancel">✕</span></div>
-      <form class="th-reply" data-new>${av(ME)}<input placeholder="Add a comment, @ to mention" autocomplete="off"><button type="submit" title="Post">↑</button></form>`;
+      // a new comment is one row beside its pin, the way Figma opens it
+      : `<form class="th-reply" data-new><input placeholder="Add a comment" autocomplete="off"><button type="submit" title="Post">↑</button></form>`;
     th.classList.add('on');
+    // its top sits level with the pin's top, just right of the pin; left of it if there is no room, and kept on screen
+    const r = canvas.getBoundingClientRect(), px = p.x * cam.z + cam.x + r.left, py = p.y * cam.z + cam.y + r.top;
+    const w = th.offsetWidth, h = th.offsetHeight, pinH = 30;
+    let left = px + 36, top = py - pinH;
+    if (left + w > innerWidth - 12) left = px - w - 8;
+    top = Math.max(r.top + 8, Math.min(innerHeight - h - 12, top));
+    th.style.left = left + 'px'; th.style.top = top + 'px';
     if (draft) setTimeout(() => th.querySelector('input')?.focus(), 0);
   }
   // every thread in the panel, newest first
