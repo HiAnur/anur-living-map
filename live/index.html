@@ -74,9 +74,9 @@ button,input{font:inherit;color:inherit}
 .node.locked .n{text-decoration:none}
 .nope{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:#f8f7f3;font-size:13px}
 .nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
-/* three marks only: blue = the plan builds or edits it, red dashed = the plan removes it, ? = your call */
-.node.new,.node.todo{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
-.node.new .n,.node.todo .n{color:var(--new)}
+/* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
+.node.new{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
+.node.new .n{color:var(--new)}
 .node.assumed-gone{border:1.5px dashed var(--gone);background:transparent}
 .node.assumed-gone .n{text-decoration:line-through;text-decoration-color:rgba(210,59,50,.7)}
 .node.gone{border:1px solid var(--rule);opacity:.45}
@@ -361,10 +361,12 @@ function render(){
     svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup)}" marker-end="url(#a-${k})"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
-      const level = Math.abs(a.y - b.y) < 2;
+      const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
       const off = dup === null ? 0 : dup ? 7 : -7;
       const x1 = a.x < b.x ? a.x + W(a) / 2 : a.x - W(a) / 2, x2 = level ? (a.x < b.x ? b.x - W(b) / 2 : b.x + W(b) / 2) : b.x;
-      const mx = (x1 + x2) / 2, my = a.y + off;
+      // a straight up-and-down line carries its words halfway between the two boxes
+      const mx = upright ? a.x : (x1 + x2) / 2;
+      const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : a.y + off;
       svg += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
     }
   }

@@ -125,7 +125,8 @@
     {
       "from": "billing",
       "to": "db",
-      "state": "new"
+      "state": "new",
+      "label": "+ plan column"
     },
     {
       "from": "renewal",
