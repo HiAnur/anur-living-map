@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · demo</title>
+<style>
+:root{
+  --bg:#0c0e11; --hair:#22262c;
+  --green:#3fb37f; --red:#e5534b; --amber:#d9a054; --grey:#4b515a; --purple:#a78bfa;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  --ease: cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-select:none;cursor:default}
+#app{display:flex;height:100vh}
+
+/* chat: the Claude desktop app's Code tab */
+#chat{width:40%;border-right:1px solid #2b2a27;background:#262624;color:#e8e6e1;display:flex;flex-direction:column;font:14px/1.55 var(--sans)}
+.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #31302d;font-size:13px;color:#c9c6be}
+.chead .br{color:#86837b;font:12px var(--mono)}
+#msgs{flex:1;overflow:hidden;padding:22px 22px 4px;display:flex;flex-direction:column;gap:14px}
+.bubble{align-self:flex-end;max-width:82%;background:#3a3935;color:#f3f1ec;border-radius:14px;padding:8px 13px}
+.say ul{margin:6px 0 0 18px;color:#d9d6cf}
+.say li{margin:2px 0}
+.tools{display:flex;flex-direction:column;gap:3px;border-left:1px solid #3d3c38;padding:2px 0 2px 12px;margin-left:2px}
+.tool{font-size:12.5px;display:flex;gap:8px;align-items:baseline}
+.tool .v{color:#bdb9b0;font-weight:500;min-width:34px}
+.tool .p{font:12px var(--mono);color:#a29e95}
+.tool .x{font:11.5px var(--mono);color:#7fae8a}
+.anim{animation:fadein .3s ease-out}
+.composer{flex:none;margin:12px 18px 18px;background:#30302e;border:1px solid #3e3d39;border-radius:16px;padding:12px 14px 10px}
+.field{min-height:22px;color:#f3f1ec}
+.ph{color:#7d7a72}
+.composer.has .ph{display:none}
+.caret{display:inline-block;width:1.5px;height:1.1em;background:#e8e6e1;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
+.crow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:#8a877f}
+.send{width:26px;height:26px;border-radius:8px;background:#c96442;color:#fff;display:grid;place-items:center;font-size:14px;opacity:.45;transition:opacity .2s ease-out}
+.composer.has .send{opacity:1}
+@keyframes blink{50%{opacity:0}}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* map, inside the app's browser pane */
+#map{width:60%;display:flex;flex-direction:column;background:#1f1e1d}
+.bbar{height:40px;flex:none;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid #2b2a27;color:#6f6c65;font:14px var(--sans)}
+.url{flex:1;background:#2a2927;border-radius:7px;padding:4px 12px;font-size:12px;color:#a8a49b}
+#canvas{flex:1;position:relative;overflow:hidden;background-color:#0d0f12;
+  background-image:radial-gradient(circle,#1a1e24 1px,transparent 1.3px);background-size:24px 24px}
+#canvas.notrans *{transition:none !important}
+
+/* level 1: the app as a mind map, root on the left; a click zooms into one branch */
+#tree{position:absolute;left:50%;top:50%;width:880px;height:640px;transition:opacity .4s ease-out}
+#tree.off{pointer-events:none}
+#tree.dim{opacity:.22}
+#treeIn{position:absolute;inset:0;transition:transform .45s var(--ease),opacity .4s ease-out}
+#treeIn.zoom{transform:scale(2.6);opacity:0}
+#tedges{position:absolute;left:0;top:0;width:880px;height:640px;overflow:visible}
+#tedges path{fill:none;stroke:#555d68;stroke-width:1.6;transition:opacity .3s ease-out}
+.tn{position:absolute;transform:translateY(-50%);display:flex;gap:9px;align-items:flex-start;padding:6px 12px 6px 9px;
+  background:#15181d;border:1px solid #343a42;border-radius:8px;transition:background .3s ease-out,border-color .3s ease-out}
+.tn.root{padding:8px 16px}
+.tn.root .tt{font-weight:600;font-size:14px;color:#eef0f3}
+.tn .tt{font:13px/1.35 var(--sans);color:#d6d9de;white-space:nowrap}
+.tn .td{font:11px/1.35 var(--sans);color:#8fb8a0;white-space:nowrap;margin-top:1px}
+.tn .gp{position:absolute;top:calc(100% + 6px);left:0;white-space:nowrap;font:11px/1.5 var(--sans);color:#a9b4ad;
+  background:#0f1512;border:1px solid rgba(63,179,127,.6);border-radius:999px;padding:1px 9px}
+.tn.fresh{border-color:var(--purple);background:#17141f;opacity:0;transition:opacity .35s ease-out,background .3s ease-out}
+.tn.fresh.on{opacity:1}
+.tn.fresh .td{color:#b8a6f0}
+.tn.hl{background:#262038}
+.tn.fresh.built{border-color:var(--green);background:#111a15}
+.tn.fresh.built .td{color:#8fb8a0}
+.cb{width:16px;height:16px;border:1.5px solid #4b515a;border-radius:4px;margin-top:2px;flex:none;display:grid;place-items:center;font:700 11px/1 var(--sans);color:#0d0f12}
+.cb.done{background:var(--green);border-color:var(--green)}
+/* a box spins while someone is working on that thing */
+.cb.busy{border-color:#3a4048;border-top-color:var(--purple);border-radius:50%;background:transparent;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
+.spin{width:12px;height:12px;border:1.5px solid #4a4944;border-top-color:#e8e6e1;border-radius:50%;animation:spin .8s linear infinite}
+
+/* level 2: one note opened, as the path the user walks */
+#stage{position:absolute;left:50%;top:50%;width:880px;height:640px;opacity:0;transition:opacity .4s ease-out}
+#stage.on{opacity:1}
+#stage.on.dim{opacity:.22}
+#edges{position:absolute;left:0;top:0;width:880px;height:640px;overflow:visible}
+#edges path{fill:none;transition:opacity .3s ease-out, stroke .35s ease-out}
+path.flow{stroke:#3d434b;stroke-width:1.4}
+path.cedge{stroke:#4b515a;stroke-width:1.4}
+/* an assumption to the team decision it touches: dashed while open, red where it is a risk, solid green once settled */
+path.rel{stroke:#5b626c;stroke-width:1.6;stroke-dasharray:6 5}
+path.rel.warn{stroke:var(--amber)}
+path.rel.bad{stroke:var(--red)}
+path.rel.green{stroke:var(--green);stroke-dasharray:none}
+
+.abs{position:absolute;transform:translate(-50%,-50%)}
+.fade{opacity:0;transition:opacity .35s ease-out}
+.fade.on{opacity:1}
+.crumb{left:75px;transform:translateY(-50%);display:flex;align-items:center;gap:8px;font:13px var(--sans);color:#6b727b;white-space:nowrap}
+.crumb b{font-weight:500;color:#eef0f3;font-size:14px}
+
+/* each step on the path is a task: empty box in the plan, spinning while built, ticked when done */
+.node{display:flex;align-items:center;gap:8px;background:#15181d;border:1px solid #343a42;border-radius:8px;padding:6px 13px 6px 10px;font:13px/1.4 var(--sans);color:#c9cfd6;white-space:nowrap}
+.node .cb{width:14px;height:14px;margin-top:0;font-size:10px}
+.run{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;font:12px var(--sans);color:#6b727b;white-space:nowrap}
+.run .rb{font:600 13px/1 var(--sans);color:#0d0f12;background:#4b515a;border-radius:8px;padding:9px 18px;transition:background .3s ease-out,box-shadow .3s ease-out}
+.run.ready .rb{background:var(--green)}
+.run.pressed .rb{background:#2f8a62;box-shadow:0 0 0 4px rgba(63,179,127,.25)}
+.btns button.pressed{background:#1d3328;border-color:var(--green);color:#bfe8d0}
+.frommap{font-size:12.5px;color:#b8a6f0}
+
+/* a team decision says "deployed" when it is live; it takes the colour of a warning on the assumption above it */
+.tchip{width:150px;background:#0f1512;border:1px solid rgba(63,179,127,.6);border-radius:8px;padding:7px 10px;font:11.5px/1.35 var(--sans);
+  transition:border-color .35s ease-out,background .35s ease-out}
+.tchip .dep{position:absolute;top:-9px;right:8px;font:600 9px/1.5 var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#0d0f12;background:var(--green);border-radius:999px;padding:0 7px}
+.tchip.warn{border-color:var(--amber);background:#1a1711}
+.tchip.bad{border-color:var(--red);background:#1c1413}
+.tchip .l{color:#d3e6da;font-weight:500}
+.tchip .w{color:#66766d;font-size:10.5px;margin-top:1px}
+.tchip .y{color:#9fb5a8;margin-top:3px}
+
+.xf{display:grid}
+.xf>span{grid-area:1/1;transition:opacity .35s ease-out}
+.xf>.b,.xf>.w{opacity:0}
+.xf.warn>.a{opacity:0}
+.xf.warn>.w{opacity:1}
+.xf.alt>.a,.xf.alt>.w{opacity:0}
+.xf.alt>.b{opacity:1}
+
+/* an assumption is purple; a ⚠ in the corner says think about this one; green once a person settles it */
+.card{width:150px;background:#17141f;border:1.5px solid var(--purple);border-radius:10px;padding:8px 10px 7px;font:12.5px/1.35 var(--sans);color:#e9e5f3;
+  box-shadow:0 0 0 3px rgba(167,139,250,.08);
+  opacity:0;transform:translate(-50%,-50%) translate(0,var(--dy)) scale(.94);
+  transition:transform .4s var(--ease),opacity .32s ease-out,border-color .35s ease-out,box-shadow .35s ease-out}
+.card.on{opacity:1;transform:translate(-50%,-50%) translate(0,0) scale(1)}
+.card.warn{border-color:var(--amber);background:#1a1711;box-shadow:0 0 0 3px rgba(217,160,84,.1)}
+.card.bad{border-color:var(--red);background:#1c1413;box-shadow:0 0 0 3px rgba(229,83,75,.12)}
+.card.green{border-color:var(--green);background:#111a15;box-shadow:0 0 0 3px rgba(63,179,127,.1)}
+.card .lab{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--purple)}
+.card.warn .lab{color:#e0b26a}
+.card.bad .lab{color:#ee9a93}
+.card .lab .b{color:#8fd3ae}
+.card .corner{position:absolute;top:-11px;right:-9px;font-size:15px;line-height:1;background:#0d0f12;border-radius:50%;padding:2px;
+  opacity:0;transform:scale(.6);transition:opacity .3s ease-out,transform .3s var(--ease)}
+.card .corner.bad{top:-9px;right:-8px;width:18px;height:18px;padding:0;background:var(--red);color:#fff;font:700 12px/18px var(--sans);text-align:center}
+.card .corner.ok{top:-9px;right:-8px;width:18px;height:18px;padding:0;background:var(--green);color:#fff;font:700 11px/18px var(--sans);text-align:center}
+.card.warn .corner,.card.isfair .corner{opacity:1;transform:scale(1)}
+.card .lab .b{color:#8fd3ae}
+.card .t{margin-top:3px}
+.btns{display:flex;justify-content:flex-end;gap:5px;margin-top:7px}
+.btns button{font:10.5px/1 var(--sans);color:#9aa1ab;background:#1a1e24;border:1px solid #2d3239;border-radius:5px;padding:3px 7px;cursor:pointer}
+
+.so{width:150px;transform:translate(-50%,0);font:11.5px/1.35 var(--sans);color:#b3bbc5}
+
+.badge{width:18px;height:18px;border-radius:50%;background:var(--green);color:#fff;font:700 11px/18px var(--sans);text-align:center;
+  transform:translate(-50%,-50%) scale(0);transition:transform .3s var(--ease)}
+.badge.on{transform:translate(-50%,-50%) scale(1)}
+
+.pulse2{animation:pulse2 .6s ease-out 2}
+@keyframes pulse2{0%{box-shadow:0 0 0 0 rgba(205,214,228,.55)}100%{box-shadow:0 0 0 9px rgba(205,214,228,0)}}
+
+#overlay{position:absolute;left:50%;top:50%;transform:translate(-50%,-46%);text-align:center;opacity:0;pointer-events:none;
+  transition:opacity .4s ease-out,transform .4s ease-out;width:90%}
+#overlay.on{opacity:1;transform:translate(-50%,-50%)}
+#overlay .o1,#overlay .o2{font:600 26px/1.35 var(--sans);color:#f3f5f8;letter-spacing:-.01em}
+#overlay .o2{color:#c7ccd3}
+#overlay .omono{margin-top:26px;font:12.5px/1.8 var(--mono);color:#7d848d}
+
+#nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:10px;font:11px var(--mono);color:#4f565f}
+#nav button{font:12px var(--sans);color:#c9cfd6;background:#1a1e24;border:1px solid #2d3239;border-radius:6px;padding:5px 11px;cursor:pointer}
+#nav button:hover{background:#232830}
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="chat">
+    <div class="chead"><span>acme-app</span><span class="br">⎇ main</span></div>
+    <div id="msgs"></div>
+    <div class="composer" id="composer">
+      <div class="field"><span id="input"></span><span class="caret"></span><span class="ph">Reply to Claude…</span></div>
+      <div class="crow"><span>Opus 5.5</span><span class="send">↑</span></div>
+    </div>
+  </section>
+  <section id="map">
+    <div class="bbar"><span>‹ › ↻</span><div class="url">localhost:4317/map</div></div>
+    <div id="canvas">
+      <div id="tree"><div id="treeIn"><svg id="tedges" viewBox="0 0 880 640"><defs></defs></svg></div></div>
+      <div id="stage"><svg id="edges" viewBox="0 0 880 640"><defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#3d434b"/></marker>
+      </defs></svg></div>
+      <div id="overlay">
+        <p class="o1">Claude assumed three things.</p>
+        <p class="o2">You caught two before it built anything.</p>
+        <div class="omono"><div>$ git clone https://github.com/HiAnur/living-map ~/living-map</div><div>github.com/HiAnur/living-map</div></div>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="nav"><button id="backb">‹ Back</button><span id="counter">0 / 6</span><button id="nextb">Next ›</button></div>
+
+<script>
+const LAST = 6, W = 880, H = 640;
+const canvas = document.getElementById('canvas');
+const tree = document.getElementById('tree');
+const treeIn = document.getElementById('treeIn');
+const tsvg = document.getElementById('tedges');
+const stage = document.getElementById('stage');
+const svg = document.getElementById('edges');
+const defs = svg.querySelector('defs');
+const overlay = document.getElementById('overlay');
+const msgs = document.getElementById('msgs');
+const input = document.getElementById('input');
+const composer = document.getElementById('composer');
+const counter = document.getElementById('counter');
+
+// Level 1: the app as a mind map, one node per thing built, with the decision made there.
+const TREE = {
+  root: {x:40, y:371, l:'acme-app'},
+  groups: [
+    {k:'accounts', x:230, y:169, l:'accounts'},
+    {k:'email',    x:230, y:413, l:'email', d:'Postmark, not SendGrid · @harshit · Sep 30'},
+    {k:'admin',    x:230, y:573, l:'admin'},
+  ],
+  leaves: [
+    {g:'accounts', x:520, y:70,  l:'sign in', d:'signed in 15 min, then out · @harshit · Oct 14'},
+    {g:'accounts', x:520, y:136, l:'sign up'},
+    {g:'accounts', x:520, y:202, l:'rate limiting', d:'5 tries per 10 min · @priyanka · Oct 9'},
+    {g:'email',    x:520, y:380, l:'notifications'},
+    {g:'email',    x:520, y:446, l:'background jobs'},
+    {g:'admin',    x:520, y:540, l:'admin panel'},
+    {g:'admin',    x:520, y:606, l:'audit log', d:'every change logged · @duy · Oct 2'},
+  ],
+  fresh: {g:'accounts', x:520, y:268, l:'password reset flow', d:'Claude · plan · 3 assumptions · 2 to think about'},
+};
+
+// Level 2: one note opened. The feature as the user walks it, left to right. Under each
+// step: what Claude chose, what the team settled there (and why), and what that means.
+const COLS = [150, 310, 470, 630, 790];
+const Y = {crumb:34, flow:108, card:200, chip:332, so:448, run:590};
+const STEPS = ['forgot password', 'email arrives', 'opens the link', 'new password', 'signed in'];
+const K = {
+  rate:     {col:0, l:'5 tries per 10 min',         who:'@priyanka · Oct 9', why:'bots were hammering it'},
+  email:    {col:1, l:'Postmark, not SendGrid',     who:'@harshit · Sep 30', why:'one vendor, one bill'},
+  audit:    {col:3, l:'every change logged',        who:'@duy · Oct 2',      why:'auditors ask who did what'},
+  sessions: {col:2, l:'signed in 15 min, then out', who:'@harshit · Oct 14', why:'shared laptops at the clinic'},
+};
+const C = [
+  {col:1, a:'sends the email through SendGrid', b:'sends the email through Postmark',
+   so:'two vendors, two bills, two places to break', so2:'one vendor, as the team agreed', chip:'email'},
+  {col:2, a:'the reset link never expires', b:'the reset link dies after 15 min', bad:true,
+   so:'a reset email left open in June still opens the account in October', so2:'a stale reset email is useless after 15 min', chip:'sessions'},
+  {col:3, a:'keeps the reset code on the users table', so:'nothing the team settled says otherwise'},
+];
+const T = [
+  {s:1, k:'type', t:'add a password reset flow'},
+  {s:2, k:'submit'},
+  {s:2, k:'spin'},
+  {s:2, k:'say', t:"I'll plan it on your map first."},
+  {s:2, k:'spin'},
+  {s:2, k:'tool', v:'Read', p:'auth/routes.ts'},
+  {s:2, k:'tool', v:'Read', p:'services/email.ts'},
+  {s:2, k:'say', t:'Plan is on the map: 5 steps, 3 assumptions. Two are worth a look against what the team settled. Confirm or fix them there, then hit Run.'},
+  {s:4, k:'map', t:'From your map: @duy fixed 2 assumptions and confirmed 1.'},
+  {s:4, k:'say', t:'Plan updated. Hit Run when you are ready.'},
+  {s:5, k:'submit', t:'Run the plan'},
+  {s:5, k:'spin'},
+  {s:5, k:'say', t:'Running the plan.'},
+  {s:5, k:'spin'},
+  {s:5, k:'tool', v:'Write', p:'migrations/004_reset_token.sql', x:'+12'},
+  {s:5, k:'tool', v:'Edit', p:'auth/routes.ts', x:'+46'},
+  {s:5, k:'tool', v:'Edit', p:'services/email.ts', x:'+18'},
+  {s:5, k:'tool', v:'Write', p:'web/reset-page.tsx', x:'+58'},
+  {s:5, k:'wait', ms:2500},
+  {s:5, k:'say', t:'Done. All five steps built, matching what the team settled.'},
+];
+
+/* ---------- build ---------- */
+let scale = 1;
+function fit(){
+  const r = canvas.getBoundingClientRect();
+  scale = Math.min(r.width / W, r.height / H) * 0.95;
+  stage.style.transform = tree.style.transform = `translate(-50%,-50%) scale(${scale})`;
+}
+function div(cls, text){ const d = document.createElement('div'); d.className = cls; if (text) d.textContent = text; return d; }
+function span(cls, t){ const s = document.createElement('span'); s.className = cls; s.textContent = t; return s; }
+// text with a before state, an optional warning state, and an after state, crossfaded in place
+function xf(a, b, cls, w){
+  const d = div('xf ' + (cls || ''));
+  d.appendChild(span('a', a)); if (w) d.appendChild(span('w', w)); d.appendChild(span('b', b || ''));
+  return d;
+}
+function place(el, x, y){ el.style.left = x + 'px'; el.style.top = y + 'px'; stage.appendChild(el); return el; }
+const svgEl = t => document.createElementNS('http://www.w3.org/2000/svg', t);
+function box(el, cx, cy){ const w = el.offsetWidth, h = el.offsetHeight; return {l:cx - w/2, r:cx + w/2, t:cy - h/2, b:cy + h/2}; }
+
+// Lines that appear later draw in through a mask, so dashed ones draw in too.
+let masks = 0;
+function mkPath(d, cls, marker, into = svg){
+  const defs = into.querySelector('defs');
+  const p = svgEl('path');
+  p.setAttribute('d', d); p.setAttribute('class', cls);
+  if (marker) p.setAttribute('marker-end', 'url(#arr)');
+  into.appendChild(p);
+  const id = 'm' + (masks++);
+  const m = svgEl('mask');
+  m.setAttribute('id', id); m.setAttribute('maskUnits', 'userSpaceOnUse');
+  m.setAttribute('x', -100); m.setAttribute('y', -100); m.setAttribute('width', W + 200); m.setAttribute('height', H + 200);
+  const mp = svgEl('path');
+  mp.setAttribute('d', d); mp.setAttribute('fill', 'none'); mp.setAttribute('stroke', '#fff'); mp.setAttribute('stroke-width', 12);
+  m.appendChild(mp); defs.appendChild(m);
+  p.setAttribute('mask', `url(#${id})`);
+  const len = p.getTotalLength() + 8;
+  mp.style.strokeDasharray = `${len} ${len}`;
+  mp.style.strokeDashoffset = len;
+  p.style.opacity = 0;
+  return {p, mp, len, on:false, raf:0};
+}
+
+// level 1
+fit();
+function tnode(n, cls){
+  const d = div('tn ' + cls);
+  if (cls !== 'root') d.appendChild(div('cb' + (cls === 'fresh' ? '' : ' done'), cls === 'fresh' ? '' : '✓'));
+  const body = div('');
+  body.appendChild(div('tt', n.l));
+  // a group's decision hangs under its box, so the box stays narrow
+  if (n.d && cls === 'group') d.appendChild(div('gp', n.d));
+  else if (n.d) body.appendChild(n.td = div('td', n.d));
+  d.appendChild(body);
+  d.style.left = n.x + 'px'; d.style.top = n.y + 'px';
+  treeIn.appendChild(d);
+  n.el = d; n.cb = d.firstChild;
+  return n;
+}
+// parent's right edge to child's left edge, with one bend halfway
+function hElbow(p, c, r = 8){
+  const x1 = p.x + p.el.offsetWidth, y1 = p.y, x2 = c.x, y2 = c.y, xm = (x1 + x2) / 2;
+  if (Math.abs(y2 - y1) < 1) return `M${x1} ${y1}H${x2}`;
+  const s = Math.sign(y2 - y1);
+  return `M${x1} ${y1}H${xm - r}Q${xm} ${y1} ${xm} ${y1 + s * r}V${y2 - s * r}Q${xm} ${y2} ${xm + r} ${y2}H${x2}`;
+}
+tnode(TREE.root, 'root');
+const G = {};
+TREE.groups.forEach(g => { G[g.k] = tnode(g, 'group'); });
+TREE.leaves.forEach(n => tnode(n, 'leaf'));
+const fresh = tnode(TREE.fresh, 'fresh');
+[...TREE.groups.map(g => [TREE.root, g]), ...TREE.leaves.map(n => [G[n.g], n])]
+  .forEach(([p, c]) => setLine(mkPath(hElbow(p, c), '', false, tsvg), true, false));
+fresh.edge = mkPath(hElbow(G[fresh.g], fresh), '', false, tsvg);
+treeIn.style.transformOrigin = `${fresh.x + fresh.el.offsetWidth / 2}px ${fresh.y}px`;
+
+// level 2
+const crumb = place(div('abs crumb fade'), 0, Y.crumb);
+const crumbCb = div('cb', '');
+crumb.append(span('', 'acme-app  ›  accounts  ›'), crumbCb, (() => { const b = document.createElement('b'); b.textContent = TREE.fresh.l; return b; })());
+function setCb(cb, state){ cb.className = 'cb' + (state ? ' ' + state : ''); cb.textContent = state === 'done' ? '✓' : ''; }
+const steps = STEPS.map((l, i) => {
+  const el = div('abs node fade'), cb = div('cb', '');
+  el.append(cb, span('', l));
+  place(el, COLS[i], Y.flow);
+  return {el, cb};
+});
+const run = place(div('abs run fade'), 470, Y.run);
+const runNote = span('', ''), runBtn = div('rb', '▶ Run');
+run.append(runNote, runBtn);
+
+for (const k of Object.values(K)){
+  k.el = div('abs tchip fade');
+  k.el.append(div('dep', 'deployed'), div('l', k.l), div('w', k.who), div('y', 'why: ' + k.why));
+  place(k.el, COLS[k.col], Y.chip);
+}
+C.forEach(c => {
+  c.x = COLS[c.col];
+  c.el = div('abs card open');
+  c.el.style.setProperty('--dy', (Y.flow - Y.card) + 'px');
+  c.lab = xf(c.chip ? 'Claude assumed' : 'Claude assumed · fair', c.chip ? '@duy fixed · today' : '@duy confirmed · today', 'lab',
+    c.bad ? 'Claude assumed · risky' : c.chip ? 'Claude assumed · think about this' : ''); c.el.appendChild(c.lab);
+  c.el.appendChild(c.bad ? div('corner bad', '!') : c.chip ? div('corner', '⚠') : div('corner ok', '✓'));
+  c.txt = xf(c.a, c.b, 't'); c.el.appendChild(c.txt);
+  const btns = div('btns');
+  [['btnConfirm', 'Confirm'], ['btnFix', 'Fix']].forEach(([k, t]) => { const b = document.createElement('button'); b.textContent = t; btns.appendChild(c[k] = b); });
+  c.el.appendChild(btns);
+  place(c.el, c.x, Y.card);
+  c.soBody = xf('so: ' + c.so, c.so2 ? 'so: ' + c.so2 : '');
+  c.soEl = div('abs so fade'); c.soEl.appendChild(c.soBody);
+  place(c.soEl, c.x, Y.so);
+});
+
+// lines, now that every box has a size
+const arrows = steps.slice(0, -1).map((st, i) => {
+  const a = box(st.el, COLS[i], Y.flow), b = box(steps[i + 1].el, COLS[i + 1], Y.flow);
+  return mkPath(`M${a.r + 4} ${Y.flow}H${b.l - 5}`, 'flow', true);
+});
+C.forEach(c => {
+  const sb = box(steps[c.col].el, c.x, Y.flow), cb = box(c.el, c.x, Y.card);
+  c.edge = mkPath(`M${c.x} ${sb.b}V${cb.t}`, 'cedge');
+  c.bottom = cb.b;
+});
+C.filter(c => c.chip).forEach(c => {
+  const chipTop = Y.chip - K[c.chip].el.offsetHeight / 2;
+  c.rel = mkPath(`M${c.x} ${c.bottom}V${chipTop}`, 'rel');
+  c.badge = place(div('abs badge', '✓'), c.x, (c.bottom + chipTop) / 2);
+});
+
+/* ---------- primitives ---------- */
+let step = 0, token = 0, timers = [];
+
+function setLine(L, on, A){
+  if (A && L.on === on) return;
+  cancelAnimationFrame(L.raf);
+  L.on = on;
+  if (!on){ L.p.style.opacity = 0; return; }
+  L.p.style.opacity = 1;
+  if (!A){ L.mp.style.strokeDashoffset = 0; return; }
+  L.mp.style.strokeDashoffset = L.len;
+  const t0 = performance.now();
+  const tick = now => {
+    const p = Math.min(1, (now - t0) / 380), e = 1 - Math.pow(1 - p, 3);
+    L.mp.style.strokeDashoffset = L.len * (1 - e);
+    if (p < 1) L.raf = requestAnimationFrame(tick);
+  };
+  L.raf = requestAnimationFrame(tick);
+}
+function pulse(el, cls){
+  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  el.addEventListener('animationend', function h(e){
+    if (e.target !== el) return;
+    el.classList.remove(cls); el.removeEventListener('animationend', h);
+  });
+}
+function setState(c, st){ c.el.classList.remove('open', 'green'); c.el.classList.add(st); }
+
+/* ---------- map ---------- */
+function renderMap(s, A){
+  const at = (ms, fn) => A ? timers.push(setTimeout(fn, ms)) : fn();
+  const opening = A && s === 3, fixing = A && s === 4, running = A && s === 5, closing = A && s === 6;
+
+  // level 1: the new branch grows, gets clicked and the map zooms into it; at the end it
+  // zooms back out, with the branch ticked
+  fresh.el.classList.toggle('on', s >= 2);
+  setLine(fresh.edge, s >= 2, A);
+  fresh.el.classList.toggle('hl', s === 3);
+  at(closing ? 500 : 0, () => {
+    fresh.el.classList.toggle('built', s >= 6);
+    setCb(fresh.cb, s >= 6 ? 'done' : '');
+    fresh.td.textContent = s >= 6 ? 'built · @duy · today' : TREE.fresh.d;
+  });
+  const inside = s >= 3 && s < 6;
+  const sw = opening ? 450 : closing ? 100 : 0;
+  at(sw, () => { treeIn.classList.toggle('zoom', inside); tree.classList.toggle('off', inside); });
+  at(closing ? 0 : sw + (opening ? 250 : 0), () => stage.classList.toggle('on', inside));
+  at(closing ? 1100 : 0, () => tree.classList.toggle('dim', s >= 6));
+
+  // level 2: one click and the whole plan builds out: the path, what the team settled on
+  // it, every assumption Claude made, and a warning where it should not have assumed
+  const d0 = sw + (opening ? 450 : 0);
+  at(d0, () => crumb.classList.toggle('on', s >= 3));
+  steps.forEach((st, i) => at(d0 + i * 90, () => st.el.classList.toggle('on', s >= 3)));
+  arrows.forEach((L, i) => at(d0 + 120 + i * 90, () => setLine(L, s >= 3, A)));
+  at(d0 + 450, () => { for (const k of Object.values(K)) k.el.classList.toggle('on', s >= 3); });
+  C.forEach((c, i) => {
+    const d = d0 + (opening ? 650 + i * 260 : 0);
+    at(d, () => c.el.classList.toggle('on', s >= 3));
+    at(d + 80, () => setLine(c.edge, s >= 3, A));
+  });
+  at(d0 + (opening ? 850 : 0), () => C.filter(c => c.chip).forEach(c => setLine(c.rel, s >= 3, A)));
+  at(d0 + (opening ? 2900 : 0), () => run.classList.toggle('on', s >= 3));
+
+  // two assumptions get a ⚠ to think about; then your fixes and confirm, pressed on the map
+  [0, 1].forEach(i => {
+    const c = C[i], d = opening ? d0 + 1500 + i * 650 : fixing ? 300 + i * 700 : 0;
+    if (fixing) at(d - 300, () => c.btnFix.classList.add('pressed'));
+    at(d, () => {
+      setState(c, s >= 4 ? 'green' : 'open');
+      c.el.classList.toggle('warn', s === 3);
+      c.el.classList.toggle('bad', !!c.bad && s === 3);
+      c.lab.classList.toggle('warn', s === 3);
+      c.lab.classList.toggle('alt', s >= 4);
+      c.txt.classList.toggle('alt', s >= 4);
+      c.soEl.classList.toggle('on', s >= 3);
+      c.soBody.classList.toggle('alt', s >= 4);
+      c.btnFix.classList.toggle('pressed', s >= 4);
+      // the decision box under it takes the same colour, so the column reads as one
+      const grade = s >= 4 ? 'green' : s === 3 ? (c.bad ? 'bad' : 'warn') : '';
+      K[c.chip].el.classList.toggle('warn', grade === 'warn');
+      K[c.chip].el.classList.toggle('bad', grade === 'bad');
+      c.rel.p.setAttribute('class', 'rel ' + grade);
+    });
+    if (opening) at(d + 200, () => pulse(K[c.chip].el, 'pulse2'));
+    at(fixing ? d + 150 : 0, () => c.badge.classList.toggle('on', s >= 4));
+  });
+  {
+    const c = C[2], d = fixing ? 1700 : 0;
+    // a fair assumption is green from the start; confirming it only puts a name on it
+    at(opening ? d0 + 2600 : 0, () => { c.el.classList.toggle('isfair', s >= 3); setState(c, s >= 3 ? 'green' : 'open'); });
+    if (fixing) at(d, () => c.btnConfirm.classList.add('pressed'));
+    at(d + (fixing ? 300 : 0), () => {
+      c.lab.classList.toggle('alt', s >= 4);
+      c.soEl.classList.toggle('on', s >= 4);
+      c.btnConfirm.classList.toggle('pressed', s >= 4);
+    });
+  }
+
+  // Run waits until nothing clashes; the tasks tick off as they are built
+  at(fixing ? 2300 : 0, () => {
+    run.classList.toggle('ready', s >= 4);
+    run.classList.toggle('pressed', s >= 5);
+    runNote.textContent = s >= 5 ? 'built' : s >= 4 ? 'all settled' : '2 assumptions to think about';
+    runBtn.textContent = s >= 5 ? '✓ Ran' : '▶ Run';
+  });
+  if (!running){
+    steps.forEach(st => setCb(st.cb, s >= 5 ? 'done' : ''));
+    setCb(crumbCb, s >= 5 ? 'done' : '');
+  }
+
+  at(closing ? 1400 : 0, () => overlay.classList.toggle('on', s >= 6));
+}
+
+/* ---------- chat ---------- */
+function setInput(t){ input.textContent = t; composer.classList.toggle('has', !!t); }
+let spinEl = null;
+// the spinner stays last while Claude works; Claude's next words replace it
+function addMsg(el, anim){ if (anim) el.classList.add('anim'); msgs.insertBefore(el, spinEl); msgs.scrollTop = msgs.scrollHeight; }
+function apply(e, anim){
+  if (e.k === 'type') setInput(e.t);
+  else if (e.k === 'wait') return;
+  else if (e.k === 'submit'){ addMsg(div('bubble', e.t || input.textContent), anim); setInput(''); }
+  else if (e.k === 'map'){ if (spinEl){ spinEl.remove(); spinEl = null; } addMsg(div('frommap', e.t), anim); }
+  else if (e.k === 'spin'){
+    if (spinEl) spinEl.remove();
+    spinEl = div('working'); spinEl.append(div('spin'), span('', 'Working…'));
+    msgs.appendChild(spinEl);
+  }
+  else if (e.k === 'say'){
+    if (spinEl){ spinEl.remove(); spinEl = null; }
+    const d = div('say', e.t);
+    if (e.li){
+      const ul = document.createElement('ul');
+      e.li.forEach(t => { const li = document.createElement('li'); li.textContent = t; ul.appendChild(li); });
+      d.appendChild(ul);
+    }
+    addMsg(d, anim);
+  } else {
+    // tool calls in a row share one group, as the app shows them
+    let g = spinEl ? spinEl.previousElementSibling : msgs.lastElementChild;
+    if (!g || !g.classList.contains('tools')){ g = div('tools'); addMsg(g, false); }
+    const r = div('tool' + (anim ? ' anim' : ''));
+    r.append(span('v', e.v), span('p', e.p));
+    if (e.x) r.append(span('x', e.x));
+    g.appendChild(r);
+  }
+}
+function chatStatic(s){
+  msgs.textContent = ''; spinEl = null; setInput('');
+  T.filter(e => e.s <= s).forEach(e => apply(e, false));
+}
+// the moment a request is sent, the map shows who is working where
+function onSubmit(s){
+  if (s === 2){
+    fresh.el.classList.add('on'); setCb(fresh.cb, 'busy');
+    fresh.td.textContent = 'Claude · planning';
+    setLine(fresh.edge, true, true);
+  }
+  if (s === 5){
+    setCb(crumbCb, 'busy');
+    steps.forEach((st, i) => {
+      timers.push(setTimeout(() => setCb(st.cb, 'busy'), 200 + i * 800));
+      timers.push(setTimeout(() => setCb(st.cb, 'done'), 900 + i * 800));
+    });
+    timers.push(setTimeout(() => setCb(crumbCb, 'done'), 900 + 4 * 800));
+  }
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function chatAnim(s, tok){
+  for (const e of T.filter(e => e.s === s)){
+    if (e.k === 'type'){
+      for (let i = 1; i <= e.t.length; i++){
+        await wait(40); if (tok !== token) return;
+        setInput(e.t.slice(0, i));
+      }
+    } else if (e.k === 'wait'){
+      await wait(e.ms); if (tok !== token) return;
+    } else {
+      await wait(e.k === 'tool' ? 200 : e.k === 'submit' ? 300 : e.k === 'spin' ? 150 : 650); if (tok !== token) return;
+      apply(e, true);
+      if (e.k === 'submit') onSubmit(s);
+    }
+  }
+}
+
+/* ---------- stepping ---------- */
+function go(t, A){
+  token++; timers.forEach(clearTimeout); timers = [];
+  const tok = token;
+  const base = A ? t - 1 : t;
+  canvas.classList.add('notrans');
+  chatStatic(base); renderMap(base, false);
+  void canvas.offsetWidth;
+  canvas.classList.remove('notrans');
+  step = t; counter.textContent = t + ' / ' + LAST;
+  if (!A) return;
+  if (t === 4 || t === 5){
+    // you act on the map first; the chat hears about it after
+    renderMap(t, true);
+    timers.push(setTimeout(() => chatAnim(t, tok), t === 4 ? 2600 : 700));
+  } else chatAnim(t, tok).then(() => { if (tok === token) renderMap(t, true); });
+}
+const next = () => step >= LAST ? go(0, false) : go(step + 1, true);
+const prev = () => { if (step > 0) go(step - 1, false); };
+
+document.getElementById('nextb').addEventListener('click', e => { e.stopPropagation(); next(); });
+document.getElementById('backb').addEventListener('click', e => { e.stopPropagation(); prev(); });
+document.addEventListener('click', e => { if (!e.target.closest('button, a')) next(); });
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+  else if (e.key === 'Backspace' || e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+});
+window.addEventListener('resize', fit);
+go(0, false);
+</script>
+</body>
+</html>
