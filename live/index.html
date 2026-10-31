@@ -44,7 +44,11 @@ button,input{font:inherit;color:inherit}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
 #edges > path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .3s}
 #edges > path.old{stroke:var(--line);stroke-width:1.2}
-#edges > path.new{stroke:var(--new)}
+/* what the plan builds is alive: its lines flow toward where they go, its boxes breathe */
+#edges > path.new{stroke:var(--new);stroke-dasharray:7 5;animation:flow .9s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-12}}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(47,111,228,0)}50%{box-shadow:0 0 0 6px rgba(47,111,228,.16)}}
+@media (prefers-reduced-motion: reduce){#edges > path.new,.node.node.new,.node.node.todo,#legend i.n{animation:none}}
 #edges > path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 #edges text.new{fill:var(--new)}
@@ -71,7 +75,7 @@ button,input{font:inherit;color:inherit}
 .nope{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:#f8f7f3;font-size:13px}
 .nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
 /* three marks only: blue = the plan builds or edits it, red dashed = the plan removes it, ? = your call */
-.node.new,.node.todo{border:1.5px solid var(--new);background:var(--new-tint)}
+.node.new,.node.todo{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
 .node.new .n,.node.todo .n{color:var(--new)}
 .node.assumed-gone{border:1.5px dashed var(--gone);background:transparent}
 .node.assumed-gone .n{text-decoration:line-through;text-decoration-color:rgba(210,59,50,.7)}
@@ -208,7 +212,8 @@ a{color:inherit;text-decoration:none}
 .chk .d{display:block;color:var(--text);margin-top:3px}
 #legend{position:fixed;left:16px;bottom:16px;display:flex;gap:16px;font-size:12px;color:var(--text-2);z-index:10}
 #legend i{display:inline-block;width:22px;height:0;border-top:1.5px solid var(--text-2);vertical-align:middle;margin-right:6px}
-#legend i.n{border-top-color:var(--new)}#legend i.d{border-top-style:dashed;border-top-color:var(--gone)}
+#legend i.n{border:0;height:2px;background:repeating-linear-gradient(90deg,var(--new) 0 6px,transparent 6px 10px);background-size:20px 2px;animation:flowx .9s linear infinite}
+@keyframes flowx{to{background-position:20px 0}}#legend i.d{border-top-style:dashed;border-top-color:var(--gone)}
 #legend i.q{width:16px;height:16px;border:0;border-radius:50%;background:var(--claude);color:#fff;font:600 10px/16px var(--plex);text-align:center;font-style:normal;margin-right:7px}
 #foot{position:fixed;right:16px;bottom:16px;display:flex;gap:8px;z-index:10}
 /* the tools dock: looks only, the pointer is the one tool that does anything */
@@ -239,7 +244,7 @@ body.rec #foot,body.rec #legend{display:none}
 <div class="panel" id="prs"></div>
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
-<div id="legend"><span><i class="n"></i>Plan changes it</span><span><i class="d"></i>Plan removes it</span><span><i class="q">?</i>Your call</span></div>
+<div id="legend"><span><i class="n"></i>Plan changes it</span><span><i class="d"></i>Plan removes it</span><span><i class="q">?</i>Needs clarifying</span></div>
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
   <span class="tb" data-tool="hand" title="Pan"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
@@ -376,7 +381,7 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">?</span>` : ''}
+      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="Needs clarifying: ${open.find((c) => c.for === ME).ask || ''}">?</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -411,7 +416,7 @@ function renderQueue(){
   const q = $('queue');
   q.classList.toggle('quiet-card', !open.length);
   if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to answer</span>'; return; }
-  q.innerHTML = `<div class="ct">Your call <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
+  q.innerHTML = `<div class="ct">Needs clarifying <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
 }
 
 function renderSide(){
