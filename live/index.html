@@ -147,6 +147,15 @@ button,input{font:inherit;color:inherit}
 .row:first-of-type{border-top:0}
 .row.open-node{cursor:pointer;border-radius:6px}
 .row.req{display:block;padding:10px 0}
+.ct .ca-n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;margin-left:6px;padding:0 5px}
+.row.ca{display:block;padding:10px 8px;margin:0 -8px}
+.ca-head{font-size:12px;color:var(--text-2)}
+.ca-ag{color:var(--claude);font-weight:500}.ca-ag.cx{color:var(--text)}
+.ca-on{color:var(--text-3)}
+.ca-q{font-size:14px;font-weight:500;margin-top:3px}
+.ca-why{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.ca-done{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.node .mk.p.yours{background:var(--claude)}
 .rq-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2);margin-bottom:6px}
 .rq-head .mk{margin-top:0}
 .rq-head .rq-st{margin-left:auto;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--todo);background:#fff6d6;color:#7a5a00}
@@ -350,7 +359,7 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.length ? `<span class="mk p" style="background:${pcol(open[0].for)}" title="Waiting on ${open[0].for}">${open[0].for}</span>` : ''}
+      ${open.some((c) => c.for === ME) ? '<span class="mk p yours" title="Claude needs you to confirm this">Confirm</span>' : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -372,38 +381,20 @@ function renderTop(){
   $('prbtn').classList.toggle('on', prsOpen);
 }
 
-// a call in the queue is a door to its box: click the row to open the box's card
-// written as a formal request: who asks whom, about which box, what they ask, what they need
-const agentOwner = (from) => from === 'Claude' ? 'Claude, for Harshit' : from === 'Codex' ? 'Codex, for Harshit' : from;
-const callRow = (c, withButtons) => `<div class="row open-node req" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}">
-  <div class="rq-head"><span class="mk ${c.from === 'Codex' ? 'g' : ''}">${c.id}</span><span>${c.ticket}</span><span class="rq-st">${c.status === 'open' ? 'needs an answer' : `${c.status} · ${c.at}`}</span></div>
-  <dl class="rq">
-    <dt>From</dt><dd>${agentOwner(c.from)}</dd>
-    <dt>To</dt><dd>${c.for}</dd>
-    <dt>About</dt><dd>${nodeById(c.node)?.label || c.node}</dd>
-    ${c.context ? `<dt>Why</dt><dd class="rq-why">${c.context}</dd>` : ''}
-    <dt>Asks</dt><dd class="rq-q">${c.text}</dd>
-    ${c.status === 'open' ? `<dt>Needs</dt><dd>${c.kind}. ${c.needs || 'Confirm or dispute'}.</dd>` : `<dt>Answer</dt><dd><b>${c.by} ${c.status}</b>${c.said ? `: ${c.said}` : ''}</dd>`}
-  </dl>
-  ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Dispute</span></div>` : ''}</div>`;
+// What the agent assumed and needs you to confirm before it builds: one line it believes, one line why it
+// matters, and your answer back to it. Click the row to open the box it is about. Talking to people is comments.
+const callRow = (c, withButtons) => `<div class="row open-node ca" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}">
+  <div class="ca-head"><span class="ca-ag ${c.from === 'Codex' ? 'cx' : ''}">${c.from === 'Codex' ? 'Codex' : '✳ Claude'}</span> assumed <span class="ca-on">· ${nodeById(c.node)?.label || c.node}</span></div>
+  <div class="ca-q">${c.assume || c.text}</div>
+  ${c.status === 'open' ? `<div class="ca-why">${c.short || c.context || ''}</div>` : `<div class="ca-done">${c.status === 'confirmed' ? '✓ You confirmed' : '✕ You said no'}${c.said ? `: ${c.said}` : ''}</div>`}
+  ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Not right</span></div>` : ''}</div>`;
 
 function renderQueue(){
-  const mine = S.calls.filter((c) => c.for === ME), open = mine.filter((c) => c.status === 'open');
-  // other people's queues are the admin's to see; everyone else sees only their own
-  const others = me().sees === 'all' ? S.calls.filter((c) => c.for !== ME && c.status === 'open') : [];
-  const by = {}; for (const c of others) by[c.for] = (by[c.for] || 0) + 1;
-  const chips = Object.entries(by).map(([p, n]) => `<a class="chip" href="?as=${p}" title="See the map as ${p}"><i style="background:${pcol(p)}">${p[0]}</i><b>${p}</b><span class="c">${n}</span></a>`).join('');
+  const open = S.calls.filter((c) => c.for === ME && c.status === 'open');
   const q = $('queue');
-  // nothing on you: one quiet line with who is up instead of an empty card
   q.classList.toggle('quiet-card', !open.length);
-  if (!open.length){
-    q.innerHTML = `<span class="quiet">${chips ? 'Waiting on' : 'Nothing waiting'}</span><div class="chips">${chips}</div>`;
-    return;
-  }
-  q.innerHTML = `<div class="ct">${open.length} waiting on ${ME}</div>
-    ${open.map((c) => callRow(c, true)).join('')}
-    ${mine.filter((c) => c.status !== 'open').map((c) => `<div class="done">${c.status} ${c.at}: ${c.text}</div>`).join('')}
-    ${chips ? `<div class="chips" style="margin-top:10px">${chips}</div>` : ''}`;
+  if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to confirm</span>'; return; }
+  q.innerHTML = `<div class="ct">Confirm before Claude builds <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
 }
 
 function renderSide(){
