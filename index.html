@@ -68,7 +68,7 @@ button,input{font:inherit;color:inherit}
 .node.gone{border:1px solid var(--rule);opacity:.45}
 .node.gone .n{text-decoration:line-through}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
-.node .mk.p{left:auto;right:-8px;background:#141413}
+.node .mk.p{left:auto;right:-9px;top:-9px;width:18px;height:18px;line-height:18px;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
 .node .enter{position:absolute;right:8px;bottom:4px;font-size:11px;color:var(--text-3)}
 .file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
@@ -169,6 +169,9 @@ body.rec #foot,body.rec #legend{display:none}
 const $ = (id) => document.getElementById(id);
 const ME = new URLSearchParams(location.search).get('as') || 'You';
 if (/rec/.test(location.search)) document.body.classList.add('rec');
+// one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
+const PCOL = { You: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', Sam: '#B45309' };
+const pcol = (who) => PCOL[who] || '#141413';
 const act = (type, extra = {}) => fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
@@ -254,7 +257,7 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px">
       <div class="n">${n.label}</div>${n.sub ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.length ? `<span class="mk p" title="Waiting on ${open[0].for}">${open[0].for[0]}</span>` : ''}
+      ${open.length ? `<span class="mk p" style="background:${pcol(open[0].for)}" title="Waiting on ${open[0].for}">${open[0].for[0]}</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -269,7 +272,7 @@ function renderTop(){
   $('ticket').innerHTML = `<b>${S.ticket}</b> · ${S.prompt}`;
   $('me').innerHTML = `You are <b>${ME}</b>`;
   const names = S.people.map((p) => p.id);
-  $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl">✳<span class="n">Claude Code</span></span>`;
+  $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}" style="background:${pcol(p)}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl">✳<span class="n">Claude Code</span></span>`;
   const blocked = S.prs.filter((p) => p.status === 'blocked').length;
   $('prbtn').innerHTML = `Pull requests ${blocked ? `<span class="bad">· ${blocked} blocked</span>` : ''}`;
   $('prbtn').classList.toggle('on', prsOpen);
@@ -282,7 +285,7 @@ function renderQueue(){
   const mine = S.calls.filter((c) => c.for === ME), open = mine.filter((c) => c.status === 'open');
   const others = S.calls.filter((c) => c.for !== ME && c.status === 'open');
   const by = {}; for (const c of others) by[c.for] = (by[c.for] || 0) + 1;
-  const chips = Object.entries(by).map(([p, n]) => `<a class="chip" href="?as=${p}" title="See the map as ${p}"><i>${p[0]}</i><b>${p}</b><span class="c">${n}</span></a>`).join('');
+  const chips = Object.entries(by).map(([p, n]) => `<a class="chip" href="?as=${p}" title="See the map as ${p}"><i style="background:${pcol(p)}">${p[0]}</i><b>${p}</b><span class="c">${n}</span></a>`).join('');
   const q = $('queue');
   // nothing on you: one quiet line with who is up instead of an empty card
   q.classList.toggle('quiet-card', !open.length);
@@ -327,7 +330,7 @@ function renderPrs(){
 
 function renderCursors(){
   $('curs').innerHTML = Object.entries(cursors).filter(([who, c]) => who !== ME && c.view === view && Date.now() - c.at < 15000)
-    .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x}px,${c.y}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="#141413" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag">${who}</span></div>`).join('');
+    .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x}px,${c.y}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${pcol(who)}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag" style="background:${pcol(who)}">${who}</span></div>`).join('');
 }
 
 /* pan, zoom, drag */
