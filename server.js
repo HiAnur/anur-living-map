@@ -1,16 +1,14 @@
-// Living Map, live demo: one shared story state on a tiny server, so every open
-// window (you, Priyanka, Duy) sees the same map and a click in one moves them all.
-// No dependencies: node server.js [port]
+// Living Map, live demo: one shared map on a tiny server. Every open window
+// (you, Priyanka, Duy, Sam) sees the same map; a drag, a Confirm or a Dispute
+// in one window reaches the others at once. No dependencies.
 //
-//   GET  /              the map page (index.html)
-//   GET  /api/state     {step, me?, log:[{at, who, action, step}]}
-//   GET  /api/events    server-sent events: the state after every change
-//   POST /api/act       {type, by}  type: next | back | goto(step) | reset |
-//                       dispute | confirm | approve | flag  (a click on the map)
-//
-// Every act is appended to state.json and, when it is a person's call, to
-// outbox.md in plain words, which a Claude Code chat can read back:
-//   curl -s localhost:4322/api/outbox
+//   node server.js [port]              default 4322
+//   GET  /                              the map page
+//   GET  /api/state                     the whole map (seed + what people did)
+//   GET  /api/events                    server-sent events: state after every change
+//   GET  /api/outbox                    what the chat hears, plain words
+//   POST /api/act  {type, by, ...}      move {id,x,y} · call {id, answer: confirm|dispute}
+//                                       ask {node, text} · cursor {x,y,view} · reset
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -20,43 +18,57 @@ const PORT = Number(process.argv[2] || process.env.PORT || 4322);
 const DIR = import.meta.dirname;
 const STATE = path.join(DIR, 'state.json');
 const OUTBOX = path.join(DIR, 'outbox.md');
-const seed = JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
-const LAST = seed.last;
+const seed = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 
-let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : { step: seed.step, log: [] };
+const fresh = () => ({ ...seed(), log: [], threads: {} });
+let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
 const clients = new Set();
-const save = () => fs.writeFileSync(STATE, JSON.stringify(state, null, 1));
-const push = () => { const d = `data: ${JSON.stringify(state)}\n\n`; for (const r of clients) r.write(d); };
-const tell = (text) => fs.appendFileSync(OUTBOX, `- ${new Date().toISOString().slice(11, 16)} ${text}\n`);
+const cursors = {}; // by name: {x, y, view, at}; never saved
 
-// what a click on the map does to the story, and what the chat hears
-const ACTS = {
-  next:    (s) => ({ step: s.step >= LAST ? 0 : s.step + 1 }),
-  back:    (s) => ({ step: Math.max(0, s.step - 1) }),
-  goto:    (s, a) => ({ step: Math.min(LAST, Math.max(0, Number(a.step) || 0)) }),
-  reset:   () => ({ step: 0, clear: true }),
-  dispute: (s, a) => ({ step: 3, tell: `${a.by} disputed "retire the renewal job": annual customers keep renewing through our job; new and upgraded customers bill through the provider.` }),
-  confirm: (s, a) => ({ step: s.step, tell: `${a.by} confirmed "${a.what || 'the call'}".` }),
-  approve: (s, a) => ({ step: 6, tell: `${a.by} approved the plan for ACME-212. Build it.` }),
-  flag:    (s, a) => ({ step: 8, tell: `${a.by} flagged #219 to Sam: it deletes the renewal job we agreed to keep.` }),
-};
+const save = () => fs.writeFileSync(STATE, JSON.stringify(state));
+const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
+const push = () => { for (const r of clients) send(r, 'state', state); };
+const tell = (text) => fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`);
+const stamp = () => new Date().toTimeString().slice(0, 5);
 
-function act(a) {
-  const f = ACTS[a.type];
-  if (!f) return false;
-  const r = f(state, a);
-  if (r.clear) { state = { step: 0, log: [] }; try { fs.unlinkSync(OUTBOX); } catch {} }
-  else {
-    state.step = r.step;
-    state.log.push({ at: Date.now(), who: a.by || 'You', action: a.type, step: r.step });
-    if (r.tell) tell(r.tell);
+const allNodes = () => state.nodes.flatMap((n) => [n, ...(n.inside?.nodes ?? [])]);
+const allEdges = () => state.edges.concat(state.nodes.flatMap((n) => n.inside?.edges ?? []));
+const nodeOf = (id) => allNodes().find((n) => n.id === id);
+
+// what a person's answer does to the map, from the call's own seed
+function answerCall(a) {
+  const c = state.calls.find((x) => x.id === a.id);
+  if (!c || c.status !== 'open') return false;
+  const fx = c[a.answer] || {};
+  c.status = a.answer === 'confirm' ? 'confirmed' : 'disputed';
+  c.by = a.by; c.at = stamp(); c.said = fx.says || '';
+  const n = fx.node && nodeOf(fx.node);
+  if (n) {
+    if (fx.state !== undefined) n.state = fx.state;
+    if (fx.sub !== undefined) n.sub = fx.sub;
+    n.decided = { who: a.by, at: c.at, what: fx.sub || c.status, call: c.id };
   }
-  save(); push();
+  if (fx.edge) { const [f, t] = fx.edge.split('>'); const e = allEdges().find((x) => x.from === f && x.to === t); if (e) e.state = fx.edgeState || ''; }
+  state.log.push({ at: Date.now(), who: a.by, action: c.status, call: c.id, node: c.node, text: c.text, said: c.said });
+  tell(`${a.by} ${c.status} "${c.text}"${fx.says ? ` — ${fx.says}` : ''}${fx.chat ? `\n  Claude: ${fx.chat}` : ''}`);
   return true;
 }
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
+const ACTS = {
+  move(a) { const n = nodeOf(a.id); if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true; },
+  call: answerCall,
+  ask(a) {
+    const t = (state.threads[a.node] ??= []);
+    t.push({ who: a.by, text: String(a.text).slice(0, 400), at: stamp() });
+    t.push({ who: 'Claude', text: state.answers[a.node] || state.answers['*'], at: stamp(), staged: true });
+    state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: a.node, text: a.text });
+    return true;
+  },
+  reset() { state = fresh(); try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+};
+
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -64,18 +76,24 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/api/outbox') return res.writeHead(200, { 'content-type': 'text/plain' }).end(fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8') : '');
   if (url.pathname === '/api/events') {
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify(state)}\n\n`);
+    send(res, 'state', state); send(res, 'cursors', cursors);
     clients.add(res); req.on('close', () => clients.delete(res));
     return;
   }
   if (url.pathname === '/api/act' && req.method === 'POST') {
     let a = {};
     try { a = JSON.parse(await body(req)); } catch {}
-    const ok = act(a);
-    return res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(JSON.stringify(ok ? state : { error: 'unknown act' }));
+    a.by = String(a.by || 'You').slice(0, 40);
+    if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
+      if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
+      for (const r of clients) send(r, 'cursors', cursors);
+      return res.writeHead(200).end('{}');
+    }
+    const ok = !!ACTS[a.type]?.(a);
+    if (ok) { save(); push(); }
+    return res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? '{}' : '{"error":"no"}');
   }
-  // the page and its files
   const file = path.join(DIR, url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
-}).listen(PORT, '127.0.0.1', () => console.log(`Living Map live demo on http://localhost:${PORT}  (step ${state.step})`));
+}).listen(PORT, '127.0.0.1', () => console.log(`Living Map live demo on http://localhost:${PORT}`));
