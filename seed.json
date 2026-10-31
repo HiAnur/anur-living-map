@@ -1,0 +1,18 @@
+{
+  "step": 0,
+  "last": 9,
+  "story": "ACME-212: add a Pro plan with the payment provider, retire the old renewal job",
+  "people": ["You", "Priyanka", "Duy", "Sam"],
+  "steps": [
+    "the prompt, in plan mode",
+    "Claude's plan on the team map, no code yet; the renewal job assumed gone",
+    "Priyanka's queue: one call from Claude, one from Codex",
+    "she disputes: keep the job for 312 annual customers",
+    "inside Billing, Codex's plan on the same map",
+    "the upgrade flow: charged twice; Duy settles it",
+    "Duy approves; Claude builds; the map checks the diff",
+    "Codex's #219 deletes the agreed job; the check blocks the merge",
+    "Sam says fix it; Codex restores the job",
+    "Nov 1: the decision held up"
+  ]
+}

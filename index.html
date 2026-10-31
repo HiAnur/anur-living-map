@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · Plan first</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sys:-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono-sys: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --plex-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  /* the map: a planning drawing on paper. Hue says what changes, dash says how sure */
+  --canvas:#fbfaf7; --box:#ffffff; --box-line:#d6d3cb; --line:#b9b6ae; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
+  --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#ffffff; --raised:#f3f2ee;
+  /* new: blueprint blue, a part not built yet; chg: a yellow dot on a plain box, something to do there */
+  --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --chg:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#fbfaf7;overflow:hidden;user-select:none;cursor:default}
+#app{display:flex;height:100vh}
+
+/* chat: the Claude desktop app's Code tab */
+#chat{width:34%;flex:none;border-right:1px solid #e5e3da;background:#f5f4ee;color:#141413;display:flex;flex-direction:column;font:14px/1.55 var(--sys)}
+.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #e5e3da;font-size:13px;color:#5c5a54}
+.chead .br{color:#86837b;font:12px var(--mono-sys)}
+.chead .mode{margin-left:auto;font-size:12px;color:#86837b}
+#msgs{flex:1;overflow:hidden;padding:22px 22px 4px;display:flex;flex-direction:column;gap:14px}
+.bubble{align-self:flex-end;max-width:84%;background:#eceae2;color:#141413;border-radius:14px;padding:8px 13px}
+.src{display:flex;align-items:center;gap:6px;font:500 11px var(--sys);color:#6f6c64;margin-bottom:3px}
+.src i{width:6px;height:6px;border-radius:1.5px;background:#7fae8a;transform:rotate(45deg)}
+.tools{display:flex;flex-direction:column;gap:3px;border-left:1px solid #dcd9d0;padding:2px 0 2px 12px;margin-left:2px}
+.tool{font-size:12.5px;display:flex;gap:8px;align-items:baseline}
+.tool .v{color:#4d4b45;font-weight:500;min-width:42px}
+.tool .p{font:12px var(--mono-sys);color:#6f6c64}
+.tool .x{font:11.5px var(--mono-sys);color:#3f8f5f}
+.anim{animation:fadein .3s ease-out}
+.composer{flex:none;margin:12px 18px 18px;background:#ffffff;border:1px solid #dcd9d0;border-radius:16px;padding:12px 14px 10px}
+.field{min-height:22px;color:#141413}
+.ph{color:#7d7a72}
+.composer.has .ph{display:none}
+.composer:not(.has) .caret{display:none}
+.caret{display:inline-block;width:1.5px;height:1.1em;background:#141413;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
+.crow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:#8a877f}
+.send{width:26px;height:26px;border-radius:8px;background:#c96442;color:#fff;display:grid;place-items:center;font-size:14px;opacity:.45}
+.composer.has .send{opacity:1}
+.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
+.spin{width:12px;height:12px;border:1.5px solid #dcd9d0;border-top-color:#141413;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:0}}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* the map pane */
+#map{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--canvas);font-family:var(--plex);font-variant-numeric:tabular-nums;color:var(--text)}
+#map.notrans *,#map.notrans *::before,#map.notrans *::after{transition:none !important}
+#top{height:40px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;border-bottom:1px solid var(--rule);font-size:13.5px;white-space:nowrap}
+#crumbs{display:flex;align-items:center;gap:8px;color:var(--text-2)}
+#crumbs b{font-weight:500;color:var(--text)}
+#crumbs .c{display:none}
+#crumbs .c.on{display:inline}
+#status{font-size:12px;color:var(--text-2)}
+#onmap{margin-left:auto;font-size:12px;color:var(--text-2)}
+.faces{display:flex}
+.face{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-5px}
+.face.cl{background:var(--claude);color:#fff}
+#canvas{flex:1;position:relative;overflow:hidden;background-color:var(--canvas);
+  background-image:radial-gradient(circle,rgba(0,0,0,.14) 1px,transparent 1.3px);background-size:20px 20px}
+
+#stage{position:absolute;left:50%;top:50%;width:960px;height:600px;transition:transform .6s var(--ease)}
+/* cursors ride above the cards and the dock, in the same coordinates as the drawing */
+#curs{position:absolute;left:50%;top:50%;width:960px;height:600px;pointer-events:none;z-index:8;transition:transform .6s var(--ease)}
+.layer{position:absolute;inset:0;transition:opacity .4s ease-out,visibility 0s}
+.layer.off{opacity:0;visibility:hidden;transition:opacity .4s ease-out,visibility 0s linear .4s}
+.edges{position:absolute;left:0;top:0;width:960px;height:600px;overflow:visible}
+.edges path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .4s ease-out,stroke-dasharray .4s ease-out,opacity .3s ease-out}
+.edges .old{stroke:var(--line);stroke-width:1}
+.edges .new{stroke:var(--new)}
+.edges .gone{stroke:var(--gone);stroke-dasharray:5 4}
+.edges .flow{stroke:#6c6a64}
+.edges .what{stroke:#141413;stroke-dasharray:5 4}
+.edges .life{stroke:#d6d3cb;stroke-width:1;stroke-dasharray:3 4}
+.edges .strike{stroke:var(--gone);stroke-dasharray:5 4;stroke-width:1.5}
+.edges rect.bound{fill:rgba(0,0,0,.015);stroke:var(--rule);stroke-width:1}
+.blabel{position:absolute;font-size:12px;color:var(--text-3)}
+
+/* a system: grey as it is; ink once a plan proposes a change; dashed while an agent only assumed it */
+.node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;
+  background:var(--box);border:1px solid var(--box-line);border-radius:6px;transition:background .4s ease-out,border-color .4s ease-out,opacity .35s ease-out}
+.node::after{content:'';position:absolute;inset:-1px;border-radius:6px;border:1.5px dashed transparent;pointer-events:none;transition:border-color .4s ease-out,opacity .4s ease-out}
+.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text-2);white-space:nowrap}
+.node .s{font:12px/1.3 var(--plex);color:var(--text-2);white-space:nowrap;height:0;opacity:0;overflow:hidden;transition:opacity .3s ease-out,height .3s var(--ease)}
+.node .s.on{height:16px;opacity:1}
+.node.actor{width:110px;border-radius:999px;align-items:center}
+.node.ink .n{color:var(--text)}
+.node.new{border:1.5px solid var(--new);background:var(--new-tint)}
+.node.chg{border:1px solid var(--box-line);background:var(--box)}
+.node.chg::before{content:'';position:absolute;top:-5px;right:-5px;width:10px;height:10px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 3px var(--canvas);transition:opacity .4s ease-out}
+.node.settled::before{opacity:0}
+.node.gone{border:1.5px solid transparent;background:none}
+.node.gone::after{border-color:var(--gone)}
+.node.gone .n{text-decoration:line-through;text-decoration-color:rgba(229,83,75,.7)}
+.node.ghost{opacity:.55}
+.node.vh{opacity:0}
+.node.lane{width:112px;height:32px;align-items:center}
+.node.ring{box-shadow:0 0 0 4px rgba(0,0,0,.08)}
+/* once shipped and confirmed by the deploy, the plan's ink settles into the system */
+.node.settled{border:1px solid var(--box-line) !important;background:var(--box) !important;transition:border-color 1.2s ease-out,background 1.2s ease-out}
+.node.settled .n{color:var(--text-2);transition:color 1.2s ease-out}
+#e1.settling path{transition:stroke 1.2s ease-out}
+.svc .r{display:flex;justify-content:space-between;align-items:center;font:12px var(--plex);color:var(--text-2);padding:4px 0;border-top:1px solid var(--rule)}
+.svc .r:first-of-type{margin-top:6px}
+.svc .r.sel{color:var(--text)}
+.mono{position:absolute;font:12px var(--plex-mono);color:var(--text-3);white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.mono.on{opacity:1}
+.lab{position:absolute;font:12px var(--plex);color:var(--text-2);white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.lab.on{opacity:1}
+.lab.w{color:var(--text)}
+.mk{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#000;font:500 11px/16px var(--plex);text-align:center;transform:translate(-50%,-50%);opacity:0;transition:opacity .3s ease-out}
+.mk.on{opacity:1}
+.frame{position:absolute;border-radius:6px;opacity:0;pointer-events:none;border:1.5px solid var(--new);background:var(--new-tint);
+  transition:left .6s var(--ease),top .6s var(--ease),width .6s var(--ease),height .6s var(--ease),border-radius .6s ease-out,background .6s ease-out,border-color .6s ease-out,opacity .3s ease-out}
+.frame.on{opacity:1}
+.frame.full{border-radius:10px;background:rgba(47,111,228,.03);border-color:rgba(47,111,228,.35);border-width:1px}
+.frame.still{transition:none}
+.frame .ft{position:absolute;left:14px;top:12px;font:500 13.5px var(--plex);color:var(--text)}
+.frame.flowf{border-color:var(--rule-2);background:rgba(0,0,0,.015)}
+.frame.flowf.full{border-color:var(--rule-2)}
+.frame .fs{position:absolute;left:14px;top:32px;font:12px var(--plex);color:var(--text-2);opacity:0;transition:opacity .3s ease-out .4s}
+.frame.full .fs{opacity:1}
+.box{position:absolute;border:1px solid var(--rule);border-radius:10px;opacity:0;transition:opacity .35s ease-out}
+.box.on{opacity:1}
+.box .bt{position:absolute;left:14px;top:12px;font:500 13.5px var(--plex);color:var(--text)}
+.box .bs{position:absolute;left:14px;top:32px;font:12px var(--plex);color:var(--text-2)}
+.chk{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:#2a5bbf;background:#eef3fd;border:1px solid rgba(47,111,228,.5);border-radius:6px;padding:3px 9px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.chk.on{opacity:1}
+.slash{position:absolute;width:240px;height:0;border-top:2px dashed var(--gone);opacity:0;transition:opacity .3s ease-out}
+.slash.on{opacity:1}
+#l2.clash .ctx{opacity:0 !important}
+.rule{position:absolute;transform:translate(-50%,-50%);font:12px var(--plex);color:var(--text);background:#fff8e1;border:1.5px dashed var(--chg);border-radius:6px;padding:4px 10px;white-space:nowrap;opacity:0;transition:opacity .35s ease-out,border-color .4s ease-out}
+.rule.on{opacity:1}
+.rule.solid{border-style:solid}
+
+/* people: an ink pin, a thread card; colour is kept for meaning */
+.pin{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%) scale(0);border-radius:50%;background:#141413;color:#fff;
+  display:grid;place-items:center;font:500 11px/1 var(--plex);transition:transform .3s var(--ease)}
+.pin.on{transform:translate(-50%,-50%) scale(1)}
+.thread{position:absolute;width:280px;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;opacity:0;transform:translateY(4px);transition:opacity .3s ease-out,transform .3s ease-out}
+.thread.on{opacity:1;transform:none}
+.tm{font:13.5px/1.45 var(--plex);color:var(--text)}
+.tm b{font-weight:500}
+.tm .t{font-size:12px;color:var(--text-2);margin-left:6px}
+.tm + .tm{margin-top:8px}
+.fact{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rule);font:13px/1.45 var(--plex);color:var(--text)}
+.fact .from{display:block;font:12px var(--plex);color:var(--text-2);margin-top:2px}
+.fact,.tm,.cline,.row div{text-wrap:balance}
+.mono-i{font-family:var(--plex-mono);font-size:12px;color:var(--text-3)}
+.cur{position:absolute;left:0;top:0;opacity:0;transition:transform .9s var(--ease),opacity .3s ease-out;pointer-events:none;z-index:5}
+.cur.on{opacity:1}
+.cur svg{display:block}
+.cur .tag{position:absolute;left:14px;top:16px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
+.ripple{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(0,0,0,.5);pointer-events:none;z-index:5;animation:rip .5s ease-out forwards}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
+
+/* overlays on the canvas, not scaled with the drawing */
+#strip{position:absolute;left:16px;top:16px;width:360px;z-index:6;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;opacity:0;transform:translateY(-4px);transition:opacity .3s ease-out,transform .3s ease-out}
+.card.on{opacity:1;transform:none}
+.card.gone{display:none}
+.ct{font:500 13.5px var(--plex);color:var(--text);margin-bottom:6px}
+.row{display:flex;gap:8px;align-items:flex-start;font:13.5px/1.4 var(--plex);color:var(--text);padding:6px 0;border-top:1px solid var(--rule)}
+.row:first-of-type{border-top:0}
+.row .mk{position:static;transform:none;opacity:1;flex:none;margin-top:2px}
+.row .who{display:block;font-size:12px;color:var(--text-2)}
+.row .done{display:block;font-size:12px;color:var(--text-2)}
+.btns{display:flex;gap:6px;margin-top:6px}
+.gb{height:28px;padding:0 10px;display:inline-flex;align-items:center;border:1px solid var(--rule-2);border-radius:6px;font:12px var(--plex);color:var(--text);background:transparent;transition:background .2s ease-out,border-color .2s ease-out}
+.gb.pressed{background:rgba(0,0,0,.08);border-color:#141413}
+.ok{font:12px var(--plex);color:var(--text-2)}
+.cline{font:13.5px/1.45 var(--plex);color:var(--text)}
+.cline + .cline{margin-top:6px;color:var(--text-2)}
+#note{position:absolute;right:16px;top:16px;width:270px;z-index:7;background:var(--raised);border:1px solid var(--rule-2);border-radius:10px;padding:12px 14px;
+  opacity:0;transform:translateY(-6px);transition:opacity .3s ease-out,transform .3s ease-out}
+#note.on{opacity:1;transform:none}
+#note{border-radius:14px;background:#ffffff;padding:12px 14px 12px 50px}
+#note::before{content:'';position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:7px;background:#fff;border:1px solid var(--rule-2);box-shadow:inset 0 0 0 5px #fff,inset 0 0 0 6px var(--new)}
+#note .nf{font:12px var(--plex);color:var(--text-2);margin-bottom:4px}
+#note .nb{font:500 13.5px/1.4 var(--plex);color:var(--text)}
+#legend{position:absolute;left:16px;bottom:16px;z-index:4;display:flex;gap:16px;font:12px var(--plex);color:var(--text-2);transition:opacity .3s ease-out}
+#legend i{display:inline-block;width:22px;height:0;border-top:1.5px solid var(--text-2);vertical-align:middle;margin-right:6px}
+#legend i.d{border-top-style:dashed}
+#legend i.n{border-top-color:var(--new)}
+#legend i.dot{width:8px;height:8px;border:0;border-radius:50%;background:var(--chg);margin-right:9px}
+#backb2{position:absolute;left:16px;bottom:16px;z-index:4}
+
+/* the right dock: a side chat, or another agent's session */
+#dock{position:absolute;top:0;right:0;bottom:0;width:320px;z-index:6;background:#ffffff;border-left:1px solid var(--rule);padding:16px;display:flex;flex-direction:column;gap:10px;
+  transform:translateX(100%);transition:transform .45s var(--ease)}
+#dock.on{transform:none}
+.dh{font:500 13.5px var(--plex);color:var(--text)}
+.dh.cl{color:var(--claude)}
+.dsub{font:12px var(--plex);color:var(--text-2);margin-top:-6px}
+.dq{align-self:flex-end;max-width:90%;background:#eceae2;border-radius:10px;padding:6px 10px;font:13.5px/1.4 var(--plex);color:var(--text)}
+.da{font:13.5px/1.45 var(--plex);color:var(--text)}
+.dm{font:13.5px/1.45 var(--plex);color:var(--text)}
+.dm b{font-weight:500}
+.dm .g{color:var(--text-2)}
+.dcheck{font:13px var(--plex);color:var(--text);border:1px solid var(--rule-2);border-radius:8px;padding:8px 10px}
+.dcheck .g{display:block;font-size:12px;color:var(--text-2)}
+.din{margin-top:auto;border:1px solid var(--rule-2);border-radius:8px;padding:7px 10px;font:13px var(--plex);color:var(--text);min-height:34px}
+.din .ph2{color:var(--text-3)}
+.dots{display:inline-flex;gap:3px;padding:6px 0}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--text-2);animation:dot 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,100%{opacity:.3}50%{opacity:1}}
+.hide{display:none !important}
+.fade{opacity:0;transition:opacity .3s ease-out}
+.fade.on{opacity:1}
+
+#tools{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:4;
+  background:#ffffff;border:1px solid var(--rule-2);border-radius:10px;transition:opacity .3s ease-out}
+#tools.off{opacity:0}
+.tb{height:30px;min-width:30px;border-radius:6px;display:grid;place-items:center;color:var(--text-2)}
+.tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tb.on{background:#141413;color:#fff}
+.tb.ask{padding:0 10px;font:500 12px var(--plex);color:var(--claude)}
+.tdiv{width:1px;height:18px;background:var(--rule-2);margin:0 4px}
+body.rec #nav{display:none}
+/* the chat pane is a stand-in for the real Claude Code beside the map: shown only with ?chat */
+body:not(.chat) #chat{display:none}
+#nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:10px;font:11px var(--mono-sys);color:#5d636b;z-index:9}
+#nav button{font:12px var(--sys);color:#141413;background:#ffffff;border:1px solid rgba(0,0,0,.15);border-radius:6px;padding:5px 11px;cursor:pointer}
+@media (prefers-reduced-motion: reduce){ #stage,.layer,.frame,.cur,#dock{transition:none !important} }
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="chat">
+    <div class="chead"><span>acme-app</span><span class="br">⎇ pro-plan</span><span class="mode" id="mode">⏸ plan mode</span></div>
+    <div id="msgs"></div>
+    <div class="composer" id="composer">
+      <div class="field"><span id="input"></span><span class="caret"></span><span class="ph">Reply to Claude…</span></div>
+      <div class="crow"><span>Opus 5.5</span><span class="send">↑</span></div>
+    </div>
+  </section>
+  <section id="map">
+    <div id="top">
+      <div id="crumbs"><b id="cSys">System</b><span class="c" id="cB1">›</span><b class="c" id="cBill">Billing</b><span class="c" id="cB2">›</span><b class="c" id="cFlow">Payment confirmed</b></div>
+      <span id="status">Planning: no code yet</span>
+      <span id="onmap">On this map: Codex (Sam)</span>
+      <div class="faces"><span class="face">Y</span><span class="face">P</span><span class="face">D</span><span class="face">S</span><span class="face cl">✳</span></div>
+    </div>
+    <div id="canvas">
+      <div id="stage">
+        <div id="l1" class="layer"><svg id="e1" class="edges" viewBox="0 0 960 600"><defs></defs>
+          <rect class="bound" x="200" y="90" width="540" height="440" rx="14"/></svg>
+          <div class="blabel" style="left:216px;top:100px">acme-app, production</div></div>
+        <div id="frameB" class="frame"><span class="ft">Billing</span><span class="fs">New: Pro billed through the provider</span></div>
+        <div id="l2" class="layer off"><svg id="e2" class="edges" viewBox="0 0 960 600"><defs></defs></svg></div>
+        <div id="frameF" class="frame flowf"><span class="ft">Proposed flow</span><span class="fs">Drawn from the plan, not run</span></div>
+        <div id="l3" class="layer off"><svg id="e3" class="edges" viewBox="0 0 960 600"><defs></defs></svg></div>
+      </div>
+      <div id="curs"></div>
+      <div id="strip"></div>
+      <div id="note"><div class="nf">Living Map, now</div><div class="nb">Claude needs a product call on ACME‑212</div></div>
+      <div id="legend"><span><i></i>From code</span><span><i class="n"></i>Not built yet</span><span><i class="dot"></i>Something to do</span><span><i class="d"></i>An agent assumed it</span></div>
+      <div id="dock"></div>
+      <div id="tools">
+        <span class="tb on"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
+        <span class="tb"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg></span>
+        <span class="tb"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg></span>
+        <span class="tb"><svg viewBox="0 0 20 20"><path d="M5 5h10M10 5v11"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb"><svg viewBox="0 0 20 20"><path d="M4 15.5V6a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H7z"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb ask">✳ Ask Claude</span>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="nav"><button id="backb">‹ Back</button><span id="counter">0 / 9</span><button id="nextb">Next ›</button></div>
+
+<script>
+const LAST = 9, W = 960, H = 600;
+const $ = id => document.getElementById(id);
+const canvas = $('canvas'), mapEl = $('map'), stage = $('stage'), curs = $('curs');
+const l1 = $('l1'), l2 = $('l2'), l3 = $('l3'), frameB = $('frameB'), frameF = $('frameF');
+const e1 = $('e1'), e2 = $('e2'), e3 = $('e3');
+const strip = $('strip'), note = $('note'), dock = $('dock'), legend = $('legend'), tools = $('tools');
+const msgs = $('msgs'), input = $('input'), composer = $('composer'), counter = $('counter');
+
+// The story, one click per step:
+// 0 the prompt is typed            5 you ask about upgrades: charged twice; Duy settles it
+// 1 Claude's plan lands on the     6 Duy approves; Claude builds; the map checks the code
+//   team map, no code yet            against the plan
+// 2 Priyanka is asked: her queue   7 Sam's Codex opens #219: its code deletes the agreed job;
+//   holds a call from each agent     the map strikes it and a check blocks the merge
+// 3 she disputes; the job is kept  8 Sam tells Codex to fix it; Codex reads the agreement
+// 4 inside Billing, Codex's plan   9 Nov 1: the decision held up
+//   sits on the same map
+
+/* ---------- level 1: the system ---------- */
+// the whole system as it runs today, grey; the plan inks three of its boxes
+const N = {
+  customer: {x:100, y:190, l:'Customer', cls:'actor'},
+  web:      {x:330, y:190, l:'Web app'},
+  billing:  {x:560, y:190, l:'Billing', s:'New: Pro via the provider', ink:'new', at:1, w:180},
+  provider: {x:850, y:190, l:'Payment provider', cls:'ext', w:150},
+  core:     {x:330, y:340, l:'Core API'},
+  db:       {x:560, y:340, l:'Users DB', s:'+ plan column', ink:'chg', at:1},
+  email:    {x:330, y:470, l:'Email service'},
+  renewal:  {x:560, y:470, l:'Renewal job', w:200},
+};
+// k: how the line looks once the plan is drawn; at: the step it appears
+const E = {
+  cw: {d:'M155 190H258'},
+  wc: {d:'M330 215V313'},
+  cd: {d:'M400 340H488'},
+  ce: {d:'M330 365V443'},
+  re: {d:'M460 470H402'},
+  rp: {d:'M660 470H842Q850 470 850 462V217'},
+  wb: {d:'M400 190H468', k:'new', at:1},
+  bp: {d:'M650 180H773', k:'new', at:1},
+  pb: {d:'M775 200H652', k:'new', at:1},
+  bd: {d:'M600 215V313', k:'new', at:1},
+};
+
+/* ---------- level 2: inside Billing ---------- */
+const FRAME_B = {from:[470, 165, 180, 50], to:[210, 100, 460, 440]};
+const N2 = {
+  web2:  {x:110, y:190, l:'Web app', cls:'ghost'},
+  db2:   {x:110, y:305, l:'Users DB', cls:'ghost'},
+  lb:    {x:360, y:190, l:'Load balancer'},
+  ren2:  {x:420, y:425, l:'Renewal job', s:'Agreed: keep for annual', cls:'ink', w:240},
+};
+const E2 = {
+  wl: {d:'M180 190H288'},
+  ls: {d:'M360 215V256'},
+  sd: {d:'M310 305H182'},
+};
+
+/* ---------- level 3: the Payment confirmed flow ---------- */
+const FRAME_F = {to:[20, 60, 600, 500]};
+const LANES = {cust:{x:100, l:'Customer'}, prov:{x:230, l:'Provider', cls:'ext'}, bill:{x:360, l:'Billing', ink:'new'}, ren:{x:490, l:'Renewal job', ink:'chg'}};
+const CALLS = {
+  c1:{y:190, a:'cust', b:'prov', l:'Upgrades to Pro', k:'flow'},
+  c2:{y:240, a:'prov', b:'bill', l:'Payment confirmed', k:'flow'},
+  c3:{y:340, a:'prov', b:'cust', l:'Bills Pro', k:'what'},
+  c4:{y:400, a:'ren',  b:'cust', l:'Bills the annual renewal too', k:'what', lx:300},
+};
+
+/* ---------- chat ---------- */
+const PROMPT = 'Plan ACME-212: add a Pro plan with our payment provider, and retire the old renewal job.';
+const T = [
+  {s:0, k:'type', t:PROMPT},
+  {s:1, k:'submit'},
+  {s:1, k:'spin'},
+  {s:1, k:'tool', v:'Read', p:'6 files'},
+  {s:1, k:'tool', v:'Query', p:'customers (read-only copy)', x:'312 annual'},
+  {s:1, k:'say', t:'Drawn on Living Map. No code yet. One product question is waiting there for Priyanka.'},
+  {s:3, k:'user', tag:'From Living Map', t:'Priyanka: annual customers keep renewing through our job; new and upgraded customers bill through the provider.'},
+  {s:3, k:'say', t:'Updated the plan: the renewal job stays for annual customers.'},
+  {s:5, k:'user', tag:'From Living Map', t:'Duy confirmed: the renewal job skips anyone the provider bills.'},
+  {s:5, k:'say', t:'Added to the plan.'},
+  {s:6, k:'user', tag:'From Living Map', t:'Duy approved the plan.'},
+  {s:6, k:'spin'},
+  {s:6, k:'tool', v:'Write', p:'services/billing/index.ts', x:'+128'},
+  {s:6, k:'tool', v:'Write', p:'services/billing/routes/payment-confirmed.ts', x:'+52'},
+  {s:6, k:'tool', v:'Write', p:'migrations/007_plan.sql', x:'+9'},
+  {s:6, k:'tool', v:'Edit',  p:'jobs/renewal.ts', x:'+6'},
+  {s:6, k:'tool', v:'Bash',  p:'npm test billing', x:'✓ 14 passed'},
+  {s:6, k:'tool', v:'Bash',  p:'gh pr create', x:'#212'},
+  {s:6, k:'say', t:'PR #212 is open. Tests cover an upgrade charged once, an unsigned event rejected, and a repeat event ignored.'},
+];
+
+// the views and what each one draws, so it can be fitted beside the dock
+const BOX = {sys:[30, 80, 940, 540], bill:[60, 90, 980, 560], clash:[195, 90, 685, 560], flow:[10, 50, 630, 570]};
+const DOCK = 336;
+
+/* ---------- build ---------- */
+let scale = 1, view = 'sys', docked = false, tallStrip = false;
+function fit(){
+  const r = canvas.getBoundingClientRect(), [x1, y1, x2, y2] = BOX[view];
+  const right = docked ? DOCK : 0, top = (view === 'clash' || tallStrip) ? 250 : 72, bottom = 72;
+  const aw = r.width - right - 64, ah = r.height - top - bottom;
+  scale = Math.min(aw / (x2 - x1), ah / (y2 - y1), 1.25);
+  const cx = (r.width - right) / 2 - r.width / 2, cy = (top + r.height - bottom) / 2 - r.height / 2;
+  stage.style.transform = curs.style.transform = `translate(-50%,-50%) translate(${cx}px,${cy}px) scale(${scale}) translate(${W / 2 - (x1 + x2) / 2}px,${H / 2 - (y1 + y2) / 2}px)`;
+}
+function div(cls, text){ const d = document.createElement('div'); d.className = cls; if (text) d.textContent = text; return d; }
+function span(cls, t){ const s = document.createElement('span'); s.className = cls; s.textContent = t; return s; }
+function place(el, x, y, into = l1){ el.style.left = x + 'px'; el.style.top = y + 'px'; into.appendChild(el); return el; }
+const svgEl = t => document.createElementNS('http://www.w3.org/2000/svg', t);
+function rectInStage(el){
+  const r = el.getBoundingClientRect(), st = stage.getBoundingClientRect();
+  return [(r.left - st.left) / scale, (r.top - st.top) / scale, r.width / scale, r.height / scale];
+}
+function center(el, dx = 0, dy = 0){ const [x, y, w, h] = rectInStage(el); return [x + w / 2 + dx, y + h / 2 + dy]; }
+
+// arrowheads per layer, filled, sized in canvas units
+const SVGS = [e1, e2, e3];
+const INK = {old:'#9b988f', new:'#2F6FE4', gone:'#D23B32', flow:'#6c6a64', what:'#141413'};
+SVGS.forEach((into, li) => Object.entries(INK).forEach(([k, c]) => {
+  const m = svgEl('marker');
+  m.setAttribute('id', `a${li}${k}`); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', 9); m.setAttribute('refY', 5);
+  m.setAttribute('markerUnits', 'userSpaceOnUse'); m.setAttribute('markerWidth', 10); m.setAttribute('markerHeight', 10); m.setAttribute('orient', 'auto');
+  const p = svgEl('path'); p.setAttribute('d', 'M0 1L10 5L0 9Z'); p.style.fill = c; p.style.stroke = 'none';
+  m.appendChild(p); into.querySelector('defs').appendChild(m);
+}));
+// a line draws in through a mask, which is dropped once drawn so it never clips the arrowhead
+let masks = 0;
+function mkPath(d, into){
+  const p = svgEl('path'); p.setAttribute('d', d); into.appendChild(p);
+  const id = 'm' + (masks++), m = svgEl('mask');
+  m.setAttribute('id', id); m.setAttribute('maskUnits', 'userSpaceOnUse');
+  m.setAttribute('x', -100); m.setAttribute('y', -100); m.setAttribute('width', W + 200); m.setAttribute('height', H + 200);
+  const mp = svgEl('path'); mp.setAttribute('d', d); mp.setAttribute('fill', 'none'); mp.setAttribute('stroke', '#fff'); mp.setAttribute('stroke-width', 16);
+  m.appendChild(mp); into.querySelector('defs').appendChild(m);
+  const len = p.getTotalLength() + 12;
+  mp.style.strokeDasharray = `${len} ${len}`;
+  p.style.opacity = 0;
+  return {p, mp, len, mask:`url(#${id})`, on:false, raf:0, li: SVGS.indexOf(into)};
+}
+function setKind(L, k, arrow = true){
+  L.p.setAttribute('class', k);
+  if (arrow && INK[k]) L.p.setAttribute('marker-end', `url(#a${L.li}${k})`); else L.p.removeAttribute('marker-end');
+}
+function mkNode(n, into, extra = ''){
+  n.el = div('node ' + (n.cls || '') + ' ' + extra);
+  if (n.w) n.el.style.width = n.w + 'px';
+  n.el.append(div('n', n.l), n.sub = div('s', n.s || ''));
+  return place(n.el, n.x, n.y, into);
+}
+
+fit();
+for (const n of Object.values(N)) mkNode(n, l1);
+for (const e of Object.values(E)){ e.L = mkPath(e.d, e1); setKind(e.L, 'old'); }
+const labUpgrade = place(div('lab', 'Upgrade'), 410, 168);
+const labPaid = place(div('lab', 'Payment confirmed'), 662, 208);
+const srcRenewal = place(div('mono', 'jobs/renewal.ts:18 (annual only)'), 462, 502);
+const srcBilling = place(div('mono', 'services/billing/'), 472, 222);
+const srcDb = place(div('mono', 'migrations/007_plan.sql'), 492, 372);
+const mkA = place(div('mk', 'a'), 662, 446);
+const labAssume = place(div('lab w', 'Claude assumed: retire it'), 676, 438);
+const pinP = place(div('pin', 'P'), 464, 446);
+const threadP = place(div('thread'), 680, 392);
+threadP.innerHTML = `<div class="fact">312 annual customers renew through this job<span class="from">Claude, from the customer database (read-only copy)</span></div>
+  <div class="tm fade" id="pAns"><b>Priyanka</b><span class="t">10:02, disputed</span><br>Annual customers keep renewing through our job; new and upgraded customers bill through the provider.</div>`;
+const pAns = threadP.querySelector('#pAns'), pFact = threadP.querySelector('.fact');
+const held = place(div('thread'), 680, 410);
+held.innerHTML = `<div class="tm"><b>Priyanka's Oct 31 decision held up after #212 and #219 shipped</b></div>
+  <div class="fact" style="border:0;margin:6px 0 0;padding:0">9 annual renewals ran Nov 1<span class="from">job run log</span></div>
+  <div class="fact" style="border:0;margin:6px 0 0;padding:0">Upgrades billed once<span class="from">provider events</span></div>`;
+
+/* level 2 */
+for (const n of Object.values(N2)) mkNode(n, l2, n.cls === 'ghost' ? '' : '');
+const svc = place(div('node svc new ink'), 420, 305, l2);
+svc.style.cssText += ';width:220px;height:auto;padding:10px 12px';
+svc.innerHTML = '<div class="n">Billing service</div><div class="r"><span>Checkout</span></div><div class="r" id="rPaid"><span>Payment confirmed (from provider)</span></div>';
+const rowPaid = svc.querySelector('#rPaid');
+[N2.web2.el, N2.db2.el].forEach(el => el.classList.add('ctx'));
+for (const e of Object.values(E2)){ e.L = mkPath(e.d, e2); setKind(e.L, 'old'); }
+const src2 = place(div('mono', 'infra/scheduler.tf:31'), 320, 458, l2);
+const codexBox = place(div('box'), 690, 100, l2);
+Object.assign(codexBox.style, {width:'280px', height:'250px'});
+codexBox.innerHTML = `<span class="bt">Codex's plan: remove 3 old schedules</span><span class="bs">Codex, Sam (preview), 09:40</span>`;
+const struck = [['Legacy invoices', 180], ['Trial reminder', 220], ['Old dunning', 275]];
+const strikeEls = struck.map(([t, y]) => {
+  const el = place(div('lab w', t), 706, y - 9, l2);
+  el.style.textDecoration = 'line-through'; el.style.color = 'var(--gone)';
+  return el;
+});
+const trialOk = place(div('lab', 'Priyanka confirmed 10:03'), 706, 232, l2);
+const untouched = place(div('lab w', 'Renewal job: untouched'), 706, 300, l2);
+const noConflict = place(div('lab', 'Checked against Agreed: no conflict'), 706, 322, l2);
+[codexBox, trialOk, noConflict, untouched, ...strikeEls].forEach(el => el.classList.add('ctx'));
+const slash = place(div('slash'), 300, 416, l2);
+const strikeLab = place(div('lab w', 'Codex assumed: renewal job retired (from ACME‑212’s title)'), 320, 470, l2);
+const strikeSrc = place(div('lab'), 320, 490, l2);
+strikeSrc.innerHTML = 'Not in Codex’s plan: #219 deletes this schedule<br><span class="mono-i">infra/scheduler.tf:31</span>';
+
+/* level 3 */
+for (const n of Object.values(LANES)){
+  n.el = div('node lane ' + (n.cls || '') + (n.ink ? ' ink ' + n.ink : ''));
+  n.el.append(div('n', n.l)); place(n.el, n.x, 130, l3);
+  n.L = mkPath(`M${n.x} 148V540`, e3); setKind(n.L, 'life', false);
+}
+for (const c of Object.values(CALLS)){
+  const x1 = LANES[c.a].x, x2 = LANES[c.b].x, dir = Math.sign(x2 - x1);
+  c.L = mkPath(`M${x1 + dir * 4} ${c.y}H${x2 - dir * 4}`, e3); setKind(c.L, c.k);
+  c.lab = place(div('lab' + (c.k === 'what' ? ' w' : '')), (c.lx || Math.min(x1, x2) + 8), c.y - 22, l3);
+  c.lab.textContent = c.l;
+}
+const chkF = place(div('chk', 'Verify sender, ignore repeats'), 360, 284, l3);
+const twice = place(div('lab w', '✕ Charged twice'), 40, 426, l3);
+twice.style.font = '500 18px var(--plex)';
+const ruleB = place(div('rule', 'Skip anyone the provider bills'), 490, 482, l3);
+const mkB = place(div('mk', 'b'), 362, 482, l3);
+
+/* the Billing and flow frames grow from the box you open */
+const frameFrom = {B: FRAME_B.from, F: null};
+function setFrame(el, rect, full){
+  const [x, y, w, h] = rect;
+  Object.assign(el.style, {left:x + 'px', top:y + 'px', width:w + 'px', height:h + 'px'});
+  el.classList.toggle('full', full);
+}
+function grow(el, from, to, A, at){
+  if (!A){ setFrame(el, to, true); el.classList.add('on'); return; }
+  at(0, () => { setFrame(el, from, false); el.classList.add('still', 'on'); void el.offsetWidth; el.classList.remove('still'); });
+  at(60, () => setFrame(el, to, true));
+}
+
+/* cursors: ink, named; only for whoever is acting */
+function mkCursor(l){
+  const el = div('cur');
+  el.innerHTML = `<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="#141413" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+  el.appendChild(span('tag', l)); curs.appendChild(el);
+  return el;
+}
+const CUR = {you: mkCursor('You'), pri: mkCursor('Priyanka'), duy: mkCursor('Duy')};
+const OFF = [1000, 640];
+function curAt(c, p){ c.classList.toggle('on', !!p); const [x, y] = p || OFF; c.style.transform = `translate(${x}px,${y}px)`; }
+function ripple(p){ const r = place(div('ripple'), p[0], p[1], curs); r.addEventListener('animationend', () => r.remove()); }
+
+/* ---------- primitives ---------- */
+let step = 0, token = 0, timers = [];
+function setLine(L, on, A){
+  if (A && L.on === on) return;
+  cancelAnimationFrame(L.raf); L.on = on;
+  if (!on){ L.p.style.opacity = 0; return; }
+  L.p.style.opacity = 1;
+  if (!A){ L.p.removeAttribute('mask'); return; }
+  L.p.setAttribute('mask', L.mask);
+  const t0 = performance.now();
+  const tick = now => {
+    const p = Math.min(1, (now - t0) / 900), e = 1 - Math.pow(1 - p, 3);
+    L.mp.style.strokeDashoffset = L.len * (1 - e);
+    if (p < 1) L.raf = requestAnimationFrame(tick); else L.p.removeAttribute('mask');
+  };
+  L.raf = requestAnimationFrame(tick);
+}
+const on = (el, v) => el.classList.toggle('on', v);
+
+// the canvas overlays are rebuilt per step from small templates
+function card(html, cls = ''){ const c = div('card ' + cls); c.innerHTML = html; strip.appendChild(c); return c; }
+const Q_A = 'Who still renews through our own job? Retiring it moves every customer to the provider.';
+const ROW_A = `<div class="row"><span class="mk">a</span><div>${Q_A}<span class="who">Product call for Priyanka</span></div></div>`;
+const QUEUE = `<div class="ct">Waiting on Priyanka</div>
+  <div class="row"><span class="mk">a</span><div>${Q_A}<span class="who">Claude, ACME‑212</span><div class="btns"><span class="gb">Confirm</span><span class="gb" id="dispA">Dispute</span></div></div></div>
+  <div class="row"><span class="mk" style="background:#b9b6ae"></span><div>OK to stop trial-reminder emails?<span class="who">Codex, Sam, ACME‑219</span><div class="btns"><span class="gb" id="confC">Confirm</span><span class="gb">Dispute</span></div></div></div>`;
+const ANSWERED = `<div class="ct">Priyanka: all answered</div><div class="ok">Claude, ACME‑212: disputed 10:02<br>Codex, Sam, ACME‑219: confirmed 10:03</div>`;
+
+/* ---------- map ---------- */
+function renderMap(S, A){
+  // step 2 is the ask: the plan as at step 1, with Priyanka's queue open; later steps follow on
+  const ask = S === 2, s = S >= 3 ? S - 1 : S === 2 ? 1 : S;
+  const at = (ms, fn) => A ? timers.push(setTimeout(fn, ms)) : fn();
+  const a = n => A && s === n && !ask;
+  const press = (c, getP, ms) => at(ms, () => { const p = getP(); curAt(c, p); timers.push(setTimeout(() => ripple(p), 820)); });
+  strip.textContent = ''; dock.textContent = '';
+
+  // which view, and whether the dock is open
+  const v = s === 3 ? 'bill' : (s === 6 || s === 7) ? 'clash' : s === 4 ? 'flow' : 'sys';
+  const wantDock = s === 4 || s === 6 || s === 7;
+  const lay = v === 'clash' ? 'bill' : v;
+  const switchView = () => { view = v; docked = wantDock; tallStrip = ask; fit(); };
+  const opening = (a(3) || a(4) || a(6)) ? 950 : 0;
+  if (!A) switchView();
+
+  // header
+  $('cB1').classList.toggle('on', lay !== 'sys'); $('cBill').classList.toggle('on', lay !== 'sys');
+  $('cB2').classList.toggle('on', lay === 'flow'); $('cFlow').classList.toggle('on', lay === 'flow');
+  $('status').textContent = s >= 8 ? 'Production, deploy Nov 1 08:12 (#212, #219)' : s >= 5 ? '' : 'Planning: no code yet';
+  $('onmap').textContent = s >= 1 ? 'On this map: Claude Code (You), Codex (Sam)' : 'On this map: Codex (Sam)';
+  $('mode').textContent = s >= 5 ? '' : '⏸ plan mode';
+
+  /* level 1: the plan lands in ink; the renewal job is assumed gone, then kept */
+  for (const [k, n] of Object.entries(N)){
+    const inked = n.ink && s >= (n.at || 99);
+    n.el.classList.toggle('ink', !!inked || (k === 'renewal' && s >= 1));
+    if (n.ink) n.el.classList.toggle(n.ink, !!inked);
+    if (n.s) n.sub.classList.toggle('on', !!inked);
+  }
+  N.billing.el.classList.toggle('vh', s < 1);
+  if (!a(1)) for (const e of Object.values(E)){ if (e.k){ setKind(e.L, e.k); setLine(e.L, s >= e.at, false); } else setLine(e.L, true, false); }
+  if (a(1)){
+    // the one signature draw-on: proposed changes appear in ink, staggered
+    ['wb', 'bd', 'bp', 'pb'].forEach((k, i) => at(300 + i * 60, () => { setKind(E[k].L, 'new'); setLine(E[k].L, true, true); }));
+    N.billing.el.classList.add('vh');
+    at(300, () => { N.billing.el.classList.remove('vh'); });
+  }
+  const assumed = s === 1, kept = s >= 2;
+  const ren = N.renewal;
+  at(a(1) ? 700 : 0, () => {
+    ren.el.classList.toggle('gone', assumed);
+    setKind(E.rp.L, assumed ? 'gone' : 'old', false);
+    on(mkA, assumed); on(labAssume, assumed && !ask); on(srcRenewal, s >= 1);
+  });
+  // a person's answer closes the dashed line: assumed becomes agreed
+  at(a(2) ? 1500 : 0, () => {
+    ren.el.classList.toggle('chg', kept); ren.el.classList.toggle('ink', s >= 1);
+    ren.sub.textContent = !kept ? '' : s >= 5 ? 'Keeps annual; skips provider-billed' : 'Remove → Keep for annual customers';
+    ren.sub.classList.toggle('on', kept);
+    if (kept){ ren.el.classList.remove('gone'); on(mkA, false); on(labAssume, false); setKind(E.rp.L, 'old', false); }
+  });
+  on(labUpgrade, s >= 1); on(labPaid, s >= 1);
+  at(a(5) ? 99999 : 0, () => { on(srcBilling, s >= 5); on(srcDb, s >= 5); });
+
+  // step 2: a notification brings Priyanka to her queue, with Claude's fact on the map;
+  // step 3: she disputes with a click, and confirms Codex's question
+  curAt(CUR.pri, null); curAt(CUR.duy, null);
+  on(pinP, (ask || s >= 2) && s < 5); on(threadP, ask || s === 2);
+  pAns.classList.toggle('hide', !(s === 2 && !A)); on(pAns, s === 2 && !A);
+  pFact.style.cssText = s === 2 && !A ? '' : 'border:0;margin:0;padding:0';
+  on(note, ask && !A);
+  on(held, s >= 8);
+  // step 9: after the held-up card, Billing, the plan column and their lines settle into the system
+  e1.classList.toggle('settling', a(8));
+  at(a(8) ? 1500 : 0, () => {
+    const settled = s >= 8;
+    [N.billing.el, N.db.el].forEach(el => el.classList.toggle('settled', settled));
+    N.billing.sub.textContent = settled ? 'Pro via the provider' : N.billing.s;
+    N.db.sub.textContent = settled ? 'plan column' : N.db.s;
+    on(labUpgrade, s >= 1 && !settled); on(labPaid, s >= 1 && !settled);
+    ['wb', 'bp', 'pb', 'bd'].forEach(k => { if (E[k].L.on) setKind(E[k].L, settled ? 'old' : 'new'); });
+  });
+  if (s === 1 && !ask){ const c = card(`<div class="ct">1 waiting on Priyanka</div>${ROW_A}`); at(A ? 1200 : 0, () => on(c, true)); }
+  if (ask){
+    const q = card(QUEUE);
+    if (A){
+      on(threadP, false); on(pinP, false);
+      at(0, () => on(note, true));
+      at(900, () => on(q, true));
+      at(1500, () => { on(pinP, true); on(threadP, true); });
+      at(2000, () => curAt(CUR.pri, center(q.querySelector('#dispA'), 10, 4)));
+    } else { on(q, true); curAt(CUR.pri, center(q.querySelector('#dispA'), 10, 4)); }
+  }
+  if (s === 2){
+    if (A){
+      const q = card(QUEUE); on(q, true);
+      const dA = q.querySelector('#dispA'), cC = q.querySelector('#confC');
+      curAt(CUR.pri, center(dA, 10, 4));
+      at(200, () => { ripple(center(dA, 10, 4)); dA.classList.add('pressed'); });
+      at(700, () => { pFact.style.cssText = ''; pAns.classList.remove('hide'); requestAnimationFrame(() => on(pAns, true)); });
+      press(CUR.pri, () => center(cC, 10, 4), 1900);
+      at(2800, () => cC.classList.add('pressed'));
+      at(3300, () => { q.innerHTML = ANSWERED; });
+    } else on(card(ANSWERED), true);
+  }
+
+  /* level 2: inside Billing, with Codex's plan on the same map */
+  const showL = lay;
+  at(opening, () => {
+    if (A) switchView();
+    l1.classList.toggle('off', showL !== 'sys');
+    l2.classList.toggle('off', showL !== 'bill');
+    l3.classList.toggle('off', showL !== 'flow');
+    legend.style.opacity = (showL === 'sys') ? 1 : 0;
+    tools.classList.toggle('off', wantDock);
+    dock.parentElement && dock.classList.toggle('on', wantDock);
+  });
+  if (showL === 'bill') grow(frameB, FRAME_B.from, FRAME_B.to, a(3) || a(6), (ms, fn) => at(opening + ms, fn));
+  else at(opening, () => frameB.classList.remove('on'));
+  for (const e of Object.values(E2)) setLine(e.L, true, false);
+  [E2.wl.L.p, E2.sd.L.p].forEach(p => { p.style.opacity = v === 'clash' ? 0 : 1; });
+  on(src2, !(v === 'clash' && s === 6));
+  N2.ren2.sub.textContent = s >= 5 ? 'Keeps annual; skips provider-billed' : 'Agreed: keep for annual';
+  on(codexBox, true); strikeEls.forEach(el => on(el, true)); on(trialOk, true); on(noConflict, s === 3); on(untouched, s === 3);
+  N2.ren2.sub.classList.add('on');
+
+  // the clash: Codex's code is not Codex's plan
+  const clash = s === 6, fixedC = s >= 7;
+  l2.classList.toggle('clash', v === 'clash');
+  if (!a(6)){ on(slash, clash); on(strikeLab, clash); on(strikeSrc, clash); }
+  if (a(6)){
+    at(opening + 900, () => { on(slash, true); on(strikeLab, true); on(strikeSrc, true); });
+  }
+  if (s === 6 || s === 7){
+    const c = card(`<div class="cline">Breaks what Priyanka agreed Oct 31: 312 annual customers stop renewing, 9 tomorrow.</div>
+      <div class="cline">#212 and #219 both approved, neither merged. Neither touches the other’s files.</div>
+      <div class="btns"><span class="gb" id="flagBtn">Flag to Sam</span></div>`);
+    at(a(6) ? opening + 1200 : 0, () => on(c, true));
+    if (s === 7){
+      c.querySelector('#flagBtn').classList.add('pressed');
+      c.querySelector('#flagBtn').textContent = 'Flagged to Sam';
+      const t = div('ok fade'); t.style.marginTop = '8px';
+      t.textContent = 'Suggested title for ACME‑212: “…keep the renewal job for annual customers”. Priyanka accepted.';
+      c.appendChild(t); at(a(7) ? 3200 : 0, () => on(t, true));
+    }
+  }
+
+  // the dock: Codex's session, or the side chat
+  if (s === 6 || s === 7){
+    dock.innerHTML = `<div class="dh">Codex, Sam</div><div class="dsub">another worktree (preview)</div>
+      <div class="dm"><b>PR #219</b> <span class="g">Remove schedules the provider replaced</span><br><span class="g">Approved by 1 reviewer</span></div>
+      <div class="dcheck fade" id="ck"></div><div class="dm fade" id="sam"><b>Sam:</b> Fix it.</div><div class="dm fade" id="cdx"></div>`;
+    const ck = dock.querySelector('#ck'), sam = dock.querySelector('#sam'), cdx = dock.querySelector('#cdx');
+    const failing = '✕ Living Map: conflicts with Agreed (ACME‑212)<span class="g">Required check. Merge blocked.</span>';
+    const passing = '✓ Living Map: no conflict with Agreed<span class="g">Required check passed.</span>';
+    ck.innerHTML = s === 7 && !A ? passing : failing;
+    at(a(6) ? opening + 1500 : 0, () => on(ck, true));
+    if (s === 7){
+      cdx.innerHTML = `<b>Codex:</b> Got the agreed decision via Living Map <span class="g">(MCP)</span>: keep the renewal job for annual customers (Priyanka, Oct 31). Restored the schedule in #219.`;
+      if (a(7)){
+        press(CUR.you, () => center(strip.querySelector('#flagBtn') || strip, 10, 4), 0);
+        at(900, () => on(sam, true));
+        at(1900, () => on(cdx, true));
+        at(2600, () => { ck.innerHTML = passing; on(slash, false); on(strikeLab, false); on(strikeSrc, false); });
+      } else { on(sam, true); on(cdx, true); }
+    }
+  }
+  if (s === 4){
+    dock.innerHTML = `<div class="dh cl">✳ Ask Claude</div><div class="dsub">read-only, on Payment confirmed</div>
+      <div class="dq fade" id="q">What happens to an annual customer who upgrades to Pro mid-term?</div>
+      <div class="dots fade" id="dt"><i></i><i></i><i></i></div>
+      <div class="da fade" id="ans">The provider bills them for Pro, and the kept renewal job still bills the annual plan. I drew it on the flow.</div>
+      <div class="din" id="din"><span id="dinT"></span><span class="ph2" id="dinP">Ask about this…</span></div>`;
+    const q = dock.querySelector('#q'), dt = dock.querySelector('#dt'), ans = dock.querySelector('#ans');
+    const dinT = dock.querySelector('#dinT'), dinP = dock.querySelector('#dinP');
+    if (a(4)){
+      const text = q.textContent, t0 = opening + 600;
+      for (let i = 1; i <= text.length; i++) at(t0 + i * 28, () => { dinT.textContent = text.slice(0, i); dinP.classList.add('hide'); });
+      const t1 = t0 + text.length * 28 + 300;
+      at(t1, () => { dinT.textContent = ''; dinP.classList.remove('hide'); on(q, true); on(dt, true); });
+      at(t1 + 1000, () => { on(dt, false); dt.classList.add('hide'); on(ans, true); });
+    } else { on(q, true); dt.classList.add('hide'); on(ans, true); }
+  }
+
+  /* level 3: the flow; the question is drawn on it */
+  const f = lay === 'flow';
+  if (f) grow(frameF, frameFrom.F || FRAME_F.to, FRAME_F.to, a(4), (ms, fn) => at(opening + ms, fn)); else at(opening, () => frameF.classList.remove('on'));
+  const fl = (ms) => a(4) ? opening + ms : 0;
+  Object.values(LANES).forEach((n, i) => at(fl(300 + i * 60), () => setLine(n.L, f, false)));
+  ['c1', 'c2'].forEach((k, i) => at(fl(500 + i * 200), () => { setLine(CALLS[k].L, f, A); on(CALLS[k].lab, f); }));
+  at(fl(900), () => on(chkF, f));
+  const qDone = a(4) ? opening + 600 + 64 * 28 + 1500 : 0;
+  ['c3', 'c4'].forEach((k, i) => at(a(4) ? qDone + i * 400 : 0, () => { setLine(CALLS[k].L, f, A); on(CALLS[k].lab, f); }));
+  at(a(4) ? qDone + 900 : 0, () => { on(twice, f); on(ruleB, f); on(mkB, f); });
+  ruleB.classList.toggle('solid', f && !A);
+  if (s === 4){
+    const c = card(`<div class="ct">1 waiting on Duy</div><div class="row"><span class="mk">b</span><div>The renewal job skips anyone the provider now bills.<span class="who">Engineering call, follows Priyanka's policy</span></div></div><div class="btns"><span class="gb" id="cfB">Confirm</span><span class="gb">Dispute</span></div>`);
+    at(a(4) ? qDone + 1100 : 0, () => on(c, true));
+    if (a(4)){
+      press(CUR.duy, () => center(c.querySelector('#cfB'), 10, 4), qDone + 1600);
+      at(qDone + 2500, () => { c.querySelector('#cfB').classList.add('pressed'); ruleB.classList.add('solid'); on(mkB, false); });
+      at(qDone + 2900, () => { c.innerHTML = `<div class="ct">All answered</div><div class="ok">Duy confirmed 14:15</div>`; });
+    } else { c.innerHTML = `<div class="ct">All answered</div><div class="ok">Duy confirmed 14:15</div>`; on(mkB, false); }
+  }
+
+  // step 5: Duy approves; once Claude has built it, sources from the code appear on what matched
+  if (s === 5){
+    const c = card(`<div class="ct">Plan for ACME-212</div><div class="ok">2 of 2 answered</div><div class="btns"><span class="gb" id="apB">Approve plan (2 of 2 answered)</span></div>`);
+    at(0, () => on(c, true));
+    if (a(5)){
+      press(CUR.duy, () => center(c.querySelector('#apB'), 30, 4), 300);
+      at(1200, () => { c.querySelector('#apB').classList.add('pressed'); c.querySelector('#apB').textContent = 'Approved by Duy, 15:00'; });
+    } else {
+      c.querySelector('#apB').classList.add('pressed'); c.querySelector('#apB').textContent = 'Approved by Duy, 15:00';
+      const d = card(`<div class="ok">Checked against #212’s diff: matches the plan.<br>Decisions are in the PR description; the decision record <span class="mono-i">docs/adr/0007-pro-plan-billing.md</span> is written on merge.</div>`); on(d, true);
+    }
+  }
+
+  // your own cursor
+  if (!A) curAt(CUR.you, s === 3 ? [620, 470] : s === 4 ? [500, 560] : null);
+  if (a(3)) press(CUR.you, () => center(N.billing.el, 14, 8), 0);
+  if (a(4)) press(CUR.you, () => center(rowPaid, 40, 2), 0);
+  if (a(6) || a(8) || a(5)) curAt(CUR.you, null);
+}
+
+// step 5's second half: after the build, the map redraws from #212's diff
+function afterBuild(tok){
+  if (tok !== token) return;
+  [srcBilling, srcDb].forEach(el => on(el, true));
+  const d = card(`<div class="ok">Checked against #212’s diff: matches the plan.<br>Decisions are in the PR description; the decision record <span class="mono-i">docs/adr/0007-pro-plan-billing.md</span> is written on merge.</div>`);
+  requestAnimationFrame(() => on(d, true));
+}
+
+/* ---------- chat ---------- */
+function setInput(t){ input.textContent = t; composer.classList.toggle('has', !!t); }
+let spinEl = null;
+function addMsg(el, anim){ if (anim) el.classList.add('anim'); msgs.insertBefore(el, spinEl); msgs.scrollTop = msgs.scrollHeight; }
+function srcTag(t){ const tag = div('src'); tag.append(document.createElement('i'), span('', t)); return tag; }
+function apply(e, anim){
+  if (e.k === 'type') setInput(e.t);
+  else if (e.k === 'submit'){ addMsg(div('bubble', input.textContent), anim); setInput(''); }
+  else if (e.k === 'user'){ const b = div('bubble'); b.append(srcTag(e.tag), span('', e.t)); addMsg(b, anim); }
+  else if (e.k === 'spin'){ if (spinEl) spinEl.remove(); spinEl = div('working'); spinEl.append(div('spin'), span('', 'Working…')); msgs.appendChild(spinEl); }
+  else if (e.k === 'say'){ if (spinEl){ spinEl.remove(); spinEl = null; } addMsg(div('say', e.t), anim); }
+  else if (e.k === 'tool'){
+    let g = spinEl ? spinEl.previousElementSibling : msgs.lastElementChild;
+    if (!g || !g.classList.contains('tools')){ g = div('tools'); addMsg(g, false); }
+    const r = div('tool' + (anim ? ' anim' : ''));
+    r.append(span('v', e.v), span('p', e.p)); if (e.x) r.append(span('x', e.x));
+    g.appendChild(r);
+  }
+}
+function chatStatic(s){ msgs.textContent = ''; spinEl = null; setInput(''); T.filter(e => e.s <= s).forEach(e => apply(e, false)); }
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function chatAnim(s, tok){
+  for (const e of T.filter(e => e.s === s)){
+    await wait(e.k === 'tool' ? 420 : e.k === 'submit' ? 300 : e.k === 'spin' ? 150 : 600);
+    if (tok !== token) return;
+    apply(e, true);
+  }
+}
+
+/* ---------- stepping ---------- */
+function go(t, A){
+  token++; timers.forEach(clearTimeout); timers = [];
+  const tok = token, base = A ? t - 1 : t;
+  mapEl.classList.add('notrans');
+  chatStatic(base); renderMap(base, false);
+  void mapEl.offsetWidth; mapEl.classList.remove('notrans');
+  step = t; counter.textContent = t + ' / ' + LAST;
+  if (!A) return;
+  renderMap(t, true);
+  const later = (ms, fn) => timers.push(setTimeout(fn, ms));
+  if (t === 1) chatAnim(1, tok);
+  if (t === 3) later(3600, () => chatAnim(3, tok));
+  if (t === 5) later(950 + 600 + 64 * 28 + 1500 + 3100, () => chatAnim(5, tok));
+  if (t === 6) later(1500, () => chatAnim(6, tok).then(() => afterBuild(tok)));
+}
+/* ---------- shared state: the server holds the step; every window follows it ---------- */
+const ME = new URLSearchParams(location.search).get('as') || 'You';
+const act = (type, extra = {}) => fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+const next = () => act('next');
+const prev = () => act('back');
+let shown = -1;
+function follow(st){
+  if (st.step === shown) return;
+  const forward = st.step === shown + 1;
+  shown = st.step;
+  go(st.step, forward);
+}
+function listen(){
+  const es = new EventSource('/api/events');
+  es.onmessage = m => { try { follow(JSON.parse(m.data)); } catch {} };
+  es.onerror = () => { es.close(); setTimeout(listen, 1500); };
+}
+// the buttons on the cards are real: a click posts the call, the server moves the story
+document.addEventListener('click', e => {
+  const b = e.target.closest('.gb');
+  if (b){
+    e.stopPropagation();
+    if (b.id === 'dispA') act('dispute');
+    else if (b.id === 'confC') act('confirm', { what: 'OK to stop trial-reminder emails' });
+    else if (b.id === 'cfB') act('confirm', { what: 'the renewal job skips anyone the provider bills' });
+    else if (b.id === 'apB') act('approve');
+    else if (b.id === 'flagBtn') act('flag');
+    b.classList.add('pressed');
+    return;
+  }
+  if (!e.target.closest('button, a')) next();
+});
+$('nextb').addEventListener('click', e => { e.stopPropagation(); next(); });
+$('backb').addEventListener('click', e => { e.stopPropagation(); prev(); });
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+  else if (e.key === 'Backspace' || e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+});
+window.addEventListener('resize', () => { mapEl.classList.add('notrans'); fit(); void mapEl.offsetWidth; mapEl.classList.remove('notrans'); });
+// plan-first.html?rec hides the demo's controls for recording; #4 opens straight at step 4
+if (/rec/.test(location.search)) document.body.classList.add('rec');
+if (/chat/.test(location.search)) document.body.classList.add('chat');
+frameFrom.F = rectInStage(rowPaid);
+if (ME !== 'You') $('onmap').textContent = `You are ${ME}`;
+const start = parseInt(location.hash.slice(1), 10);
+if (Number.isInteger(start)) act('goto', { step: start });
+listen();
+</script>
+</body>
+</html>
