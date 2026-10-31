@@ -209,7 +209,7 @@ body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webk
 #scrim.on{opacity:1}
 .inset{position:absolute;left:calc(340px + (100% - 580px) / 2 - 250px);top:170px;width:500px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-lg);z-index:25;opacity:0;transform:translateY(14px);transition:opacity .35s, transform .5s cubic-bezier(.4,.1,.2,1), left .5s cubic-bezier(.4,.1,.2,1), top .5s cubic-bezier(.4,.1,.2,1);transform-origin:100% 100%;overflow:hidden}
 .inset.on{opacity:1;transform:none}
-.inset.corner{left:calc(100% - 764px);top:calc(100% - 330px);transform:scale(.8)}
+.inset.corner{left:calc(100% - 764px);top:calc(100% - 330px);transform:scale(.66)}
 .wbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);background:#fbfbfa;color:var(--muted);font-size:11.5px}
 .wbar i{width:9px;height:9px;border-radius:50%;background:#e2e1dc}
 .wbar span{margin-left:6px}
@@ -243,6 +243,34 @@ body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webk
 .rip{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:rgba(19,19,19,.18);animation:rip .5s ease-out forwards;pointer-events:none;z-index:41}
 @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
 
+
+/* v11: the draft chip, reviewers, a requirement tag, the owner's Accept, the design doc */
+.dchip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;border:1px solid #3a3f47;font-size:12px;color:var(--ink);background:#fff;white-space:nowrap}
+.dchip.draft{border-style:dashed}
+.dchip.approved{border-style:dashed;background:var(--ok-soft);border-color:var(--ok);color:var(--ok-text)}
+.srcn{font-size:11.5px;color:var(--muted);white-space:nowrap}
+#newDraft{font-size:12px;padding:2px 10px}
+.rv{display:flex;gap:9px;align-items:center;padding:6px 6px}
+.rv i{width:22px;height:22px;border-radius:50%;color:#fff;font:600 10.5px/22px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal;flex:none}
+.rv b{display:block;font-weight:500;color:var(--ink);font-size:12.5px}
+.rv span{display:block;color:var(--muted);font-size:11px}
+.rv em{margin-left:auto;font-style:normal;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.rv em.ok{color:var(--ok-text)}
+.wl.tagp{background:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:1px 9px;font-size:11px;color:var(--body)}
+.wl.tagp.held{border-color:var(--ok-line);background:var(--ok-soft);color:var(--ok-text)}
+.th-acc{display:flex;gap:8px;align-items:center;margin-top:9px}
+.btn.dark{background:#3a3f47;color:#fff;border-color:#3a3f47}
+.btn.dark.press{background:#131313}
+.txtbtn{font-size:12px;color:var(--muted)}
+#recR{display:none;font-size:12px;color:var(--body)}
+.thread.col > *{display:none}
+.thread.col #recR{display:block}
+.thread.col{padding:7px 10px}
+.dfile{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+.dfile b{display:block;font-family:var(--mono);font-weight:500;font-size:11.5px;color:var(--ink)}
+.dfile small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.note{color:var(--muted);font-size:11.5px}
+.node.srow.struck .body, .node.srow.struck .lbl, .node.srow.struck .sub{opacity:.45}
 #nav{position:absolute;left:50%;top:7px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:50;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 5px}
 #nav button{font:inherit;font-size:12px;border:0;background:var(--panel);border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink)}
 #nav span{font-size:12px;color:var(--muted);min-width:44px;text-align:center}
@@ -316,10 +344,10 @@ const EDGES = [
   {id:'e2', d:'M310 153H360'},
   {id:'e3', d:'M435 196V330'},
   {id:'e4', d:'M310 381H360'},
-  {id:'p1', d:'M510 153H570', t:'Upgrade', tx:540, ty:145, plan:1},
-  {id:'p2', d:'M730 138H838', t:'Checkout', tx:784, ty:130, plan:1},
-  {id:'p3', d:'M838 172H730', t:'Payment confirmed', tx:784, ty:190, plan:1},
-  {id:'p4', d:'M650 196V366Q650 381 635 381H510', t:'sets plan', tx:592, ty:373, plan:1},
+  {id:'p1', d:'M510 153H570', plan:1},
+  {id:'p2', d:'M730 138H838', plan:1},
+  {id:'p3', d:'M838 172H730', plan:1},
+  {id:'p4', d:'M650 196V366Q650 381 635 381H510', plan:1},
 ];
 
 /* the renewal job's own infrastructure, drawn inside its box and revealed by zooming in */
@@ -351,11 +379,10 @@ function infra(){
     <g class="node" id="i-db"><path class="body" d="M590 268A105 11 0 0 1 800 268V340A105 11 0 0 1 590 340Z"/><path class="ico" d="M590 268A105 11 0 0 0 800 268"/>
       <text class="lbl" x="695" y="306" text-anchor="middle">Users DB</text><text class="sub" x="695" y="324" text-anchor="middle">annual customers</text></g>
     <g class="edge"><path d="M468 122H590"/><path d="M695 176V257"/></g>
-    <g id="codexNote" style="opacity:0;transition:opacity .4s">
-      <rect x="30" y="384" width="456" height="66" rx="8" fill="#fff" stroke="rgba(11,11,11,.12)"/>
-      <rect x="44" y="398" width="18" height="18" rx="4" fill="#131313"/><text x="53" y="411" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:#fff;font-weight:600">&gt;_</text>
-      <text x="70" y="412" style="font-size:12.5px;font-weight:600;fill:#131313">Codex for Sam (preview), ACME-219</text>
-      <text x="44" y="436" style="font-size:12px;fill:#383835">Removes 3 schedules Stripe now handles. Renewal job: not in its plan.</text>
+    <g id="clashNote" style="opacity:0;transition:opacity .4s">
+      <text x="30" y="398" style="font-size:15px;font-weight:600;fill:#b02e2e">Codex’s code removes what Priyanka decided.</text>
+      <text x="30" y="420" style="font-size:11.5px;fill:#6b6964">#219 deletes renewal-annual. It isn’t in Codex’s plan:</text>
+      <text x="30" y="436" style="font-size:11.5px;fill:#6b6964">Codex planned from ACME-212’s title, before her 10:02 decision.</text>
     </g>
   </g>`;
 }
@@ -389,7 +416,7 @@ function seqSvg(){
 
 function build(){
   const sysSvg = `<svg width="1100" height="600"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8a8882"/></marker><marker id="ahn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2F6FE4"/></marker></defs>
-    <g class="sysonly"><rect class="frame" x="100" y="62" width="660" height="404" rx="14"/><text class="ftitle" x="116" y="84">acme-app, production<tspan style="fill:#8a8882;font-size:10.5px">   drawn from repo and Terraform; plans from agent sessions</tspan></text></g>
+    <g class="sysonly"><rect class="frame" x="100" y="62" width="660" height="404" rx="14"/><text class="ftitle" x="116" y="84">acme-app</text></g>
     <g id="edges" class="sysonly">${edgesSvg()}</g>
     ${NODES.map(shape).join('')}
     <rect class="cxhalo" id="cxHalo" x="562" y="102" width="176" height="102" rx="8"/><text class="cxhalo" id="cxHaloT" x="738" y="226" text-anchor="end" style="font-size:10.5px;fill:#6b6964;stroke:none">Codex for Sam, planning</text>
@@ -403,6 +430,8 @@ function build(){
   <header id="top">
     <div class="logo">${LOGO}Living Map</div><div class="vsep"></div>
     <div class="crumbs"><span class="c">acme-app</span><span class="sl">/</span><span class="c cur" id="crSys">System</span><span class="sl hide" id="crSl">/</span><span class="c cur hide" id="crSub"></span></div>
+    <span class="dchip" id="dchip">Production</span><span class="srcn" id="srcn">from repo and Terraform</span>
+    <span class="btn" id="newDraft">New draft</span>
     <div class="grow"></div>
     <div id="clock">Oct 31, 09:58</div>
     <div class="avs">
@@ -413,37 +442,21 @@ function build(){
   </header>
   <main id="view">
     <div id="world">${sysSvg}
-      ${wl('lAssume', 120, 430, 'Claude assumed: remove it<span class="src">← jobs/renewal.ts:18 (annual only)</span>', 'rem')}
+      ${wl('lAssume', 120, 430, 'Claude assumed: remove it', 'rem')}
       ${wl('lKeep', 120, 430, 'Remove → Keep for annual customers', 'chg')}
-            ${wl('lBuilt', 570, 62, '<span class="big" style="color:var(--ok-text)">Built as agreed ✓</span><span class="src" style="font-family:inherit;font-size:11px">planned changes found in #212’s diff</span>', 'new')}
-      ${wl('lClash', 120, 456, '<span class="big" style="color:var(--rem-text)">Codex’s code removes what Priyanka kept.</span><span class="src" style="font-family:inherit;font-size:11px;white-space:normal;width:330px">Not in Codex’s plan; in its code ← Codex planned from ACME-212’s title at 09:40, before Priyanka’s 10:02 decision.</span>', 'rem')}
-      <div class="wait" id="waitR" style="left:128px;top:328px"><span class="who" style="background:${PCOL.Priyanka}">Priyanka</span><span class="pend" id="waitRs">Pending</span></div>
+      ${wl('tagB', 576, 187, 'Charge each customer once <span style="color:var(--muted)">← ACME-212</span>', 'tagp')}
+      ${wl('lBuilt', 570, 66, '<span class="big" style="color:var(--ok-text)">Built as agreed ✓</span>', 'new')}
       <div class="thread" id="thR" style="left:340px;top:490px">
         <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>for Priyanka, owner of ACME-212</span></div>
         <div class="th-q">Remove the renewal job? 312 annual customers renew through it.</div>
-        <div class="th-src">← customer database (read-only copy)</div>
         <div class="th-reply" id="replyR"></div>
         <div class="th-btns" id="btnsR"><span class="btn" id="cfR">Confirm</span><span class="btn" id="dsR">Dispute</span></div>
-        <div class="th-ans hide" id="ansR">Priyanka disputed, 10:02<small>Added to ACME-212 as a decision and sent to Claude.</small></div>
+        <div class="th-acc hide" id="accR"><span class="btn dark" id="acceptR">Accept</span><span class="txtbtn">Reply</span></div>
+        <div id="recR">Priyanka decided 10:02: keep for annual customers. Accepted by you. On ACME-212.</div>
       </div>
-      <div class="wl card" id="record" style="left:320px;top:490px;width:310px">
-        <div style="font-weight:600;margin-bottom:3px">It held up</div>
-        <div>Oct 31: Priyanka decided to keep the job for annual customers. #212 and #219 shipped.</div>
-        <div style="margin-top:4px">Nov 1: 9 renewals ran <span style="color:var(--muted)">← job run log</span>; upgrades billed once <span style="color:var(--muted)">← Stripe events</span>.</div><div style="margin-top:4px;color:var(--muted);font-size:11px">Read by Claude Code (#212) and Codex (#219)</div>
-      </div>
-    </div>
-    <div id="seq">
-      <div class="sq-h"><b>Payment confirmed: an annual customer upgrades mid-term</b><span>Drawn from the plan, not run</span></div>
-      ${seqSvg()}
-      <div class="mark bad" id="mkTwice" style="left:22px;top:488px">✕ Charged twice</div>
-      <div class="mark ok" id="mkOnce" style="left:22px;top:488px">✓ Billed once</div>
-      <div class="wait" id="waitD" style="left:666px;top:48px"><span class="who" style="background:${PCOL.Duy}">Duy</span><span class="pend">Pending</span></div>
-      <div class="thread" id="thD" style="left:484px;top:500px">
-        <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>for Duy, owner of Billing</span></div>
-        <div class="th-q">Should the renewal job skip anyone Stripe now bills?</div>
-        <div class="th-src">← CODEOWNERS: jobs/ and services/billing (Duy)</div>
-        <div class="th-btns" id="btnsD"><span class="btn" id="cfD">Confirm</span><span class="btn">Dispute</span></div>
-        <div class="th-ans hide" id="ansD">Duy confirmed, 14:15<small>Plan for ACME-212: 2 of 2 answered.</small><span class="btn wide" id="apD">Approve plan</span></div>
+      <div class="wl card" id="record" style="left:340px;top:490px;width:300px">
+        <div style="font-weight:600">Priyanka’s decision held up: 9 renewals ran <span style="font-weight:400;color:var(--muted)">← job run log</span></div>
+        <div style="margin-top:3px;color:var(--muted);font-size:11.5px">Read by Claude Code (#212) and Codex (#219)</div>
       </div>
     </div>
   </main>
@@ -454,17 +467,14 @@ function build(){
   </aside>
   <aside id="side">
     <div class="sh">On this map</div>
-    <div class="row" id="rSys"><span class="ic"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#55534e" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><path d="M10 6.5h4.5V14"/></svg></span><div><b>System</b><span id="rSysS">From repo and Terraform</span></div><span class="eye">${EYE}</span></div>
-    <div class="row hide" id="rCl"><span class="ic">${CLAUDE(12)}</span><div><b>Claude Code for you</b><span id="rClS">ACME-212, planning</span></div><span class="eye">${EYE}</span></div>
-    <div class="row hide" id="rCx"><span class="ic" style="background:#131313;color:#fff">${CODEX}</span><div><b>Codex for Sam</b><span id="rCxS">ACME-219, planning</span></div><em>preview</em></div>
-    <div class="decs"><div class="sh">Waiting on</div><div class="chips" id="waiting"><span class="none">Nobody</span></div></div>
-    <div class="decs"><div class="sh">Decisions</div><div id="decs"><div class="none" id="noDec">None yet</div></div></div>
+    <div class="row hide" id="rCl"><span class="ic">${CLAUDE(12)}</span><div><b>Claude Code for you</b><span id="rClS">ACME-212, your draft</span></div><span class="eye">${EYE}</span></div>
+    <div class="row" id="rCx"><span class="ic" style="background:#131313;color:#fff">${CODEX}</span><div><b>Codex for Sam</b><span id="rCxS">ACME-219, own draft</span></div><em>preview</em></div>
+    <div class="decs hide" id="reviewers"><div class="sh">Reviewers</div>
+      <div class="rv" id="rvP"><i style="background:${PCOL.Priyanka}">P</i><div><b>Priyanka</b><span>owner of ACME-212</span></div><em>Requested</em></div>
+      <div class="rv" id="rvD"><i style="background:${PCOL.Duy}">D</i><div><b>Duy</b><span>CODEOWNERS jobs/</span></div><em>Requested</em></div>
+    </div>
   </aside>
   <div id="scrim"></div>
-  <div class="inset" id="inNotif">
-    <div class="wbar"><i></i><i></i><i></i><span>Priyanka’s laptop</span></div>
-    <div class="desk"><div class="notif"><span style="flex:none;margin-top:1px">${LOGO}</span><div style="flex:1"><small>Living Map, now</small><b>Claude needs a product call on ACME-212</b><p>Remove the renewal job? 312 annual customers renew through it.</p><span class="btn" id="openPin">Open pin ›</span></div></div></div>
-  </div>
   <div class="inset" id="inPR">
     <div class="wbar"><i></i><i></i><i></i><span>Sam’s pull request</span></div>
     <div class="pr"><h3>#219 Remove schedules Stripe now handles</h3><div class="meta">Opened by Codex for Sam. Approved by a teammate. <span style="font-family:var(--mono)">infra/scheduler.tf −18</span></div>
@@ -482,7 +492,6 @@ function build(){
   <div id="curs">
     <div class="cursor" id="cY">${ARROW(PCOL.You)}<span class="nm" style="background:${PCOL.You}">You</span></div>
     <div class="cursor" id="cP">${ARROW(PCOL.Priyanka)}<span class="nm" style="background:${PCOL.Priyanka}">Priyanka</span></div>
-    <div class="cursor" id="cD">${ARROW(PCOL.Duy)}<span class="nm" style="background:${PCOL.Duy}">Duy</span></div>
   </div>
   <div id="nav"><button id="back">Back</button><span id="count"></span><button id="next">Next</button></div>`;
 }
@@ -562,132 +571,99 @@ function seqFrom(el){
   s.classList.add('on'); s.style.transform = 'none';
 }
 
+const DOC = `<svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="#55534e" stroke-width="1.3" style="flex:none;margin-top:1px"><path d="M2 1.5h8l4 4V16.5H2z"/><path d="M10 1.5v4h4M5 9h6M5 12h6"/></svg>`;
+function setChip(state){
+  const c = $('dchip'), n = $('srcn');
+  c.className = 'dchip ' + (state === 'draft' ? 'draft' : state === 'approved' ? 'approved' : '');
+  c.textContent = { prod: 'Production', draft: 'Draft', approved: 'Draft, approved', live: 'Production' }[state];
+  n.textContent = { prod: 'from repo and Terraform', draft: 'of production, Oct 31', approved: 'of production, Oct 31', live: 'deployed Nov 1: #212, #219. No drift from the approved draft.' }[state];
+  $('newDraft').classList.toggle('hide', state !== 'prod');
+}
+function approve(id){ const e = $(id).querySelector('em'); e.textContent = '✓ Approved'; e.classList.add('ok'); flash(id); }
+
 /* ---------- the journey: each step is one person's action and what it changes ---------- */
 const STEPS = [
-  // 0. Context: our system, and the task
+  // 0. Production, then your draft of it; you ask Claude Code
   () => {
     cam(...SYSCAM);
-    ['customer', 'web', 'api', 'db', 'renewal'].forEach((n, i) => later(300 + i * 650, () => { if (!I){ on('n-' + n, 'tour'); later(600, () => off('n-' + n, 'tour')); } }));
-    later(3500, () => curTo('cY', pt('input', .25, .5)));
-    later(4200, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
-    later(4500, () => typeInto('input', 'Plan ACME-212: add a Pro plan with Stripe, and remove the old renewal job.', 30));
+    later(500, () => curTo('cY', pt('newDraft')));
+    later(1200, () => { tap('cY'); setChip('draft'); });
+    later(1800, () => curTo('cY', pt('input', .25, .5)));
+    later(2400, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
+    later(2600, () => typeInto('input', 'Plan ACME-212: add a Pro plan with Stripe, and remove the old renewal job.', 40));
   },
-  // 1. Claude's plan on the map, no code yet
+  // 1. Claude's plan on your draft, no code yet; its guess waits on Priyanka
   () => {
-    send();
-    later(400, () => tools([['Read', '6 files'], ['Query', 'customers (read-only copy)', '312 annual']]));
-    later(1300, () => msg('Drawing the plan on Living Map.', 'say'));
-    later(2300, () => { drawer(false); $('rCl').classList.remove('hide'); flash('rCl'); });
-    later(5600, () => { msg('Drawn on Living Map. No code yet. One product call is waiting on Priyanka.', 'say'); if (!I) app.classList.add('unread'); });
-    later(2900, () => { on('n-billing', 'new'); app.classList.add('focus'); });
-    ['p1', 'p2', 'p3', 'p4'].forEach((e, i) => later(3100 + i * 220, () => draw(e)));
-    later(3900, () => { on('n-db', 'chg'); $('n-db').querySelector('.sub').textContent = '+ plan column'; });
-    later(4400, () => { on('n-renewal', 'rem'); on('n-renewal', 'assumed'); on('lAssume'); });
-    later(5100, () => { on('waitR'); waiting('Priyanka'); });
-    later(5400, () => { on('thR'); });
-    later(6100, () => { $('rCx').classList.remove('hide'); flash('rCx'); on('cxHalo'); });
+    clock('Oct 31, 09:59'); send();
+    later(300, () => tools([['Read', '6 files'], ['Query', 'customers (read-only copy)', '312 annual']]));
+    later(1100, () => msg('Drawing the plan on Living Map. No code yet.', 'say'));
+    later(1800, () => { on('n-billing', 'new'); app.classList.add('focus'); $('rCl').classList.remove('hide'); flash('rCl'); });
+    ['p1', 'p2', 'p3', 'p4'].forEach((e, i) => later(2000 + i * 200, () => draw(e)));
+    later(2900, () => on('tagB'));
+    later(3800, () => { on('n-renewal', 'rem'); on('n-renewal', 'assumed'); on('lAssume'); });
+    later(4800, () => { on('thR'); $('reviewers').classList.remove('hide'); });
+    later(5600, () => msg('One product call is waiting on Priyanka.', 'say'));
   },
-  // 2. Priyanka decides on her own screen; Claude hears it
+  // 2. Priyanka decides; you accept; it goes back to Claude
   () => {
-    inset('inNotif', true); on('avP', 'live');
-    later(700, () => curTo('cP', {x: 1020, y: 330}));
-    later(1100, () => curTo('cP', pt('openPin')));
-    later(1900, () => { tap('cP'); on('openPin', 'press'); });
-    later(2300, () => { inset('inNotif', false); clock('Oct 31, 10:02'); curTo('cP', {x: 900, y: 600}, false); });
-    later(2700, () => curTo('cP', pt('replyR', .3, .5)));
-    later(3500, () => { tap('cP'); later(250, () => curTo('cP', pt('replyR', 1.06, 1.3))); typeInto('replyR', 'Annual customers keep renewing through our job; new and upgraded customers bill through Stripe.', 48); });
-    later(5800, () => curTo('cP', pt('dsR')));
-    later(6500, () => { tap('cP'); on('dsR', 'press'); });
-    later(6800, () => { off('n-renewal', 'assumed'); off('n-renewal', 'rem'); on('n-renewal', 'chg'); off('lAssume'); on('lKeep'); });
-    later(7300, () => { $('btnsR').classList.add('hide'); $('ansR').classList.remove('hide'); });
-    later(7900, () => { app.classList.add('pulse', 'unread'); });
-    later(8300, () => { drawer(true); app.classList.remove('unread'); msg('<small>From Living Map</small>Priyanka: annual customers keep renewing through our job; new and upgraded customers bill through Stripe.', 'fromlm'); });
-    later(9000, () => msg('Updated the plan: the renewal job stays for annual customers.', 'say'));
-    later(10200, () => { drawer(false); app.classList.remove('pulse'); off('thR'); off('waitR'); waiting(); curTo('cP', {x: 900, y: 700}, false); off('avP', 'live'); decision('Renewal job: keep for annual customers', 'Priyanka, Oct 31 10:02, on ACME-212'); });
+    clock('Oct 31, 10:02'); on('avP', 'live');
+    later(100, () => curTo('cP', {x: 900, y: 780}, false));
+    later(200, () => curTo('cP', pt('dsR')));
+    later(900, () => { tap('cP'); on('dsR', 'press'); });
+    later(1200, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 42); });
+    later(4200, () => { $('btnsR').classList.add('hide'); $('accR').classList.remove('hide'); off('avP', 'live'); curTo('cP', {x: 900, y: 820}, false); clock('Oct 31, 10:05'); });
+    later(4400, () => curTo('cY', pt('acceptR')));
+    later(5100, () => { tap('cY'); on('acceptR', 'press'); });
+    later(5400, () => { off('n-renewal', 'assumed'); off('n-renewal', 'rem'); on('n-renewal', 'chg'); off('lAssume'); on('lKeep'); on('thR', 'col'); curTo('cY', {x: 1000, y: 840}, false);
+      on('s-0', 'chg'); $('s-0').querySelector('.sub').textContent = 'Agreed: keep for annual customers'; });
+    later(6100, () => msg('<small>From Living Map</small>Priyanka decided: keep the renewal job for annual customers. Accepted by you.', 'fromlm'));
+    later(6800, () => msg('Updated the plan: the renewal job stays for annual customers.', 'say'));
   },
-  // 3. One level down: the renewal job's infrastructure, and Codex's plan
+  // 3. Reviewers approve; the design doc is saved; Claude builds it
   () => {
-    clock('Oct 31, 11:10');
-    later(200, () => curTo('cY', pt('n-renewal', .45, .55)));
-    later(800, () => on('hintR'));
-    later(1200, () => { tap('cY'); later(140, () => tap('cY')); });
-    later(1500, () => { off('hintR'); curTo('cY', {x: 1100, y: 820}, false); app.classList.add('deep'); crumbs('Renewal job'); cam(IX - 4, IY - 4, 190 + 8, 478 * IK + 8); });
-    later(2700, () => { [1, 2, 3].forEach(i => on('s-' + i, 'prop')); on('s-0', 'chg'); $('s-0').querySelector('.sub').textContent = 'Agreed: keep for annual customers'; });
-    later(3300, () => { $('codexNote').style.opacity = 1; $('rCxS').textContent = 'ACME-219, planned'; flash('rCx'); });
+    clock('Oct 31, 14:40');
+    later(200, () => approve('rvP'));
+    later(700, () => approve('rvD'));
+    later(1100, () => { setChip('approved'); off('thR'); });
+    later(1500, () => msg(`<span class="dfile">${DOC}<span><b>docs/design/acme-212-pro-plan.md</b><small>Committed on branch acme-212-pro-plan. Linked on ACME-212.</small></span></span>`, 'filemsg'));
+    later(1900, () => msg('Design approved. Code review still happens on GitHub.', 'note'));
+    later(2400, () => { $('modeChip').classList.add('hide'); tools([['Read', 'docs/design/acme-212-pro-plan.md'], ['Write', 'services/billing/index.ts', '+128'], ['Edit', 'jobs/renewal.ts', '+6'], ['Bash', 'npm test billing', '✓ 14 passed'], ['Bash', 'gh pr create', '#212']]); });
+    later(4200, () => { on('lBuilt'); $('rClS').textContent = '#212, built as agreed'; flash('rCl'); });
   },
-  // 4. The sequence diagram: what happens when an annual customer upgrades
-  () => {
-    clock('Oct 31, 14:05');
-    later(200, () => curTo('cY', pt('crSys')));
-    later(900, () => { tap('cY'); app.classList.remove('deep'); crumbs(''); cam(...SYSCAM); });
-    later(2000, () => curTo('cY', pt($('p3').querySelector('text'))));
-    later(2400, () => on('hintP'));
-    later(2900, () => { tap('cY'); off('hintP'); curTo('cY', {x: 1100, y: 820}, false); crumbs('Payment confirmed');
-      app.classList.add('seqon');
-      seqFrom($('p3').querySelector('text')); });
-    ['m1', 'm2', 'm3', 'm4'].forEach((m, i) => later(3500 + i * 220, () => on(m)));
-    later(4200, () => curTo('cY', pt('input', .25, .5)));
-    later(4800, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
-    later(5100, () => typeInto('input', 'What happens to an annual customer who upgrades to Pro mid-term?', 34));
-    later(7200, () => send());
-    later(7600, () => msg('Drawing it on the flow.', 'say'));
-    later(8200, () => drawer(false));
-    later(8700, () => on('m6'));
-    later(9100, () => on('m7'));
-    later(9600, () => on('mkTwice'));
-    later(10300, () => { on('waitD'); waiting('Duy'); later(300, () => on('thD')); });
-  },
-  // 5. Duy confirms and approves; Claude builds
-  () => {
-    clock('Oct 31, 14:15'); on('avD', 'live');
-    later(300, () => curTo('cD', {x: 1000, y: 700}, false));
-    later(400, () => curTo('cD', pt('cfD')));
-    later(1200, () => { tap('cD'); on('cfD', 'press'); off('waitD'); waiting(); });
-    later(1500, () => { on('m8'); on('m7', 'off'); off('mkTwice'); on('mkOnce'); });
-    later(2100, () => { $('btnsD').classList.add('hide'); $('ansD').classList.remove('hide'); });
-    later(2700, () => curTo('cD', pt('apD')));
-    later(3400, () => { tap('cD'); on('apD', 'press'); $('apD').textContent = 'Approved by Duy, 14:15'; });
-    later(4300, () => { curTo('cD', {x: 1100, y: 840}, false); off('avD', 'live'); off('thD'); off('seq'); crumbs(''); app.classList.remove('seqon');
-      $('n-renewal').querySelector('.sub').textContent = 'Skips anyone on Stripe'; decision('Renewal job skips anyone on Stripe', 'Duy, Oct 31 14:15'); });
-    later(5000, () => { clock('Oct 31, 15:00'); drawer(true); msg('<small>From Living Map</small>Duy confirmed: skip anyone on Stripe. Plan approved.', 'fromlm'); });
-    later(5400, () => { msg('Plan approved. Leaving plan mode.', 'say'); $('modeChip').classList.add('hide'); });
-    later(5900, () => tools([['Write', 'services/billing/index.ts', '+128'], ['Write', 'services/billing/routes/payment-confirmed.ts', '+52'], ['Write', 'migrations/007_plan.sql', '+9'], ['Edit', 'jobs/renewal.ts', '+6'], ['Bash', 'npm test billing', '✓ upgrade mid-term charges once'], ['Bash', 'gh pr create', '#212']]));
-    later(7700, () => msg('PR #212 is open. Decisions are in its description.', 'say'));
-    later(8600, () => { drawer(false); on('lBuilt'); $('rClS').textContent = '#212, built as agreed'; flash('rCl'); });
-  },
-  // 6. The clash: Codex's code removes what Priyanka kept
+  // 4. The clash: Sam's Codex removes the job in code; the check blocks the merge
   () => {
     clock('Oct 31, 16:40'); on('avS', 'live');
     inset('inPR', true);
-    later(1900, () => { on('inPR', 'corner'); off('scrim'); app.classList.add('clashz'); cam(70, 250, 580, 554, 1.6); });
-    later(2700, () => { on('rstrike'); on('n-renewal', 'struck'); });
-    later(3200, () => on('lClash'));
-    later(4300, () => { $('ckLM').innerHTML = '<span class="st bad">✕</span><div>Living Map: conflicts with Priyanka’s Oct 31 decision (ACME-212)<small>9 renewals due tomorrow ← customer database</small></div>'; $('mergeT').innerHTML = '<span class="bad">Merge blocked</span>'; waiting('Sam'); $('rCxS').innerHTML = '<span class="bad">#219 blocked</span>'; flash('rCx'); });
+    later(1800, () => { on('inPR', 'corner'); off('scrim'); app.classList.add('deep'); crumbs('Renewal job'); cam(IX - 4, IY - 4, 190 + 8, 478 * IK + 8); });
+    later(3000, () => { on('s-0', 'struck'); $('s-0').querySelector('.strike').classList.add('on'); });
+    later(3500, () => { $('clashNote').style.opacity = 1; });
+    later(5000, () => { $('ckLM').innerHTML = '<span class="st bad">✕</span><div>Living Map: conflicts with Priyanka’s decision (ACME-212). Merge blocked.<small>Accepted by you; approved draft, #212 open. 9 renewals due tomorrow ← customer database</small></div>'; $('mergeT').innerHTML = '<span class="bad">Merge blocked</span>'; $('rCxS').innerHTML = '<span class="bad">#219 blocked</span>'; flash('rCx'); });
   },
-  // 7. Codex reads the decision from Living Map and fixes its own PR
+  // 5. Codex reads the decision from Living Map and fixes its own PR
   () => {
     clock('Oct 31, 16:52');
     off('inPR'); off('inPR', 'corner');
-    later(300, () => inset('inTerm', true));
+    later(200, () => inset('inTerm', true));
     const T = $('term'), line = (html, cls = '') => { const d = document.createElement('div'); d.className = cls + (I ? '' : ' anim'); d.innerHTML = html; T.appendChild(d); };
-    later(800, () => line('<span class="you">›</span> <span class="you" id="samT"></span>'));
-    later(900, () => typeInto('samT', 'Fix it.', 14));
-    later(1800, () => line('<div>• Called <b style="font-weight:500;color:#131313">living_map.get_decision</b>({ "ticket": "ACME-212", "component": "Renewal job" })</div><div class="k">  └ keep the renewal job for annual customers (Priyanka, 2026-10-31 10:02)</div>'));
-    later(3000, () => line('<div>• Edited infra/scheduler.tf <span class="ok">(+5)</span></div><div>• Ran git push</div>'));
-    later(3700, () => line('Restored renewal-annual in #219. It now matches Priyanka’s decision on ACME-212.', 'say2'));
-    later(4300, () => line('<span class="ok">✓ Living Map: no conflict with agreed decisions</span>'));
-    later(5000, () => { on('inTerm', 'corner'); off('scrim'); });
-    later(5700, () => { off('rstrike'); off('lClash'); off('n-renewal', 'struck'); waiting(); });
-    later(6900, () => { inset('inTerm', false); off('avS', 'live'); app.classList.remove('clashz'); cam(...SYSCAM); $('rCxS').innerHTML = '<span class="ok">#219 passing</span>'; flash('rCx'); });
+    later(500, () => line('<span class="you">›</span> <span class="you" id="samT"></span>'));
+    later(600, () => typeInto('samT', 'Fix it.', 16));
+    later(1300, () => line('<div>• Called <b style="font-weight:500;color:#131313">living_map.get_decision</b>({ "ticket": "ACME-212", "component": "Renewal job" })</div><div class="k">  └ keep the renewal job for annual customers (Priyanka, 2026-10-31 10:02)</div>'));
+    later(2300, () => line('<div>• Edited infra/scheduler.tf <span class="ok">(+5)</span></div><div>• Ran git push</div>'));
+    later(2800, () => line('<span class="ok">✓ Living Map: no conflict with agreed decisions</span>'));
+    later(3400, () => { on('inTerm', 'corner'); off('scrim'); });
+    later(3900, () => { off('s-0', 'struck'); $('s-0').querySelector('.strike').classList.remove('on'); $('clashNote').style.opacity = 0; });
+    later(4800, () => { inset('inTerm', false); off('avS', 'live'); app.classList.remove('deep'); crumbs(''); cam(...SYSCAM); $('rCxS').innerHTML = '<span class="ok">#219 passing</span>'; flash('rCx'); });
   },
-  // 8. Nov 1: the map is redrawn from main, and the decision held up
+  // 6. Nov 1: production redrawn from what's deployed; it held up
   () => {
     clock('Nov 1, 08:12'); cam(...SYSCAM);
-    later(500, () => { $('rSysS').textContent = 'Redrawn from main, Nov 1'; $('rClS').textContent = '#212 merged'; $('rCxS').textContent = '#219 merged'; flash('rSys'); });
-    later(900, () => { app.classList.remove('focus'); off('n-billing', 'plan'); off('n-billing', 'new'); off('n-db', 'chg'); off('n-renewal', 'chg'); off('lKeep'); off('lBuilt');
+    later(300, () => setChip('live'));
+    later(1000, () => { app.classList.remove('focus'); off('n-billing', 'plan'); off('n-billing', 'new'); off('n-renewal', 'chg'); off('lKeep'); off('lBuilt');
       EDGES.filter(e => e.plan).forEach(e => { off(e.id, 'new'); off(e.id, 'plan'); $(e.id).querySelector('path').setAttribute('marker-end', 'url(#ah)'); });
-      $('n-billing').querySelector('.sub').textContent = 'services/billing'; $('n-db').querySelector('.sub').textContent = 'Postgres, with plan column'; });
-    later(1900, () => { $('waitRs').className = 'held'; $('waitRs').textContent = 'Decided Oct 31, held up'; on('waitR'); on('record'); });
+      $('n-billing').querySelector('.sub').textContent = 'services/billing'; $('n-renewal').querySelector('.sub').textContent = 'Keeps annual customers';
+      $('rClS').textContent = '#212 deployed'; $('rCxS').textContent = '#219 deployed'; });
+    later(1800, () => { $('tagB').innerHTML = 'Charge each customer once ✓ <span style="opacity:.8">← Stripe events</span>'; on('tagB', 'held'); });
+    later(2400, () => on('record'));
   },
 ];
 const LAST = STEPS.length - 1;
@@ -700,7 +676,7 @@ function render(t, animate){
   camState = {x: SYSCAM[0], y: SYSCAM[1], w: SYSCAM[2], h: SYSCAM[3], max: SYSCAM[4]};
   I = true; const upto = animate ? t - 1 : t;
   for (let s = 0; s <= upto; s++) STEPS[s]();
-  ['cY', 'cP', 'cD'].forEach(c => $(c).classList.remove('on'));
+  ['cY', 'cP'].forEach(c => $(c).classList.remove('on'));
   if (!animate) settleStatic(t);
   void app.offsetWidth; app.classList.remove('instant');
   I = false; step = t;

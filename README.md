@@ -26,19 +26,17 @@ The live, shared version (pan, drag, click a box, Confirm or Dispute from a queu
 
 ## Journey (`journey.html`)
 
-The plan-first story rebuilt as one person's screen, in light mode, with Claude Code docked on the left and the map beside it. Standard shapes; questions are pending on the box they are about, in the colour of the person they wait on (the same colours as `live/`).
+The YC demo, in 7 clicks and a 60-second video. You own a draft of the production map and drive it with Claude Code; Priyanka reviews; Sam's Codex works in parallel.
 
-0. Acme's system, and you ask Claude Code to add a Pro plan with Stripe and remove the old renewal job.
-1. Claude's plan is drawn on the map, no code yet: Billing new, Users DB changed, the renewal job dashed red because Claude assumed it could go. It waits on Priyanka.
-2. Priyanka gets a notification, opens it and disputes: keep the job for annual customers. Her answer goes to ACME-212 and to Claude.
-3. You open the renewal job's infrastructure: Codex's plan removes three schedules Stripe now handles, not this one.
-4. You open Payment confirmed as a sequence diagram and ask about upgrades: charged twice. It waits on Duy.
-5. Duy confirms and approves; Claude leaves plan mode, builds #212, and the map checks it against the plan.
-6. Sam's Codex opens #219: its code removes what Priyanka kept, and the Living Map check blocks the merge.
-7. Sam says fix it; Codex reads the decision from Living Map and restores the schedule.
-8. Nov 1: the map is redrawn from main and the decision held up.
+0. The production map, drawn from repo and Terraform. You start a draft and ask Claude Code for a Pro plan with Stripe, and to remove the old renewal job.
+1. Claude draws its plan on your draft, no code yet: Billing is new, with the requirement "Charge each customer once"; the renewal job is dashed red because Claude assumed it could go, so it asks Priyanka.
+2. Priyanka decides: keep it for annual customers. You accept, the dashed line closes, and her decision goes back to Claude and onto ACME-212.
+3. Priyanka and Duy approve; the design doc is generated into the branch; Claude builds what was agreed.
+4. Sam's Codex opens #219, which deletes the renewal schedule in `infra/scheduler.tf`. Review passed; the Living Map check blocks the merge.
+5. Codex reads Priyanka's decision from Living Map and restores the job.
+6. Nov 1: production is redrawn from what's deployed; the requirement held, and so did her decision.
 
-`journey.html#5` opens at step 5, `#5a` plays step 5 from its start, and `?rec` hides Back/Next for recording. The whiteboard fills the space between the two side panels at any window size. The walkthrough voice-over (a narrator plus you, Priyanka and Duy in your own voices), timed to the steps, is in [journey-script.md](journey-script.md).
+`journey.html#3` opens at step 3, `#3a` plays step 3 from its start, and `?rec` hides Back/Next for recording. The voice-over, timed to the steps, is in [journey-script.md](journey-script.md).
 
 ## Plan first (`plan-first.html`)
 

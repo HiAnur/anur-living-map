@@ -1,44 +1,26 @@
-# Journey: walkthrough script
+# Journey: 60-second script
 
-The voice-over for [`journey.html`](journey.html), about 116 seconds. A narrator explains the demo; you, Priyanka and Duy each say your own line in your own voice. One click per step: click when the step's first line starts.
+The voice-over for [`journey.html`](journey.html), 58 seconds. A narrator explains; you and Priyanka say your own lines in your own voices. One click per step: click when the step's first line starts.
 
-Record at 1536×864 (or any 16:9 size) with `journey.html?rec`. `→` steps forward. `#0`…`#8` open a step's end state; `#3a` plays step 3 from its start.
+Record at 1536×864 (or any 16:9 size) with `journey.html?rec`. `→` steps forward; `#0`…`#6` open a step's end state; `#3a` plays step 3 from its start.
 
 | Time | Step | On screen | Who | Line |
 |---|---|---|---|---|
-| 0:00 | 0 | Acme's system; you type the task into Claude Code | Narrator | This is Acme's system on Living Map. Customers use the web app, it calls our API and Postgres, and a renewal job bills annual customers every night. |
-| 0:10 |  |  | You | I ask Claude Code for a Pro plan with Stripe, and to remove the old renewal job. |
-| 0:15 | 1 | Claude's plan is drawn; the renewal job waits on Priyanka | Narrator | Our agents write much of our code now. Living Map reads their sessions and draws what they plan, before any code. Blue is new, amber is changed. The renewal job is dashed red: Claude assumed it could go, so it waits on Priyanka. |
-| 0:31 | 2 | Priyanka's notification; she disputes on the box | Narrator | Priyanka owns the ticket. She gets the question on her own screen. |
-| 0:36 |  |  | Priyanka | No. 312 annual customers still renew through that job. Keep it for them; new customers pay through Stripe. |
-| 0:42 |  |  | Narrator | Her answer goes on the ticket, and back to Claude. |
-| 0:46 | 3 | One level down: the renewal job's infrastructure and Codex's plan | Narrator | One level down, Sam's Codex has its own plan on the same map. It removes three schedules Stripe now handles, and leaves the renewal job alone. |
-| 0:55 | 4 | Payment confirmed as a sequence diagram; charged twice | Narrator | The payment flow opens as a sequence diagram. |
-| 0:59 |  |  | You | What happens to an annual customer who upgrades to Pro mid-term? |
-| 1:03 |  |  | Narrator | Stripe bills them, and our job bills them again. Charged twice. That's Duy's call. |
-| 1:10 | 5 | Duy confirms and approves; Claude builds #212 | Duy | Skip anyone on Stripe. Approved. |
-| 1:14 |  |  | Narrator | Claude builds it, and Living Map checks the code matches the plan. |
-| 1:19 | 6 | Sam's #219; the strike; the check blocks the merge | Narrator | Then Sam's Codex opens a pull request. Review passed, but its code removes the job Priyanka kept. |
-| 1:26 |  |  | Narrator | Living Map's check blocks the merge. Both reviews passed; without the map, 312 customers would have stopped renewing. |
-| 1:35 | 7 | Codex reads the decision and restores the job | Narrator | Sam tells Codex to fix it. Codex reads Priyanka's decision from Living Map, and puts the job back. |
-| 1:42 | 8 | Nov 1: redrawn from main; it held up | Narrator | November first. Priyanka's call held up: nine renewals ran, and upgrades were billed once. |
-| 1:49 |  |  | You | Humans and AI agents, working from one record, on the same page. |
+| 0:00 | 0 | Production map; you start a draft and type the task | You | I start a draft of our system: a Pro plan on Stripe, and remove the old renewal job. |
+| 0:06 | 1 | Claude's plan on your draft; its guess waits on Priyanka | Narrator | Claude Code and Codex write much of our code now. Living Map draws what they plan. Dashed red is a guess: Claude assumed the renewal job can go, so it asks Priyanka. |
+| 0:18 | 2 | Priyanka decides; you accept; it goes back to Claude | Priyanka | Keep it for annual customers; new customers bill through Stripe. |
+| 0:22 |  |  | You | I accept, and her decision goes back to Claude. |
+| 0:25 | 3 | Priyanka and Duy approve; the design doc is saved; Claude builds | Narrator | She and Duy approve, the design doc is saved, and Claude builds what we agreed. |
+| 0:31 | 4 | Sam's #219; the job struck one level down; the check blocks the merge | Narrator | Then my teammate Sam's Codex deletes that job in its pull request. It planned before Priyanka decided. Review passed; Living Map's check blocks the merge. |
+| 0:42 | 5 | Codex reads the decision and restores the job | Narrator | Codex reads Priyanka's decision from Living Map and puts the job back. |
+| 0:48 | 6 | Nov 1: production redrawn from the deploy; it held up | Narrator | November first: nine renewals ran. Her decision held up, and both agents read it. |
+| 0:53 |  |  | You | Humans and AI agents, on the same page. |
 
 ## Voices
 
-The cut in `video/journey-voiced.mp4` uses ElevenLabs stand-ins at 1.1× speed. Re-record with real voices before sending it anywhere.
-
-| Who | Stand-in voice | Re-record by |
-|---|---|---|
-| Narrator | Eric | the founder |
-| You | Will | the founder, as yourself |
-| Priyanka | Laura | Priyanka, or a teammate |
-| Duy | Chris | Duy |
-
-`video/journey-silent.mp4` is the same take with no voice and no captions, on the same timing, for recording over.
+`video/journey-voiced.mp4` uses ElevenLabs stand-ins at 1.12× speed: Eric for the narrator, Will for you, Laura for Priyanka. Re-record with real voices before sending it anywhere. `video/journey-silent.mp4` is the same take with no voice and no captions, on the same timing, for recording over.
 
 ## Notes for the take
 
-- **Let each step finish.** Steps 2 and 4 animate longest; if a line runs short, hold the click.
-- **Step 6 is the aha.** Leave a beat after "Both reviews passed;" before "without the map".
-- **Step 7 shows a Living Map call inside Codex.** Codex is marked preview because the Codex plugin isn't shipped. If the call isn't real in your recording, keep the label and don't claim it's live.
+- **Step 4 is the aha.** Leave a beat after "Review passed;" before "Living Map's check blocks the merge."
+- **Step 5 shows a Living Map call inside Codex.** Codex is marked preview because the Codex plugin isn't shipped. If the call isn't real in your recording, keep the label and don't claim it's live.
