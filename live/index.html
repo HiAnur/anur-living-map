@@ -360,11 +360,15 @@ function render(){
       const off = dup === null ? 0 : dup ? 7 : -7;
       const x1 = a.x < b.x ? a.x + W(a) / 2 : a.x - W(a) / 2, x2 = level ? (a.x < b.x ? b.x - W(b) / 2 : b.x + W(b) / 2) : b.x;
       const mx = (x1 + x2) / 2, my = a.y + off;
-      const w = e.label.length * 6.6 + 14;
-      svg += `<rect x="${mx - w / 2}" y="${my - 9}" width="${w}" height="18" rx="4" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      svg += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
     }
   }
   edgesEl.innerHTML = defsHtml + svg;
+  // the gap is as wide as the words, measured, plus a little air
+  for (const r of edgesEl.querySelectorAll('rect.gap')){
+    const t = r.nextElementSibling, w = t.getComputedTextLength() + 8;
+    r.setAttribute('x', Number(r.getAttribute('x')) - w / 2); r.setAttribute('width', w);
+  }
   // boxes
   let html = '';
   for (const n of nodes){
