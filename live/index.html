@@ -91,6 +91,47 @@ button,input{font:inherit;color:inherit}
 #side{right:16px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
 #side.on{display:block}
 #prs{right:16px;top:60px;width:420px;padding:14px 16px;display:none;max-height:calc(100% - 120px);overflow:auto}
+/* comments, the Figma way: a pin on the map, a thread beside it, every thread in a panel */
+#canvas.commenting,#canvas.commenting .node{cursor:crosshair}
+.pinc{position:absolute;transform:translate(-4px,-100%);width:30px;height:30px;border-radius:15px 15px 15px 3px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);display:grid;place-items:center;cursor:pointer;z-index:4}
+.pinc i{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#fff;font:500 11px/1 var(--plex);font-style:normal}
+.pinc.on{box-shadow:0 0 0 2px #7C3AED,0 1px 4px rgba(0,0,0,.25)}
+.pinc.done{opacity:.45}
+.pinc .cnt{position:absolute;right:-6px;top:-6px;min-width:16px;height:16px;border-radius:8px;background:#141413;color:#fff;font:500 10px/16px var(--plex);text-align:center;padding:0 4px}
+#thread{position:fixed;width:340px;z-index:18;display:none;padding:0}
+#thread.on{display:block}
+.th-head{display:flex;align-items:center;gap:6px;padding:12px 14px;border-bottom:1px solid var(--rule);font-weight:500}
+.th-head .sp{flex:1}
+.th-head .ib{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;cursor:pointer;color:var(--text-2)}
+.th-head .ib:hover{background:#f3f2ee}
+.th-head .ib.done{color:#7C3AED}
+.th-body{padding:6px 14px 4px;max-height:320px;overflow:auto}
+.th-msg{display:flex;gap:10px;padding:8px 0}
+.av{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font:500 11px/1 var(--plex)}
+.th-msg .who{display:inline;font-weight:500;color:var(--text);font-size:13px}
+.th-msg .ago{color:var(--text-3);font-size:12px;margin-left:6px}
+.th-msg .tx{font-size:13.5px;margin-top:2px}
+.th-msg .tx .at{color:#7C3AED}
+.th-reply{display:flex;gap:8px;align-items:center;padding:10px 14px 14px}
+.th-reply input{flex:1;height:36px;border:1px solid var(--rule-2);border-radius:18px;padding:0 14px;background:#f8f7f3}
+.th-reply input:focus{outline:none;border-color:#7C3AED;background:#fff}
+.th-reply button{width:30px;height:30px;border-radius:50%;border:0;background:#7C3AED;color:#fff;cursor:pointer}
+#cpanel{right:16px;top:60px;bottom:60px;width:340px;display:none;padding:0;overflow:hidden}
+#cpanel.on{display:flex;flex-direction:column}
+.cp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule)}
+.cp-head input{flex:1;height:32px;border:0;border-radius:8px;background:#f3f2ee;padding:0 10px}
+.cp-head .x{font-size:18px}
+.cp-list{overflow:auto;padding:6px}
+.cp-item{padding:12px;border-radius:10px;cursor:pointer}
+.cp-item:hover,.cp-item.on{background:#f3f2ee}
+.cp-item .meta{font-size:12px;color:var(--text-3);margin:6px 0 2px}
+.cp-item .who{font-weight:500;font-size:13px}.cp-item .ago{color:var(--text-3);font-size:12px;margin-left:6px}
+.cp-item .tx{font-size:13.5px}
+.cp-item .rp{font-size:12.5px;color:#7C3AED;margin-top:4px}
+.cp-item.done{opacity:.55}
+.cp-empty{padding:24px;text-align:center;color:var(--text-2);font-size:13px}
+.tb .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
+.tb{position:relative}
 #prs.on{display:block}
 .ct{font-weight:500;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
 .x{cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:0 4px}
@@ -105,6 +146,7 @@ button,input{font:inherit;color:inherit}
 .rq dt{color:var(--text-3);font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;padding-top:2px}
 .rq dd{margin:0;color:var(--text)}
 .rq .rq-q{font-weight:500;font-size:13.5px}
+.rq .rq-why{color:var(--text-2);line-height:1.45}
 .row.open-node:hover{background:#f8f7f3}
 .row .mk{flex:none;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center;margin-top:3px}
 .row .mk.g{background:var(--line)}
@@ -166,10 +208,12 @@ body.rec #foot,body.rec #legend{display:none}
   <span id="me"></span>
   <div class="faces" id="faces"></div>
 </div>
-<div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="curs"></div></div></div>
+<div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="pins"></div><div id="curs"></div></div></div>
 <div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
 <div class="panel" id="prs"></div>
+<div class="panel" id="thread"></div>
+<div class="panel" id="cpanel"></div>
 <div id="legend"><span><i></i>From code</span><span><i class="n"></i>Not built yet</span><span><i class="pill">Pending</i>Something to do</span><span><i class="d"></i>An agent assumed it</span></div>
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
@@ -209,7 +253,7 @@ const focused = (n) => !!(n.state || n.decided);
 const anyFocus = () => scope().nodes.some(focused);
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
-const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; };
+const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
 const toStage = (cx, cy) => [(cx - cam.x) / cam.z, (cy - cam.y) / cam.z];
 
 /* the view: the system, or the inside of one box */
@@ -303,7 +347,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors();
+  renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments();
 }
 
 function renderTop(){
@@ -328,8 +372,9 @@ const callRow = (c, withButtons) => `<div class="row open-node req" data-node="$
     <dt>From</dt><dd>${agentOwner(c.from)}</dd>
     <dt>To</dt><dd>${c.for}</dd>
     <dt>About</dt><dd>${nodeById(c.node)?.label || c.node}</dd>
+    ${c.context ? `<dt>Why</dt><dd class="rq-why">${c.context}</dd>` : ''}
     <dt>Asks</dt><dd class="rq-q">${c.text}</dd>
-    ${c.status === 'open' ? `<dt>Needs</dt><dd>${c.kind}: confirm or dispute</dd>` : `<dt>Answer</dt><dd><b>${c.by} ${c.status}</b>${c.said ? `: ${c.said}` : ''}</dd>`}
+    ${c.status === 'open' ? `<dt>Needs</dt><dd>${c.kind}. ${c.needs || 'Confirm or dispute'}.</dd>` : `<dt>Answer</dt><dd><b>${c.by} ${c.status}</b>${c.said ? `: ${c.said}` : ''}</dd>`}
   </dl>
   ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Dispute</span></div>` : ''}</div>`;
 
@@ -392,11 +437,65 @@ function renderCursors(){
     .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x}px,${c.y}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${pcol(who)}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag" style="background:${pcol(who)}">${who}</span></div>`).join('');
 }
 
+/* comments */
+let tool = 'select', openThread = null, draft = null, panelOpen = false, panelQuery = '', pendingOpen = false;
+document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQuery = e.target.value; renderComments(); const q = $('cpq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.closest('input, textarea')) setTool(tool === 'comment' ? 'select' : 'comment'); if (e.key === 'Escape'){ draft = null; openThread = null; render(); } });
+const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
+const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
+const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
+const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.node || !locked(nodeById(c.node) || {})));
+function renderComments(){
+  const pins = visibleComments().map((c) => `<div class="pinc ${openThread === c.id ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${c.msgs[0].who[0]}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`);
+  if (draft) pins.push(`<div class="pinc on" style="left:${draft.x}px;top:${draft.y}px"><i style="background:${pcol(ME)}">${ME[0]}</i></div>`);
+  $('pins').innerHTML = pins.join('');
+  // the open thread, or the box for a new one, beside its pin
+  const th = $('thread');
+  const c = openThread && (S.comments || []).find((x) => x.id === openThread);
+  if (!c && !draft){ th.classList.remove('on'); }
+  else {
+    const p = c || draft, sx = p.x * cam.z + cam.x, sy = p.y * cam.z + cam.y + 44;
+    th.style.left = Math.min(innerWidth - 356, sx + 28) + 'px'; th.style.top = Math.max(56, Math.min(innerHeight - 320, sy - 40)) + 'px';
+    th.innerHTML = c ? `<div class="th-head">Comment<span class="sp"></span><span class="ib ${c.resolved ? 'done' : ''}" data-resolve="${c.id}" title="${c.resolved ? 'Reopen' : 'Resolve'}">✓</span><span class="ib" data-close-th title="Close">✕</span></div>
+      <div class="th-body">${c.msgs.map((m) => `<div class="th-msg">${av(m.who)}<div><span class="who">${m.who}</span><span class="ago">${ago(m.at)}</span><div class="tx">${mention(m.text)}</div></div></div>`).join('')}</div>
+      <form class="th-reply" data-reply="${c.id}">${av(ME)}<input placeholder="Reply" autocomplete="off"><button type="submit" title="Send">↑</button></form>`
+      : `<div class="th-head">New comment<span class="sp"></span><span class="ib" data-close-th title="Cancel">✕</span></div>
+      <form class="th-reply" data-new>${av(ME)}<input placeholder="Add a comment, @ to mention" autocomplete="off"><button type="submit" title="Post">↑</button></form>`;
+    th.classList.add('on');
+    if (draft) setTimeout(() => th.querySelector('input')?.focus(), 0);
+  }
+  // every thread in the panel, newest first
+  const cp = $('cpanel'); cp.classList.toggle('on', panelOpen);
+  if (panelOpen){
+    const q = panelQuery.toLowerCase();
+    const all = (S.comments || []).filter((x) => !x.node || !locked(nodeById(x.node) || {})).filter((x) => !q || x.msgs.some((m) => (m.text + m.who).toLowerCase().includes(q))).slice().reverse();
+    cp.innerHTML = `<div class="cp-head"><input id="cpq" placeholder="Search" value="${panelQuery.replace(/"/g, '&quot;')}"><span class="x" data-close-cp title="Close">×</span></div>
+      <div class="cp-list">${all.length ? all.map((x) => `<div class="cp-item ${openThread === x.id ? 'on' : ''} ${x.resolved ? 'done' : ''}" data-goto="${x.id}">${av(x.msgs[0].who)}
+        <div class="meta">#${x.id} · ${x.node ? nodeById(x.node)?.label || x.node : x.view === 'system' ? 'System' : nodeById(x.view)?.label}${x.resolved ? ' · resolved' : ''}</div>
+        <div><span class="who">${x.msgs[0].who}</span><span class="ago">${ago(x.msgs[0].at)}</span></div><div class="tx">${mention(x.msgs[0].text)}</div>
+        ${x.msgs.length > 1 ? `<div class="rp">${x.msgs.length - 1} repl${x.msgs.length === 2 ? 'y' : 'ies'}</div>` : ''}</div>`).join('') : '<div class="cp-empty">No comments yet. Pick the comment tool and click anywhere on the map.</div>'}</div>`;
+  }
+  // a red dot on the tool while any thread is open and unresolved
+  const tb = document.querySelector('[data-tool="comment"]');
+  if (tb){ const unread = (S.comments || []).some((x) => !x.resolved && x.msgs.at(-1).who !== ME); tb.querySelector('.dot')?.remove(); if (unread) tb.insertAdjacentHTML('beforeend', '<span class="dot"></span>'); }
+  canvas.classList.toggle('commenting', tool === 'comment');
+}
+function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x.dataset.tool === t)); if (t === 'comment'){ panelOpen = true; selected = null; prsOpen = false; } else { panelOpen = false; draft = null; } render(); }
+
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false;
 canvas.addEventListener('pointerdown', (e) => {
+  const pin = e.target.closest('.pinc');
+  if (pin){ if (pin.dataset.pin){ openThread = openThread === Number(pin.dataset.pin) ? null : Number(pin.dataset.pin); draft = null; render(); } return; }
   const nd = e.target.closest('.node');
   moved = false;
+  // the comment tool drops a pin where you click, on a box or on the canvas
+  if (tool === 'comment'){
+    const [sx, sy] = toStage(e.clientX, e.clientY);
+    const n = nd && nodeById(nd.dataset.id);
+    if (n && locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
+    draft = { x: Math.round(sx), y: Math.round(sy), node: n?.id || null }; openThread = null; render(); return;
+  }
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
@@ -438,11 +537,27 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.dataset.call){ t.classList.add('pressed'); act('call', { id: t.dataset.call, answer: t.dataset.ans }); toast(`${t.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
-  else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask'){ document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x === b)); } }
+  else if (t.closest('[data-resolve]')){ act('resolve', { id: t.closest('[data-resolve]').dataset.resolve }); }
+  else if (t.closest('[data-close-th]')){ openThread = null; draft = null; render(); }
+  else if (t.closest('[data-close-cp]')){ setTool('select'); }
+  else if (t.closest('[data-goto]')){
+    const c = S.comments.find((x) => x.id === Number(t.closest('[data-goto]').dataset.goto));
+    if (c){ if (c.view !== view){ view = c.view; } openThread = c.id; draft = null;
+      const r = canvas.getBoundingClientRect(); cam.x = (r.width - 340) / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
+  }
+  else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask') setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'fitb'){ fit(); }
   else if (t.id === 'resetb'){ act('reset'); }
 });
 document.addEventListener('submit', (e) => {
+  const r = e.target.closest('form[data-reply], form[data-new]');
+  if (r){
+    e.preventDefault(); const text = r.querySelector('input').value.trim(); if (!text) return;
+    if (r.dataset.reply) act('reply', { id: r.dataset.reply, text });
+    else if (draft){ const d = draft; draft = null; pendingOpen = true; act('comment', { ...d, view, text }); }
+    r.querySelector('input').value = '';
+    return;
+  }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
   act('ask', { node: f.dataset.ask, text }); i.value = '';
@@ -457,7 +572,12 @@ function listen(){
     const next = JSON.parse(m.data);
     if (drag){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     if (view !== 'system' && !next.nodes.some((n) => n.id === view)) view = 'system';
+    // the comment you just posted opens as a thread
+    if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
+    // typing a reply survives the redraw
+    const typing = document.activeElement?.closest?.('#thread, #cpanel') ? { sel: document.activeElement.id || (document.activeElement.closest('#thread') ? '#thread input' : null), val: document.activeElement.value } : null;
     S = next; render();
+    if (typing?.sel){ const el = typing.sel.startsWith('#thread') ? document.querySelector('#thread input') : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
     if (first){ first = false; fit(); }
   });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });

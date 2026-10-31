@@ -20,7 +20,7 @@ const STATE = path.join(DIR, 'state.json');
 const OUTBOX = path.join(DIR, 'outbox.md');
 const seed = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 
-const fresh = () => ({ ...seed(), log: [], threads: {} });
+const fresh = () => ({ ...seed(), log: [], threads: {}, comments: [] });
 let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
 const clients = new Set();
 const cursors = {}; // by name: {x, y, view, at}; never saved
@@ -65,6 +65,24 @@ const ACTS = {
     return true;
   },
   reset() { state = fresh(); try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+  // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
+  comment(a) {
+    const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
+    state.comments ??= [];
+    const c = { id: state.comments.length + 1, x: Math.round(a.x), y: Math.round(a.y), view: a.view || 'system', node: a.node || null,
+      resolved: false, msgs: [{ who: a.by, text, at: Date.now() }] };
+    state.comments.push(c);
+    tell(`${a.by} commented${c.node ? ` on ${nodeOf(c.node)?.label || c.node}` : ''}: ${text}`);
+    return true;
+  },
+  reply(a) {
+    const c = state.comments?.find((x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
+    if (!c || !text) return false;
+    c.msgs.push({ who: a.by, text, at: Date.now() });
+    tell(`${a.by} replied on comment #${c.id}: ${text}`);
+    return true;
+  },
+  resolve(a) { const c = state.comments?.find((x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
   // an agent draws its plan: boxes, lines and calls are added or updated by id,
   // so Claude Code (or Codex) can put "Billing" on the map from a chat
   plan(a) {

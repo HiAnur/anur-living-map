@@ -141,7 +141,7 @@
       "from": "Claude",
       "ticket": "ACME-212",
       "kind": "Product call",
-      "text": "Can the renewal job go?",
+      "text": "Can we retire the renewal job?",
       "status": "open",
       "dispute": {
         "node": "renewal",
@@ -157,7 +157,9 @@
         "state": "gone",
         "sub": "Retired",
         "says": "Fine to retire it."
-      }
+      },
+      "context": "Pro will bill through the payment provider. The ticket says retire our renewal job, but annual customers still renew only through it.",
+      "needs": "Confirm to retire it, or Dispute to keep it"
     },
     {
       "id": "b",
@@ -176,7 +178,9 @@
       },
       "dispute": {
         "says": "Not like that."
-      }
+      },
+      "context": "An annual customer who upgrades to Pro would be billed twice: by the provider and by our renewal job.",
+      "needs": "Confirm the fix, or Dispute it"
     }
   ],
   "answers": {
