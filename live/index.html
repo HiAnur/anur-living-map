@@ -82,6 +82,10 @@ button,input{font:inherit;color:inherit}
 .node.gone{border:1px solid var(--rule);opacity:.45}
 .node.gone .n{text-decoration:line-through}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
+/* a box with something inside: an Expand pill on its bottom edge; a double click does the same */
+.node .expand{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);height:18px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 10.5px/16px var(--plex);white-space:nowrap;cursor:pointer}
+.node .expand:hover{color:var(--text);border-color:var(--text-2)}
+.node.new .expand{border-color:var(--new);color:var(--new)}
 /* who the box waits on: their name as a pill in their colour, top-right */
 .node .mk.p{left:auto;right:8px;top:-10px;width:auto;height:18px;line-height:16px;padding:0 8px;border-radius:999px;border:1px solid #fff;font-size:10.5px;letter-spacing:.02em;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .node.todo .mk.p,.node.open .mk.p{right:auto;left:8px}
@@ -392,6 +396,7 @@ function render(){
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>` : ''}
+      ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -535,6 +540,10 @@ let drag = null, panning = null, moved = false;
 canvas.addEventListener('pointerdown', (e) => {
   const pin = e.target.closest('.pinc');
   if (pin){ if (pin.dataset.pin){ openThread = openThread === Number(pin.dataset.pin) ? null : Number(pin.dataset.pin); draft = null; render(); } return; }
+  // the Expand pill opens the box here: the canvas captures the pointer, so a
+  // click event would land on the canvas, not on the pill
+  const ex = e.target.closest('.expand');
+  if (ex){ enter(ex.dataset.expand); return; }
   const nd = e.target.closest('.node');
   moved = false;
   // the comment tool drops a pin where you click, on a box or on the canvas
@@ -560,12 +569,23 @@ canvas.addEventListener('pointermove', (e) => {
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
+// a double click is two taps on the same box within 350ms: the first tap
+// redraws the box, so the browser's own dblclick never sees the same element
+let lastTap = { id: null, at: 0 };
 canvas.addEventListener('pointerup', (e) => {
-  if (drag){ if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y }); else { selected = selected === drag.n.id ? null : drag.n.id; render(); } drag = null; }
+  if (drag){
+    if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y });
+    else {
+      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < 350;
+      lastTap = { id: n.id, at: Date.now() };
+      if (twice && n.inside && !locked(n)){ drag = null; enter(n.id); return; }
+      selected = selected === n.id ? null : n.id; render();
+    }
+    drag = null;
+  }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; render(); } }
 });
 canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
-canvas.addEventListener('dblclick', (e) => { const nd = e.target.closest('.node'); const n = nd && nodeById(nd.dataset.id); if (n?.inside && !locked(n)) enter(n.id); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){ const z = Math.min(2.5, Math.max(.3, cam.z * (e.deltaY < 0 ? 1.08 : .92))); const [sx, sy] = toStage(e.clientX, e.clientY), r = canvas.getBoundingClientRect(); cam.x = e.clientX - r.left - sx * z; cam.y = e.clientY - r.top - sy * z; cam.z = z; }
