@@ -23,11 +23,11 @@
   "nodes": [
     {
       "id": "customer",
-      "label": "Customer",
+      "label": "Acme",
       "kind": "actor",
       "x": 90,
       "y": 150,
-      "desc": "Anyone with an account. 4,120 active, 312 on annual plans."
+      "desc": "Acme, the company this app serves. 4,120 accounts; 312 of them on annual plans."
     },
     {
       "id": "web",
