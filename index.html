@@ -83,6 +83,18 @@ html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-se
 .pin{margin-top:auto;background:#1a1e24;border:1px solid #2d3239;border-radius:10px;padding:8px 11px;color:#6b727b;font-size:12px}
 .card.hl{box-shadow:0 0 0 4px rgba(217,160,84,.35)}
 
+/* Fix on a card: a small box beside it with the likely answers, not the whole panel */
+.pop{position:absolute;width:230px;background:#15171b;border:1px solid #3a4048;border-radius:10px;padding:10px 11px;font:12px/1.4 var(--sans);color:#d6d9de;
+  box-shadow:0 10px 30px rgba(0,0,0,.45);opacity:0;transform:translateY(-50%) scale(.96);transition:opacity .25s ease-out,transform .25s var(--ease);pointer-events:none}
+.pop.on{opacity:1;transform:translateY(-50%) scale(1)}
+.pop:before{content:"";position:absolute;left:-6px;top:calc(50% - 5px);width:10px;height:10px;background:#15171b;border-left:1px solid #3a4048;border-bottom:1px solid #3a4048;transform:rotate(45deg)}
+.pop .k{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:#ee9a93}
+.pop .q{margin-top:4px;color:#eef0f3}
+.pop .opts{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.pop .opts button{font:11.5px var(--sans);color:#c9cfd6;background:#1a1e24;border:1px solid #2d3239;border-radius:999px;padding:4px 10px;cursor:pointer}
+.pop .opts button.pressed{background:#1d3328;border-color:var(--green);color:#bfe8d0}
+.pop .or{margin-top:8px;background:#1a1e24;border:1px solid #2d3239;border-radius:8px;padding:6px 9px;color:#6b727b;font-size:11.5px}
+
 /* level 1: the app as a mind map, root on the left; a click zooms into one branch */
 #tree{position:absolute;left:50%;top:50%;width:880px;height:640px;transition:opacity .4s ease-out}
 #tree.off{pointer-events:none}
@@ -419,6 +431,11 @@ const steps = STEPS.map((l, i) => {
   place(el, COLS[i], Y.flow);
   return {el, cb};
 });
+// the quick-fix box, beside the risky card
+const pop = place(div('pop'), COLS[2] + 85, Y.card);
+pop.append(div('k', 'Fix · the reset link never expires'), div('q', 'How long should the reset link live?'));
+const popOpt = [];
+{ const opts = div('opts'); ['15 min, like sign-in', '1 hour', '24 hours'].forEach(t => { const b = document.createElement('button'); b.textContent = t; opts.appendChild(b); popOpt.push(b); }); pop.append(opts, div('or', 'or tell Claude…')); }
 const run = place(div('abs run fade'), 470, Y.run);
 const runNote = span('', ''), runBtn = div('rb', '▶ Run');
 run.append(runNote, runBtn);
@@ -534,9 +551,15 @@ function renderMap(s, A){
   // two assumptions get a ⚠ to think about; the first is fixed from its side chat, the
   // second with its Fix button, the third confirmed
   [0, 1].forEach(i => {
-    const c = C[i], d = opening ? d0 + 2200 + i * 650 : fixing ? 300 + i * 700 : 0;
-    if (fixing && i === 1) at(d - 300, () => c.btnFix.classList.add('pressed'));
+    const c = C[i], d = opening ? d0 + 2200 + i * 650 : fixing ? (i === 0 ? 300 : 2100) : 0;
+    // the second fix is quick: Fix opens a small box with the likely answers, you pick one
+    if (fixing && i === 1){
+      at(700, () => c.btnFix.classList.add('pressed'));
+      at(800, () => pop.classList.add('on'));
+      at(1700, () => popOpt[0].classList.add('pressed'));
+    }
     at(d, () => {
+      if (i === 1){ pop.classList.remove('on'); popOpt[0].classList.toggle('pressed', s >= 5); }
       setState(c, s >= 5 ? 'green' : 'open');
       const warn = s >= 3 && s < 5;
       c.el.classList.toggle('warn', warn);
@@ -557,7 +580,7 @@ function renderMap(s, A){
     at(fixing ? d + 150 : 0, () => c.badge.classList.toggle('on', s >= 5));
   });
   {
-    const c = C[2], d = fixing ? 1700 : 0;
+    const c = C[2], d = fixing ? 2700 : 0;
     // a fair assumption is green from the start; confirming it only puts a name on it
     at(opening ? d0 + 3300 : 0, () => { c.el.classList.toggle('isfair', s >= 3); setState(c, s >= 3 ? 'green' : 'open'); });
     if (fixing) at(d, () => c.btnConfirm.classList.add('pressed'));
@@ -569,7 +592,7 @@ function renderMap(s, A){
   }
 
   // Run waits until nothing clashes; the tasks tick off as they are built
-  at(fixing ? 2300 : 0, () => {
+  at(fixing ? 3300 : 0, () => {
     run.classList.toggle('ready', s >= 5);
     run.classList.toggle('pressed', s >= 6);
     runNote.textContent = s >= 6 ? 'built' : s >= 5 ? 'all settled' : '2 assumptions to think about';
@@ -669,7 +692,7 @@ function go(t, A){
   if (t === 5 || t === 6){
     // you act on the map first; the chat hears about it after
     renderMap(t, true);
-    timers.push(setTimeout(() => chatAnim(t, tok), t === 5 ? 2600 : 700));
+    timers.push(setTimeout(() => chatAnim(t, tok), t === 5 ? 3700 : 700));
   } else chatAnim(t, tok).then(() => { if (tok === token) renderMap(t, true); });
 }
 const next = () => step >= LAST ? go(0, false) : go(step + 1, true);
