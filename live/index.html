@@ -47,8 +47,8 @@ button,input{font:inherit;color:inherit}
 /* what the plan builds is alive: its lines flow toward where they go, its boxes breathe */
 #edges > path.new{stroke:var(--new);stroke-dasharray:7 5;animation:flow .9s linear infinite}
 @keyframes flow{to{stroke-dashoffset:-12}}
-@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(47,111,228,0)}50%{box-shadow:0 0 0 6px rgba(47,111,228,.16)}}
-@media (prefers-reduced-motion: reduce){#edges > path.new,.node.node.new,.node.node.todo,#legend i.n{animation:none}}
+@keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(47,111,228,0)}50%{box-shadow:0 0 0 7px rgba(47,111,228,.22)}}
+/* the motion is the message here (this is being built), so it plays even with Reduce motion on */
 #edges > path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 #edges text.new{fill:var(--new)}
