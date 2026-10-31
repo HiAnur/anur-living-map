@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · Pro plan</title>
+<style>
+:root{
+  --bg:#0c0e11;
+  --green:#3fb37f; --yellow:#d9c34f; --red:#e5534b; --grey:#4b515a; --amber:#ef9a3c; --select:#4d8dff;
+  --priyanka:#e879a6; --duy:#5aa9e6; --claude:#d97757;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  --ease: cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:#d6d9de;overflow:hidden;user-select:none;cursor:default}
+#app{display:flex;height:100vh}
+
+/* chat: the Claude desktop app's Code tab */
+#chat{width:34%;border-right:1px solid #2b2a27;background:#262624;color:#e8e6e1;display:flex;flex-direction:column;font:14px/1.55 var(--sans)}
+.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #31302d;font-size:13px;color:#c9c6be}
+.chead .br{color:#86837b;font:12px var(--mono)}
+#msgs{flex:1;overflow:hidden;padding:22px 22px 4px;display:flex;flex-direction:column;gap:14px}
+.bubble{align-self:flex-end;max-width:82%;background:#3a3935;color:#f3f1ec;border-radius:14px;padding:8px 13px}
+.bubble .src{color:#a8a49b;margin-bottom:3px}
+.tool .x.ok{color:#7fae8a}
+.tools{display:flex;flex-direction:column;gap:3px;border-left:1px solid #3d3c38;padding:2px 0 2px 12px;margin-left:2px}
+.tool{font-size:12.5px;display:flex;gap:8px;align-items:baseline}
+.tool .v{color:#bdb9b0;font-weight:500;min-width:42px}
+.tool .p{font:12px var(--mono);color:#a29e95}
+.tool .x{font:11.5px var(--mono);color:#7fae8a}
+.tool .x.del{color:#e08a85}
+.anim{animation:fadein .3s ease-out}
+.composer{flex:none;margin:12px 18px 18px;background:#30302e;border:1px solid #3e3d39;border-radius:16px;padding:12px 14px 10px}
+.field{min-height:22px;color:#f3f1ec}
+.ph{color:#7d7a72}
+.composer.has .ph{display:none}
+.composer:not(.has) .caret{display:none}
+.caret{display:inline-block;width:1.5px;height:1.1em;background:#e8e6e1;vertical-align:-.2em;animation:blink 1s steps(1) infinite}
+.crow{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px;color:#8a877f}
+.send{width:26px;height:26px;border-radius:8px;background:#c96442;color:#fff;display:grid;place-items:center;font-size:14px;opacity:.45;transition:opacity .2s ease-out}
+.composer.has .send{opacity:1}
+/* a Claude message about something that happened on the map carries a small source tag */
+.src{display:flex;align-items:center;gap:6px;font:500 11px var(--sans);color:#8a877f;margin-bottom:2px}
+.src i{width:6px;height:6px;border-radius:1.5px;background:#7fae8a;transform:rotate(45deg)}
+.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
+.spin{width:12px;height:12px;border:1.5px solid #4a4944;border-top-color:#e8e6e1;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes blink{50%{opacity:0}}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* map, inside the app's browser pane. One system: three surfaces, two border shades,
+   three type sizes (11 labels, 12.5 body, 13.5 titles), three radii (6, 10, 14). */
+:root{
+  --canvas:#000; --node:#16181b; --card:#1d1f23; --raised:#25282d;
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.14);
+  --text:#e6e8eb; --text-2:#9298a1; --text-3:#6f757d; --purple:#a78bfa;
+  --lift:inset 0 1px 0 rgba(255,255,255,.04),0 1px 2px rgba(0,0,0,.4);
+  --float:0 16px 40px -12px rgba(0,0,0,.7),0 0 0 1px rgba(0,0,0,.5);
+}
+#map{width:66%;display:flex;flex-direction:column;background:var(--canvas)}
+/* who has the map open, as in Figma */
+.faces{display:flex}
+.face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:600 11.5px/1 var(--sans);color:#111214;border:2px solid var(--canvas);margin-left:-5px}
+#canvas{flex:1;position:relative;overflow:hidden;background-color:var(--canvas);
+  background-image:radial-gradient(circle,rgba(255,255,255,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#map.notrans *,#map.notrans *::before{transition:none !important}
+
+/* what this map is showing: the system, and once Claude has worked, what changed */
+#top{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--canvas);font:12.5px var(--sans);color:var(--text-2);white-space:nowrap}
+#top .faces{margin-left:14px}
+.prpill{font:500 12px var(--sans);color:var(--text);background:var(--card);border:1px solid var(--line-strong);border-radius:999px;padding:3px 10px}
+.fixedchip{display:none;align-items:center;gap:5px;font:500 12px var(--sans);color:#8fd3ae;background:rgb(63 179 127/.1);border:1px solid rgb(63 179 127/.45);border-radius:999px;padding:3px 10px}
+.fixedchip.on{display:flex}
+#top b{font-weight:500;color:var(--text);transition:color .3s ease-out}
+#top b.up{color:var(--text-2)}
+#crumb{color:var(--text);font-weight:500;opacity:0;transition:opacity .3s ease-out}
+#crumb.on{opacity:1}
+#change{margin-left:auto;display:flex;align-items:center;gap:12px;opacity:0;transform:translateX(-4px);transition:opacity .35s ease-out,transform .35s ease-out}
+#change.on{opacity:1;transform:none}
+.chip{display:flex;align-items:center;gap:6px;color:#c9cfd6}
+.chip i{width:6px;height:6px;border-radius:50%;display:block}
+.sep{color:var(--text-3)}
+
+.backsys{position:absolute;left:14px;top:12px;z-index:4;font:500 12px var(--sans);color:var(--text);background:var(--card);border:1px solid var(--line-strong);
+  border-radius:6px;padding:5px 10px;cursor:pointer;opacity:0;pointer-events:none;transform:translateX(-4px);transition:opacity .3s ease-out,transform .3s ease-out,background .2s ease-out}
+.backsys.on{opacity:1;pointer-events:auto;transform:none}
+#crumb3{color:var(--text);font-weight:500;opacity:0;transition:opacity .3s ease-out}
+#crumb3.on{opacity:1}
+#crumb.up{color:var(--text-2)}
+.backsys:hover{background:var(--raised)}
+#stage{position:absolute;left:50%;top:50%;width:900px;height:600px;transition:transform .6s var(--ease)}
+/* opening a box: level 1 fades, the box itself grows into the frame of level 2, and its parts fade in inside it */
+.layer{position:absolute;left:0;top:0;width:900px;height:600px}
+#l1{transition:opacity .4s ease-out,visibility 0s}
+/* hidden once it has faded, or the faded layer still paints over level 2 */
+#l1.out{opacity:0;visibility:hidden;transition:opacity .4s ease-out,visibility 0s linear .4s}
+.frame{position:absolute;padding:8px 12px;background:#16201b;border:1px solid rgb(63 179 127/.55);border-radius:10px;opacity:0;pointer-events:none;box-shadow:var(--lift);
+  transition:left .6s var(--ease),top .6s var(--ease),width .6s var(--ease),height .6s var(--ease),background .6s ease-out,border-color .6s ease-out,border-radius .6s ease-out}
+.frame.on{opacity:1}
+.frame.full{background:rgb(63 179 127/.03);border-color:rgb(63 179 127/.3);border-radius:14px;box-shadow:none}
+.frame.still{transition:none}
+/* leaving level 2 for level 3: Billing's frame and parts step away */
+.frame.gone{opacity:0;transition:opacity .4s ease-out}
+#l2.out{opacity:0;visibility:hidden;transition:opacity .4s ease-out,visibility 0s linear .4s}
+.frame .n{font:500 13.5px/1.3 var(--sans);letter-spacing:-.01em;color:var(--text);display:flex;align-items:center}
+.frame .s{padding-left:13px;font:12.5px/1.35 var(--sans);color:var(--text-2)}
+#l2{opacity:0;pointer-events:none;transition:opacity .35s ease-out}
+#l2.on{opacity:1}
+#l2 .f2{opacity:0;transition:opacity .35s ease-out}
+#l2.on .f2{opacity:1}
+
+/* level 3: the route you opened, as a sequence of calls */
+.frame3{position:absolute;padding:6px 10px;background:rgb(77 141 255/.12);border:1px solid var(--select);border-radius:6px;opacity:0;pointer-events:none;overflow:hidden;
+  transition:left .6s var(--ease),top .6s var(--ease),width .6s var(--ease),height .6s var(--ease),background .6s ease-out,border-color .6s ease-out,border-radius .6s ease-out,padding .6s var(--ease)}
+.frame3.on{opacity:1}
+.frame3.full{background:rgba(255,255,255,.015);border-color:var(--line-strong);border-radius:14px;padding:12px 16px}
+.frame3.still{transition:none}
+.frame3 .n{display:flex;align-items:center;gap:8px;font:500 13.5px/1.3 var(--sans);letter-spacing:-.01em;color:var(--text);white-space:nowrap}
+.frame3 .n::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none;transition:background .35s ease-out}
+.frame3.fixed .n::before{background:var(--green)}
+.cbtn{position:absolute;transform:translate(-50%,-50%);font:500 11.5px var(--sans);color:var(--text);background:var(--raised);border:1px solid var(--line-strong);border-radius:6px;padding:3px 9px;white-space:nowrap;box-shadow:var(--lift)}
+.cbtn.claude{color:var(--claude);border-color:rgb(217 119 87/.5)}
+#l3 .cbtn{opacity:0;transition:opacity .3s ease-out}
+#l3 .cbtn.on{opacity:1}
+.frame3 .ic{font:500 10px var(--mono);color:var(--text-3)}
+.frame3 .s{font:11px var(--sans);color:var(--text-3);margin-top:2px;opacity:0;transition:opacity .3s ease-out}
+.frame3.full .s{opacity:1;transition-delay:.4s}
+#l3{opacity:0;pointer-events:none;transition:opacity .35s ease-out}
+#l3.on{opacity:1}
+#l3 .f3{opacity:0;transition:opacity .35s ease-out}
+#l3 .f3.on{opacity:1}
+.node.lane{width:124px;height:34px;align-items:center}
+.edges .flow{stroke:#7d858f}
+.edges .risk{stroke:rgb(239 154 60/.9)}
+.edges .no{stroke:rgb(229 83 75/.85)}
+.edges .life{stroke:#2c3036;stroke-dasharray:3 4}
+.edges .sepl{stroke:var(--line-strong);stroke-dasharray:2 5}
+.edges .lead{stroke:rgb(217 119 87/.55);stroke-dasharray:3 3}
+.alab{position:absolute;transform:translate(-50%,-100%);font:500 11px var(--sans);color:var(--text-2);white-space:nowrap;padding-bottom:4px}
+.alab.k-risk{color:#e9a862}
+.alab.k-no{color:#ee8c86}
+.sec{position:absolute;font:500 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);white-space:nowrap}
+.sec.risk{color:#c98a4e}
+.tagx{position:absolute;transform:translate(-50%,-50%);font:500 11px var(--sans);color:#e9a862;background:var(--canvas);border:1px solid rgb(239 154 60/.4);border-radius:4px;padding:2px 6px;white-space:nowrap}
+/* the step Billing should take before it trusts the call: empty, skipped, then done */
+.chk{min-width:150px;text-align:center;position:absolute;transform:translate(-50%,-50%);font:500 11px var(--sans);color:var(--text-3);background:var(--canvas);border:1px dashed var(--line-strong);border-radius:6px;padding:4px 9px;white-space:nowrap;
+  transition:color .35s ease-out,border-color .35s ease-out,background .35s ease-out}
+.chk.skip{color:#e9a862;border-color:rgb(239 154 60/.7);background:#1a130b}
+.chk.ok{color:#8fd3ae;border-style:solid;border-color:rgb(63 179 127/.6);background:#0d1a13}
+
+/* a side chat: a read-only Claude on one thing on the map */
+.side{position:absolute;width:262px;background:var(--card);border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px 12px;box-shadow:var(--float);
+  opacity:0;transform:translateX(6px);transition:opacity .3s ease-out,transform .3s ease-out}
+.side.on{opacity:1;transform:none}
+.sh{display:flex;align-items:baseline;gap:6px;font:500 12.5px var(--sans);color:var(--claude);padding-bottom:8px;margin-bottom:9px;border-bottom:1px solid var(--line)}
+.sh span{font:11px var(--sans);color:var(--text-3)}
+.sq{margin-left:auto;width:fit-content;max-width:90%;background:var(--raised);border-radius:10px;padding:5px 10px;font:12.5px/1.4 var(--sans);color:var(--text)}
+.sa{margin-top:9px;font:12.5px/1.45 var(--sans);color:var(--text)}
+.sa code{font:11px var(--mono);color:#c9cfd6}
+.code{margin:7px 0;background:#0b0c0e;border:1px solid var(--line);border-radius:6px;padding:5px 0;font:10.5px/1.6 var(--mono);color:#aab1ba;overflow:hidden}
+.code div{padding:0 8px;white-space:pre}
+.code i{font-style:normal;color:var(--text-3);margin-right:8px}
+.code .hit{background:rgb(239 154 60/.12);box-shadow:inset 2px 0 0 var(--amber)}
+.code .add{background:rgb(63 179 127/.12);box-shadow:inset 2px 0 0 var(--green);color:#bfe8d0}
+.code .file{padding-bottom:3px;margin-bottom:3px;border-bottom:1px solid var(--line);color:var(--text-3)}
+.sin{margin-top:9px;border:1px solid var(--line-strong);border-radius:8px;padding:6px 9px;font:12.5px var(--sans);color:var(--text);min-height:30px}
+.sin .ph{color:var(--text-3)}
+.sbtn{display:block;width:fit-content;margin-top:9px;font:500 12px var(--sans);color:var(--text);background:var(--raised);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;transition:background .3s ease-out,border-color .3s ease-out,color .3s ease-out}
+.sbtn.sent{background:rgb(63 179 127/.12);border-color:rgb(63 179 127/.55);color:#bfe8d0}
+.side .hide{display:none}
+
+/* with the risky route selected, what it doesn't touch steps back */
+#l2.on.focus .f2.aside{opacity:.4}
+#l2.on.focus .edges path.aside{stroke-opacity:.35}
+/* ...and the systems on its path come forward */
+#l2.focus .node.ghost:not(.aside){border-color:var(--line-strong)}
+#l2.focus .node.ghost:not(.aside) .n{color:var(--text-2)}
+#l2.focus .node.ghost:not(.aside) .s{color:var(--text-3)}
+.edges{position:absolute;left:0;top:0;width:900px;height:600px;overflow:visible}
+.edges path{fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:stroke .35s ease-out,stroke-opacity .35s ease-out}
+.edges .old{stroke:#4a4f57}
+.edges .new{stroke:rgb(63 179 127/.7)}
+.edges .gone{stroke:rgb(229 83 75/.7);stroke-dasharray:4 4}
+.edges rect.cloud{fill:rgba(255,255,255,.012);stroke:rgba(255,255,255,.1);stroke-width:1;stroke-dasharray:4 4}
+.cloudl{position:absolute;font:500 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+
+/* a system: grey until Claude touches it; then a dot and a faint tint say new, changed or removed */
+.node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;
+  padding:0 12px;background:var(--node);border:1px solid var(--line-strong);border-radius:10px;box-shadow:var(--lift);
+  transition:border-color .35s ease-out,background .35s ease-out,opacity .35s ease-out,box-shadow .35s ease-out}
+.node .n,.svc .n{font:500 13.5px/1.3 var(--sans);letter-spacing:-.01em;color:var(--text);white-space:nowrap;display:flex;align-items:center}
+.node .n::before,.svc .n::before,.frame .n::before{content:'';width:6px;height:6px;border-radius:50%;margin-right:7px;flex:none;background:transparent;transition:background .35s ease-out}
+.node.actor .n::before{display:none}
+.st{position:absolute;top:-8px;right:10px;display:none;font:600 9px/15px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#0b0c0e;border-radius:999px;padding:0 6px}
+.node.new .st,.svc .st,.frame .st{display:block;background:var(--green)}
+.node.chg .st{display:block;background:var(--yellow)}
+.node.gone .st{display:block;background:#e36c65}
+.node.ghost .st,.node.lane .st{display:none}
+.node .s{padding-left:13px;font:12.5px/1.35 var(--sans);color:var(--text-2);white-space:nowrap;height:0;opacity:0;transition:opacity .3s ease-out,height .3s var(--ease)}
+.node .s.on{opacity:1;height:17px}
+.node.ext{border-style:dashed}
+.node.actor{width:104px;border-radius:999px;align-items:center}
+.node.ctx .n{color:var(--text-2)}
+.node.new{border-color:rgb(63 179 127/.55);background:#16201b}
+.node.chg{border-color:rgb(217 195 79/.5);background:#1d1d17}
+.node.gone{border-color:rgb(229 83 75/.55);border-style:dashed;background:#1f1718}
+.node.gone .n{text-decoration:line-through;text-decoration-color:rgb(229 83 75/.6);color:var(--text-2)}
+.node.new .n::before,.node.chg .n::before,.node.gone .n::before,.svc .n::before,.frame .n::before{height:6px;margin-right:7px}
+.node.new .n::before,.svc .n::before,.frame .n::before{background:var(--green)}
+.node.chg .n::before{background:var(--yellow)}
+.node.gone .n::before{background:var(--red)}
+/* systems outside the box you opened: there for context, quiet */
+.node.ghost{border-color:var(--line);background:var(--node);box-shadow:none}
+.node.ghost .n{color:var(--text-3)}
+.node.ghost .s{color:#4a4f56}
+.node.ghost .n::before{opacity:.45}
+.node.hide{opacity:0}
+.node.pop{animation:pop .4s var(--ease)}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(.9)}to{transform:translate(-50%,-50%) scale(1)}}
+.node.ring{box-shadow:var(--lift),0 0 0 4px rgb(63 179 127/.15)}
+.elab.gone{color:#ee8c86;border-color:rgb(229 83 75/.35)}
+.elab{position:absolute;transform:translate(-50%,-50%);font:500 11px var(--sans);color:var(--text-2);background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:2px 6px;white-space:nowrap;
+  opacity:0;transition:opacity .3s ease-out}
+.elab.on{opacity:1}
+.assume{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;font:12px var(--sans);color:var(--text);white-space:nowrap;
+  background:#17131f;border:1px solid rgb(167 139 250/.55);border-radius:6px;padding:4px 9px;opacity:0;transition:opacity .35s ease-out}
+.assume b{font-weight:600;color:#c4b5fd}
+.assume.on{opacity:1}
+.assume.pulse{animation:apulse .7s ease-out 2}
+@keyframes apulse{0%{box-shadow:0 0 0 0 rgb(167 139 250/.5)}100%{box-shadow:0 0 0 10px rgb(167 139 250/0)}}
+.ripple{position:absolute;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid rgba(255,255,255,.75);pointer-events:none;z-index:4;animation:rip .5s ease-out forwards}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
+.hint{position:absolute;transform:translate(-50%,-50%);font:12.5px var(--sans);color:#8fd3ae;white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.hint.on{opacity:1}
+
+/* level 2: the service with its routes; encryption as a small lock on each line */
+.lock{position:absolute;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:var(--canvas);border:1px solid var(--line);display:grid;place-items:center}
+.lock svg{width:9px;height:9px;fill:none;stroke:#7d858f;stroke-width:1.4;stroke-linecap:round}
+.svc{position:absolute;width:220px;transform:translate(-50%,-50%);padding:10px;background:#16201b;border:1px solid rgb(63 179 127/.55);border-radius:10px;box-shadow:var(--lift)}
+.svc .n{margin:0 2px 8px}
+.route{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;border:1px solid transparent;font:12.5px/1.3 var(--sans);color:var(--text);
+  background:rgba(255,255,255,.035);transition:border-color .25s ease-out,background .25s ease-out}
+.route + .route{margin-top:4px}
+.route .who{margin-left:auto;font:500 10.5px var(--sans);color:var(--text-2);border:1px solid var(--line-strong);border-radius:999px;padding:1px 7px}
+.route .who.any{color:#f0b06a;border-color:rgb(239 154 60/.55);background:rgb(239 154 60/.1)}
+.route .flag{margin-left:auto;width:6px;height:6px;border-radius:50%;background:var(--amber);opacity:0;transform:scale(.4);transition:opacity .3s ease-out,transform .3s var(--ease)}
+.route .flag.on{opacity:1;transform:scale(1)}
+.route.sel{border-color:var(--select);background:rgb(77 141 255/.12)}
+
+/* the inspector: what the selected thing lets in, what it can touch, where encryption ends */
+.insp{position:absolute;width:250px;background:var(--card);border:1px solid var(--line-strong);border-radius:10px;padding:12px 14px;
+  box-shadow:var(--float);opacity:0;transform:translateX(-4px);transition:opacity .3s ease-out,transform .3s ease-out}
+.insp.on{opacity:1;transform:none}
+.ih{margin-bottom:8px}
+.ih b{display:block;font:600 13.5px/1.3 var(--sans);letter-spacing:-.01em;color:var(--text)}
+.ih span{font:11px var(--sans);color:var(--text-3)}
+.ir{padding:8px 0;border-top:1px solid var(--line)}
+.ik{display:block;font:500 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+.iv{font:12.5px/1.45 var(--sans);color:var(--text)}
+.ir.warn{margin:0 -8px;padding:8px;border-top-color:transparent;border-radius:6px;background:rgb(239 154 60/.09)}
+.ir.warn + .ir{border-top-color:transparent}
+.ir.warn .ik{color:#e9a862}
+.ir.claim{margin:0 -8px 4px;padding:8px;border-top-color:transparent;border-radius:6px;background:rgb(167 139 250/.1)}
+.ir.claim .ik{color:#c4b5fd}
+.ir.claim + .ir{border-top-color:transparent}
+.isrc{margin-top:8px;font:10.5px var(--mono);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.iv .no{color:var(--amber);font-weight:600}
+.ifoot{display:flex;justify-content:flex-end;margin-top:6px}
+.flow{font:500 12px var(--sans);color:var(--text);background:var(--raised);border:1px solid var(--line-strong);border-radius:6px;padding:4px 10px;transition:box-shadow .3s ease-out,border-color .3s ease-out}
+.flow.ring{border-color:var(--select);box-shadow:0 0 0 3px rgb(77 141 255/.25)}
+
+/* comments, as in Figma: a pin on the box, a thread beside it */
+.pin{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%) scale(0);border-radius:50% 50% 50% 0;border:2px solid var(--canvas);
+  display:grid;place-items:center;font:600 11px/1 var(--sans);color:#111214;transition:transform .3s var(--ease),background .3s ease-out}
+.pin.on{transform:translate(-50%,-50%) scale(1)}
+.pin.done{background:var(--green) !important}
+.thread{position:absolute;width:250px;background:var(--card);border:1px solid var(--line-strong);border-radius:10px;padding:12px;
+  box-shadow:var(--float);opacity:0;transform:translateY(4px);transition:opacity .3s ease-out,transform .3s ease-out}
+.thread.on{opacity:1;transform:none}
+.msg{display:flex;gap:8px;align-items:flex-start;font:12.5px/1.45 var(--sans);color:var(--text)}
+.msg + .msg{margin-top:10px}
+.msg .av{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;font:600 10px/1 var(--sans);color:#111214}
+.msg .who{font-weight:600;margin-right:5px}
+.msg.hide{display:none}
+.dots{display:inline-flex;gap:3px;padding-top:7px}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--text-2);animation:dot 1s infinite}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes dot{0%,100%{opacity:.3}50%{opacity:1}}
+.tfoot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font:11px var(--sans);color:var(--text-2)}
+.react{background:var(--raised);border:1px solid var(--line-strong);border-radius:999px;padding:2px 8px;color:var(--text);opacity:0;transform:scale(.8);transition:opacity .25s ease-out,transform .25s var(--ease)}
+.react.on{opacity:1;transform:scale(1)}
+.resolve{border:1px solid var(--line-strong);border-radius:6px;padding:2px 8px;color:var(--text-2)}
+.resolve.pressed{background:rgb(63 179 127/.12);border-color:rgb(63 179 127/.55);color:#bfe8d0}
+
+/* teammates' and Claude's cursors */
+.cur{position:absolute;left:0;top:0;opacity:0;transition:transform .9s var(--ease),opacity .3s ease-out;pointer-events:none;z-index:3}
+.cur.on{opacity:1}
+.cur svg{display:block}
+.cur .tag{position:absolute;left:14px;top:16px;font:600 11px/1 var(--sans);color:#111214;border-radius:6px;padding:4px 7px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+
+#tools{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;
+  background:var(--card);border:1px solid var(--line-strong);border-radius:14px;box-shadow:var(--float);z-index:4}
+.tb{height:32px;min-width:32px;border-radius:8px;display:grid;place-items:center;color:var(--text-2)}
+.tb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tb.on{background:var(--select);color:#fff}
+.tb.on svg{fill:currentColor}
+.tb.ask{padding:0 10px;font:500 12.5px var(--sans);color:var(--claude)}
+.tdiv{width:1px;height:20px;background:var(--line-strong);margin:0 4px}
+body.rec #nav{display:none}
+#nav{position:fixed;right:14px;bottom:12px;display:flex;align-items:center;gap:10px;font:11px var(--mono);color:var(--text-3);z-index:5}
+#nav button{font:12px var(--sans);color:var(--text);background:var(--card);border:1px solid var(--line-strong);border-radius:6px;padding:5px 11px;cursor:pointer}
+#nav button:hover{background:var(--raised)}
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="chat">
+    <div class="chead"><span>acme-app</span><span class="br">⎇ pro-plan</span></div>
+    <div id="msgs"></div>
+    <div class="composer" id="composer">
+      <div class="field"><span id="input"></span><span class="caret"></span><span class="ph">Reply to Claude…</span></div>
+      <div class="crow"><span>Opus 5.5</span><span class="send">↑</span></div>
+    </div>
+  </section>
+  <section id="map">
+    <div id="top"><b id="sys">System</b><span id="crumb">›&nbsp; Billing</span><span id="crumb3">›&nbsp; Payment confirmed</span>
+      <div id="change"><span class="prpill">PR #212 · Add Pro plan</span>
+        <span class="chip"><i style="background:var(--green)"></i>1 new</span>
+        <span class="chip"><i style="background:var(--yellow)"></i>2 changed</span>
+        <span class="chip"><i style="background:var(--red)"></i>1 removed</span>
+        <span id="fixed" class="fixedchip">✓ Fix pushed · tests pass</span>
+      </div>
+      <div class="faces">
+        <span class="face" style="background:#c9cfd6">H</span>
+        <span class="face" style="background:var(--duy)">D</span>
+        <span class="face" style="background:var(--priyanka)">P</span>
+        <span class="face" style="background:var(--claude)">✳</span>
+      </div>
+    </div>
+    <div id="canvas">
+      <button id="backsys" class="backsys">‹ System</button>
+      <div id="stage">
+        <div id="l1" class="layer"><svg id="edges" class="edges" viewBox="0 0 900 600"><defs></defs>
+          <rect class="cloud" x="160" y="92" width="530" height="440" rx="14"/>
+        </svg><div class="cloudl" style="left:174px;top:104px">acme-app · production</div></div>
+        <div id="frame" class="frame"><div class="n">Billing</div><div class="s">New: payments</div><span class="st">New</span></div>
+        <div id="l2" class="layer"><svg id="edges2" class="edges" viewBox="0 0 900 600"><defs></defs></svg></div>
+        <div id="frame3" class="frame3"><div class="n"><span class="ic">POST</span>Payment confirmed</div><div class="s">route · Billing service</div></div>
+        <div id="l3" class="layer"><svg id="edges3" class="edges" viewBox="0 0 900 600"><defs></defs></svg></div>
+      </div>
+      <!-- the canvas tools, as in Figma -->
+      <div id="tools">
+        <span class="tb on" title="Move"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
+        <span class="tb" title="Hand"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb" title="Box"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg></span>
+        <span class="tb" title="Arrow"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg></span>
+        <span class="tb" title="Text"><svg viewBox="0 0 20 20"><path d="M5 5h10M10 5v11"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb" title="Comment"><svg viewBox="0 0 20 20"><path d="M4 15.5V6a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H7z"/></svg></span>
+        <span class="tb" title="Emoji"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.5"/><path d="M7.5 11.5c.6 1 1.4 1.5 2.5 1.5s1.9-.5 2.5-1.5"/><circle cx="7.8" cy="8.3" r=".4"/><circle cx="12.2" cy="8.3" r=".4"/></svg></span>
+        <i class="tdiv"></i>
+        <span class="tb ask" title="Ask Claude">✳ Ask Claude</span>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="nav"><button id="backb">‹ Back</button><span id="counter">0 / 9</span><button id="nextb">Next ›</button></div>
+
+<script>
+const LAST = 9, W = 900, H = 600;
+const canvas = document.getElementById('canvas');
+const mapEl = document.getElementById('map');
+const stage = document.getElementById('stage');
+const l1 = document.getElementById('l1');
+const l2 = document.getElementById('l2');
+const l3 = document.getElementById('l3');
+const frame = document.getElementById('frame');
+const frame3 = document.getElementById('frame3');
+const svg = document.getElementById('edges');
+const svg2 = document.getElementById('edges2');
+const svg3 = document.getElementById('edges3');
+const sys = document.getElementById('sys');
+const crumb = document.getElementById('crumb');
+const crumb3 = document.getElementById('crumb3');
+const backsys = document.getElementById('backsys');
+const change = document.getElementById('change');
+const fixedChip = document.getElementById('fixed');
+const msgs = document.getElementById('msgs');
+const input = document.getElementById('input');
+const composer = document.getElementById('composer');
+const counter = document.getElementById('counter');
+
+// The story, one click per step:
+// 0 the prompt is typed          5 Duy asks about it; Claude owns the assumption
+// 1 Claude builds it; the map    6 you open the flow: the real payment, then a fake one
+//   files what changed and what  7 you ask a side chat on the skipped check how to fix it
+//   Claude assumed               8 you send the fix to Claude; it edits, tests, pushes
+// 2 a question on the removal    9 you replay the fake call: rejected
+// 3 you open Billing
+// 4 you select the route Claude assumed about
+
+// Level 1: the systems, left to right as a request flows. The customer and the payment
+// provider sit outside our cloud. s is the line each one gets once Claude has changed it.
+const N = {
+  customer: {x:70,  y:180, l:'Customer', cls:'actor ctx'},
+  web:      {x:275, y:180, l:'Web app', s:'+ Upgrade button', fx:'chg'},
+  billing:  {x:545, y:180, l:'Billing', s:'New: payments', fx:'new'},
+  provider: {x:815, y:180, l:'Payment provider', cls:'ext ctx'},
+  core:     {x:275, y:330, l:'Core API', cls:'ctx'},
+  db:       {x:545, y:330, l:'Users DB', s:'+ plan column', fx:'chg'},
+  renewal:  {x:275, y:470, l:'Renewal job', s:'Retired', fx:'gone'},
+};
+const TAG = {new:'New', chg:'Changed', gone:'Removed'};
+// fx: which change in Claude's work draws the line; none means it was always there
+const E = [
+  {d:'M122 180H203'},
+  {d:'M275 205V303'},
+  {d:'M345 330H473'},
+  {d:'M345 470H807Q815 470 815 462V207', fx:'renewal'},
+  {d:'M345 180H473', fx:'billing'},
+  {d:'M615 171H743', fx:'billing'},
+  {d:'M745 191H617', fx:'billing'},
+  {d:'M545 205V303', fx:'db'},
+];
+const PROMPT = 'Add a Pro plan with our payment provider, and retire the old renewal job.';
+const ROUTE_FILE = 'services/billing/routes/payment-confirmed.ts';
+const T = [
+  {s:0, k:'type', t:PROMPT},
+  {s:1, k:'submit'},
+  {s:1, k:'spin'},
+  {s:1, k:'say', t:'On it.'},
+  {s:1, k:'spin'},
+  {s:1, k:'tool', v:'Read',  p:'6 files'},
+  {s:1, k:'tool', v:'Edit',  p:'web/pricing.tsx',           x:'+34',  fx:'web'},
+  {s:1, k:'tool', v:'Write', p:'services/billing/index.ts', x:'+128', fx:'billing'},
+  {s:1, k:'tool', v:'Write', p:ROUTE_FILE,                  x:'+46'},
+  {s:1, k:'tool', v:'Write', p:'migrations/007_plan.sql',   x:'+9',   fx:'db'},
+  {s:1, k:'tool', v:'Bash',  p:'git rm jobs/renewal.ts',    x:'−148', fx:'renewal'},
+  {s:1, k:'tool', v:'Bash',  p:'gh pr create',              x:'#212'},
+  {s:1, k:'wait', ms:500},
+  {s:1, k:'say', t:'Done. PR #212 puts Pro behind a new Upgrade button. The payment provider now runs renewals and calls our new Payment confirmed route. I assumed only the provider will call it.'},
+  {s:8, k:'user', tag:'From side chat', t:"Check who sent Payment confirmed before setting the plan: verify the provider's proof with the secret in Secrets & keys, and reject anything else."},
+  {s:8, k:'spin'},
+  {s:8, k:'tool', v:'Edit', p:ROUTE_FILE,          x:'+9 −1'},
+  {s:8, k:'tool', v:'Bash', p:'npm test billing',  x:'✓ 14 passed'},
+  {s:8, k:'tool', v:'Bash', p:'git push',          x:'PR #212'},
+  {s:8, k:'say', t:"Done. Payment confirmed now rejects any call the payment provider didn't send. Tests pass, and PR #212 is updated."},
+];
+
+// Level 2: inside Billing. The Billing box from level 1 grows into a frame; its parts sit
+// inside it, and the systems it talks to stay dimmed on the same sides as on level 1.
+const FRAME = {l1:[475, 155, 140, 50], l2:[270, 120, 520, 330]};
+const N2 = {
+  web:      {x:115, y:205, l:'Web app', s:'+ Upgrade button', cls:'chg ghost aside'},
+  provider: {x:865, y:205, l:'Payment provider', cls:'ext ctx ghost'},
+  db:       {x:470, y:530, l:'Users DB', s:'+ plan column', cls:'chg ghost'},
+  lb:       {x:470, y:205, l:'Load balancer', s:'Public · + 1 route', cls:'chg'},
+  keys:     {x:690, y:350, l:'Secrets & keys', cls:'ctx aside'},
+};
+const SVC = {x:470, y:350};
+const E2 = [
+  {d:'M185 205H398', aside:true},
+  {d:'M795 205H542'},
+  {d:'M470 230V297'},
+  {d:'M580 350H618', aside:true},
+  {d:'M560 300V270Q560 262 568 262H857Q865 262 865 254V232', aside:true},
+  {d:'M470 403V503'},
+];
+
+// Level 3: the route as a sequence of calls. The customer who pays is also the one who fakes it.
+const LANES = {customer:{x:94, l:'Customer', cls:'ctx'}, provider:{x:242, l:'Payment provider', cls:'ext ctx'},
+  billing:{x:390, l:'Billing service', cls:'new'}, db:{x:538, l:'Users DB', cls:'chg'}};
+const LIFE = {top:153, bottom:512};
+const CALLS = {
+  h1:{y:190, a:'customer', b:'provider', l:'Pays', k:'flow'},
+  h2:{y:235, a:'provider', b:'billing', l:'Payment confirmed', k:'flow'},
+  h3:{y:310, a:'billing', b:'db', l:'plan = Pro', k:'flow'},
+  f1:{y:392, a:'customer', b:'billing', l:'Payment confirmed', k:'risk', lx:168},
+  f2:{y:466, a:'billing', b:'db', l:'plan = Pro', k:'risk'},
+  r1:{y:466, a:'billing', b:'customer', l:'Rejected ✕', k:'no', lx:316},
+};
+
+// what each level draws, so it can be fitted and centred above the toolbar
+const BOX = {1:[18, 92, 885, 532], 2:[24, 120, 935, 650], 3:[10, 60, 896, 575]};
+// teammates' and Claude's cursors at each step; a third number delays the move,
+// so people arrive one after another. Before it shows up a cursor waits off an edge.
+const CUR = {
+  priyanka: {l:'Priyanka', c:'var(--priyanka)', from:[900, 620], at:{2:[250,510], 5:[760,640,2600]}},
+  claude:   {l:'Claude',   c:'var(--claude)',   from:[920, 300], at:{2:[640,470,1400], 5:[830,520,1400]}},
+  duy:      {l:'Duy',      c:'var(--duy)',      from:[600, 660], at:{2:[400,552,3600], 5:[520,610]}},
+};
+
+/* ---------- build ---------- */
+let scale = 1, level = 1;
+const TOOLBAR = 76, TOP = 52, PAD = 36;
+function fit(){
+  const r = canvas.getBoundingClientRect(), [x1, y1, x2, y2] = BOX[level];
+  const aw = r.width - PAD * 2, ah = r.height - TOOLBAR - TOP - 12;
+  scale = Math.min(aw / (x2 - x1), ah / (y2 - y1), 1.25);
+  const dy = (TOP + r.height - TOOLBAR - 12) / 2 - r.height / 2;
+  stage.style.transform = `translate(-50%,-50%) translateY(${dy}px) scale(${scale}) translate(${W / 2 - (x1 + x2) / 2}px,${H / 2 - (y1 + y2) / 2}px)`;
+}
+function div(cls, text){ const d = document.createElement('div'); d.className = cls; if (text) d.textContent = text; return d; }
+function span(cls, t){ const s = document.createElement('span'); s.className = cls; s.textContent = t; return s; }
+function place(el, x, y, into = l1){ el.style.left = x + 'px'; el.style.top = y + 'px'; into.appendChild(el); return el; }
+const svgEl = t => document.createElementNS('http://www.w3.org/2000/svg', t);
+function rectInStage(el){
+  const r = el.getBoundingClientRect(), st = stage.getBoundingClientRect();
+  return [(r.left - st.left) / scale, (r.top - st.top) / scale, r.width / scale, r.height / scale];
+}
+function center(el, dx = 0, dy = 0){ const [x, y, w, h] = rectInStage(el); return [x + w / 2 + dx, y + h / 2 + dy]; }
+
+// each layer's svg carries its own arrowheads and masks, so hiding one layer never blanks the other's lines
+const SVGS = [svg, svg2, svg3];
+const INK = {old:'#6b717a', new:'#3fb37f', gone:'#e5534b', flow:'#9aa1ab', risk:'#ef9a3c', no:'#e5534b'};
+SVGS.forEach((into, li) => Object.entries(INK).forEach(([k, c]) => {
+  const m = svgEl('marker');
+  m.setAttribute('id', `arr${li}-${k}`); m.setAttribute('viewBox', '0 0 10 10'); m.setAttribute('refX', 9); m.setAttribute('refY', 5);
+  m.setAttribute('markerUnits', 'userSpaceOnUse'); m.setAttribute('markerWidth', 11); m.setAttribute('markerHeight', 11); m.setAttribute('orient', 'auto');
+  const p = svgEl('path');
+  p.setAttribute('d', 'M0 1L10 5L0 9Z'); p.style.fill = c; p.style.stroke = 'none';
+  m.appendChild(p); into.querySelector('defs').appendChild(m);
+}));
+
+// Lines that appear later draw in through a mask, so dashed ones draw in too.
+let masks = 0;
+function mkPath(d, into = svg){
+  const p = svgEl('path');
+  p.setAttribute('d', d);
+  into.appendChild(p);
+  const id = 'm' + (masks++);
+  const m = svgEl('mask');
+  m.setAttribute('id', id); m.setAttribute('maskUnits', 'userSpaceOnUse');
+  m.setAttribute('x', -100); m.setAttribute('y', -100); m.setAttribute('width', W + 300); m.setAttribute('height', H + 200);
+  const mp = svgEl('path');
+  mp.setAttribute('d', d); mp.setAttribute('fill', 'none'); mp.setAttribute('stroke', '#fff'); mp.setAttribute('stroke-width', 16);
+  m.appendChild(mp); into.querySelector('defs').appendChild(m);
+  const len = p.getTotalLength() + 12;
+  mp.style.strokeDasharray = `${len} ${len}`;
+  mp.style.strokeDashoffset = len;
+  p.style.opacity = 0;
+  return {p, mp, len, mask:`url(#${id})`, on:false, raf:0, li: SVGS.indexOf(into)};
+}
+function setKind(L, k, arrow = true){
+  L.p.setAttribute('class', k + (L.aside ? ' aside' : ''));
+  if (arrow) L.p.setAttribute('marker-end', `url(#arr${L.li}-${k})`); else L.p.removeAttribute('marker-end');
+}
+
+fit();
+for (const n of Object.values(N)){
+  n.el = div('node ' + (n.cls || ''));
+  n.el.append(div('n', n.l), n.sub = div('s', n.s || ''), span('st', TAG[n.fx] || ''));
+  place(n.el, n.x, n.y);
+}
+E.forEach(e => { e.L = mkPath(e.d); setKind(e.L, 'old'); });
+const payLabel = place(div('elab', 'Payment confirmed'), 680, 207);
+const goneLabel = place(div('elab gone', 'Charged cards · removed'), 590, 470);
+const assumeL1 = place(div('assume'), 545, 124);
+assumeL1.innerHTML = '<b>◆ Claude assumed</b> only the provider calls Payment confirmed';
+
+// the comment on the renewal job
+const pin = place(div('pin', 'P'), 343, 446);
+pin.style.background = 'var(--priyanka)';
+// tmsg() writes into whichever thread is current; level 1's is thread1, level 2's thread2
+const thread1 = place(div('thread'), 368, 384);
+let thread = thread1;
+function tmsg(name, color, text){
+  const m = div('msg'), av = div('av', name[0]), body = div('');
+  av.style.background = color;
+  body.append(span('who', name), span('', text));
+  m.append(av, body);
+  thread.appendChild(m);
+  return m;
+}
+function typingRow(){
+  const m = div('msg hide'), av = div('av', '✳'), d = div('dots');
+  av.style.background = 'var(--claude)';
+  d.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+  m.append(av, d); thread.appendChild(m);
+  return m;
+}
+tmsg('Priyanka', 'var(--priyanka)', 'Safe to retire? Who charges existing subscribers?');
+const typing = typingRow();
+const reply = tmsg('Claude', 'var(--claude)', 'I checked Users DB: 0 customers are on the old renewal job. New Pro plans renew at the payment provider.');
+const tfoot = div('tfoot'), react = span('react', '👍 Duy'), resolve = span('resolve', 'Resolve');
+tfoot.append(react, resolve); thread.appendChild(tfoot);
+
+// level 2
+for (const n of Object.values(N2)){
+  n.el = div('node f2 ' + n.cls);
+  n.el.append(div('n', n.l));
+  if (n.s) n.el.append(div('s on', n.s));
+  n.el.append(span('st', n.cls.includes('chg') ? 'Changed' : ''));
+  place(n.el, n.x, n.y, l2);
+}
+const svc = place(div('svc f2'), SVC.x, SVC.y, l2);
+svc.append(div('n', 'Billing service'), span('st', 'New'));
+const routes = {};
+[['checkout', 'Checkout', 'Signed-in', ''], ['paid', 'Payment confirmed', 'Anyone', ' any']].forEach(([k, l, who, cls]) => {
+  const r = div('route');
+  r.append(span('', l), span('who' + cls, who));
+  svc.appendChild(routes[k] = r);
+});
+E2.forEach(e => { e.L = mkPath(e.d, svg2); e.L.aside = !!e.aside; setKind(e.L, 'new'); });
+// things fade in roughly top to bottom
+l2.querySelectorAll('.f2').forEach(el => {
+  const y = parseFloat(el.style.top) || 140;
+  el.style.transitionDelay = Math.round(y / 600 * 450) + 'ms';
+});
+
+// the card for the route Claude assumed about: the assumption, the risk under it, where it came from
+const insp = place(div('insp'), 24, 290, l2);
+insp.style.width = '236px';
+insp.innerHTML = `<div class="ih"><b>Payment confirmed</b><span>POST /webhooks/provider</span></div>
+  <div class="ir claim"><span class="ik">◆ Claude assumed</span><span class="iv">Only the payment provider calls this</span></div>
+  <div class="ir warn"><span class="ik">Who can call</span><span class="iv">Anyone on the internet<br>Checks who sent it: <span class="no">No</span></span></div>
+  <div class="ir"><span class="ik">What it changes</span><span class="iv">Sets the plan in Users DB</span></div>
+  <div class="isrc">from the diff · payment-confirmed.ts</div>
+  <div class="ifoot"><span class="flow">Show flow ›</span></div>`;
+const flowBtn = insp.querySelector('.flow');
+
+// Duy's comment on the route
+const paidY = SVC.y - svc.offsetHeight / 2 + routes.paid.offsetTop + routes.paid.offsetHeight / 2;
+const pin2 = place(div('pin', 'D'), SVC.x + 114, paidY - 6, l2);
+pin2.style.background = 'var(--duy)';
+const thread2 = thread = place(div('thread'), 560, 470, l2);
+tmsg('Duy', 'var(--duy)', 'So anyone can mark themselves paid?');
+const typing2 = typingRow();
+const reply2 = tmsg('Claude', 'var(--claude)', "Yes. I assumed only the payment provider calls this route, and I didn't check who sent it.");
+const tfoot2 = div('tfoot'), react2 = span('react', '👀 Priyanka');
+tfoot2.append(react2, span('resolve', 'Resolve')); thread2.appendChild(tfoot2);
+
+// level 3: the route row's place on level 2, so its frame can grow from there and shrink back
+const FRAME3 = {l2: rectInStage(routes.paid), l3: [10, 60, 610, 480]};
+const f3 = (el, x, y) => { el.classList.add('f3'); return place(el, x, y, l3); };
+for (const n of Object.values(LANES)){
+  n.el = div('node lane ' + n.cls); n.el.appendChild(div('n', n.l));
+  f3(n.el, n.x, 136);
+  n.L = mkPath(`M${n.x} ${LIFE.top}V${LIFE.bottom}`, svg3); setKind(n.L, 'life', false);
+}
+for (const c of Object.values(CALLS)){
+  const x1 = LANES[c.a].x, x2 = LANES[c.b].x, dir = Math.sign(x2 - x1);
+  c.L = mkPath(`M${x1 + dir * 4} ${c.y}H${x2 - dir * 4}`, svg3); setKind(c.L, c.k);
+  c.lab = f3(div('alab k-' + c.k, c.l), c.lx || (x1 + x2) / 2, c.y);
+}
+const sepL = mkPath('M24 342H606', svg3); setKind(sepL, 'sepl', false);
+const sec1 = f3(div('sec', 'Real payment'), 26, 160);
+const sec2 = f3(div('sec risk', 'Same customer, no payment'), 26, 352);
+const replay = place(div('cbtn', '↻ Replay'), 560, 352, l3);
+const chk1 = f3(div('chk', ''), 390, 272);
+const chk2 = f3(div('chk', ''), 390, 429);
+const nopay = f3(div('tagx', 'No payment happened'), 538, 494);
+const askChip = place(div('cbtn claude', '✳ Ask Claude about this'), 556, 429, l3);
+function setChecks(fixed){
+  [chk1, chk2].forEach(c => {
+    c.classList.toggle('skip', !fixed); c.classList.toggle('ok', fixed);
+    c.textContent = fixed ? 'Check sender ✓' : 'Check sender · skipped';
+  });
+}
+
+// the side chat: a read-only Claude on the skipped check
+const side = place(div('side'), 634, 296, l3);
+side.innerHTML = `<div class="sh">✳ Ask Claude <span>read-only · on Check sender</span></div>
+  <div class="sq hide">How do we fix this?</div>
+  <div class="msg hide" data-k="dots"><div class="dots"><i></i><i></i><i></i></div></div>
+  <div class="sa hide">Line 14 sets the plan without checking who sent the call.
+    <div class="code"></div>
+    Verify the provider's proof with the secret in Secrets &amp; keys, and reject anything else.</div>
+  <div class="sin"><span class="t"></span><span class="ph">Ask about this…</span></div>`;
+const sq = side.querySelector('.sq'), sdots = side.querySelector('[data-k=dots]'), sa = side.querySelector('.sa');
+const code = side.querySelector('.code');
+const sin = side.querySelector('.sin'), sinT = sin.querySelector('.t'), sinPh = sin.querySelector('.ph');
+const sbtn = span('sbtn hide', 'Send to Claude ›'); sa.appendChild(sbtn);
+const leadL = mkPath('M632 429H467', svg3); setKind(leadL, 'lead', false);
+// line 14 as Claude wrote it, then after the fix
+function setCode(fixed){
+  code.innerHTML = '<div class="file">payment-confirmed.ts</div>' + (fixed
+    ? '<div class="add"><i>13</i>if (!fromProvider(req)) reject();</div><div><i>14</i>const e = JSON.parse(req.body);</div><div><i>15</i>await setPlan(e.userId, "pro");</div>'
+    : '<div><i>13</i>const e = JSON.parse(req.body);</div><div class="hit"><i>14</i>await setPlan(e.userId, "pro");</div>');
+}
+
+function mkCursor(l, c){
+  const el = div('cur');
+  el.innerHTML = `<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${c}" stroke="#0d0f12" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+  const tag = span('tag', l); tag.style.background = c; el.appendChild(tag);
+  stage.appendChild(el);
+  return el;
+}
+for (const c of Object.values(CUR)) c.el = mkCursor(c.l, c.c);
+// your own cursor does the clicking
+const you = mkCursor('You', '#e6e8eb');
+const YOU_FROM = [900, 640];
+
+/* ---------- primitives ---------- */
+let step = 0, token = 0, timers = [];
+
+// the mask only lives while a line draws in; left on, it would clip the arrowhead
+function setLine(L, on, A){
+  if (A && L.on === on) return;
+  cancelAnimationFrame(L.raf);
+  L.on = on;
+  if (!on){ L.p.style.opacity = 0; return; }
+  L.p.style.opacity = 1;
+  if (!A){ L.p.removeAttribute('mask'); return; }
+  L.p.setAttribute('mask', L.mask);
+  L.mp.style.strokeDashoffset = L.len;
+  const t0 = performance.now();
+  const tick = now => {
+    const p = Math.min(1, (now - t0) / 420), e = 1 - Math.pow(1 - p, 3);
+    L.mp.style.strokeDashoffset = L.len * (1 - e);
+    if (p < 1) L.raf = requestAnimationFrame(tick); else L.p.removeAttribute('mask');
+  };
+  L.raf = requestAnimationFrame(tick);
+}
+function pulse(el, cls){
+  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+  el.addEventListener('animationend', function h(){ el.classList.remove(cls); el.removeEventListener('animationend', h); });
+}
+function setCur(c, s, A){
+  const p = c.at[s];
+  if (A && p && p[2]) return timers.push(setTimeout(() => setCur(c, s, false), p[2]));
+  c.el.classList.toggle('on', !!p);
+  const [x, y] = p || c.from;
+  c.el.style.transform = `translate(${x}px,${y}px)`;
+}
+function youAt(p){
+  you.classList.toggle('on', !!p);
+  const [x, y] = p || YOU_FROM;
+  you.style.transform = `translate(${x}px,${y}px)`;
+}
+function ripple(p){
+  const r = place(div('ripple'), p[0], p[1], stage);
+  r.addEventListener('animationend', () => r.remove());
+}
+
+// One change Claude made, drawn on the map: the box takes its colour and its line,
+// and the lines it added draw in.
+const FX = ['web', 'billing', 'db', 'renewal'];
+function setFx(k, on, A){
+  const n = N[k];
+  n.el.classList.toggle(n.fx, on);
+  n.sub.classList.toggle('on', on);
+  if (k === 'billing'){
+    n.el.classList.toggle('hide', !on);
+    if (on && A) pulse(n.el, 'pop');
+    payLabel.classList.toggle('on', on);
+  }
+  if (k === 'renewal') goneLabel.classList.toggle('on', on);
+  E.filter(e => e.fx === k).forEach((e, i) => {
+    if (k === 'renewal') setKind(e.L, on ? 'gone' : 'old');
+    else { setKind(e.L, 'new'); A ? timers.push(setTimeout(() => setLine(e.L, on, A), 120 + i * 140)) : setLine(e.L, on, false); }
+  });
+}
+function setFrame(full){
+  const [x, y, w, h] = FRAME[full ? 'l2' : 'l1'];
+  Object.assign(frame.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
+  frame.classList.toggle('full', full);
+}
+function setFrame3(full){
+  const [x, y, w, h] = FRAME3[full ? 'l3' : 'l2'];
+  Object.assign(frame3.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
+  frame3.classList.toggle('full', full);
+}
+// grow a frame from where its box sits, now
+function grow(el, setter){
+  setter(false); el.classList.add('still', 'on'); void el.offsetWidth; el.classList.remove('still');
+}
+// where your cursor rests once a step is done
+function youRest(s){
+  if (s < 3) return null;
+  if (s === 3) return [610, 430];
+  if (s <= 5) return center(routes.paid, 50, 4);
+  if (s === 6) return [560, 530];
+  if (s === 7) return center(sin, 30, 2);
+  if (s === 8) return center(sbtn, 20, 4);
+  return center(replay, 14, 6);
+}
+
+/* ---------- map ---------- */
+function renderMap(s, A){
+  const at = (ms, fn) => A ? timers.push(setTimeout(fn, ms)) : fn();
+  const show = (el, on, ms = 0) => at(ms, () => el.classList.toggle('on', on));
+  const a = n => A && s === n;
+  // your cursor moves to something and clicks it
+  const press = (el, ms, dx = 0, dy = 0) => {
+    at(ms, () => { const p = center(el, dx, dy); youAt(p); timers.push(setTimeout(() => ripple(p), 820)); });
+  };
+
+  // step 1: the system; while Claude works each change lands as its tool runs,
+  // then the map files what Claude said it assumed on the box it is about
+  E.filter(e => !e.fx || e.fx === 'renewal').forEach(e => setLine(e.L, true, false));
+  if (!a(1)) FX.forEach(k => setFx(k, s >= 1, false));
+  show(change, s >= 1, a(1) ? 200 : 0);
+  at(a(1) ? 600 : 0, () => { assumeL1.classList.toggle('on', s >= 1); if (a(1)) pulse(assumeL1, 'pulse'); });
+
+  // people stay while they talk; once the renewal question is resolved they leave
+  Object.values(CUR).forEach(c => setCur(c, !A && s === 2 ? -1 : s, A));
+  if (a(2)) at(6500, () => Object.values(CUR).forEach(c => setCur(c, -1, false)));
+
+  // step 2: Priyanka asks about the removal, Claude checks and answers, Duy agrees, it's resolved
+  typing.classList.add('hide');
+  if (a(2)){
+    at(900, () => { pin.classList.add('on'); thread1.classList.add('on'); });
+    at(2300, () => typing.classList.remove('hide'));
+    at(3300, () => { typing.classList.add('hide'); reply.classList.remove('hide'); });
+    at(4500, () => react.classList.add('on'));
+    at(5200, () => resolve.classList.add('pressed'));
+    at(5900, () => { thread1.classList.remove('on'); pin.classList.add('done'); pin.textContent = '✓'; });
+  } else {
+    pin.classList.toggle('on', s >= 2); pin.classList.toggle('done', s >= 2); pin.textContent = s >= 2 ? '✓' : 'P';
+    thread1.classList.remove('on');
+    reply.classList.toggle('hide', s < 2); react.classList.toggle('on', s >= 2); resolve.classList.toggle('pressed', s >= 2);
+  }
+
+  // step 3: you open Billing; the rest of level 1 fades and the box grows into the frame
+  const o3 = a(3) ? 1000 : 0;
+  if (a(3)){ press(N.billing.el, 0, 14, 8); at(600, () => N.billing.el.classList.add('ring')); }
+  at(o3, () => {
+    N.billing.el.classList.remove('ring');
+    if (a(3)){ level = 2; fit(); }
+    l1.classList.toggle('out', s >= 3);
+    sys.classList.toggle('up', s >= 3);
+    crumb.classList.toggle('on', s >= 3);
+    backsys.classList.toggle('on', s >= 3);
+    if (a(3)) grow(frame, setFrame);
+  });
+  if (a(3)) at(o3 + 80, () => setFrame(true));
+  else { setFrame(s >= 3); frame.classList.toggle('on', s >= 3); }
+  at(a(3) ? o3 + 550 : 0, () => l2.classList.toggle('on', s >= 3));
+  E2.forEach((e, i) => at(a(3) ? o3 + 750 + i * 90 : 0, () => setLine(e.L, s >= 3, A)));
+
+  // step 4: you select the route Claude assumed about; what it doesn't touch steps back
+  if (a(4)) press(routes.paid, 0, 50, 4);
+  at(a(4) ? 900 : 0, () => {
+    routes.paid.classList.toggle('sel', s >= 4);
+    insp.classList.toggle('on', s >= 4);
+    l2.classList.toggle('focus', s >= 4);
+  });
+
+  // step 5: Duy asks on the route; Claude owns the assumption; Priyanka sees it
+  typing2.classList.add('hide');
+  if (a(5)){
+    at(900, () => { pin2.classList.add('on'); thread2.classList.add('on'); });
+    at(2300, () => typing2.classList.remove('hide'));
+    at(3200, () => { typing2.classList.add('hide'); reply2.classList.remove('hide'); });
+    at(3800, () => react2.classList.add('on'));
+  } else {
+    pin2.classList.toggle('on', s >= 5); thread2.classList.toggle('on', s >= 5);
+    reply2.classList.toggle('hide', s < 5); react2.classList.toggle('on', s >= 5);
+  }
+
+  // step 6: you open the flow: Billing steps away, the route row grows into its own frame,
+  // the real payment draws, then the same customer fakes it
+  const o6 = a(6) ? 950 : 0;
+  if (a(6)){ press(flowBtn, 0, 10, 4); at(600, () => flowBtn.classList.add('ring')); }
+  at(o6, () => {
+    flowBtn.classList.remove('ring');
+    if (a(6)){ level = 3; fit(); }
+    l2.classList.toggle('out', s >= 6);
+    frame.classList.toggle('gone', s >= 6);
+    crumb.classList.toggle('up', s >= 6);
+    crumb3.classList.toggle('on', s >= 6);
+    backsys.textContent = s >= 6 ? '‹ Billing' : '‹ System';
+    if (a(6)) grow(frame3, setFrame3);
+  });
+  if (a(6)) at(o6 + 80, () => setFrame3(true));
+  else { setFrame3(s >= 6); frame3.classList.toggle('on', s >= 6); }
+  at(a(6) ? o6 + 500 : 0, () => l3.classList.toggle('on', s >= 6));
+  Object.values(LANES).forEach((n, i) => {
+    show(n.el, s >= 6, a(6) ? o6 + 550 + i * 80 : 0);
+    at(a(6) ? o6 + 700 + i * 80 : 0, () => setLine(n.L, s >= 6, A));
+  });
+  show(sec1, s >= 6, a(6) ? o6 + 900 : 0);
+  ['h1', 'h2', 'h3'].forEach((k, i) => {
+    const c = CALLS[k], ms = a(6) ? o6 + 1200 + i * 450 : 0;
+    at(ms, () => setLine(c.L, s >= 6, A)); show(c.lab, s >= 6, ms + 150);
+  });
+  if (!a(9)) setChecks(s >= 9);
+  show(chk1, s >= 6, a(6) ? o6 + 1550 : 0);
+  at(a(6) ? o6 + 2700 : 0, () => setLine(sepL, s >= 6, A));
+  show(sec2, s >= 6, a(6) ? o6 + 2800 : 0);
+  show(replay, s >= 6, a(6) ? o6 + 2800 : 0);
+  if (!a(9)) at(a(6) ? o6 + 3100 : 0, () => setLine(CALLS.f1.L, s >= 6, A));
+  show(CALLS.f1.lab, s >= 6, a(6) ? o6 + 3250 : 0);
+  show(chk2, s >= 6, a(6) ? o6 + 3600 : 0);
+  if (!a(9)){
+    at(a(6) ? o6 + 4000 : 0, () => { setLine(CALLS.f2.L, s >= 6 && s < 9, A); CALLS.f2.lab.classList.toggle('on', s >= 6 && s < 9); });
+    show(nopay, s >= 6 && s < 9, a(6) ? o6 + 4400 : 0);
+  }
+
+  // step 7: you ask a side chat on the skipped check; it reads the code and answers
+  askChip.classList.remove('on');
+  sinT.textContent = ''; sinPh.classList.remove('hide');
+  sdots.classList.add('hide');
+  if (!a(9)) setCode(false);
+  if (a(7)){
+    press(chk2, 0, 30, 4);
+    at(900, () => askChip.classList.add('on'));
+    press(askChip, 1100, 20, 4);
+    at(1950, () => { askChip.classList.remove('on'); side.classList.add('on'); setLine(leadL, true, true); });
+    const q = 'How do we fix this?';
+    for (let i = 1; i <= q.length; i++) at(2300 + i * 35, () => { sinT.textContent = q.slice(0, i); sinPh.classList.add('hide'); });
+    const t0 = 2300 + q.length * 35 + 300;
+    at(t0, () => { sinT.textContent = ''; sinPh.classList.remove('hide'); sq.classList.remove('hide'); sdots.classList.remove('hide'); });
+    at(t0 + 1100, () => { sdots.classList.add('hide'); sa.classList.remove('hide'); sbtn.classList.remove('hide'); });
+    [sq, sa, sbtn].forEach(el => el.classList.add('hide'));
+  } else {
+    side.classList.toggle('on', s >= 7);
+    setLine(leadL, s >= 7, false);
+    [sq, sa, sbtn].forEach(el => el.classList.toggle('hide', s < 7));
+  }
+
+  // step 8: you send it to Claude, which edits, tests and pushes (the chat shows it)
+  if (a(8)) press(sbtn, 0, 20, 4);
+  at(a(8) ? 900 : 0, () => { sbtn.classList.toggle('sent', s >= 8); sbtn.textContent = s >= 8 ? 'Sent to Claude ✓' : 'Send to Claude ›'; });
+  at(a(8) ? 5200 : 0, () => fixedChip.classList.toggle('on', s >= 8));
+
+  // step 9: you replay the fake call; now Billing checks who sent it and rejects it
+  if (a(9)){
+    press(replay, 0, 14, 6);
+    at(900, () => setLine(CALLS.f1.L, false, false));
+    at(1000, () => setLine(CALLS.f1.L, true, true));
+    at(1600, () => { setChecks(true); setLine(CALLS.f2.L, false, false); CALLS.f2.lab.classList.remove('on'); nopay.classList.remove('on'); });
+  }
+  at(a(9) ? 1900 : 0, () => { setLine(CALLS.r1.L, s >= 9, A); CALLS.r1.lab.classList.toggle('on', s >= 9); });
+  at(a(9) ? 2400 : 0, () => { frame3.classList.toggle('fixed', s >= 9); setCode(s >= 9); });
+
+  if (!A) youAt(youRest(s));
+}
+
+/* ---------- chat ---------- */
+function setInput(t){ input.textContent = t; composer.classList.toggle('has', !!t); }
+let spinEl = null;
+// the spinner stays last while Claude works; Claude's next words replace it
+function addMsg(el, anim){ if (anim) el.classList.add('anim'); msgs.insertBefore(el, spinEl); msgs.scrollTop = msgs.scrollHeight; }
+function srcTag(t){ const tag = div('src'); tag.append(document.createElement('i'), span('', t)); return tag; }
+function apply(e, anim){
+  if (e.k === 'type') setInput(e.t);
+  else if (e.k === 'wait') return;
+  else if (e.k === 'submit'){ addMsg(div('bubble', e.t || input.textContent), anim); setInput(''); }
+  // what you send from the map arrives as your own message, tagged with where it came from
+  else if (e.k === 'user'){ const b = div('bubble'); b.append(srcTag(e.tag), span('', e.t)); addMsg(b, anim); }
+  else if (e.k === 'spin'){
+    if (spinEl) spinEl.remove();
+    spinEl = div('working'); spinEl.append(div('spin'), span('', 'Working…'));
+    msgs.appendChild(spinEl);
+  }
+  else if (e.k === 'say'){
+    if (spinEl){ spinEl.remove(); spinEl = null; }
+    addMsg(div('say', e.t), anim);
+  } else {
+    // tool calls in a row share one group, as the app shows them
+    let g = spinEl ? spinEl.previousElementSibling : msgs.lastElementChild;
+    if (!g || !g.classList.contains('tools')){ g = div('tools'); addMsg(g, false); }
+    const r = div('tool' + (anim ? ' anim' : ''));
+    r.append(span('v', e.v), span('p', e.p));
+    if (e.x) r.append(span('x' + (e.x[0] === '−' ? ' del' : ''), e.x));
+    g.appendChild(r);
+  }
+}
+function chatStatic(s){
+  msgs.textContent = ''; spinEl = null; setInput('');
+  T.filter(e => e.s <= s).forEach(e => apply(e, false));
+}
+const wait = ms => new Promise(r => setTimeout(r, ms));
+async function chatAnim(s, tok){
+  for (const e of T.filter(e => e.s === s)){
+    if (e.k === 'wait'){ await wait(e.ms); if (tok !== token) return; continue; }
+    await wait(e.k === 'tool' ? 650 : e.k === 'submit' ? 300 : e.k === 'spin' ? 150 : 650); if (tok !== token) return;
+    apply(e, true);
+    // the map follows the work: each change shows up as Claude makes it
+    if (e.fx) setFx(e.fx, true, true);
+  }
+}
+
+/* ---------- stepping ---------- */
+function go(t, A){
+  token++; timers.forEach(clearTimeout); timers = [];
+  const tok = token;
+  const base = A ? t - 1 : t;
+  mapEl.classList.add('notrans');
+  const lv = base >= 6 ? 3 : base >= 3 ? 2 : 1;
+  if (level !== lv){ level = lv; fit(); }
+  chatStatic(base); renderMap(base, false);
+  void mapEl.offsetWidth;
+  mapEl.classList.remove('notrans');
+  step = t; counter.textContent = t + ' / ' + LAST;
+  if (!A) return;
+  if (t === 1) chatAnim(t, tok).then(() => { if (tok === token) renderMap(t, true); });
+  else if (t === 8){
+    // you act on the map first; the chat picks it up
+    renderMap(t, true);
+    timers.push(setTimeout(() => chatAnim(t, tok), 1100));
+  } else renderMap(t, true);
+}
+// Back out one level: the frame shrinks into the box it came from and the level above returns.
+function zoomOut(){
+  if (step < 3) return;
+  token++; timers.forEach(clearTimeout); timers = [];
+  youAt(null);
+  if (step >= 6){
+    [l3, crumb3].forEach(el => el.classList.remove('on'));
+    level = 2; fit();
+    setFrame3(false);
+    timers.push(setTimeout(() => { l2.classList.remove('out'); frame.classList.remove('gone'); }, 200));
+    timers.push(setTimeout(() => go(5, false), 650));
+    return;
+  }
+  [insp, thread2, pin2, l2, crumb, backsys].forEach(el => el.classList.remove('on'));
+  level = 1; fit();
+  setFrame(false);
+  timers.push(setTimeout(() => l1.classList.remove('out'), 200));
+  timers.push(setTimeout(() => go(2, false), 650));
+}
+const next = () => step >= LAST ? go(0, false) : go(step + 1, true);
+const prev = () => { if (step > 0) go(step - 1, false); };
+
+document.getElementById('nextb').addEventListener('click', e => { e.stopPropagation(); next(); });
+document.getElementById('backb').addEventListener('click', e => { e.stopPropagation(); prev(); });
+backsys.addEventListener('click', e => { e.stopPropagation(); zoomOut(); });
+document.addEventListener('click', e => { if (!e.target.closest('button, a')) next(); });
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+  else if (e.key === 'Backspace' || e.key === 'ArrowLeft'){ e.preventDefault(); prev(); }
+});
+// a window resize refits at once; only opening a level glides
+window.addEventListener('resize', () => { mapEl.classList.add('notrans'); fit(); void mapEl.offsetWidth; mapEl.classList.remove('notrans'); });
+// pro-plan.html?rec hides the demo's controls for recording; #6 opens straight at step 6
+if (/rec/.test(location.search)) document.body.classList.add('rec');
+go(Math.min(LAST, parseInt(location.hash.slice(1), 10) || 0), false);
+</script>
+</body>
+</html>
