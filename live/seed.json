@@ -131,7 +131,8 @@
       "context": "ACME-219 removes the schedules the payment provider replaced, including trial-reminder emails.",
       "needs": "Confirm to stop them, or Dispute to keep them",
       "assume": "Trial-reminder emails can stop.",
-      "short": "ACME-219 removes the schedule that sends them."
+      "short": "ACME-219 removes the schedule that sends them.",
+      "ask": "Stop trial-reminder emails?"
     }
   ],
   "prs": [

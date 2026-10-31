@@ -149,7 +149,15 @@ button,input{font:inherit;color:inherit}
 .row.open-node{cursor:pointer;border-radius:6px}
 .row.req{display:block;padding:10px 0}
 .ct .ca-n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;margin-left:6px;padding:0 5px}
-.row.ca{display:block;padding:10px 8px;margin:0 -8px}
+.row.ca{display:block;padding:9px 8px;margin:0 -8px}
+.ca-line{display:flex;align-items:center;gap:10px}
+.ca-line .ca-q{flex:1;margin:0}
+.ca-btns{display:flex;gap:6px;flex:none}
+.ca-btns .gb{height:26px;padding:0 10px}
+.ca-btns .gb.yes{background:#141413;color:#fff;border-color:#141413}
+.ca-on{font-size:11.5px !important;color:var(--text-3);margin-top:2px}
+/* a box with a yes/no waiting on you: a small orange question mark */
+.node .mk.q{left:auto;right:-9px;top:-9px;width:20px;height:20px;line-height:20px;border-radius:50%;background:var(--claude);color:#fff;font:600 12px/20px var(--plex);text-align:center;box-shadow:0 0 0 2px #fff}
 .ca-head{font-size:12px;color:var(--text-2)}
 .ca-ag{color:var(--claude);font-weight:500}.ca-ag.cx{color:var(--text)}
 .ca-on{color:var(--text-3)}
@@ -289,11 +297,14 @@ function fit(){
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
   const minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
   const r = canvas.getBoundingClientRect();
-  // room for the queue on the left and an open card on the right, no more
+  // the map takes whichever is bigger: the space beside the queue, or the full width under it
   const q = $('queue').getBoundingClientRect();
-  const left = q.height > 60 ? q.width + 48 : 40, right = ($('side').classList.contains('on') || prsOpen) ? 440 : 40;
-  const z = Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - 60) / (maxY - minY));
-  cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = 30 + ((r.height - 60) - (maxY - minY) * z) / 2 - minY * z;
+  const right = ($('side').classList.contains('on') || prsOpen) ? 440 : 40, bottom = 60;
+  const under = Math.max(30, q.bottom - r.top + 16);
+  const fitIn = (left, top) => Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY));
+  const beside = fitIn(q.width + 48, 30), below = fitIn(40, under);
+  const [left, top, z] = below >= beside ? [40, under, below] : [q.width + 48, 30, beside];
+  cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = top + ((r.height - top - bottom) - (maxY - minY) * z) / 2 - minY * z;
   place();
 }
 
@@ -362,7 +373,7 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.some((c) => c.for === ME) ? '<span class="mk p yours" title="Claude needs you to confirm this">Confirm</span>' : ''}
+      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">?</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
@@ -384,20 +395,20 @@ function renderTop(){
   $('prbtn').classList.toggle('on', prsOpen);
 }
 
-// What the agent assumed and needs you to confirm before it builds: one line it believes, one line why it
-// matters, and your answer back to it. Click the row to open the box it is about. Talking to people is comments.
-const callRow = (c, withButtons) => `<div class="row open-node ca" data-node="${c.node}" title="Open ${nodeById(c.node)?.label || c.node}">
-  <div class="ca-head"><span class="ca-ag ${c.from === 'Codex' ? 'cx' : ''}">${c.from === 'Codex' ? 'Codex' : '✳ Claude'}</span> assumed <span class="ca-on">· ${nodeById(c.node)?.label || c.node}</span></div>
-  <div class="ca-q">${c.assume || c.text}</div>
-  ${c.status === 'open' ? `<div class="ca-why">${c.short || c.context || ''}</div>` : `<div class="ca-done">${c.status === 'confirmed' ? '✓ You confirmed' : '✕ You said no'}${c.said ? `: ${c.said}` : ''}</div>`}
-  ${c.status === 'open' && withButtons ? `<div class="btns"><span class="gb" data-call="${c.id}" data-ans="confirm">Confirm</span><span class="gb" data-call="${c.id}" data-ans="dispute">Not right</span></div>` : ''}</div>`;
+// What the agent needs your yes or no on before it builds: one short question, the box it is on, Yes / No.
+// The reason is one click away, on the box's card. Talking to people is comments.
+const callRow = (c, withButtons) => `<div class="row open-node ca" data-node="${c.node}" title="${c.short || ''} Click to see it on the map.">
+  <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open'
+    ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
+    : c.status !== 'open' ? `<span class="ca-done">${c.status === 'confirmed' ? 'Yes' : 'No'}</span>` : ''}</div>
+  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${nodeById(c.node)?.label || c.node}</div></div>`;
 
 function renderQueue(){
   const open = S.calls.filter((c) => c.for === ME && c.status === 'open');
   const q = $('queue');
   q.classList.toggle('quiet-card', !open.length);
-  if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to confirm</span>'; return; }
-  q.innerHTML = `<div class="ct">Confirm before Claude builds <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
+  if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to answer</span>'; return; }
+  q.innerHTML = `<div class="ct">Your call <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
 }
 
 function renderSide(){
