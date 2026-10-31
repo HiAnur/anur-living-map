@@ -262,7 +262,8 @@ const anyFocus = () => scope().nodes.some(focused);
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
-const toStage = (cx, cy) => [(cx - cam.x) / cam.z, (cy - cam.y) / cam.z];
+// a mouse position in the window, as a point on the map: the map starts under the top bar, not at the window's top
+const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [(cx - r.left - cam.x) / cam.z, (cy - r.top - cam.y) / cam.z]; };
 
 /* the view: the system, or the inside of one box */
 const scope = () => {
@@ -538,7 +539,7 @@ canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
 canvas.addEventListener('dblclick', (e) => { const nd = e.target.closest('.node'); const n = nd && nodeById(nd.dataset.id); if (n?.inside && !locked(n)) enter(n.id); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  if (e.ctrlKey || e.metaKey){ const z = Math.min(2.5, Math.max(.3, cam.z * (e.deltaY < 0 ? 1.08 : .92))); const [sx, sy] = toStage(e.clientX, e.clientY); cam.x = e.clientX - sx * z; cam.y = e.clientY - sy * z; cam.z = z; }
+  if (e.ctrlKey || e.metaKey){ const z = Math.min(2.5, Math.max(.3, cam.z * (e.deltaY < 0 ? 1.08 : .92))); const [sx, sy] = toStage(e.clientX, e.clientY), r = canvas.getBoundingClientRect(); cam.x = e.clientX - r.left - sx * z; cam.y = e.clientY - r.top - sy * z; cam.z = z; }
   else { cam.x -= e.deltaX; cam.y -= e.deltaY; }
   place();
 }, { passive: false });
