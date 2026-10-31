@@ -15,9 +15,12 @@ Open `index.html` in a browser. No build, no server.
 3. The plan: the feature as the user walks it, left to right. Under each step, what Claude
    assumed (purple), what the team already settled there and why (green, deployed), and
    where to look twice: ⚠ think about this, ! risky.
-4. You fix and confirm on the boxes. The chat hears about it from the map.
-5. Run. Each step ticks off as it is built.
-6. Back out to the map, the branch checked.
+4. Click the ⚠ box: a side chat slides in that knows the map and the chat. You ask why,
+   Claude answers and proposes the change.
+5. Apply it from there; fix and confirm the other two on their boxes. The chat hears
+   about it from the map.
+6. Run. Each step ticks off as it is built.
+7. Back out to the map, the branch checked.
 
 `scenario-2.html` is a draft of a second story: you come back to a chat that is a wall of
 tool lines, Claude asked something 58 steps ago, and the map has the question on top.
