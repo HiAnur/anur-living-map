@@ -72,7 +72,9 @@ button,input{font:inherit;color:inherit}
 .node.gone{border:1px solid var(--rule);opacity:.45}
 .node.gone .n{text-decoration:line-through}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
-.node .mk.p{left:auto;right:-9px;top:-9px;width:18px;height:18px;line-height:18px;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+/* who the box waits on: their name as a pill in their colour, top-right */
+.node .mk.p{left:auto;right:8px;top:-10px;width:auto;height:18px;line-height:16px;padding:0 8px;border-radius:999px;border:1px solid #fff;font-size:10.5px;letter-spacing:.02em;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.node.todo .mk.p,.node.open .mk.p{right:auto;left:8px}
 .node .enter{position:absolute;right:8px;bottom:4px;font-size:11px;color:var(--text-3)}
 .file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
@@ -264,7 +266,7 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px">
       <div class="n">${n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.length ? `<span class="mk p" style="background:${pcol(open[0].for)}" title="Waiting on ${open[0].for}">${open[0].for[0]}</span>` : ''}
+      ${open.length ? `<span class="mk p" style="background:${pcol(open[0].for)}" title="Waiting on ${open[0].for}">${open[0].for}</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
