@@ -28,6 +28,8 @@ button,input{font:inherit;color:inherit}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
 .face.me{box-shadow:0 0 0 2px var(--claude)}
+.face[data-as]{cursor:pointer}
+.face[data-as]:not(.me):hover{transform:translateY(-1px)}
 .face.cl{background:var(--claude)}
 .face .n{position:absolute;top:30px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-2);display:none;white-space:nowrap}
 .face:hover .n{display:block}
@@ -276,7 +278,8 @@ function renderTop(){
   $('ticket').innerHTML = `<b>${S.ticket}</b> · ${S.prompt}`;
   $('me').innerHTML = `You are <b>${ME}</b>`;
   const names = S.people.map((p) => p.id);
-  $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}" style="background:${pcol(p)}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl">✳<span class="n">Claude Code</span></span>`;
+  // click a person to see the map as them: their queue, their cursor, their clicks
+  $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}" data-as="${p}" title="${p === ME ? `You are ${p}` : `See the map as ${p}`}" style="background:${pcol(p)}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl" title="Claude Code">✳<span class="n">Claude Code</span></span>`;
   const blocked = S.prs.filter((p) => p.status === 'blocked').length;
   $('prbtn').innerHTML = `Pull requests ${blocked ? `<span class="bad">· ${blocked} blocked</span>` : ''}`;
   $('prbtn').classList.toggle('on', prsOpen);
@@ -369,6 +372,8 @@ canvas.addEventListener('wheel', (e) => {
 function enter(id){ view = id; selected = null; render(); fit(); }
 document.addEventListener('click', (e) => {
   const t = e.target;
+  const face = t.closest('[data-as]');
+  if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
