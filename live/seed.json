@@ -1,0 +1,157 @@
+{
+  "title": "acme-app",
+  "env": "production",
+  "ticket": "ACME-212",
+  "prompt": "Plan ACME-212: add a Pro plan with our payment provider, and retire the old renewal job.",
+  "people": [
+    {
+      "id": "You",
+      "role": "Engineer, runs Claude Code"
+    },
+    {
+      "id": "Priyanka",
+      "role": "Product"
+    },
+    {
+      "id": "Duy",
+      "role": "Owns billing"
+    },
+    {
+      "id": "Sam",
+      "role": "Engineer, runs Codex"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "customer",
+      "label": "Customer",
+      "kind": "actor",
+      "x": 90,
+      "y": 150,
+      "desc": "Anyone with an account. 4,120 active, 312 on annual plans."
+    },
+    {
+      "id": "web",
+      "label": "Web app",
+      "x": 290,
+      "y": 150,
+      "file": "apps/web/",
+      "desc": "The product people use in the browser."
+    },
+    {
+      "id": "provider",
+      "label": "Payment provider",
+      "kind": "ext",
+      "x": 840,
+      "y": 150,
+      "w": 150,
+      "desc": "Third party. Charges cards, sends Payment confirmed."
+    },
+    {
+      "id": "core",
+      "label": "Core API",
+      "x": 290,
+      "y": 260,
+      "file": "services/core/",
+      "desc": "Accounts, plans, everything the web app asks for."
+    },
+    {
+      "id": "db",
+      "label": "Users DB",
+      "icon": "db",
+      "x": 540,
+      "y": 260,
+      "file": "db/schema.sql",
+      "desc": "Postgres. users, plans, invoices."
+    },
+    {
+      "id": "email",
+      "label": "Email service",
+      "x": 290,
+      "y": 370,
+      "file": "services/email/",
+      "desc": "Receipts, renewal notices, trial reminders."
+    },
+    {
+      "id": "renewal",
+      "label": "Renewal job",
+      "x": 540,
+      "y": 370,
+      "w": 230,
+      "file": "jobs/renewal.ts",
+      "desc": "Runs nightly, bills annual plans that are due, mails the receipt."
+    }
+  ],
+  "edges": [
+    {
+      "from": "customer",
+      "to": "web"
+    },
+    {
+      "from": "web",
+      "to": "core"
+    },
+    {
+      "from": "core",
+      "to": "db"
+    },
+    {
+      "from": "core",
+      "to": "email"
+    },
+    {
+      "from": "renewal",
+      "to": "email"
+    },
+    {
+      "from": "renewal",
+      "to": "provider"
+    }
+  ],
+  "calls": [
+    {
+      "id": "c",
+      "node": "email",
+      "for": "Priyanka",
+      "from": "Codex",
+      "ticket": "ACME-219",
+      "kind": "Product call",
+      "text": "OK to stop trial-reminder emails?",
+      "status": "open",
+      "confirm": {
+        "node": "email",
+        "state": "todo",
+        "sub": "Trial reminders off",
+        "says": "Yes, stop them."
+      },
+      "dispute": {
+        "says": "Keep them."
+      }
+    }
+  ],
+  "prs": [
+    {
+      "id": "#219",
+      "agent": "Codex",
+      "by": "Sam",
+      "title": "Remove schedules the provider replaced",
+      "status": "open",
+      "checks": [
+        {
+          "name": "Living Map: nothing agreed on these yet",
+          "ok": true
+        }
+      ],
+      "files": [
+        "infra/scheduler.tf -31",
+        "jobs/renewal.ts -212"
+      ]
+    }
+  ],
+  "answers": {
+    "renewal": "jobs/renewal.ts runs at 02:00 and bills every annual plan whose period ends that day, then mails the receipt through the email service. 312 customers are on it. If it goes, they stop renewing.",
+    "db": "users, plans and invoices in Postgres. There is no plan column on users yet; the plan lives on the plans table by period.",
+    "email": "Receipts, renewal notices and trial reminders. Codex's ACME-219 wants the trial reminders off.",
+    "*": "I drew what I know on the map. Click a box for its sources, or ask me about one."
+  }
+}
