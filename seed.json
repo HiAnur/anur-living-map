@@ -58,6 +58,7 @@
     {
       "id": "db",
       "label": "Users DB",
+      "icon": "db",
       "x": 540,
       "y": 260,
       "file": "db/schema.sql",

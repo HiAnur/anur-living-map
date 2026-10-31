@@ -45,6 +45,7 @@
           {
             "id": "db2",
             "label": "Users DB",
+            "icon": "db",
             "x": 110,
             "y": 305,
             "ghost": true
