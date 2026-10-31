@@ -130,6 +130,7 @@ button,input{font:inherit;color:inherit}
 .cp-item .tx{font-size:13.5px}
 .cp-item .rp{font-size:12.5px;color:#7C3AED;margin-top:4px}
 .cp-item.done{opacity:.55}
+.cp-res{display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:12.5px;color:var(--text-2);border-bottom:1px solid var(--rule);cursor:pointer}
 .cp-empty{padding:24px;text-align:center;color:var(--text-2);font-size:13px}
 /* comment mode, the Figma way: the tool turns purple while it is on */
 .tb[data-tool="comment"].on{background:#7C3AED;color:#fff}
@@ -441,13 +442,14 @@ function renderCursors(){
 }
 
 /* comments */
-let tool = 'select', openThread = null, draft = null, panelOpen = false, panelQuery = '', pendingOpen = false;
+let tool = 'select', openThread = null, draft = null, panelOpen = false, panelQuery = '', pendingOpen = false, showResolved = false;
 document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQuery = e.target.value; renderComments(); const q = $('cpq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.closest('input, textarea')) setTool(tool === 'comment' ? 'select' : 'comment'); if (e.key === 'Escape'){ draft = null; openThread = null; render(); } });
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
 const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
-const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.node || !locked(nodeById(c.node) || {})));
+// a resolved comment leaves the map, as in Figma; the panel keeps it behind "Show resolved"
+const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.resolved || showResolved) && (!c.node || !locked(nodeById(c.node) || {})));
 function renderComments(){
   const pins = visibleComments().map((c) => `<div class="pinc ${openThread === c.id ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${c.msgs[0].who[0]}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`);
   if (draft) pins.push(`<div class="pinc on" style="left:${draft.x}px;top:${draft.y}px"><i style="background:${pcol(ME)}">${ME[0]}</i></div>`);
@@ -471,8 +473,10 @@ function renderComments(){
   const cp = $('cpanel'); cp.classList.toggle('on', panelOpen);
   if (panelOpen){
     const q = panelQuery.toLowerCase();
-    const all = (S.comments || []).filter((x) => !x.node || !locked(nodeById(x.node) || {})).filter((x) => !q || x.msgs.some((m) => (m.text + m.who).toLowerCase().includes(q))).slice().reverse();
+    const all = (S.comments || []).filter((x) => !x.node || !locked(nodeById(x.node) || {})).filter((x) => showResolved || !x.resolved).filter((x) => !q || x.msgs.some((m) => (m.text + m.who).toLowerCase().includes(q))).slice().reverse();
+    const nResolved = (S.comments || []).filter((x) => x.resolved).length;
     cp.innerHTML = `<div class="cp-head"><input id="cpq" placeholder="Search" value="${panelQuery.replace(/"/g, '&quot;')}"><span class="x" data-close-cp title="Close">×</span></div>
+      ${nResolved ? `<label class="cp-res"><input type="checkbox" id="cpres" ${showResolved ? 'checked' : ''}> Show resolved (${nResolved})</label>` : ''}
       <div class="cp-list">${all.length ? all.map((x) => `<div class="cp-item ${openThread === x.id ? 'on' : ''} ${x.resolved ? 'done' : ''}" data-goto="${x.id}">${av(x.msgs[0].who)}
         <div class="meta">#${x.id} · ${x.node ? nodeById(x.node)?.label || x.node : x.view === 'system' ? 'System' : nodeById(x.view)?.label}${x.resolved ? ' · resolved' : ''}</div>
         <div><span class="who">${x.msgs[0].who}</span><span class="ago">${ago(x.msgs[0].at)}</span></div><div class="tx">${mention(x.msgs[0].text)}</div>
@@ -540,7 +544,13 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.dataset.call){ t.classList.add('pressed'); act('call', { id: t.dataset.call, answer: t.dataset.ans }); toast(`${t.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
-  else if (t.closest('[data-resolve]')){ act('resolve', { id: t.closest('[data-resolve]').dataset.resolve }); }
+  else if (t.closest('[data-resolve]')){
+    const id = Number(t.closest('[data-resolve]').dataset.resolve), c = S.comments.find((x) => x.id === id);
+    act('resolve', { id });
+    // resolving closes the thread and takes the pin off the map; reopening keeps it open
+    if (c && !c.resolved){ openThread = null; render(); toast('Comment resolved'); }
+  }
+  else if (t.id === 'cpres'){ showResolved = t.checked; render(); }
   else if (t.closest('[data-close-th]')){ openThread = null; draft = null; render(); }
   else if (t.closest('[data-close-cp]')){ setTool('select'); }
   else if (t.closest('[data-goto]')){
