@@ -340,7 +340,7 @@ const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1
 const me = () => (S && S.people.find((p) => p.id === ME)) || { id: ME, sees: 'all' };
 const canSee = (n) => !me().sees || me().sees === 'all' || n.area === me().sees;
 const pcol = (who) => PCOL[who] || '#141413';
-const act = (type, extra = {}) => fetch('/api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
 const cam = { x: 0, y: 0, z: 1 };
@@ -795,7 +795,7 @@ let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.
 
 /* follow the server */
 function listen(){
-  const es = new EventSource('/api/events');
+  const es = new EventSource('api/events');
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
