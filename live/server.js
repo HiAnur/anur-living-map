@@ -148,9 +148,6 @@ function openMap({ project = '', name = '', home }) {
     if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror, { anyUser: !!l.built }) };
   }
   startMirror();
-  // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
-  // a picture from the chat itself is read from its transcript; both go by the same kind of id
-  const PICS = path.join(home, 'chat-images'), EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
 
   // A map started from a prompt on the list of maps: a Claude Code chat runs here, in the map's folder, with
   // everything this Mac's Claude Code is connected to, and draws the map through the living-map tools. It runs in
@@ -194,6 +191,9 @@ function openMap({ project = '', name = '', home }) {
     state.linked = [l, ...(state.linked || [])].slice(0, 10); save(); push();
     converse(l, prompt);
   }
+  // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
+  // a picture from the chat itself is read from its transcript; both go by the same kind of id
+  const PICS = path.join(home, 'chat-images'), EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
   function savePicture(p) {
     const m = String(p || '').match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!m) return null;
@@ -576,11 +576,11 @@ function openMap({ project = '', name = '', home }) {
       if (!l || l.owner !== a.by) return false;
       const pics = (Array.isArray(a.images) ? a.images : []).slice(0, 5).map(savePicture).filter(Boolean);
       if (!text && !pics.length) return false;
+      // a chat the map started itself hears it straight away, and its transcript shows it in the pane
+      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((p) => p.file).join(', ')})` : ''}`); return true; }
       ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
       tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session);
       setTimeout(sendMirror); return true;
-      // a chat the map started itself hears it straight away, and its transcript shows it in the pane
-      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((p) => p.file).join(', ')})` : ''}`); return true; }
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
     propose(a) {
@@ -780,6 +780,19 @@ http.createServer(async (req, res) => {
   if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
+  // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a Claude Code chat
+  // drawing it for the person who asked, signed in
+  if (url.pathname === '/api/newmap' && req.method === 'POST') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const prompt = String(a.prompt || '').trim().slice(0, 4000);
+    if (!prompt) return json(400, { error: 'Say what the map is about.' });
+    const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
+    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === path.basename(PROJECT));
+    let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
+    mapCalled(name).build({ prompt, by: who });
+    return json(200, { name, href: `/${name}/` });
+  }
   if (url.pathname === '/api/maps') {
     const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
@@ -791,19 +804,6 @@ http.createServer(async (req, res) => {
       .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
-  // /<name>/... is the map called <name>, unless a file of the page has that name
-  const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
-  const own = projects.get(first);
-  const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
-  // the page asks its API by relative address, so a map's address ends in a slash
-  // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a Claude Code chat
-  // drawing it for the person who asked, signed in
-  if (url.pathname === '/api/newmap' && req.method === 'POST') {
-    if (!who) return json(401, { error: 'Sign in first.' });
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
-    const prompt = String(a.prompt || '').trim().slice(0, 4000);
-    if (!prompt) return json(400, { error: 'Say what the map is about.' });
-    const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
   if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
@@ -812,11 +812,11 @@ http.createServer(async (req, res) => {
     if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
     return json(200, { name, href: `/${name}/` });
   }
-    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === path.basename(PROJECT));
-    let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
-    mapCalled(name).build({ prompt, by: who });
-    return json(200, { name, href: `/${name}/` });
-  }
+  // /<name>/... is the map called <name>, unless a file of the page has that name
+  const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
+  const own = projects.get(first);
+  const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
+  // the page asks its API by relative address, so a map's address ends in a slash
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
   const map = !isMap ? main : own || mapCalled(first);
   const p = isMap ? rest : url.pathname;
