@@ -744,7 +744,8 @@ function render(){
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
-    const k = decisionMap() ? 'old' : e.state || 'old';
+    // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
+    const k = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
