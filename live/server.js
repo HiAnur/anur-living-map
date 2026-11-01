@@ -8,6 +8,7 @@
 //   GET  /api/events                    server-sent events: state after every change
 //   GET  /api/outbox                    what the chat hears, plain words
 //   POST /api/act  {type, by, ...}      move {id,x,y} · call {id, answer: confirm|dispute}
+//                                       call {id, option} or {id, other: "own words"} on a call with options
 //                                       ask {node, text} · cursor {x,y,view} · reset · open
 //
 // Each address is a map of its own: / is the project's map (also at /<project folder>/),
@@ -97,22 +98,35 @@ function openMap({ project = '', name = '', home }) {
   const allEdges = () => state.edges.concat(state.nodes.flatMap((n) => n.inside?.edges ?? []));
   const nodeOf = (id) => allNodes().find((n) => n.id === id);
 
-  // what a person's answer does to the map, from the call's own seed
+  // what a person's answer does to the map, from the call's own seed. A yes-or-no call takes
+  // confirm or dispute; a call with options takes one of them, or the person's own words.
   function answerCall(a) {
     const c = state.calls.find((x) => x.id === a.id);
     if (!c || c.status !== 'open') return false;
-    const fx = c[a.answer] || {};
-    c.status = a.answer === 'confirm' ? 'confirmed' : 'disputed';
-    c.by = a.by; c.at = stamp(); c.said = fx.says || '';
+    let fx;
+    if (c.options?.length) {
+      const o = c.options.find((x) => x.id === a.option), own = String(a.other || '').trim().slice(0, 400);
+      if (!o && !own) return false;
+      fx = o || {};
+      c.status = 'answered'; c.pickedId = o ? o.id : 'other'; c.picked = o ? o.label : own;
+      c.by = a.by; c.at = stamp(); c.said = o ? fx.says || '' : own;
+    } else {
+      if (a.answer !== 'confirm' && a.answer !== 'dispute') return false;
+      fx = c[a.answer] || {};
+      c.status = a.answer === 'confirm' ? 'confirmed' : 'disputed';
+      c.by = a.by; c.at = stamp(); c.said = fx.says || '';
+    }
     const n = fx.node && nodeOf(fx.node);
     if (n) {
       if (fx.state !== undefined) n.state = fx.state;
       if (fx.sub !== undefined) n.sub = fx.sub;
-      n.decided = { who: a.by, at: c.at, what: fx.sub || c.status, call: c.id };
+      n.decided = { who: a.by, at: c.at, what: fx.sub || c.picked || c.status, call: c.id };
     }
     if (fx.edge) { const [f, t] = fx.edge.split('>'); const e = allEdges().find((x) => x.from === f && x.to === t); if (e) e.state = fx.edgeState || ''; }
-    state.log.push({ at: Date.now(), who: a.by, action: c.status, call: c.id, node: c.node, text: c.text, said: c.said });
-    tell(`${a.by} ${c.status} "${c.text}"${fx.says ? ` — ${fx.says}` : ''}${fx.chat ? `\n  Claude: ${fx.chat}` : ''}`);
+    state.log.push({ at: Date.now(), who: a.by, action: c.status, call: c.id, node: c.node, text: c.text, said: c.said, picked: c.picked });
+    tell(c.status === 'answered'
+      ? `${a.by} answered "${c.text}": ${c.pickedId === 'other' ? `in their own words, "${c.picked}"` : `"${c.picked}"${fx.says ? ` — ${fx.says}` : ''}`}`
+      : `${a.by} ${c.status} "${c.text}"${fx.says ? ` — ${fx.says}` : ''}${fx.chat ? `\n  Claude: ${fx.chat}` : ''}`);
     return true;
   }
 
@@ -128,8 +142,9 @@ function openMap({ project = '', name = '', home }) {
     const lines = allEdges().filter((e) => ids.has(e.from) && ids.has(e.to))
       .map((e) => `- ${label(e.from)} -> ${label(e.to)}${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
     const calls = state.calls.filter((c) => ids.has(c.node)).map((c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
-      + (c.status === 'open' ? '(waiting)' : `(${c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}${c.said ? `: "${c.said}"` : ''})`)
-      + (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : ''));
+      + (c.status === 'open' ? '(waiting)' : `(${c.status === 'answered' ? `"${c.picked}"` : c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}${c.said && c.said !== c.picked ? `: "${c.said}"` : ''})`)
+      + (c.options?.length ? c.options.map((o) => `\n  Option: ${o.label}${o.means ? `: ${o.means}` : ''}`).join('')
+        : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));
     return [
       `You answer a question asked on Living Map, a map a team and its coding agents plan on together. This map is "${state.title}"${state.prompt ? `, drawn for "${state.prompt}"` : ''}.`,
       `${by}${person?.role ? ` (${person.role})` : ''} asked ${n ? `about the box "${n.label}"` : 'about the whole map, in the chat beside it'}.`,

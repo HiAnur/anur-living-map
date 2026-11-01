@@ -205,6 +205,21 @@ button,input{font:inherit;color:inherit}
 .d .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .d-wait{margin-top:8px;font-size:12.5px;color:var(--text-2)}
 .d-said{margin-top:8px;font-size:13px;color:var(--text)}
+/* the box's notes, under its one-line summary */
+.d-desc{font-size:13.5px;line-height:1.5;color:var(--text);margin:-4px 0 12px}
+/* a question with options: one button per answer, then your own words */
+.d-opts{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.d-opt{display:block;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;font:inherit;font-size:13px;line-height:1.35}
+button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
+.d-opt b{display:block;font-weight:600}.d-opt span{display:block;color:var(--text-2);margin-top:1px}
+.d-opt.picked{border-color:#141413;background:#f6f6f3}
+.d.done .d-opt:not(.picked){opacity:.55}
+.d-other{display:flex;gap:6px;margin-top:6px}.d-other input{flex:1;height:32px;border:1px solid var(--rule-2);border-radius:8px;padding:0 10px;font:inherit;font-size:13px}
+/* the box card's two tabs: what is open on it now, and what was answered before */
+.side-tabs{display:flex;gap:2px;margin:-2px 0 12px;border-bottom:1px solid var(--rule)}
+.side-tabs span{padding:6px 10px;font-size:12.5px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
+.ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
 .d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
 .ca-line{display:flex;align-items:center;gap:10px}
 .ca-line .ca-q{flex:1;margin:0}
@@ -517,7 +532,7 @@ function render(){
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
-        : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${d.status === 'confirmed' ? 'Yes' : 'No'} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
+        : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
@@ -547,18 +562,25 @@ function renderTop(){
   $('prbtn').classList.toggle('on', prsOpen);
 }
 
-// What the agent needs your yes or no on before it builds: one short question, the box it is on, Yes / No.
-// Click it and it opens in place: why it is asked, and what Yes and No each do; its box lights up on the map.
+// What someone answered: Yes or No, or the option they picked ("Own answer" when they wrote their own)
+const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answer' : c.picked) : c.status === 'confirmed' ? 'Yes' : 'No';
+
+// What the agent needs from you before it builds: one short question, the box it is on, and its answers:
+// Yes / No when that is the whole choice, or a few options plus "Other…" to say it in your own words.
+// Click it and it opens in place: why it is asked, and what each answer does; its box lights up on the map.
 let expanded = null;
+// the box card's tab ('box' or 'history') and the box it was chosen on
+let sideTab = 'box', sideFor = null;
 const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
-  <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open'
+  <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open' && !c.options?.length
     ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
-    : c.status !== 'open' ? `<span class="ca-done">${c.status === 'confirmed' ? 'Yes' : 'No'}</span>` : ''}</div>
+    : c.status !== 'open' ? `<span class="ca-done">${ans(c)}</span>` : ''}</div>
+  ${withButtons && c.status === 'open' && c.options?.length ? `<div class="ca-opts">${c.options.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}" title="${o.means || ''}">${o.label}</span>`).join('')}<span class="gb" data-other-pick="${c.id}">Other…</span></div>` : ''}
   <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${nodeById(c.node)?.label || c.node}<span class="ca-more">${expanded === c.id ? 'Less' : 'Why?'}</span></div>
   ${expanded === c.id ? `<div class="ca-x">
     ${c.plain || c.context ? `<p>${c.plain || c.context}</p>` : ''}
-    ${c.yes ? `<div class="ca-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}
-    ${c.no ? `<div class="ca-if"><b>No</b><span>${c.no}</span></div>` : ''}
+    ${c.options?.length ? c.options.map((o) => `<div class="ca-if"><span>${o.label}${o.means ? `: ${o.means}` : ''}</span></div>`).join('')
+      : `${c.yes ? `<div class="ca-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="ca-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
   </div>` : ''}</div>`;
 
 function renderQueue(){
@@ -582,35 +604,44 @@ function renderSide(){
   }
   const calls = S.calls.filter((c) => c.node === n.id);
   const thread = S.threads[n.id] || [];
-  const stateWord = { new: 'the plan builds this', todo: 'the plan changes this', 'assumed-gone': 'the plan removes this', gone: 'removed' }[n.state];
+  // a box you just opened starts on what is open on it now
+  if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; }
   // The card answers one question: what is being decided about this box, and what each answer does.
-  // The decision comes first; what the box is stays to one line; the file path is the footer.
+  // Open questions sit on "This box"; once answered they move to "History", with what was picked and why.
   const decision = (c) => {
     const agent = c.from === 'Codex' ? 'Codex' : 'Claude';
-    const open = c.status === 'open';
+    const open = c.status === 'open', opts = c.options || [], mine = open && c.for === ME;
+    const opt = (o) => mine
+      ? `<button class="d-opt" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</button>`
+      : `<div class="d-opt ${c.pickedId === o.id ? 'picked' : ''}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</div>`;
     return `<div class="d ${open ? '' : 'done'}">
-      <div class="d-who">${agent} asks ${c.for === ME ? 'you' : c.for}${open ? '' : ` · ${c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}, ${c.at}`}</div>
+      <div class="d-who">${agent} asks ${c.for === ME ? 'you' : c.for}${open ? '' : ` · ${ans(c)} from ${c.by}, ${c.at}`}</div>
       <div class="d-q">${c.ask || c.text}</div>
       ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
-      ${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}
-      ${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}
-      ${open && c.for === ME ? `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
+      ${opts.length ? `<div class="d-opts">${opts.map(opt).join('')}</div>`
+        : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
+      ${mine && opts.length ? `<form class="d-other" data-other="${c.id}"><input id="other-${c.id}" placeholder="Something else? Say it in your words" autocomplete="off"><button class="gb" type="submit">Send</button></form>`
+        : mine ? `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
         : open ? `<div class="d-wait">Waiting on ${c.for}</div>`
         : c.said ? `<div class="d-said">“${c.said}”</div>` : ''}
     </div>`;
   };
+  const answered = calls.filter((c) => c.status !== 'open').reverse();
+  const history = answered.length ? answered.map(decision).join('')
+    : n.decided ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>`
+    : '<div class="d-wait">Nothing has been answered on this box yet.</div>';
   el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
-    <div class="d-sub">${n.sub || n.desc || ''}</div>
-    ${stateWord ? `<div><span class="tag ${n.state}">${stateWord}</span></div>` : ''}
+    <div class="side-tabs"><span data-side-tab="box" class="${sideTab === 'box' ? 'on' : ''}">This box</span><span data-side-tab="history" class="${sideTab === 'history' ? 'on' : ''}">History${answered.length ? ` · ${answered.length}` : ''}</span></div>
+    ${sideTab === 'history' ? history : `
+    ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
+    ${n.desc && n.desc !== n.sub ? `<div class="d-desc">${prose(n.desc)}</div>` : ''}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
-    ${n.decided && !calls.some((c) => c.status !== 'open') ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>` : ''}
-    ${calls.filter((c) => c.status !== 'open').map(decision).join('')}
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     <div class="h">Ask Claude about this</div>
     ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')}
     <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
-    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`;
+    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
 }
 
 /* the chat in the corner: your own thread with Claude about the whole map; a box you open takes its place */
@@ -767,6 +798,9 @@ document.addEventListener('click', (e) => {
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.dataset.flow){ openFlow(t.dataset.flow); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
+  else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
+  // "Other…" on a question in the corner opens its box, ready for your own words
+  else if (t.dataset.otherPick){ const c = S.calls.find((x) => x.id === t.dataset.otherPick); if (c){ selected = c.node; sideFor = c.node; sideTab = 'box'; render(); $(`other-${c.id}`)?.focus(); } }
   else if (t.closest('[data-call-row]') && !t.closest('.gb')){
     // the call opens in place; its box lights up on the map, and no other card opens
     const row = t.closest('[data-call-row]'), id = row.dataset.callRow;
@@ -775,7 +809,11 @@ document.addEventListener('click', (e) => {
     render();
   }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
-  else if (t.dataset.call){ t.classList.add('pressed'); act('call', { id: t.dataset.call, answer: t.dataset.ans }); toast(`${t.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`); }
+  else if (t.closest('[data-call]')){
+    const b = t.closest('[data-call]'), o = b.dataset.opt; b.classList.add('pressed');
+    act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
+    toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
+  }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
   else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
   else if (t.id === 'saveb' || t.closest('[data-save]')){ act('save'); toast('Map saved'); drawerOpen = true; }
@@ -814,6 +852,9 @@ document.addEventListener('submit', (e) => {
   }
   const c = e.target.closest('form[data-chat]');
   if (c){ e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim(); if (text){ act('ask', { text }); i.value = ''; } return; }
+  // your own answer to a question with options
+  const o = e.target.closest('form[data-other]');
+  if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
   act('ask', { node: f.dataset.ask, text }); i.value = '';
