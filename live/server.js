@@ -184,8 +184,10 @@ function openMap({ project = '', name = '', home }) {
   }
   // A new map from a prompt opens a new Claude Code session in the Claude app, in the map's folder, so it sits in
   // Recents like any other chat, with every tool, connector and permission the app gives it. The session starts
-  // with /living-map-2 map:<name> and the prompt: the skill links it to this map (the pane follows it from then)
-  // and draws. Until it links, the pane shows the prompt and that the session is starting.
+  // with /living-map-2 map:<name> and the prompt, and draws. The pane follows it from its first second: the app
+  // writes the chat's transcript into ~/.claude/projects/<the map's folder, - for every other character> as the chat
+  // starts, so the server links the new file holding "map:<name>" itself, without waiting the half minute until
+  // the skill's own link step (which then changes nothing).
   function build({ prompt, by }) {
     const words = prompt.replace(/\s+/g, ' ').split(' ');
     let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
@@ -194,6 +196,14 @@ function openMap({ project = '', name = '', home }) {
     save(); push();
     const q = `/living-map-2 map:${name} ${prompt}`;
     spawn('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(home)}`]).on('error', () => {});
+    const chats = path.join(process.env.HOME || '', '.claude', 'projects', home.replace(/[^a-zA-Z0-9]/g, '-'));
+    const since = state.starting.at - 2000; let tries = 0;
+    const look = setInterval(() => {
+      const file = fs.existsSync(chats) && fs.readdirSync(chats).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(chats, f))
+        .find((f) => fs.statSync(f).birthtimeMs >= since && fs.readFileSync(f, 'utf8').includes(`map:${name}`));
+      if (file && state.starting) { ACTS.link({ session: path.basename(file, '.jsonl'), file, by }); save(); push(); }
+      if (file || !state.starting || ++tries > 240) clearInterval(look);
+    }, 500);
   }
   // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
   // a picture from the chat itself is read from its transcript; both go by the same kind of id
