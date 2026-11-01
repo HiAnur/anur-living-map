@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · maps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --claude:#C96442; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
+#top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
+main{max-width:640px;margin:48px auto;padding:0 16px}
+h1{font-size:18px;font-weight:500;margin-bottom:16px}
+a.map{display:flex;align-items:baseline;gap:12px;padding:14px 16px;margin-bottom:10px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none}
+a.map:hover{border-color:var(--text)}
+.t{font-weight:500}
+.addr{color:var(--text-2);font-size:12.5px}
+.n{margin-left:auto;color:var(--text-2);font-size:12.5px;white-space:nowrap}
+.n b{color:var(--claude);font-weight:500}
+.none{color:var(--text-2)}
+</style>
+</head>
+<body>
+<div id="top">Living Map</div>
+<main>
+  <h1>Pick a map</h1>
+  <div id="list" class="none">Loading…</div>
+</main>
+<script>
+// every map this server holds; a click opens it, with ?as= carried along
+const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+fetch('api/maps').then((r) => r.json()).then((maps) => {
+  const el = document.getElementById('list');
+  if (!maps.length) { el.textContent = 'No maps yet.'; return; }
+  el.className = '';
+  el.innerHTML = maps.map((m) => `<a class="map" href="${m.href}${location.search}">
+    <span class="t">${esc(m.title || m.name)}</span><span class="addr">${m.href}</span>
+    <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>`).join('');
+});
+</script>
+</body>
+</html>
