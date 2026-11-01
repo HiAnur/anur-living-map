@@ -264,6 +264,7 @@ a{color:inherit;text-decoration:none}
 .dec{padding:8px 10px;border-left:3px solid var(--todo);background:#fff8e1;border-radius:0 8px 8px 0;font-size:13px}
 .msg{padding:6px 0}.msg b{font-weight:500}.msg .t{font-size:12px;color:var(--text-2);margin-left:6px}
 .msg.cl{border-left:2px solid var(--claude);padding-left:10px}
+.msg .wait{color:var(--text-2)}.msg code{font:12px var(--mono)}
 .ask{display:flex;gap:6px;margin-top:8px}
 .ask input{flex:1;height:32px;border:1px solid var(--rule-2);border-radius:8px;padding:0 10px;background:#fff}
 .pr{padding:10px 0;border-top:1px solid var(--rule)}.pr:first-of-type{border-top:0}
@@ -340,6 +341,9 @@ const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1
 const me = () => (S && S.people.find((p) => p.id === ME)) || { id: ME, sees: 'all' };
 const canSee = (n) => !me().sees || me().sees === 'all' || n.area === me().sees;
 const pcol = (who) => PCOL[who] || '#141413';
+// words as the page shows them: escaped, with Claude's **bold**, `code` and line breaks kept
+const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+  .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
 const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
@@ -586,7 +590,7 @@ function renderSide(){
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     <div class="h">Ask Claude about this</div>
-    ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.text}</div>`).join('')}
+    ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')}
     <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`;
 }
@@ -805,10 +809,11 @@ function listen(){
     if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))) view = 'system';
     // the comment you just posted opens as a thread
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
-    // typing a reply survives the redraw
-    const typing = document.activeElement?.closest?.('#thread, #cpanel') ? { sel: document.activeElement.id || (document.activeElement.closest('#thread') ? '#thread input' : null), val: document.activeElement.value } : null;
+    // typing a reply, or the next question to Claude while it is still answering, survives the redraw
+    const ae = document.activeElement;
+    const typing = ae?.closest?.('#thread, #cpanel, #side') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : null), val: ae.value } : null;
     S = next; render();
-    if (typing?.sel){ const el = typing.sel.startsWith('#thread') ? document.querySelector('#thread input') : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
+    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
     if (first){ first = false; fit(); }
   });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
