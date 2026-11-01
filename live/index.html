@@ -408,10 +408,8 @@ body.resizing{cursor:col-resize;user-select:none}
 #decs .dl{margin:0 -8px;padding:11px 8px 12px;border-top:1px solid var(--rule);border-radius:8px;cursor:pointer}
 #decs .dl:hover{background:#fafaf7}
 #decs .dl.open{background:#f6f8fe}
-#decs .dl-top{display:flex;align-items:center;gap:8px;min-height:22px}
-#decs .dl-top .about{margin:0}
-#decs .dl-when{margin-left:auto;font-size:12px;color:var(--text-3);white-space:nowrap}
-#decs .dl-q{font-size:14px;font-weight:500;line-height:1.38;color:var(--text);margin-top:7px}
+#decs .dl-when{float:right;margin:1px 0 0 12px;font-size:12px;font-weight:400;color:var(--text-3);white-space:nowrap}
+#decs .dl-q{font-size:14px;font-weight:500;line-height:1.38;color:var(--text)}
 #decs .dl-ans{display:flex;align-items:center;flex-wrap:wrap;gap:4px 7px;margin-top:7px;font-size:13.5px;line-height:1.35}
 #decs .dl-at{font-weight:600}
 #decs .dl-v{padding:2px 8px;border-radius:6px;background:#e8f4ec;color:#145c3a;font-weight:600}
@@ -936,7 +934,6 @@ function renderDecs(){
   // an answer the log never held (an older map) still counts, after the logged ones
   const older = S.calls.filter((c) => c.status !== 'open' && !logged.some((l) => l.c === c)).reverse().map((c) => ({ action: c.status, who: c.by, c, node: c.node }));
   const all = [...logged, ...older].filter((r) => canSee(nodeById(r.node || r.c?.node) || {}));
-  const box = (id) => nodeById(id) ? `<span class="about" data-about-h="${id}" title="Open ${nodeById(id).label}">${nodeById(id).label}</span>` : '';
   const at = (r) => r.at ? when(r.at) : r.c?.at || '';
   // the answer, read as a reply: who answered first, as @Name, then the answer, then their words if they added any
   const reply = (who, chip, words) => `<div class="dl-ans"><span class="dl-at" style="color:${pcol(who)}">@${who}</span>${chip ? `<span class="dl-v">${chip}</span>` : ''}${words ? `<span class="dl-said">“${prose(words)}”</span>` : ''}<span class="dl-chev">›</span></div>`;
@@ -952,8 +949,7 @@ function renderDecs(){
       const c = r.c || { ask: r.text, status: r.action, by: r.who, node: r.node };
       const own = c.pickedId === 'other', said = own ? c.picked : c.said && c.said !== c.picked ? c.said : '';
       return `<div class="dl ${open ? 'open' : ''}" data-dec="${id}">
-        <div class="dl-top">${box(r.node || c.node)}<span class="dl-when">${at(r)}</span></div>
-        <div class="dl-q">${c.ask || c.text || ''}</div>
+        <div class="dl-q"><span class="dl-when">${at(r)}</span>${c.ask || c.text || ''}</div>
         ${reply(r.who || c.by, r.c && !own ? ans(c) : r.c ? '' : r.action, said)}
         ${open && r.c ? detail(c) : ''}</div>`;
     }).join('')
