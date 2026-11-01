@@ -355,12 +355,20 @@ function openMap({ project = '', name = '', home }) {
   const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
   const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
-  function remember(type, by) {
+  // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
+  function remember(type, by, force = false) {
+    if (state.autosave === false && !force) return;
     const json = contentOf(state); if (json === lastContent) return;
     lastContent = json;
     const top = history[0], now = Date.now();
     const run = top && RUNS.has(type) && top.kind === type && top.by === by && now - top.at < RUN_MS;
     keepVersion({ id: run ? top.id : now.toString(36), at: now, by, kind: type, what: told || `${by} ${LABEL[type] || 'changed the map'}`, boxes: state.nodes.length }, json);
+  }
+  // Save now: the map as it is becomes a version, saved by this person (nothing new to keep when no change was made)
+  function saveNow(by, what = `${by} saved the map`, at = Date.now()) {
+    const json = contentOf(state); if (json === lastContent) return;
+    lastContent = json;
+    keepVersion({ id: at.toString(36), at, by, kind: 'save', what, boxes: state.nodes.length }, json);
   }
   // maps saved with the old Save button become versions in the history, and their files go
   if (state.saves?.length) {
@@ -383,7 +391,7 @@ function openMap({ project = '', name = '', home }) {
   const kept = () => ({ sessions: state.sessions || [],
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
     linked: state.linked || [], said: state.said || {},
-    ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}) });
+    ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const ACTS = {
     move(a) {
@@ -437,6 +445,10 @@ function openMap({ project = '', name = '', home }) {
         } });
       return true;
     },
+    // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
+    // everyone at once, but only Save now puts a version in History. One switch for the whole map.
+    savenow(a) { saveNow(a.by); return true; },
+    autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the list of sessions that drew on it and the name someone gave it; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
     // renaming the map: its name in the top bar and the list of maps; its folder stays
@@ -624,8 +636,11 @@ function openMap({ project = '', name = '', home }) {
         return true;
       }
       told = null;
+      // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
+      const big = a.type === 'restore' || a.type === 'reset';
+      if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const ok = !!ACTS[a.type]?.(a);
-      if (ok) { remember(a.type, a.by); save(); push(); }
+      if (ok) { remember(a.type, a.by, big); save(); push(); }
       res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? '{}' : '{"error":"no"}');
       return true;
     }

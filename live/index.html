@@ -33,6 +33,16 @@ button,input{font:inherit;color:inherit}
 /* Switch map, at the top left beside Inbox, the way Linear keeps its workspace switcher there: it opens the list of maps */
 #top .mapb{display:inline-flex;align-items:center;gap:6px;color:var(--text);text-decoration:none}
 #top .mapb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+/* Save opens a small menu under it: Save now, and an Auto-save switch, green when on */
+#top .savew{position:relative}
+#top .savew .tbtn.on{background:#f3f2ee;color:var(--text);border-color:var(--rule-2)}
+#top .savem{left:0;right:auto;top:36px;width:200px}
+#top .pm-row.sv{cursor:pointer;font-size:13.5px}
+#top .pm-row.sv:hover{background:#f3f2ee}
+#top .sw{margin-left:auto;position:relative;width:30px;height:18px;border-radius:9px;background:#d6d3cb;transition:background .15s}
+#top .sw::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+#top .sw.on{background:#1E8A4A}
+#top .sw.on::after{transform:translateX(12px)}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
 #crumbs .sep{color:var(--text-3)}
 #ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
@@ -606,6 +616,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <button class="hb" id="menub" title="Sessions" aria-label="Sessions"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
+  <div class="savew" id="savew"></div>
   <div id="crumbs"></div>
   <div id="ticket"></div>
   <div class="faces" id="faces"></div>
@@ -1027,6 +1038,14 @@ function render(){
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
 let shareOpen = false, peopleOpen = false;
+// the Save menu: Save now, and the Auto-save switch, on unless someone turned it off for this map
+let saveOpen = false;
+function renderSave(){
+  const on = S.autosave !== false;
+  $('savew').innerHTML = `<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
+    ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
+      <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
+}
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
@@ -1039,7 +1058,7 @@ function renderShare(){
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
     </div>`;
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
 function renderTop(){
   const fb = flowBox();
@@ -1054,6 +1073,7 @@ function renderTop(){
     : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
   $('ticket').innerHTML = '';
   document.title = `Living Map · ${S.title}`;
+  renderSave();
   // people, Figma style: the button shows the faces of who has this map open right now, you first; it opens
   // everyone on the map with their role and whether they are here. Signed in, the menu ends with Sign out;
   // before anyone signs in, a click on someone else shows the map as they see it
@@ -1544,6 +1564,10 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   // the people menu closes on any click outside it
   if (peopleOpen && !t.closest('#faces')){ peopleOpen = false; renderTop(); }
+  if (saveOpen && !t.closest('#savew')){ saveOpen = false; renderTop(); }
+  if (t.closest('#saveb')){ saveOpen = !saveOpen; renderTop(); return; }
+  if (t.closest('[data-savenow]')){ saveOpen = false; renderTop(); act('savenow').then(() => toast('Saved. History has this version.')); return; }
+  if (t.closest('[data-autosave]')){ act('autosave', { on: S.autosave === false }); return; }
   // History: a version shows the map as it was; Restore makes it the map again; Back to now leaves it
   if (t.closest('[data-hver]')){ const id = t.closest('[data-hver]').dataset.hver; if (id === HIST[0]?.id) backToNow(); else showVersion(id); return; }
   if (t.closest('[data-hnow]')){ backToNow(); return; }
