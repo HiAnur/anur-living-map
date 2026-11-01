@@ -256,6 +256,10 @@ button,input{font:inherit;color:inherit}
 /* an answered question in History: the answer under it, More for the rest */
 .d-ans{font-size:13.5px;margin:-2px 0 4px}.d-ans b{font-weight:600}.d-ans span{color:var(--text-2)}
 .d-more{margin-left:10px;color:var(--new);font-weight:500;cursor:pointer}
+.d-morel{margin-top:8px;font-size:12.5px}.d-morel .d-more{margin-left:0}
+.nt-more{margin:-4px 0 12px}
+.d-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.d-chips .gb{height:30px;font-size:13px}
+.d-list{margin-top:6px;font-size:13px;color:var(--text-2)}
 .d-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}.d-x .d-who{margin-bottom:2px}
 /* the box's notes, under its one-line summary */
 .notes{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--text)}
@@ -535,7 +539,7 @@ const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '
   .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
 // A box's notes laid out to scan: the first line leads; "Why them: …" lines line up as a label beside its text
 // in one panel; "- " lines become a list; any other line is its own paragraph.
-const notes = (desc) => {
+const notes = (desc, lead = true) => {
   let html = '', kv = [], list = [];
   const flush = () => {
     if (kv.length) html += `<div class="nt-kv">${kv.map(([k, v]) => `<div class="nt-k">${prose(k)}</div><div class="nt-v">${prose(v)}</div>`).join('')}</div>`;
@@ -543,10 +547,10 @@ const notes = (desc) => {
     kv = []; list = [];
   };
   String(desc || '').split('\n').map((l) => l.trim()).filter(Boolean).forEach((l, i) => {
-    const item = l.match(/^[-•]\s+(.+)/), pair = i > 0 && l.match(/^([A-Z][\w' ]{1,23}):\s+(.+)/);
+    const item = l.match(/^[-•]\s+(.+)/), pair = (i > 0 || !lead) && l.match(/^([A-Z][\w' ]{1,23}):\s+(.+)/);
     if (item){ if (kv.length) flush(); list.push(item[1]); }
     else if (pair){ if (list.length) flush(); kv.push([pair[1], pair[2][0].toUpperCase() + pair[2].slice(1)]); }
-    else { flush(); html += `<p class="${i ? '' : 'nt-lead'}">${prose(l)}</p>`; }
+    else { flush(); html += `<p class="${i || !lead ? '' : 'nt-lead'}">${prose(l)}</p>`; }
   });
   flush();
   return html ? `<div class="notes">${html}</div>` : '';
@@ -803,6 +807,8 @@ let sideTab = 'box', sideFor = null;
 let backTo = null, decsScroll = 0;
 // the answered questions opened with More in History, by call id
 const histOpen = new Set();
+// what the Information tab shows behind More: n:<box> the rest of its notes, c:<call> why a question is asked, o:<call> its own-words box
+const infoMore = new Set();
 const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
   <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open' && !c.options?.length
     ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
@@ -841,21 +847,26 @@ function renderSide(){
   if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
   // Open questions sit on "This box"; once answered they move to "History", with what was picked and why.
+  // An open question, short: who asks, the question, and its answers by name, as buttons when it is yours to
+  // answer. More opens why Claude asks and what each answer means; "Other…" opens a box for your own words.
   const decision = (c) => {
-    const agent = c.from === 'Codex' ? 'Codex' : 'Claude';
-    const open = c.status === 'open', opts = c.options || [], mine = open && c.for === ME;
-    const opt = (o) => mine
-      ? `<button class="d-opt" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</button>`
-      : `<div class="d-opt ${c.pickedId === o.id ? 'picked' : ''}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</div>`;
-    return `<div class="d ${open ? '' : 'done'}">
-      <div class="d-who">${agent} asks ${c.for === ME ? 'you' : c.for}${open ? '' : ` · ${ans(c)} from ${c.by}, ${c.at}`}${open && !mine ? waitPill([c], 'wpill') : ''}</div>
+    const agent = c.from === 'Codex' ? 'Codex' : 'Claude', opts = c.options || [], mine = c.for === ME;
+    const more = infoMore.has(`c:${c.id}`), other = infoMore.has(`o:${c.id}`);
+    const answers = mine
+      ? opts.length
+        ? `<div class="d-chips">${opts.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}">${o.label}</span>`).join('')}<span class="gb" data-more="o:${c.id}">Other…</span></div>
+          ${other ? `<form class="d-other" data-other="${c.id}"><input id="other-${c.id}" placeholder="Say it in your words" autocomplete="off"><button class="gb" type="submit">Send</button></form>` : ''}`
+        : `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
+      : opts.length ? `<div class="d-list">${opts.map((o) => o.label).join(' · ')}</div>` : '';
+    const why = `${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}${opts.length
+      ? opts.map((o) => `<div class="d-if"><b>${o.label}</b><span>${o.means || ''}</span></div>`).join('')
+      : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}`;
+    return `<div class="d">
+      <div class="d-who">${agent} asks ${mine ? 'you' : c.for}${mine ? '' : waitPill([c], 'wpill')}</div>
       <div class="d-q">${c.ask || c.text}</div>
-      ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
-      ${opts.length ? `<div class="d-opts">${opts.map(opt).join('')}</div>`
-        : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
-      ${mine && opts.length ? `<form class="d-other" data-other="${c.id}"><input id="other-${c.id}" placeholder="Something else? Say it in your words" autocomplete="off"><button class="gb" type="submit">Send</button></form>`
-        : mine ? `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
-        : c.said ? `<div class="d-said">“${c.said}”</div>` : ''}
+      ${answers}
+      ${more ? `<div class="d-x">${why}</div>` : ''}
+      <div class="d-morel"><span class="d-more" data-more="c:${c.id}">${more ? 'Less' : 'More'}</span></div>
     </div>`;
   };
   // an answered question in History, short: the question and what was decided; More opens why it was asked,
@@ -891,9 +902,13 @@ function renderSide(){
     <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
-    ${n.desc && n.desc !== n.sub ? notes(n.desc) : ''}
+    ${(() => {
+      const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
+      return `${lines.length ? `<div class="notes"><p class="nt-lead">${prose(lines[0])}</p></div>` : ''}
+        ${more ? `${notes(lines.slice(1).join('\n'), false)}${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}` : ''}
+        ${lines.length > 1 || n.fact ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
+    })()}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
-    ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
 }
@@ -1168,7 +1183,8 @@ document.addEventListener('click', (e) => {
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
-  else if (t.dataset.otherPick){ const c = S.calls.find((x) => x.id === t.dataset.otherPick); if (c){ selected = c.node; sideFor = c.node; sideTab = 'box'; render(); $(`other-${c.id}`)?.focus(); } }
+  else if (t.closest('[data-more]')){ const k = t.closest('[data-more]').dataset.more; infoMore.has(k) ? infoMore.delete(k) : infoMore.add(k); render(); if (k.startsWith('o:') && infoMore.has(k)) $(`other-${k.slice(2)}`)?.focus(); }
+  else if (t.dataset.otherPick){ const c = S.calls.find((x) => x.id === t.dataset.otherPick); if (c){ selected = c.node; sideFor = c.node; sideTab = 'box'; infoMore.add(`o:${c.id}`); render(); $(`other-${c.id}`)?.focus(); } }
   else if (t.closest('[data-call-row]') && !t.closest('.gb')){
     // the call opens in place; its box lights up on the map, and no other card opens
     const row = t.closest('[data-call-row]'), id = row.dataset.callRow;
