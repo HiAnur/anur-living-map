@@ -83,6 +83,11 @@ export function readProject(root) {
   return { title: pkg.name || path.basename(root), desc: pkg.description || '', project: root, nodes, edges };
 }
 
+// The grid every box sits on: a 180-wide box keeps about 110 clear to its
+// neighbour and 90 above and below, so lines, arrows and labels run between
+// boxes instead of squeezing past them.
+export const COL = 290, ROW = 140;
+
 // A grid where every line can run straight: the longest chain from the customer
 // is the top row; each other box goes next to what it talks to (a database
 // under its first caller, an outside service to the right of its caller, a box
@@ -123,7 +128,7 @@ function layout(nodes, edges) {
   let spare = 0;
   const bottom = Math.max(0, ...Object.values(at).map(([, r]) => r)) + 1;
   for (const n of nodes) if (!at[n.id]) put(n.id, spare++, bottom);
-  for (const n of nodes) { const [x, y] = at[n.id]; n.x = 90 + x * 230; n.y = 150 + y * 110; }
+  for (const n of nodes) { const [x, y] = at[n.id]; n.x = 90 + x * COL; n.y = 150 + y * ROW; }
 }
 
 // A box an agent adds without a place goes on the free grid spot where its
@@ -150,12 +155,12 @@ export function placeNew(nodes, edges) {
     const placed = nodes.filter((o) => o !== n && Number.isFinite(o.x));
     const links = edges.filter((e) => e.from === n.id || e.to === n.id)
       .map((e) => placed.find((o) => o.id === (e.from === n.id ? e.to : e.from))).filter(Boolean);
-    const cols = placed.map((o) => Math.round((o.x - 90) / 230)), rows = placed.map((o) => Math.round((o.y - 150) / 110));
+    const cols = placed.map((o) => Math.round((o.x - 90) / COL)), rows = placed.map((o) => Math.round((o.y - 150) / ROW));
     let best = null;
     for (let r = Math.min(...rows) - 1; r <= Math.max(...rows) + 1; r++)
       for (let c = Math.min(...cols) - 1; c <= Math.max(...cols) + 1; c++) {
-        const x = 90 + c * 230, y = 150 + r * 110;
-        if (placed.some((o) => Math.abs(o.x - x) < 200 && Math.abs(o.y - y) < 90)) continue;
+        const x = 90 + c * COL, y = 150 + r * ROW;
+        if (placed.some((o) => Math.abs(o.x - x) < COL - 30 && Math.abs(o.y - y) < ROW - 20)) continue;
         const me = { ...n, x, y };
         let cross = 0, len = 0;
         for (const o of links) {
