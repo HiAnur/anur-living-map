@@ -230,7 +230,8 @@ button,input{font:inherit;color:inherit}
 .ct .ca-n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;margin-left:6px;padding:0 5px}
 .row.ca{display:block;padding:9px 8px;margin:0 -8px}
 /* the box card: one decision block per call, the question as the headline */
-.d-sub{color:var(--text-2);margin:2px 0 10px}
+.d-sub{font-size:15.5px;font-weight:600;line-height:1.35;color:var(--text);margin:2px 0 8px}
+.d-sub::first-letter{text-transform:uppercase}
 .d{margin:10px 0;padding:12px 14px;border:1px solid var(--rule-2);border-radius:10px;background:#fff}
 .d.done{background:#fafaf7;border-color:var(--rule)}
 .d-who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
@@ -255,7 +256,13 @@ button,input{font:inherit;color:inherit}
 .d-more{margin-left:10px;color:var(--new);font-weight:500;cursor:pointer}
 .d-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}.d-x .d-who{margin-bottom:2px}
 /* the box's notes, under its one-line summary */
-.d-desc{font-size:13.5px;line-height:1.5;color:var(--text);margin:-4px 0 12px}
+.notes{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--text)}
+.notes p{margin:0 0 8px}
+.notes .nt-lead{font-size:14px;color:var(--text)}
+.nt-kv{display:grid;grid-template-columns:96px 1fr;gap:9px 12px;margin:2px 0 10px;padding:11px 12px;background:#fafaf7;border:1px solid var(--rule);border-radius:10px}
+.nt-k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);line-height:1.35;padding-top:3px}
+.nt-v{font-size:13.5px;line-height:1.45}
+.nt-list{margin:0 0 10px;padding-left:18px}.nt-list li{margin:3px 0}
 /* a question with options: one button per answer, then your own words */
 .d-opts{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .d-opt{display:block;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;font:inherit;font-size:13px;line-height:1.35}
@@ -524,6 +531,24 @@ const pcol = (who) => PCOL[who] || '#141413';
 // words as the page shows them: escaped, with Claude's **bold**, `code` and line breaks kept
 const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
   .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+// A box's notes laid out to scan: the first line leads; "Why them: …" lines line up as a label beside its text
+// in one panel; "- " lines become a list; any other line is its own paragraph.
+const notes = (desc) => {
+  let html = '', kv = [], list = [];
+  const flush = () => {
+    if (kv.length) html += `<div class="nt-kv">${kv.map(([k, v]) => `<div class="nt-k">${prose(k)}</div><div class="nt-v">${prose(v)}</div>`).join('')}</div>`;
+    if (list.length) html += `<ul class="nt-list">${list.map((v) => `<li>${prose(v)}</li>`).join('')}</ul>`;
+    kv = []; list = [];
+  };
+  String(desc || '').split('\n').map((l) => l.trim()).filter(Boolean).forEach((l, i) => {
+    const item = l.match(/^[-•]\s+(.+)/), pair = i > 0 && l.match(/^([A-Z][\w' ]{1,23}):\s+(.+)/);
+    if (item){ if (kv.length) flush(); list.push(item[1]); }
+    else if (pair){ if (list.length) flush(); kv.push([pair[1], pair[2][0].toUpperCase() + pair[2].slice(1)]); }
+    else { flush(); html += `<p class="${i ? '' : 'nt-lead'}">${prose(l)}</p>`; }
+  });
+  flush();
+  return html ? `<div class="notes">${html}</div>` : '';
+};
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
@@ -849,7 +874,7 @@ function renderSide(){
     <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
-    ${n.desc && n.desc !== n.sub ? `<div class="d-desc">${prose(n.desc)}</div>` : ''}
+    ${n.desc && n.desc !== n.sub ? notes(n.desc) : ''}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
@@ -926,7 +951,7 @@ function renderChat(){
 /* the rail's Decisions panel: every question answered on this map, newest first: intent made clear, not edits;
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
-// the decisions opened in the Decisions panel, by call id
+// the decision opened in the Decisions panel, by call id: one at a time
 const decOpen = new Set();
 function renderDecs(){
   const el = $('decs'), open = railTab === 'decisions' && !selected;
@@ -1179,7 +1204,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   // a box's name in Decisions opens that box on its History tab
-  else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec; decOpen.has(id) ? decOpen.delete(id) : decOpen.add(id); render(); }
+  else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec, was = decOpen.has(id); decOpen.clear(); if (!was) decOpen.add(id); render(); }
   else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ backTo = railTab === 'decisions' && !selected ? 'decisions' : null; if (backTo) decsScroll = $('decs').scrollTop; selected = id; sideFor = id; sideTab = 'history'; render(); } }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
