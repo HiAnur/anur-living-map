@@ -509,8 +509,10 @@ function renderTop(){
   $('crumbs').innerHTML = fb
     ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button><b data-v="system">System</b> <span>›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span>›</span> <b>${fb.flow.title}</b>`
     : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the system (Esc)">‹ Back</button>` : ''}<b data-v="system">System</b>${inside ? ` <span>›</span> <b>${inside.label}</b>` : ''}`;
-  // a ticket being planned, else the project's own one-line description
-  $('ticket').innerHTML = S.ticket ? `<b>${S.ticket}</b> · ${S.prompt}` : `<b>${S.title}</b>${S.desc ? ` · ${S.desc}` : ''}`;
+  // the top line is the folder's name, nothing more; the ticket and its prompt live in the menu's sessions
+  const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : S.title;
+  $('ticket').innerHTML = `<b>${folder}</b>`;
+  document.title = `Living Map · ${folder}`;
   $('me').innerHTML = `You are <b>${ME}</b>${me().role ? ` · ${me().role.split(',')[0]}` : ''}${me().sees && me().sees !== 'all' ? ` · ${me().sees} only` : ''}`;
   const names = S.people.map((p) => p.id);
   // click a person to see the map as them: their queue, their cursor, their clicks
