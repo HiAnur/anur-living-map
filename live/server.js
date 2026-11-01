@@ -655,8 +655,8 @@ function openMap({ project = '', name = '', home }) {
     },
     // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
     // the way a plan draws them, without a new session in the map's list
-    // Instructions and Memory: add one, change its words, or take it away (a box's ones only within your access)
-    remember(a) { return Boolean(keepMemory(a, a.by)); },
+    // Instructions and Memory: only Claude adds them (Apply on its change, or the map tools); people change their
+    // words or take them away, a box's ones only within their access
     editmemory(a) {
       const m = state.memory?.find((x) => x.id === a.id), text = String(a.text || '').trim().slice(0, 300), b = m?.box && nodeOf(m.box), sees = seesOf(a.by);
       if (!m || !text || (b && sees !== 'all' && b.area !== sees)) return false;

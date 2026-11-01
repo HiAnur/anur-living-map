@@ -541,7 +541,6 @@ body.resizing{cursor:col-resize;user-select:none}
 #mem .mem-m .ib{cursor:pointer}#mem .mem-m .ib:hover{color:var(--text)}
 #mem .mem-f{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
 #mem .mem-f input{flex:1;min-width:0;height:30px;border:1px solid var(--rule-2);border-radius:8px;padding:0 10px;background:#fff}
-#mem .mem-f select{width:100%;height:30px;border:1px solid var(--rule-2);border-radius:8px;padding:0 6px;background:#fff}
 #hist .hv{display:block;width:calc(100% + 16px);margin:0 -8px;padding:10px 8px 11px;text-align:left;border:0;border-top:1px solid var(--rule);border-radius:8px;background:none;font:inherit;cursor:pointer}
 #hist .hv:hover{background:#fafaf7}
 #hist .hv.on{background:#f6f8fe}
@@ -1424,8 +1423,9 @@ let railTab = null;
 // the decision opened in the Decisions panel, by call id: one at a time
 const decOpen = new Set();
 /* the rail's Memory pane: Instructions (what Claude follows on this map) and Memory (what the team asked it to keep
-   in mind), each for the whole map first, then box by box; add, edit and remove them here */
-let memAdd = null, memEdit = null; // the list you are adding to; the item you are editing
+   in mind), each for the whole map first, then box by box. Only Claude adds them, when asked in a chat; here people
+   change their words or remove them */
+let memEdit = null; // the item you are editing
 const memSeen = () => (S.memory || []).filter((m) => !m.box || (nodeById(m.box) && canSee(nodeById(m.box))));
 function renderMem(){
   const el = $('mem'), open = railTab === 'memory' && !selected;
@@ -1436,13 +1436,12 @@ function renderMem(){
     : `<div class="mem-i"><span class="mem-t">${prose(m.text)}</span><span class="mem-m">${m.by}, ${vtime(m.at)}<span class="ib" data-memedit-open="${m.id}" title="Edit">✎</span><span class="ib" data-forget="${m.id}" title="Remove">✕</span></span></div>`;
   const list = (kind, title, sub) => {
     const its = all.filter((m) => m.kind === kind), groups = [null, ...new Set(its.filter((m) => m.box).map((m) => m.box))];
-    const add = memAdd === kind ? `<form class="mem-f" data-memnew="${kind}"><select>${['', ...S.nodes.filter(canSee).map((n) => n.id)].map((id) => `<option value="${id}">${id ? prose(nodeById(id).label) : 'Whole map'}</option>`).join('')}</select><input id="mem-in" placeholder="One short line" autocomplete="off"><button class="gb" type="submit">Add</button></form>` : '';
     const rows = groups.map((b) => { const g = its.filter((m) => (m.box || null) === b); return g.length ? `<div class="mem-g">${b ? prose(nodeById(b).label) : 'Whole map'}</div>${g.map(item).join('')}` : ''; }).join('');
-    return `<div class="mem-h"><span>${title}</span><span class="d-more" data-memadd="${kind}">${memAdd === kind ? 'Cancel' : '+ Add'}</span></div><div class="mem-sub">${sub}</div>${add}${rows || (add ? '' : '<div class="d-wait">None yet.</div>')}`;
+    return `<div class="mem-h"><span>${title}</span></div><div class="mem-sub">${sub}</div>${rows || '<div class="d-wait">None yet.</div>'}`;
   };
   el.innerHTML = `<div class="ct"><span>Memory</span><span class="x" data-close-rail>×</span></div>
-    ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map.')}
-    ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date.')}`;
+    ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map. Ask Claude to make something a rule.')}
+    ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date. Ask Claude to remember something.')}`;
 }
 // a box's own Instructions and Memory, on its card
 const memOf = (id) => ['instruction', 'memory'].map((kind) => {
@@ -1713,8 +1712,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
-  else if (t.closest('[data-memadd]')){ const k = t.closest('[data-memadd]').dataset.memadd; memAdd = memAdd === k ? null : k; memEdit = null; render(); $('mem-in')?.focus(); }
-  else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; memAdd = null; render(); $('mem-in')?.focus(); }
+  else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; render(); $('mem-in')?.focus(); }
   else if (t.closest('[data-forget]')){ act('forget', { id: t.closest('[data-forget]').dataset.forget }); }
   // a box's name in Decisions opens that box on its History tab
   else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec, was = decOpen.has(id); decOpen.clear(); if (!was) decOpen.add(id); render(); }
@@ -1738,12 +1736,11 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
 document.addEventListener('submit', (e) => {
-  // the Memory pane: a new instruction or memory, or new words for one
-  const mn = e.target.closest('form[data-memnew]'), me = e.target.closest('form[data-memedit]');
-  if (mn || me){
-    e.preventDefault(); const text = (mn || me).querySelector('input').value.trim(); if (!text) return;
-    if (mn) act('remember', { kind: mn.dataset.memnew, box: mn.querySelector('select').value || null, text }); else act('editmemory', { id: me.dataset.memedit, text });
-    memAdd = null; memEdit = null; render(); return;
+  // the Memory pane: new words for an instruction or a memory
+  const me = e.target.closest('form[data-memedit]');
+  if (me){
+    e.preventDefault(); const text = me.querySelector('input').value.trim(); if (!text) return;
+    act('editmemory', { id: me.dataset.memedit, text }); memEdit = null; render(); return;
   }
   const r = e.target.closest('form[data-reply], form[data-new]');
   if (r){
