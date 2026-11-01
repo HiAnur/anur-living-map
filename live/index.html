@@ -90,6 +90,8 @@ button,input{font:inherit;color:inherit}
 .node .mk.p{left:auto;right:8px;top:-10px;width:auto;height:18px;line-height:16px;padding:0 8px;border-radius:999px;border:1px solid #fff;font-size:10.5px;letter-spacing:.02em;box-shadow:0 1px 3px rgba(0,0,0,.15)}
 .node.todo .mk.p,.node.open .mk.p{right:auto;left:8px}
 .node .enter{position:absolute;right:8px;bottom:4px;font-size:11px;color:var(--text-3)}
+/* a call on the box answered: the same pill, green */
+.node .mk.q.ok{background:#1E8A4A}
 .file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
@@ -157,6 +159,21 @@ button,input{font:inherit;color:inherit}
 .row.req{display:block;padding:10px 0}
 .ct .ca-n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;margin-left:6px;padding:0 5px}
 .row.ca{display:block;padding:9px 8px;margin:0 -8px}
+/* the box card: one decision block per call, the question as the headline */
+.d-sub{color:var(--text-2);margin:2px 0 10px}
+.d{margin:10px 0;padding:12px 14px;border:1px solid var(--rule-2);border-radius:10px;background:#fff}
+.d.done{background:#fafaf7;border-color:var(--rule)}
+.d-who{font-size:12px;color:var(--text-2)}
+.d-q{font-size:15px;font-weight:600;line-height:1.3;margin:3px 0 6px}
+.d-why{font-size:13px;color:var(--text);margin-bottom:8px}
+.d-if{display:flex;gap:10px;padding:2px 0;font-size:13px}
+.d-if b{flex:none;width:30px;font-weight:600}
+.d-if span{color:var(--text-2)}
+.d .btns{margin-top:10px}
+.d .gb.yes{background:#141413;color:#fff;border-color:#141413}
+.d-wait{margin-top:8px;font-size:12.5px;color:var(--text-2)}
+.d-said{margin-top:8px;font-size:13px;color:var(--text)}
+.d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
 .ca-line{display:flex;align-items:center;gap:10px}
 .ca-line .ca-q{flex:1;margin:0}
 .ca-btns{display:flex;gap:6px;flex:none}
@@ -395,7 +412,8 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>` : ''}
+      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
+        : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${d.status === 'confirmed' ? 'Yes' : 'No'} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
@@ -453,19 +471,35 @@ function renderSide(){
   }
   const calls = S.calls.filter((c) => c.node === n.id);
   const thread = S.threads[n.id] || [];
-  const stateWord = { new: 'plan builds it', todo: 'plan changes it', 'assumed-gone': 'plan removes it', gone: 'removed' }[n.state];
+  const stateWord = { new: 'the plan builds this', todo: 'the plan changes this', 'assumed-gone': 'the plan removes this', gone: 'removed' }[n.state];
+  // The card answers one question: what is being decided about this box, and what each answer does.
+  // The decision comes first; what the box is stays to one line; the file path is the footer.
+  const decision = (c) => {
+    const agent = c.from === 'Codex' ? 'Codex' : 'Claude';
+    const open = c.status === 'open';
+    return `<div class="d ${open ? '' : 'done'}">
+      <div class="d-who">${agent} asks ${c.for === ME ? 'you' : c.for}${open ? '' : ` · ${c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}, ${c.at}`}</div>
+      <div class="d-q">${c.ask || c.text}</div>
+      ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
+      ${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}
+      ${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}
+      ${open && c.for === ME ? `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
+        : open ? `<div class="d-wait">Waiting on ${c.for}</div>`
+        : c.said ? `<div class="d-said">“${c.said}”</div>` : ''}
+    </div>`;
+  };
   el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
-    <div>${stateWord ? `<span class="tag ${n.state}">${stateWord}</span>` : '<span class="tag">in production</span>'}${n.by ? `<span class="tag">drawn by ${n.by}</span>` : ''}</div>
-    ${n.sub ? `<p style="margin-top:8px"><b>${n.sub}</b></p>` : ''}
-    ${n.desc ? `<p style="margin-top:6px">${n.desc}</p>` : ''}
-    ${n.file ? `<p class="mono" style="margin-top:6px">${n.file}</p>` : ''}
+    <div class="d-sub">${n.sub || n.desc || ''}</div>
+    ${stateWord ? `<div><span class="tag ${n.state}">${stateWord}</span></div>` : ''}
+    ${calls.filter((c) => c.status === 'open').map(decision).join('')}
+    ${n.decided && !calls.some((c) => c.status !== 'open') ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>` : ''}
+    ${calls.filter((c) => c.status !== 'open').map(decision).join('')}
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
-    ${n.decided ? `<div class="h">Decided</div><div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>` : ''}
-    ${calls.length ? `<div class="h">Calls on this</div>${calls.map((c) => callRow(c, c.for === ME)).join('')}` : ''}
     ${n.inside ? `<div class="h">Inside</div><button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}
     <div class="h">Ask Claude about this</div>
     ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.text}</div>`).join('')}
-    <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
+    <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
+    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`;
 }
 
 function renderPrs(){
