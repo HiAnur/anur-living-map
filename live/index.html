@@ -37,12 +37,19 @@ button,input{font:inherit;color:inherit}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
 .face.me{box-shadow:0 0 0 2px var(--claude)}
-.face[data-as]{cursor:pointer}
-.face[data-as]:not(.me):hover{transform:translateY(-1px)}
 .face.cl{background:var(--claude)}
-.face .n{position:absolute;top:30px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text-2);display:none;white-space:nowrap}
-.face:hover .n{display:block}
-#me{font-size:12.5px;color:var(--text-2)}#me b{color:var(--text);font-weight:500}
+/* people, Figma style: one button with everyone's initial; it opens who they are and their role */
+.faces{position:relative}
+.pp{display:flex;align-items:center;height:32px;padding:0 6px 0 12px;border:0;border-radius:999px;background:none;cursor:pointer}
+.pp:hover,.pp.on{background:#f0efea}
+.pp .chev{width:16px;height:16px;margin-left:6px;fill:none;stroke:var(--text-2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.pm{position:absolute;right:0;top:40px;width:250px;padding:6px;background:#fff;border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.10);white-space:normal;z-index:30}
+.pm-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:8px}
+.pm-row[data-as]:not(.me){cursor:pointer}.pm-row[data-as]:not(.me):hover{background:#f3f2ee}
+.pm-row .face{width:30px;height:30px;margin:0;border:0;font-size:12px}
+.pm-who{display:flex;flex-direction:column;line-height:1.3}
+.pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
+.pm-who span{font-size:12px;color:var(--text-2)}
 .tbtn{height:28px;padding:0 10px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;font-size:12.5px;cursor:pointer}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
@@ -412,7 +419,6 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <div id="ticket"></div>
   <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
   <button class="tbtn" id="prbtn">Pull requests</button>
-  <span id="me"></span>
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
@@ -632,7 +638,7 @@ function render(){
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
-let shareOpen = false;
+let shareOpen = false, peopleOpen = false;
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
@@ -645,7 +651,7 @@ function renderShare(){
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
     </div>`;
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } });
 
 function renderTop(){
   const fb = flowBox();
@@ -660,10 +666,13 @@ function renderTop(){
     : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
   $('ticket').innerHTML = '';
   document.title = `Living Map · ${S.title}`;
-  $('me').innerHTML = `You are <b>${ME}</b>${me().role ? ` · ${me().role.split(',')[0]}` : ''}${me().sees && me().sees !== 'all' ? ` · ${me().sees} only` : ''}`;
-  const names = S.people.map((p) => p.id);
-  // click a person to see the map as them: their queue, their cursor, their clicks
-  $('faces').innerHTML = names.map((p) => `<span class="face ${p === ME ? 'me' : ''}" data-as="${p}" title="${p === ME ? `You are ${p}` : `See the map as ${p}`}" style="background:${pcol(p)}">${p[0]}<span class="n">${p}</span></span>`).join('') + `<span class="face cl" title="Claude Code">✳<span class="n">Claude Code</span></span>`;
+  // people, Figma style: one button with everyone's initial; it opens who each person is and their role,
+  // you first, and a click on someone else shows the map as they see it
+  const roleOf = (p) => [p.role?.split(',')[0], p.sees && p.sees !== 'all' ? `${p.sees} only` : ''].filter(Boolean).join(' · ');
+  const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME));
+  $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map">${ppl.map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
+    ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''}" data-as="${p.id}"${p.id === ME ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${roleOf(p)}</span></span></div>`).join('')}
+      <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div></div>` : ''}`;
   const blocked = S.prs.filter((p) => p.status === 'blocked').length;
   $('prbtn').innerHTML = `Pull requests ${blocked ? `<span class="bad">· ${blocked} blocked</span>` : ''}`;
   $('prbtn').classList.toggle('on', prsOpen);
@@ -975,6 +984,8 @@ function enter(id){ view = id; selected = null; render(); fit(); }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input')) enter('system'); });
 document.addEventListener('click', (e) => {
   const t = e.target;
+  // the people menu closes on any click outside it
+  if (peopleOpen && !t.closest('#faces')){ peopleOpen = false; renderTop(); }
   const face = t.closest('[data-as]');
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
@@ -997,6 +1008,7 @@ document.addEventListener('click', (e) => {
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
+  else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
