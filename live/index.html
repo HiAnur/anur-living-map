@@ -571,6 +571,21 @@ const anyFocus = () => scope().nodes.some(focused);
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
+// Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
+// part you can see, left of the card that opens for it, at a zoom you can read; a box inside another opens that one
+function centerOn(id){
+  const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
+  const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
+  const n = nodeById(id); if (!n) return;
+  const r = canvas.getBoundingClientRect(), card = 376, z = Math.max(cam.z, 0.8);
+  const to = { x: (r.width - card) / 2 - n.x * z, y: r.height / 2 - n.y * z, z }, from = { ...cam }, t0 = performance.now();
+  const step = (now) => {
+    const k = Math.min(1, (now - t0) / 320), e = 1 - (1 - k) ** 3;
+    cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e; cam.z = from.z + (to.z - from.z) * e;
+    place(); if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 // a mouse position in the window, as a point on the map: the map starts under the top bar, not at the window's top
 const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [(cx - r.left - cam.x) / cam.z, (cy - r.top - cam.y) / cam.z]; };
 
@@ -1199,7 +1214,7 @@ document.addEventListener('click', (e) => {
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
   // a message's box name opens that box, on its Chat tab
-  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'chat'; render(); } }
+  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'chat'; render(); centerOn(id); } }
   else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
@@ -1207,7 +1222,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   // a box's name in Decisions opens that box on its History tab
   else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec, was = decOpen.has(id); decOpen.clear(); if (!was) decOpen.add(id); render(); }
-  else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ backTo = railTab === 'decisions' && !selected ? 'decisions' : null; if (backTo) decsScroll = $('decs').scrollTop; selected = id; sideFor = id; sideTab = 'history'; render(); } }
+  else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ backTo = railTab === 'decisions' && !selected ? 'decisions' : null; if (backTo) decsScroll = $('decs').scrollTop; selected = id; sideFor = id; sideTab = 'history'; render(); centerOn(id); } }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
   // New chat keeps the one you had in your history; History lists your chats, and a click reopens one
