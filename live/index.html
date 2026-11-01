@@ -364,6 +364,16 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat.on{display:flex}
 #chat .ct{padding:12px 16px;margin:0;border-bottom:1px solid var(--rule)}
 #chat .ct .star{color:var(--claude);margin-right:6px}
+#chat .ct .cb{display:flex;align-items:center;gap:2px}
+#chat .ci{width:28px;height:28px;border:0;border-radius:7px;background:none;display:grid;place-items:center;color:var(--text-2);cursor:pointer}
+#chat .ci:hover,#chat .ci.on{background:#f3f2ee;color:var(--text)}
+#chat .ci svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+#chat .ct .x{margin-left:4px}
+#chat .hist{padding:4px 0 8px}
+#chat .hrow{display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:6px;border:1px solid var(--rule);border-radius:10px;background:#fff;cursor:pointer}
+#chat .hrow:hover{border-color:var(--text)}
+#chat .hrow.cur{border-color:var(--claude)}
+#chat .hrow span{display:block;font-size:12px;color:var(--text-2);margin-top:2px}
 #chat .msgs{flex:1;overflow:auto;padding:8px 16px;display:flex;flex-direction:column}
 #chat .hello{margin-top:auto;padding:16px 0 4px}
 #chat .hello .ic{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--claude);display:grid;place-items:center;color:var(--claude);font-size:22px}
@@ -780,8 +790,8 @@ function renderSide(){
     return;
   }
   const calls = S.calls.filter((c) => c.node === n.id);
-  // this box's part of your one chat with Claude: the messages that carry this box, at their place in that chat
-  const thread = (S.threads?.[`@${ME}`] || []).map((m, i) => ({ m, i })).filter(({ m }) => m.about === n.id);
+  // this box's part of your chats with Claude, earlier chats first: the messages that carry this box, at their place in each chat
+  const thread = myChats().flatMap((k) => S.threads[k].map((m, i) => ({ m, i, k }))).filter(({ m }) => m.about === n.id);
   // a box you just opened starts on what is open on it now
   if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
@@ -830,7 +840,7 @@ function renderSide(){
   // Claude about it). Asking opens your one chat with Claude, this box attached.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   const asked = thread.filter(({ m }) => m.who !== 'Claude').length;
-  const chat = `${thread.length ? thread.map(({ m, i }) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
+  const chat = `${thread.length ? thread.map(({ m, i, k }) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, k, i)}</div>`).join('')
       : '<div class="d-wait">Nothing asked about this box yet.</div>'}
     <div class="btns"><button class="gb yes" data-ask-box="${n.id}">✳ Ask Claude about ${n.label}</button></div>`;
   el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
@@ -875,17 +885,37 @@ $('chatgrip').addEventListener('pointerdown', (e) => {
   g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
 });
 const CHAT_IDEAS = [['What is waiting on me?', 'The questions on this map that need your answer'], ['Sum up this map', 'What it shows, in a few lines']];
+// your chats with Claude: earlier ones (threads['@Duy#<when it was put away>']) oldest first, then the one open now (threads['@Duy'])
+const chatTime = (k) => parseInt(k.split('#')[1], 36) || 0;
+const myChats = () => [...Object.keys(S.threads || {}).filter((k) => k.startsWith(`@${ME}#`)).sort((a, b) => chatTime(a) - chatTime(b)), ...(S.threads?.[`@${ME}`] ? [`@${ME}`] : [])];
+// New chat and History sit in the pane's header, like Descript's Underlord
+let chatHist = false;
+const CHAT_ICON = {
+  newchat: '<svg viewBox="0 0 20 20"><path d="M10 3.5H5A1.5 1.5 0 003.5 5v7.5A1.5 1.5 0 005 14h1.5v3l3.5-3h5a1.5 1.5 0 001.5-1.5V10"/><path d="M15 2v5M12.5 4.5h5"/></svg>',
+  history: '<svg viewBox="0 0 20 20"><path d="M3.5 3.5h8a1 1 0 011 1v5a1 1 0 01-1 1H7l-3 2.5v-2.5h-.5a1 1 0 01-1-1v-5a1 1 0 011-1z"/><path d="M14.5 7.5H16a1 1 0 011 1v5a1 1 0 01-1 1h-.5V17l-3-2.5h-4a1 1 0 01-1-1V12.5"/></svg>',
+};
+function chatList(){
+  const rows = myChats().reverse().filter((k) => S.threads[k].length).map((k) => {
+    const t = S.threads[k], first = t.find((m) => m.who !== 'Claude')?.text || 'A chat with Claude', now = k === `@${ME}`;
+    return `<button class="hrow ${now ? 'cur' : ''}" data-openchat="${k}">${prose(first.length > 70 ? `${first.slice(0, 70)}…` : first)}
+      <span>${now ? 'Open now' : when(chatTime(k))} · ${t.length} message${t.length === 1 ? '' : 's'}</span></button>`;
+  });
+  return `<div class="hist"><div class="h" style="margin-top:4px">Your chats on this map</div>${rows.join('') || '<div class="d-wait">No chats yet.</div>'}</div>`;
+}
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
   el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen); document.body.classList.toggle('chatting', open); fitTools();
   if (!open) return;
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
-  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="x" data-close-chat>×</span></div>
-    <div class="msgs">${thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.about && m.who !== 'Claude' && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : ''}${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
+  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="cb">
+      <button class="ci" data-newchat title="New chat" aria-label="New chat">${CHAT_ICON.newchat}</button>
+      <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Chat history" aria-label="Chat history">${CHAT_ICON.history}</button>
+      <span class="x" data-close-chat>×</span></span></div>
+    <div class="msgs">${chatHist ? chatList() : thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.about && m.who !== 'Claude' && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : ''}${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
-    ${chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
-    <form class="ask" data-chat><input placeholder="${chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map'}" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
+    ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
+    ${chatHist ? '' : `<form class="ask" data-chat><input placeholder="${chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map'}" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`}`;
   // a new message scrolls the chat to the bottom; any other redraw keeps where you were
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
   if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
@@ -1159,6 +1189,10 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ backTo = railTab === 'decisions' && !selected ? 'decisions' : null; if (backTo) decsScroll = $('decs').scrollTop; selected = id; sideFor = id; sideTab = 'history'; render(); } }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
+  // New chat keeps the one you had in your history; History lists your chats, and a click reopens one
+  else if (t.closest('[data-newchat]')){ if ((S.threads?.[`@${ME}`] || []).length) act('newchat'); chatHist = false; chatAbout = null; chatSeen = -1; render(); }
+  else if (t.closest('[data-chathist]')){ chatHist = !chatHist; chatSeen = -1; render(); }
+  else if (t.closest('[data-openchat]')){ const k = t.closest('[data-openchat]').dataset.openchat; if (k !== `@${ME}`) act('openchat', { chat: k }); chatHist = false; chatSeen = -1; render(); }
   else if (t.closest('[data-rename]')){
     t.closest('[data-rename]').outerHTML = `<input id="renamei" value="${esc(S.title)}" maxlength="60" aria-label="Map name" autocomplete="off">`;
     renaming = true; $('renamei').focus(); $('renamei').select();

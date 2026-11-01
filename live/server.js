@@ -99,9 +99,13 @@ function openMap({ project = '', name = '', home }) {
         (into[`@${who || 'Duy'}`] ??= []).push({ m: about ? { ...m, about } : m, t });
       }
     };
-    for (const [key, list] of Object.entries(s.threads)) add(key, list, key.startsWith('@') ? null : key);
-    s.threads = Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((a, b) => a.t - b.t).map((x) => x.m)]));
+    // a person's earlier chats (threads['@Duy#<when>']) stay as they are
+    const kept = Object.entries(s.threads).filter(([k]) => k.includes('#'));
+    for (const [key, list] of Object.entries(s.threads)) if (!key.includes('#')) add(key, list, key.startsWith('@') ? null : key);
+    s.threads = { ...Object.fromEntries(kept), ...Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((a, b) => a.t - b.t).map((x) => x.m)])) };
   }
+  // a chat that is this person's: the one open now, or one in their history
+  const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
@@ -372,7 +376,7 @@ function openMap({ project = '', name = '', home }) {
     // change touches or links to, else the box the question was about.
     apply(a) {
       const key = String(a.thread || ''), m = state.threads[key]?.[Number(a.index)], pr = m?.proposal;
-      if (!pr || pr.status !== 'pending' || (key.startsWith('@') && key !== `@${a.by}`)) return false;
+      if (!pr || pr.status !== 'pending' || !mineChat(key, a.by)) return false;
       const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
       const to = ownerOf(touched || m.about || null);
       draw(pr.plan);
@@ -383,8 +387,24 @@ function openMap({ project = '', name = '', home }) {
     },
     drop(a) {
       const key = String(a.thread || ''), pr = state.threads[key]?.[Number(a.index)]?.proposal;
-      if (!pr || pr.status !== 'pending' || (key.startsWith('@') && key !== `@${a.by}`)) return false;
+      if (!pr || pr.status !== 'pending' || !mineChat(key, a.by)) return false;
       pr.status = 'dropped'; pr.by = a.by; return true;
+    },
+    // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
+    newchat(a) {
+      const key = `@${a.by}`, t = state.threads[key];
+      if (!t?.length || t.some((m) => m.thinking)) return false;
+      state.threads[`${key}#${Date.now().toString(36)}`] = t; state.threads[key] = [];
+      return true;
+    },
+    // a chat picked from your history becomes the open one, and the one open now goes into the history
+    openchat(a) {
+      const key = `@${a.by}`, from = String(a.chat || ''), old = state.threads[from], now = state.threads[key] || [];
+      if (!from.startsWith(`${key}#`) || !old || now.some((m) => m.thinking)) return false;
+      delete state.threads[from];
+      if (now.length) state.threads[`${key}#${Date.now().toString(36)}`] = now;
+      state.threads[key] = old;
+      return true;
     },
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
