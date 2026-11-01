@@ -113,24 +113,6 @@ button,input{font:inherit;color:inherit}
 .node.locked .n{text-decoration:none}
 .nope{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:#f8f7f3;font-size:13px}
 /* the menu: every session that drew on this map, and every saved copy of it */
-.hb{width:30px;height:30px;border:0;border-radius:7px;background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--text);flex:none}
-.hb:hover,.hb.on{background:#eceae2}
-.hb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round}
-#drawer{position:fixed;left:0;top:44px;bottom:0;width:300px;z-index:25;background:#fff;border-right:1px solid var(--rule);box-shadow:4px 0 24px rgba(0,0,0,.06);transform:translateX(-102%);transition:transform .25s var(--ease);overflow:auto;padding:14px 12px}
-#drawer.on{transform:none}
-#drawer .dh{display:flex;align-items:center;justify-content:space-between;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin:6px 4px 6px}
-#drawer .dh .gb{text-transform:none;letter-spacing:0;height:24px}
-.di{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:8px 10px;cursor:pointer}
-.di:hover{background:#f3f2ee}
-.di.latest{background:#eef3fd}
-.di b{display:block;font-weight:500;font-size:13.5px;color:var(--text)}
-.di > span{display:block;font-size:12px;color:var(--text-2);margin-top:1px}
-.di .ag{color:var(--claude);font-weight:500}
-.dnone{font-size:12.5px;color:var(--text-3);padding:4px 10px 10px}
-.dsave{position:relative}
-.dsave .dx{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--text-3);cursor:pointer;opacity:0}
-.dsave:hover .dx{opacity:1}
-.dsave .dx:hover{background:#fdecea;color:var(--gone)}
 /* a flow: lanes across the top, calls as arrows down the page, the problem and its fix at the bottom */
 .flowframe{position:absolute;border:1px solid var(--rule-2);border-radius:12px;background:rgba(0,0,0,.015);pointer-events:none}
 .flowframe b{position:absolute;left:16px;top:12px;font:500 14px var(--plex)}
@@ -617,7 +599,6 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 </head>
 <body>
 <div id="top">
-  <button class="hb" id="menub" title="Sessions" aria-label="Sessions"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
   <div class="savew" id="savew"></div>
@@ -626,7 +607,6 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
-<div id="drawer"></div>
 <div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="pins"></div><div id="curs"></div></div></div>
 <div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
@@ -991,7 +971,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); renderHist(); fitPane(); return; }
+  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
@@ -1045,7 +1025,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); renderHist(); fitPane();
+  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); fitPane();
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
@@ -1623,9 +1603,6 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
-  else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
-  else if (t.closest('[data-unsession]')){ act('unsession', { id: t.closest('[data-unsession]').dataset.unsession }); toast('Session deleted. Its boxes stay on the map.'); }
-  else if (t.closest('[data-session]')){ view = 'system'; selected = null; drawerOpen = false; render(); fit(); }
   else if (t.closest('[data-resolve]')){
     const id = Number(t.closest('[data-resolve]').dataset.resolve), c = S.comments.find((x) => x.id === id);
     act('resolve', { id });
@@ -1716,17 +1693,7 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#lightbox')) $('lightbox').classList.remove('on');
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('lightbox').classList.remove('on'); });
-/* the menu: sessions that drew on this map, newest first, and saved copies of it */
-let drawerOpen = false;
 const when = (t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? d.toTimeString().slice(0, 5) : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
-function renderDrawer(){
-  const el = $('drawer'); el.classList.toggle('on', drawerOpen); $('menub').classList.toggle('on', drawerOpen);
-  if (!drawerOpen || !S) return;
-  const ss = S.sessions || [];
-  el.innerHTML = `<div class="dh">Sessions</div>
-    ${ss.length ? ss.map((s, i) => `<div class="dsave"><button class="di ${i === 0 ? 'latest' : ''}" data-session="${s.id}"><b>${s.ticket || 'Plan'}${s.chat ? ` · ${s.chat}` : ''}</b><span><span class="ag">✳ ${s.agent}</span> drew ${s.boxes} box${s.boxes === 1 ? '' : 'es'}, ${s.calls} question${s.calls === 1 ? '' : 's'} · ${when(s.at)}</span></button><button class="dx" data-unsession="${s.id}" title="Delete this session from the list; its boxes stay on the map" aria-label="Delete this session">✕</button></div>`).join('')
-      : '<div class="dnone">No session has drawn on this map yet. Plan a ticket in Claude Code and it shows here.</div>'}`;
-}
 
 /* History: every change saves itself, and each one is a version (the server's api/history, newest first).
    A version shows the map as it was, over the live one, until Back to now; Restore makes it the map again. */

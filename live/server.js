@@ -448,7 +448,7 @@ function openMap({ project = '', name = '', home }) {
   }
 
   // what outlives starting over
-  const kept = () => ({ sessions: state.sessions || [],
+  const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
     linked: state.linked || [], said: state.said || {},
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
@@ -509,7 +509,7 @@ function openMap({ project = '', name = '', home }) {
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
     savenow(a) { saveNow(a.by); return true; },
     autosave(a) { state.autosave = a.on !== false; return true; },
-    // starting over keeps the list of sessions that drew on it and the name someone gave it; History keeps the map before
+    // starting over keeps the name someone gave the map; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
     // renaming the map: its name in the top bar and the list of maps; its folder stays
     rename(a) {
@@ -525,13 +525,6 @@ function openMap({ project = '', name = '', home }) {
       if (!file || !fs.existsSync(file)) return false;
       Object.assign(state, JSON.parse(fs.readFileSync(file, 'utf8')));
       tell(`${a.by} went back to the version from ${clock(v.at)}`);
-      return true;
-    },
-    // deleting a session drops it from the menu's list; the boxes it drew stay on the map
-    unsession(a) {
-      const id = String(a.id);
-      if (!(state.sessions || []).some((s) => s.id === id)) return false;
-      state.sessions = state.sessions.filter((s) => s.id !== id);
       return true;
     },
     // a chat opening the map finds it as it was left: every change saved itself, and History has the versions before
@@ -634,9 +627,6 @@ function openMap({ project = '', name = '', home }) {
       if (a.ticket) state.ticket = String(a.ticket).slice(0, 40);
       if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
-      // each plan an agent draws is one session in the map's list
-      state.sessions = [{ id: Date.now().toString(36), agent: a.by, chat: String(a.session || '').slice(0, 80), ticket: state.ticket, prompt: state.prompt,
-        note: a.note || '', at: Date.now(), boxes: (a.nodes || []).length, calls: (a.calls || []).length }, ...(state.sessions || [])];
       tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
       return true;
     },
