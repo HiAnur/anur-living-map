@@ -318,6 +318,13 @@ function openMap({ project = '', name = '', home }) {
       try { fs.unlinkSync(path.join(SAVES, `${id}.json`)); } catch {}
       return true;
     },
+    // deleting a session drops it from the menu's list; the boxes it drew stay on the map
+    unsession(a) {
+      const id = String(a.id);
+      if (!(state.sessions || []).some((s) => s.id === id)) return false;
+      state.sessions = state.sessions.filter((s) => s.id !== id);
+      return true;
+    },
     // opening a saved map makes it the map everyone sees; the list and the sessions stay
     load(a) {
       const file = path.join(SAVES, `${String(a.id).replace(/[^\w]/g, '')}.json`);
