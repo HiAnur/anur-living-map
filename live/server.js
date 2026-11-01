@@ -65,9 +65,12 @@ function askClaude({ cwd, prompt, onText, onDone }) {
 const PORT = Number(process.argv[2] || process.env.PORT || 4322);
 const DIR = import.meta.dirname;
 // --project <folder>: draw that project from its own files, and keep the map's
-// state beside it in <folder>/.living-map/; without it, the fixed demo in seed.json
+// state beside it in <folder>/.living-map/; without it, the fixed demo in seed.json.
+// More code folders join with POST /api/projects {folder}, each at /<folder name>/, and are
+// remembered in projects.json so they are still listed after a restart
 const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
+const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 
 // one map: its state, the windows following it, and what people can do to it
@@ -716,13 +719,26 @@ const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 const main = openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
+// every code folder this server draws, by folder name: the one it started with, then each added since
+const projects = new Map(PROJECT ? [[path.basename(PROJECT), main]] : []);
+const folders = new Map(PROJECT ? [[path.basename(PROJECT), PROJECT]] : []);
+const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
+const addProject = (folder) => {
+  const name = path.basename(folder);
+  if (folders.has(name)) return folders.get(name) === folder;
+  if (!/^[a-z0-9-]+$/.test(name) || !fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()) return false;
+  projects.set(name, openMap({ project: folder, home: path.join(folder, '.living-map') }));
+  folders.set(name, folder);
+  return true;
+};
+if (PROJECT) for (const f of remembered()) addProject(f);
 const named = new Map();
 const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
-// every map to choose from: the project's own, then each named one
+// every map to choose from: the code folders' own, then each named one
 const everyMap = () => {
   const MAPS = path.join(DIR, 'maps');
-  const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d)).sort() : [];
-  return [...(PROJECT ? [[path.basename(PROJECT), main]] : []), ...names.map((d) => [d, mapCalled(d)])];
+  const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d) && !projects.has(d)).sort() : [];
+  return [...projects, ...names.map((d) => [d, mapCalled(d)])];
 };
 
 // a page, with the signed-in person written into it for the page's own script
@@ -777,7 +793,7 @@ http.createServer(async (req, res) => {
   }
   // /<name>/... is the map called <name>, unless a file of the page has that name
   const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
-  const own = PROJECT && first === path.basename(PROJECT);
+  const own = projects.get(first);
   const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
   // the page asks its API by relative address, so a map's address ends in a slash
   // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a Claude Code chat
@@ -788,13 +804,21 @@ http.createServer(async (req, res) => {
     const prompt = String(a.prompt || '').trim().slice(0, 4000);
     if (!prompt) return json(400, { error: 'Say what the map is about.' });
     const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
+  // a chat opening the map from another code folder adds that folder to the list, and it stays there
+  if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const folder = a.folder ? path.resolve(String(a.folder)) : '', name = path.basename(folder);
+    if (!folder || !addProject(folder)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
+    if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
+    return json(200, { name, href: `/${name}/` });
+  }
     const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === path.basename(PROJECT));
     let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
     mapCalled(name).build({ prompt, by: who });
     return json(200, { name, href: `/${name}/` });
   }
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
-  const map = !isMap || own ? main : mapCalled(first);
+  const map = !isMap ? main : own || mapCalled(first);
   const p = isMap ? rest : url.pathname;
   if (await map.handle(req, res, p, who)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who);
