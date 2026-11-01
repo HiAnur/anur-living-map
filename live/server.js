@@ -157,7 +157,8 @@ function openMap({ project = '', name = '', home }) {
       placeNew(state.nodes, state.edges);
       merge(state.calls, (c) => c.id, a.calls);
       Object.assign(state.answers, a.answers || {});
-      // the ask behind the plan shows on the map's top line
+      // the ask behind the plan shows on the map's top line; a named map takes the plan's title
+      if (a.title && name) state.title = String(a.title).slice(0, 60);
       if (a.ticket) state.ticket = String(a.ticket).slice(0, 40);
       if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
       for (const id of a.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
