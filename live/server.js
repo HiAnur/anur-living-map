@@ -299,13 +299,20 @@ function openMap({ project = '', name = '', home }) {
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
     }
     // a new box gets its place now, so the page can show it on the map as proposed and Apply puts it exactly there
-    const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map((n) => ({ ...n }));
-    if (fresh.length) {
-      placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges]);
-      for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
-    }
+    placeProposed(plan);
     return { status: ops.length ? 'pending' : 'dropped', ops, dropped, plan };
   }
+  function placeProposed(plan) {
+    const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map(({ x, y, ...n }) => n);
+    if (!fresh.length) return;
+    placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges]);
+    for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
+  }
+  // every change Claude proposed that nobody has applied or set aside yet, from the map's chats and the linked
+  // chat; with a person, only the ones that person may apply
+  const pendingProposals = (by) => [...(state.proposals || []).filter((p) => !by || ownsChat(p.session, by)),
+    ...Object.entries(state.threads || {}).filter(([k]) => !by || mineChat(k, by)).flatMap(([, t]) => t.map((m) => m?.proposal))]
+    .filter((p) => p?.status === 'pending' && p.plan);
   const withoutBlock = (text) => String(text).split('```map')[0].trim();
 
   // what outlives starting over or opening a saved map
@@ -315,9 +322,19 @@ function openMap({ project = '', name = '', home }) {
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}) });
 
   const ACTS = {
-    move(a) { const n = nodeOf(a.id); if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true; },
-    // Tidy up: every box in the view someone is looking at lines up on the grid, for everyone
-    tidy(a) { const list = !a.view || a.view === 'system' ? state.nodes : nodeOf(a.view)?.inside?.nodes; if (!list?.length) return false; tidy(list); return true; },
+    move(a) {
+      const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
+      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true;
+    },
+    // Tidy up: every box in the view someone is looking at lines up on the grid, for everyone, with no line
+    // through a box; boxes Claude proposed and nobody applied yet find new places around the tidied map
+    tidy(a) {
+      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
+      if (!list?.length) return false;
+      tidy(list, inside ? inside.edges || [] : state.edges);
+      if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
+      return true;
+    },
     call: answerCall,
     ask(a) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it

@@ -87,8 +87,8 @@ button,input{font:inherit;color:inherit}
 .node.actor{width:110px;border-radius:999px;align-items:center}
 .node.ext{border-style:solid}
 .node.ghost{opacity:.5}
-/* a box Claude proposed in your chat, before you press Apply: blue, dashed, marked Proposed, and not yet something to click */
-.node.proposed{border-style:dashed;pointer-events:none}
+/* a box Claude proposed in your chat, before you press Apply: blue, dashed, marked Proposed; drag it to where Apply puts it */
+.node.proposed{border-style:dashed;cursor:grab}
 .node.proposed::after{content:'Proposed';position:absolute;top:-9px;right:8px;padding:0 7px;border-radius:999px;background:var(--new);color:#fff;font:500 10px/16px var(--plex)}
 /* outside your reach: hatched, a lock before the name, nothing to drag or open */
 .node.locked{cursor:not-allowed;color:var(--text-3);border-style:dashed;border-color:var(--box-line);background:repeating-linear-gradient(135deg,#fff 0 6px,#f3f2ee 6px 8px)}
@@ -645,11 +645,16 @@ const scope = () => {
 };
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
 // and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
+// yours: from your chats on the map, and from the Claude Code chat linked to this map for you
+const pendingPlans = (s = S) => {
+  const mine = (p) => (s.linked || []).some((l) => l.session === p.session && l.owner === ME);
+  return Object.keys(s.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`))
+    .flatMap((k) => s.threads[k].map((m) => m.proposal)).concat((s.proposals || []).filter(mine)).filter((p) => p?.status === 'pending' && p.plan);
+};
+// a proposed box as its change holds it, so dragging it moves where Apply will put it
+const proposedBox = (id, s = S) => pendingPlans(s).flatMap((p) => p.plan.nodes).find((n) => n.id === id && Number.isFinite(n.x));
 const proposed = () => {
-  // yours: from your chats on the map, and from the Claude Code chat linked to this map for you
-  const mine = (p) => (S.linked || []).some((l) => l.session === p.session && l.owner === ME);
-  const ps = Object.keys(S.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`))
-    .flatMap((k) => S.threads[k].map((m) => m.proposal)).concat((S.proposals || []).filter(mine)).filter((p) => p?.status === 'pending' && p.plan);
+  const ps = pendingPlans();
   const have = new Set(S.nodes.map((n) => n.id));
   return {
     nodes: ps.flatMap((p) => p.plan.nodes.filter((n) => !have.has(n.id) && Number.isFinite(n.x)).map((n) => ({ ...n, state: 'new', proposed: true }))),
@@ -1230,6 +1235,12 @@ canvas.addEventListener('pointerdown', (e) => {
     if (n && locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
     draft = { x: Math.round(sx), y: Math.round(sy), node: n?.id || null }; openThread = null; render(); return;
   }
+  // a proposed box only drags: it is not on the map yet, so there is nothing to open
+  if (nd?.classList.contains('proposed')){
+    const n = proposedBox(nd.dataset.id);
+    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy, proposed: true }; canvas.setPointerCapture(e.pointerId); }
+    return;
+  }
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
@@ -1252,6 +1263,7 @@ let lastTap = { id: null, at: 0 };
 canvas.addEventListener('pointerup', (e) => {
   if (drag){
     if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y });
+    else if (drag.proposed) {}
     else {
       const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < 350;
       lastTap = { id: n.id, at: Date.now() };
@@ -1403,7 +1415,7 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
-    if (drag){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
+    if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.startsWith('flow:') ? view.slice(5) : view;
     if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))) view = 'system';

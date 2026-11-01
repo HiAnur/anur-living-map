@@ -149,6 +149,19 @@ const hits = ([[x1, y1], [x2, y2]], n) => {
   return Math.max(x1, x2) > l && Math.min(x1, x2) < r && Math.max(y1, y2) > t && Math.min(y1, y2) < b;
 };
 
+// how many boxes the lines run through, each line taking the shape the page draws
+export function crossings(nodes, edges) {
+  const by = new Map(nodes.map((n) => [n.id, n]));
+  let k = 0;
+  for (const e of edges) {
+    const a = by.get(e.from), b = by.get(e.to); if (!a || !b) continue;
+    const others = nodes.filter((n) => n !== a && n !== b);
+    const [one, two] = shapes(a, b).map((segs) => segs.reduce((s, seg) => s + others.filter((n) => hits(seg, n)).length, 0));
+    k += one && two < one ? two : one;
+  }
+  return k;
+}
+
 export function placeNew(nodes, edges) {
   for (const n of nodes) {
     if (Number.isFinite(n.x) && Number.isFinite(n.y)) continue;
@@ -161,17 +174,10 @@ export function placeNew(nodes, edges) {
       for (let c = Math.min(...cols) - 1; c <= Math.max(...cols) + 1; c++) {
         const x = 90 + c * COL, y = 150 + r * ROW;
         if (placed.some((o) => Math.abs(o.x - x) < COL - 30 && Math.abs(o.y - y) < ROW - 20)) continue;
-        const me = { ...n, x, y };
-        let cross = 0, len = 0;
-        for (const o of links) {
-          // the page takes the second shape when it crosses fewer boxes
-          const [one, two] = shapes(me, o).map((segs) => ({
-            segs, k: segs.reduce((k, s) => k + placed.filter((p) => p !== o && hits(s, p)).length, 0),
-          }));
-          const pick = one.k && two.k < one.k ? two : one;
-          cross += pick.k;
-          for (const s of pick.segs) len += Math.abs(s[0][0] - s[1][0]) + Math.abs(s[0][1] - s[1][1]);
-        }
+        // its own lines through other boxes, and lines already drawn through it, both count
+        const all = [...placed, { ...n, x, y }], ids = new Set(all.map((o) => o.id));
+        const cross = crossings(all, edges.filter((e) => ids.has(e.from) && ids.has(e.to)));
+        const len = links.reduce((l, o) => l + Math.abs(o.x - x) + Math.abs(o.y - y), 0);
         const score = cross * 10000 + len;
         if (!best || score < best.score) best = { x, y, score };
       }
@@ -183,8 +189,10 @@ export function placeNew(nodes, edges) {
 // column or row share it exactly, so lines between them run straight; empty rows
 // and columns close up, so the gaps are even; two boxes that would share a cell
 // are split, the one nearer keeping it. Left of stays left of, above stays above,
-// and the top-left box keeps its place, so the map does not jump.
-export function tidy(nodes) {
+// and the top-left box keeps its place, so the map does not jump. Then no line
+// runs through a box: while one does, the box whose move frees the most lines
+// goes to the nearest free cell that does it.
+export function tidy(nodes, edges = []) {
   const list = nodes.filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y));
   if (!list.length) return;
   // values within half a step of the first in their band are one column (or row)
@@ -213,6 +221,28 @@ export function tidy(nodes) {
     }
     taken.add(key(c, r));
     [w.n.x, w.n.y] = spot(c, r);
+  }
+  const lines = edges.filter((e) => list.some((n) => n.id === e.from) && list.some((n) => n.id === e.to));
+  const cell = (n) => [Math.round((n.x - 90) / COL), Math.round((n.y - 150) / ROW)];
+  for (let round = 0; round < 40; round++) {
+    const now = crossings(list, lines);
+    if (!now) break;
+    const held = new Set(list.map((n) => key(...cell(n))));
+    const cs = list.map((n) => cell(n)[0]), rs = list.map((n) => cell(n)[1]);
+    let best = null;
+    for (const n of list) {
+      const [c, r] = cell(n), was = [n.x, n.y];
+      for (let r2 = Math.min(...rs) - 1; r2 <= Math.max(...rs) + 1; r2++)
+        for (let c2 = Math.min(...cs) - 1; c2 <= Math.max(...cs) + 1; c2++) {
+          if (held.has(key(c2, r2))) continue;
+          [n.x, n.y] = spot(c2, r2);
+          const k = crossings(list, lines), d = Math.abs(c2 - c) + Math.abs(r2 - r);
+          if (k < now && (!best || k < best.k || (k === best.k && d < best.d))) best = { n, c: c2, r: r2, k, d };
+        }
+      [n.x, n.y] = was;
+    }
+    if (!best) break;
+    [best.n.x, best.n.y] = spot(best.c, best.r);
   }
 }
 
