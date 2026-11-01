@@ -349,11 +349,18 @@ a{color:inherit;text-decoration:none}
 #bot:hover{transform:translateY(-1px);border-color:var(--claude)}
 #bot.on{background:var(--claude);border-color:var(--claude);color:#fff}
 /* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it */
-#chat{right:72px;top:44px;bottom:0;width:400px;display:none;flex-direction:column;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
-body.chatting #canvas{right:472px}
-body.chatting #toast{left:calc((100% - 472px) / 2)}
-/* centred on what is left of the map, but never over Legend, Tidy up and Fit */
-body.chatting #tools{left:max(calc((100% - 472px) / 2), 375px)}
+/* its width is --chatw: drag the pane's left edge to change it, the way Descript's divider moves */
+body{--chatw:400px}
+#chat{right:72px;top:44px;bottom:0;width:var(--chatw);display:none;flex-direction:column;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+body.chatting #canvas{right:calc(72px + var(--chatw))}
+body.chatting #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
+/* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
+body.chatting #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
+body.chatting.tight #tools{bottom:58px}
+#chatgrip{position:fixed;top:44px;bottom:0;right:calc(72px + var(--chatw) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
+body.chatting #chatgrip{display:block}
+#chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
+body.resizing{cursor:col-resize;user-select:none}
 #chat.on{display:flex}
 #chat .ct{padding:12px 16px;margin:0;border-bottom:1px solid var(--rule)}
 #chat .ct .star{color:var(--claude);margin-right:6px}
@@ -480,6 +487,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 </div>
 <div id="foot"><div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div></div><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button></div>
 <div class="panel" id="chat"></div>
+<div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
 <div class="panel" id="decs"></div>
 <!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
 <nav id="rail">
@@ -849,10 +857,27 @@ const change = (m, key, i) => {
 /* the chat in the corner: your one thread with Claude, about the whole map or, with a box attached, about that box;
    a message about a box wears its name, and clicking it opens the box. A box you open takes the chat's place. */
 let chatOpen = false, chatSeen = 0, chatAbout = null;
+// the pane's width follows its left edge as you drag it, between 320px and leaving the map 360px; this browser remembers it
+const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320, innerWidth - 72 - 360))); document.body.style.setProperty('--chatw', `${w}px`); fitTools(); return w; };
+// the tool bar and Legend, Tidy up and Fit need about 560px side by side
+const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('chatting') && $('canvas').clientWidth < 560);
+window.addEventListener('resize', fitTools);
+try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
+$('chatgrip').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); const g = e.currentTarget; let w = 0;
+  g.setPointerCapture(e.pointerId); g.classList.add('on'); document.body.classList.add('resizing');
+  const move = (ev) => { w = setChatW(innerWidth - 72 - ev.clientX); };
+  const up = () => {
+    g.classList.remove('on'); document.body.classList.remove('resizing');
+    g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+    if (w) try { localStorage.setItem('lm.chatw', String(w)); } catch {}
+  };
+  g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+});
 const CHAT_IDEAS = [['What is waiting on me?', 'The questions on this map that need your answer'], ['Sum up this map', 'What it shows, in a few lines']];
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
-  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen); document.body.classList.toggle('chatting', open);
+  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen); document.body.classList.toggle('chatting', open); fitTools();
   if (!open) return;
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="x" data-close-chat>×</span></div>
