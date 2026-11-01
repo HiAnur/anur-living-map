@@ -179,6 +179,43 @@ export function placeNew(nodes, edges) {
   }
 }
 
+// Tidy up, after people have dragged boxes around: boxes that sit roughly in one
+// column or row share it exactly, so lines between them run straight; empty rows
+// and columns close up, so the gaps are even; two boxes that would share a cell
+// are split, the one nearer keeping it. Left of stays left of, above stays above,
+// and the top-left box keeps its place, so the map does not jump.
+export function tidy(nodes) {
+  const list = nodes.filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y));
+  if (!list.length) return;
+  // values within half a step of the first in their band are one column (or row)
+  const bands = (vals, step) => {
+    const band = new Map(); let i = -1, start = -Infinity;
+    for (const v of [...new Set(vals)].sort((a, b) => a - b)) { if (v - start > step / 2) { i++; start = v; } band.set(v, i); }
+    return band;
+  };
+  const cb = bands(list.map((n) => n.x), COL), rb = bands(list.map((n) => n.y), ROW);
+  const c0 = Math.round((Math.min(...list.map((n) => n.x)) - 90) / COL), r0 = Math.round((Math.min(...list.map((n) => n.y)) - 150) / ROW);
+  const spot = (c, r) => [90 + c * COL, 150 + r * ROW];
+  const want = list.map((n) => {
+    const c = c0 + cb.get(n.x), r = r0 + rb.get(n.y), [x, y] = spot(c, r);
+    return { n, c, r, off: Math.hypot(n.x - x, n.y - y) };
+  }).sort((a, b) => a.off - b.off);
+  const taken = new Set(), key = (c, r) => `${c},${r}`;
+  for (const w of want) {
+    let [c, r] = [w.c, w.r];
+    // a cell already held: the nearest free one, same row first
+    for (let d = 1; taken.has(key(c, r)); d++) {
+      const ring = [];
+      for (let dr = -d; dr <= d; dr++) for (let dc = -d; dc <= d; dc++) if (Math.max(Math.abs(dr), Math.abs(dc)) === d) ring.push([dc, dr]);
+      const free = ring.sort(([ac, ar], [bc, br]) => Math.abs(ar) - Math.abs(br) || Math.abs(ac) - Math.abs(bc) || bc - ac)
+        .find(([dc, dr]) => !taken.has(key(w.c + dc, w.r + dr)));
+      if (free) [c, r] = [w.c + free[0], w.r + free[1]];
+    }
+    taken.add(key(c, r));
+    [w.n.x, w.n.y] = spot(c, r);
+  }
+}
+
 // node project.js <folder>: print what the map would draw
 if (import.meta.main) {
   const m = readProject(path.resolve(process.argv[2] || '.'));

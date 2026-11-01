@@ -328,7 +328,7 @@ body.rec #foot,body.rec #legend{display:none}
   <i class="tdiv"></i>
   <span class="tb ask" data-tool="ask">✳ Ask Claude</span>
 </div>
-<div id="foot"><button class="tbtn" id="fitb">Fit</button><button class="tbtn" id="resetb" title="Start the story over for everyone">Reset</button></div>
+<div id="foot"><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><button class="tbtn" id="resetb" title="Start the story over for everyone">Reset</button></div>
 <div id="toast"></div>
 
 <script>
@@ -761,6 +761,7 @@ document.addEventListener('click', (e) => {
       const r = canvas.getBoundingClientRect(); cam.x = (r.width - 340) / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
   }
   else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask') setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
+  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
   else if (t.id === 'resetb'){ act('reset'); }
 });

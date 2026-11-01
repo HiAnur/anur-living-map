@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
-import { placeNew, readProject } from './project.js';
+import { placeNew, readProject, tidy } from './project.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -148,6 +148,8 @@ function openMap({ project = '', name = '', home }) {
 
   const ACTS = {
     move(a) { const n = nodeOf(a.id); if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true; },
+    // Tidy up: every box in the view someone is looking at lines up on the grid, for everyone
+    tidy(a) { const list = !a.view || a.view === 'system' ? state.nodes : nodeOf(a.view)?.inside?.nodes; if (!list?.length) return false; tidy(list); return true; },
     call: answerCall,
     ask(a) {
       const n = nodeOf(a.node), sees = seesOf(a.by);
@@ -283,7 +285,11 @@ function openMap({ project = '', name = '', home }) {
     return false;
   }
 
-  return { handle };
+  // one line for the list of maps at /
+  const summary = () => ({ title: state.title, boxes: state.nodes.length, open: state.calls.filter((c) => c.status === 'open').length,
+    at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0 });
+
+  return { handle, summary };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -295,6 +301,15 @@ const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, h
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  // with a project, / lists every map to choose from: the project's own, then each named one
+  if (PROJECT && url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html' }).end(fs.readFileSync(path.join(DIR, 'maps.html')));
+  if (url.pathname === '/api/maps') {
+    const MAPS = path.join(DIR, 'maps');
+    const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d)).sort() : [];
+    const list = [...(PROJECT ? [[path.basename(PROJECT), main]] : []), ...names.map((d) => [d, mapCalled(d)])]
+      .map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
+    return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
+  }
   // /<name>/... is the map called <name>, unless a file of the page has that name
   const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
   const own = PROJECT && first === path.basename(PROJECT);
