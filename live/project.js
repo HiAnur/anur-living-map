@@ -246,24 +246,28 @@ export function tidy(nodes, edges = []) {
   }
 }
 
-// A topic map (one box everything hangs off, every other box under exactly one) tidies the way a mind map
-// does: the first box keeps its place, the boxes off it split left and right as they sit now (one straight
-// above or below goes to the lighter side), each ring one column further out, and every box centred beside
-// the boxes under it, so the lines fan out and never cross. Only the boxes in `shown` (all, without it) take
-// room; what is folded away under a showing box lines up beside it, ready for when it unfolds.
-// False, and nothing moves, when the map is not one tree.
+// A topic map (one box everything hangs off) tidies the way a mind map does: the first box keeps its place,
+// the boxes off it split left and right as they sit now (one straight above or below goes to the lighter
+// side), each ring one column further out, and every box centred beside the boxes under it, so the lines
+// fan out and never cross. A box with lines from two boxes hangs under the one nearer the first box; its
+// other line is a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs.
+// Only the boxes in `shown` (all, without it) take room; what is folded away under a showing box lines up
+// beside it, ready for when it unfolds. False, and nothing moves, when no single box reaches them all.
 const SLOT = 80;
 export function tidyTree(nodes, edges, shown = null) {
-  const by = new Map(nodes.map((n) => [n.id, n])), kids = new Map(), parent = new Map();
+  const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
-    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || parent.get(e.to) === e.from) continue;
-    if (parent.has(e.to)) return false;
-    parent.set(e.to, e.from); if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(by.get(e.to));
+    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to) continue;
+    if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); into.add(e.to);
   }
-  const roots = nodes.filter((n) => !parent.has(n.id));
+  const roots = nodes.filter((n) => !into.has(n.id));
   if (nodes.length < 2 || roots.length !== 1 || (shown && !shown.has(roots[0].id))) return false;
-  const seen = new Set([roots[0].id]), q = [roots[0]];
-  while (q.length) for (const c of kids.get(q.pop().id) || []) if (!seen.has(c.id)) { seen.add(c.id); q.push(c); }
+  // ring by ring out from the first box: the first line to reach a box makes it that box's child
+  const kids = new Map(), seen = new Set([roots[0].id]), q = [roots[0].id];
+  while (q.length) {
+    const id = q.shift();
+    for (const t of out.get(id) || []) if (!seen.has(t)) { seen.add(t); q.push(t); if (!kids.has(id)) kids.set(id, []); kids.get(id).push(by.get(t)); }
+  }
   if (seen.size !== nodes.length) return false;
   const vis = (n) => !shown || shown.has(n.id);
   const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
