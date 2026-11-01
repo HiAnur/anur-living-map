@@ -351,12 +351,13 @@ function openMap({ project = '', name = '', home }) {
     },
     resolve(a) { const c = state.comments?.find((x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
     // Apply on a change Claude proposed in a chat: the map takes it, and the chat that drew those boxes hears it.
-    // Your own chat's changes are yours to apply; a box's thread, anyone who can see the box.
+    // Your own chat's changes are yours to apply. The chat told is the one that drew the first box the
+    // change touches or links to, else the box the question was about.
     apply(a) {
       const key = String(a.thread || ''), m = state.threads[key]?.[Number(a.index)], pr = m?.proposal;
       if (!pr || pr.status !== 'pending' || (key.startsWith('@') && key !== `@${a.by}`)) return false;
-      const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove].find((id) => nodeOf(id));
-      const to = ownerOf(touched || (key.startsWith('@') ? null : key));
+      const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
+      const to = ownerOf(touched || m.about || null);
       draw(pr.plan);
       pr.status = 'applied'; pr.by = a.by; pr.at = stamp();
       state.log.push({ at: Date.now(), who: a.by, action: 'applied', text: pr.ops.join('; ') });
