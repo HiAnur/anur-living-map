@@ -355,6 +355,7 @@ a{color:inherit;text-decoration:none}
 .msg.cl{border-left:2px solid var(--claude);padding-left:10px}
 .msg .wait{color:var(--text-2)}.msg code{font:12px var(--mono)}
 .ask{display:flex;gap:6px;margin-top:8px}
+#side .side-ask{position:sticky;bottom:-14px;margin:8px -16px -14px;padding:10px 16px 14px;background:inherit;border-top:1px solid var(--rule)}
 .ask input{flex:1;height:32px;border:1px solid var(--rule-2);border-radius:8px;padding:0 10px;background:#fff}
 .pr{padding:10px 0;border-top:1px solid var(--rule)}.pr:first-of-type{border-top:0}
 .pr .id{font-weight:500}.pr .st{font-size:12px;color:var(--text-2)}
@@ -635,10 +636,11 @@ const scope = () => {
   const p = proposed();
   return p.nodes.length || p.edges.length ? { nodes: [...all.nodes, ...p.nodes], edges: [...all.edges, ...p.edges] } : all;
 };
-// what Claude proposed in your open chat that you have not applied: its new boxes and lines, drawn blue and dashed
-// where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
+// what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
+// and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
 const proposed = () => {
-  const ps = (S.threads?.[`@${ME}`] || []).map((m) => m.proposal).filter((p) => p?.status === 'pending' && p.plan);
+  const ps = Object.keys(S.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`))
+    .flatMap((k) => S.threads[k].map((m) => m.proposal)).filter((p) => p?.status === 'pending' && p.plan);
   const have = new Set(S.nodes.map((n) => n.id));
   return {
     nodes: ps.flatMap((p) => p.plan.nodes.filter((n) => !have.has(n.id) && Number.isFinite(n.x)).map((n) => ({ ...n, state: 'new', proposed: true }))),
@@ -778,8 +780,8 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${open.some((c) => c.for === ME) ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
-        : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
+      ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
+        : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
       </div>`;
     // the file only for the box you picked; the card has it too
@@ -853,7 +855,7 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 // Click it and it opens in place: why it is asked, and what each answer does; its box lights up on the map.
 let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
-let sideTab = 'box', sideFor = null;
+let sideTab = 'box', sideFor = null, sideSeen = '';
 // a box opened from Decisions or Claude's chat has a Back to it, which returns to where you were in that list
 let backTo = null, decsScroll = 0;
 // the answered questions opened with More in History, by call id
@@ -892,7 +894,6 @@ function renderSide(){
     return;
   }
   const calls = S.calls.filter((c) => c.node === n.id);
-  // this box's part of your chats with Claude, earlier chats first: the messages that carry this box, at their place in each chat
   // a box you just opened starts on what is open on it now
   if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
@@ -941,12 +942,17 @@ function renderSide(){
   const history = answered.length ? answered.map(decided).join('')
     : n.decided ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>`
     : '<div class="d-wait">Nothing has been answered on this box yet.</div>';
-  // two tabs: Information (what the box is and what is open on it) and History (what was answered); Ask Claude sits
-  // beside ×, and opens your one chat with Claude with this box attached
+  // Chat: your side chat on this box (threads['@Duy>billing']), to brainstorm and refine it. Claude reads your main chat
+  // each time you ask, so it knows what you said there; what you say here stays on this box and never fills the main chat.
+  const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
+  const chat = `${sideT.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, sideKey, i)}</div>`).join('')}
+    <form class="ask side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
+  // three tabs: Information (what the box is and what is open on it), History (what was answered) and Chat; Ask Claude
+  // beside × asks in your main chat instead, with this box attached
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb ask-h" data-ask-box="${n.id}" title="Ask Claude about ${n.label}">✳ Ask Claude</button><span class="x" data-close>×</span></span></div>
-    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : `
+    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
     ${(() => {
       const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
@@ -957,6 +963,9 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
+  // a new message in the box's chat scrolls the card to the bottom
+  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`;
+  if (sideTab === 'chat' && seen !== sideSeen){ el.scrollTop = el.scrollHeight; sideSeen = seen; }
 }
 
 /* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */
@@ -1317,7 +1326,7 @@ document.addEventListener('submit', (e) => {
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
-  act('ask', { node: f.dataset.ask, text }); i.value = '';
+  act('ask', { node: f.dataset.ask, text, side: true }); i.value = '';
   // "visualize this flow": Claude draws it, so the map opens on it
   const fx = flowOf(nodeById(f.dataset.ask));
   if (fx && /flow|visuali|diagram|draw|sequence/i.test(text)) setTimeout(() => openFlow(fx.id), 700);

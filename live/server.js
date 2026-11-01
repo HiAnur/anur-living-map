@@ -100,13 +100,14 @@ function openMap({ project = '', name = '', home }) {
         (into[`@${who || 'Duy'}`] ??= []).push({ m: about ? { ...m, about } : m, t });
       }
     };
-    // a person's earlier chats (threads['@Duy#<when>']) stay as they are
-    const kept = Object.entries(s.threads).filter(([k]) => k.includes('#'));
-    for (const [key, list] of Object.entries(s.threads)) if (!key.includes('#')) add(key, list, key.startsWith('@') ? null : key);
+    // a person's earlier chats (threads['@Duy#<when>']) and their box chats (threads['@Duy>billing']) stay as they are
+    const own = (k) => k.includes('#') || k.includes('>');
+    const kept = Object.entries(s.threads).filter(([k]) => own(k));
+    for (const [key, list] of Object.entries(s.threads)) if (!own(key)) add(key, list, key.startsWith('@') ? null : key);
     s.threads = { ...Object.fromEntries(kept), ...Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((a, b) => a.t - b.t).map((x) => x.m)])) };
   }
-  // a chat that is this person's: the one open now, or one in their history
-  const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`);
+  // a chat that is this person's: the one open now, one in their history, or one on a box
+  const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
@@ -183,7 +184,8 @@ function openMap({ project = '', name = '', home }) {
 
   // what Claude reads to answer on a box: who asks, the box, the map as far as the asker can see it, the thread so far
   const seesOf = (by) => state.people?.find((p) => p.id === by)?.sees || 'all';
-  function askPrompt(by, n, q, before) {
+  // main: the person's main chat as it is now, when the question comes from a box chat beside it
+  function askPrompt(by, n, q, before, main = null) {
     const person = state.people?.find((p) => p.id === by), sees = seesOf(by);
     const nodes = allNodes().filter((x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((x) => x.id));
     const label = (id) => nodeOf(id)?.label || id;
@@ -198,7 +200,8 @@ function openMap({ project = '', name = '', home }) {
         : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));
     return [
       `You answer a question asked on Living Map, a map a team and its coding agents plan on together. This map is "${state.title}"${state.prompt ? `, drawn for "${state.prompt}"` : ''}.`,
-      `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
+      main ? `${by}${person?.role ? ` (${person.role})` : ''} asked in the side chat on the box "${n.label}", where they brainstorm and refine that box without filling their main chat. You see their main chat for context; it does not see this one.`
+        : `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
       'Lead with the answer, in plain words and at most about 120 words: no headings, no tables, no file paths unless asked.',
       project ? 'Read the project files in your working folder when the question needs them.' : 'Answer from the map below.',
       'You cannot change any file, and you never change the map yourself. When the person asks for a change to the map, say it in one line,',
@@ -212,7 +215,8 @@ function openMap({ project = '', name = '', home }) {
       '', `## Every box${sees === 'all' ? '' : ` ${by} can see (their access covers ${sees})`}`, ...nodes.map(box),
       lines.length ? ['', '## Lines between boxes', ...lines] : [],
       calls.length ? ['', '## Questions on the map', ...calls] : [],
-      before.length ? ['', '## Earlier in this chat', ...before.map((m) => `${m.who}${m.about ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
+      main?.length ? ['', `## ${by}'s main chat so far`, ...main.map((m) => `${m.who}${m.about ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
+      before.length ? ['', `## Earlier in this ${main ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !main ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
       '', '## The question', q,
     ].flat().join('\n');
   }
@@ -289,8 +293,11 @@ function openMap({ project = '', name = '', home }) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it
       const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
       if (boxId && (!n || (sees !== 'all' && n.area !== sees))) return false;
-      const t = (state.threads[`@${a.by}`] ??= []), q = String(a.text).slice(0, 400);
+      // a question in a box's own chat stays on that box: Claude reads the main chat as it is now, and the main chat never sees it
+      const side = Boolean(a.side && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
+      const t = (state.threads[key] ??= []), q = String(a.text).slice(0, 400);
       const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
+      const main = side ? (state.threads[`@${a.by}`] || []).filter((m) => !m.staged && !m.thinking).slice(-30) : null;
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
       state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: a.text });
       // the scripted demo answers from its seed; a project's map or a named one asks Claude
@@ -308,7 +315,7 @@ function openMap({ project = '', name = '', home }) {
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
-      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before),
+      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, main),
         onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
           clearTimeout(soon); delete msg.thinking; msg.text = withoutBlock(text); msg.at = stamp();
