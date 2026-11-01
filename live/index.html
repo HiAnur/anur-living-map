@@ -937,6 +937,8 @@ function fit(){
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
   let minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
   if (fb){ minX = 20; maxX = LANE_X(fb.flow.lanes.length - 1) + 180; minY = 10; maxY = STEP_Y0 + (fb.flow.steps.length + 2) * STEP_DY + 40; }
+  // the lines and their words too: a curve between two boxes in one column, and its words, reach past the boxes
+  else try { const b = edgesEl.getBBox(); if (b.width){ minX = Math.min(minX, b.x - 24); maxX = Math.max(maxX, b.x + b.width + 24); minY = Math.min(minY, b.y - 24); maxY = Math.max(maxY, b.y + b.height + 24); } } catch {}
   const r = canvas.getBoundingClientRect();
   // the map takes whichever is bigger: the space beside the queue, or the full width under it
   const q = $('queue').getBoundingClientRect();
@@ -990,8 +992,6 @@ function route(a, b, dup, others = []){
   return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
 }
 
-function render(){
-  if (!S) return;
 // A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
 // has a line to it, as Tidy up lays it out. Its other lines are cross-links, drawn faint, dashed and curved the
 // way XMind draws its relationships, so they read as "related to" and never as part of the tree.
@@ -1016,6 +1016,8 @@ function curve(a, b, cx){
     mid: [(sx + 3 * c1[0] + 3 * c2[0] + tx) / 8, (a.y + 3 * c1[1] + 3 * c2[1] + b.y) / 8] };
 }
 
+function render(){
+  if (!S) return;
   const fb = flowBox();
   if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
   let { nodes, edges } = scope();
@@ -1031,14 +1033,15 @@ function curve(a, b, cx){
     // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
     const k = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
-    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
-    // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
-    if (!e.proposed && !e.state && cross?.links.has(`${e.from}>${e.to}`)){
-      const c = curve(a, b, cross.root.x);
-      svg += `<path class="cross ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-old)"/>`;
-      if (e.label) svg += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="cross" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+    // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
+    if (cross?.links.has(`${e.from}>${e.to}`)){
+      const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
+      svg += `<path class="${kc} ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-${kc === 'cross' ? 'old' : k})"/>`;
+      if (e.label) svg += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${kc}" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
       continue;
     }
+    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
+    // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
       const off = dup === null ? 0 : dup ? 7 : -7;

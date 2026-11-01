@@ -253,7 +253,10 @@ export function tidy(nodes, edges = []) {
 // other line is a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs.
 // Only the boxes in `shown` (all, without it) take room; what is folded away under a showing box lines up
 // beside it, ready for when it unfolds. False, and nothing moves, when no single box reaches them all.
-const SLOT = 80;
+// Room: a box per 100px down (a two-line name stands 67px tall, so 33px stays clear, and a line's words fit
+// between two boxes); across, 150px between a column's widest box and the next, or more when the words on the
+// lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
+const SLOT = 100, GAP = 150, CHAR = 6.8;
 export function tidyTree(nodes, edges, shown = null) {
   const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
@@ -263,12 +266,24 @@ export function tidyTree(nodes, edges, shown = null) {
   const roots = nodes.filter((n) => !into.has(n.id));
   if (nodes.length < 2 || roots.length !== 1 || (shown && !shown.has(roots[0].id))) return false;
   // ring by ring out from the first box: the first line to reach a box makes it that box's child
-  const kids = new Map(), seen = new Set([roots[0].id]), q = [roots[0].id];
+  const kids = new Map(), seen = new Set([roots[0].id]), q = [roots[0].id], ring = new Map([[roots[0].id, 0]]);
   while (q.length) {
     const id = q.shift();
-    for (const t of out.get(id) || []) if (!seen.has(t)) { seen.add(t); q.push(t); if (!kids.has(id)) kids.set(id, []); kids.get(id).push(by.get(t)); }
+    for (const t of out.get(id) || []) if (!seen.has(t)) {
+      seen.add(t); q.push(t); ring.set(t, ring.get(id) + 1);
+      if (!kids.has(id)) kids.set(id, []); kids.get(id).push(by.get(t));
+    }
   }
   if (seen.size !== nodes.length) return false;
+  // how far out each ring's column sits from the first box
+  const wide = [], words = [];
+  for (const n of nodes) { const r = ring.get(n.id); wide[r] = Math.max(wide[r] || 0, BW(n)); }
+  for (const e of edges) {
+    const r = ring.get(e.to);
+    if (e.label && r && ring.get(e.from) === r - 1) words[r] = Math.max(words[r] || 0, String(e.label).length * CHAR);
+  }
+  const reach = [0];
+  for (let r = 1; r < wide.length; r++) reach[r] = reach[r - 1] + wide[r - 1] / 2 + Math.max(GAP, 2 * (words[r] || 0) + 32) + wide[r] / 2;
   const vis = (n) => !shown || shown.has(n.id);
   const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
   const weight = (list, every) => list.reduce((s, c) => s + leaves(c, every), 0);
@@ -278,7 +293,7 @@ export function tidyTree(nodes, edges, shown = null) {
     let top = n.y - (weight(list, every) - 1) * SLOT / 2;
     for (const c of order(list)) {
       const l = leaves(c, every);
-      c.x = n.x + side * COL; c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
+      c.x = Math.round(root.x + side * reach[ring.get(c.id)]); c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
       const ks = kids.get(c.id) || [], open = ks.filter(vis);
       stack(c, every || !open.length ? ks : open, side, every || !open.length);
     }
