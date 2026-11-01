@@ -17,6 +17,7 @@
 // live/maps/<name>/, and fills from the plans drawn on it.
 
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -132,7 +133,7 @@ function openMap({ project = '', name = '', home }) {
   const ownsChat = (session, by) => (state.linked || []).some((l) => l.session === session && l.owner === by);
   function mirrorView() {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
-    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true }));
+    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, ...(s.imgs ? { imgs: s.imgs } : {}) }));
     const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
     return { session: l.session, owner: l.owner, msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
   }
@@ -144,6 +145,22 @@ function openMap({ project = '', name = '', home }) {
     if (l && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror) };
   }
   startMirror();
+  // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
+  // a picture from the chat itself is read from its transcript; both go by the same kind of id
+  const PICS = path.join(home, 'chat-images'), EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+  function savePicture(p) {
+    const m = String(p || '').match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return null;
+    const buf = Buffer.from(m[2], 'base64'); if (!buf.length || buf.length > 10e6) return null;
+    const id = crypto.createHash('sha1').update(m[2]).digest('hex').slice(0, 16), file = path.join(PICS, `${id}.${EXT[m[1]]}`);
+    fs.mkdirSync(PICS, { recursive: true }); if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
+    return { id, file };
+  }
+  function picture(id) {
+    const t = mirror?.f.img(id); if (t) return { type: t.type, buf: Buffer.from(t.data, 'base64') };
+    const f = fs.existsSync(PICS) && fs.readdirSync(PICS).find((n) => n.startsWith(`${id}.`));
+    return f ? { type: Object.keys(EXT).find((k) => f.endsWith(`.${EXT[k]}`)), buf: fs.readFileSync(path.join(PICS, f)) } : null;
+  }
 
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
@@ -466,12 +483,15 @@ function openMap({ project = '', name = '', home }) {
       state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((l) => l.session !== session)].slice(0, 10);
       startMirror(); return true;
     },
-    // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once
+    // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once;
+    // pictures attached to it are saved in the map's folder, and the chat is told where, so Claude can open them
     say(a) {
       const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
-      if (!l || l.owner !== a.by || !text) return false;
-      ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now() });
-      tell(`${a.by} wrote in the map's chat: "${text}"`, l.session);
+      if (!l || l.owner !== a.by) return false;
+      const pics = (Array.isArray(a.images) ? a.images : []).slice(0, 5).map(savePicture).filter(Boolean);
+      if (!text && !pics.length) return false;
+      ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
+      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session);
       setTimeout(sendMirror); return true;
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
@@ -534,6 +554,13 @@ function openMap({ project = '', name = '', home }) {
       res.on('close', drop);
       wake();
       return true;
+    }
+    // a picture in the synced chat, only for the signed-in window of the person whose chat it is
+    const pic = p.match(/^\/api\/chat-image\/([0-9a-f]{16})$/);
+    if (pic) {
+      const im = who && linkOf()?.owner === who ? picture(pic[1]) : null;
+      if (!im) { res.writeHead(404).end(); return true; }
+      res.writeHead(200, { 'content-type': im.type, 'cache-control': 'private, max-age=86400' }).end(im.buf); return true;
     }
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });

@@ -1,17 +1,20 @@
 // The map's Claude pane, synced with a Claude Code chat: follow that chat's transcript
-// (~/.claude/projects/<project>/<chat id>.jsonl) as it grows and keep what you typed and what
-// Claude wrote back, one Claude message per turn. Tool calls and their output, reminders, side
+// (~/.claude/projects/<project>/<chat id>.jsonl) as it grows and keep what you typed, the pictures you
+// attached, and what Claude wrote back, one Claude message per turn. Tool calls and their output, reminders, side
 // agents and anything the app sent in your place (task notifications, messages from other chats)
 // are left out. Read by byte offset once a second, whole lines only: the last one may still be
 // being written.
 
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 const KEEP = 600;
 
-// what a transcript entry says in words: a string, or text blocks; an image is a marker
+// what a transcript entry says in words: a string, or its text blocks
 const words = (c) => typeof c === 'string' ? c
-  : Array.isArray(c) ? c.map((b) => b?.type === 'text' ? b.text : b?.type === 'image' ? '[image]' : '').filter(Boolean).join('\n') : '';
+  : Array.isArray(c) ? c.filter((b) => b?.type === 'text').map((b) => b.text).join('\n') : '';
+// the pictures attached to it, as they sit in the transcript: base64 with their type
+const pictures = (c) => Array.isArray(c) ? c.filter((b) => b?.type === 'image' && b.source?.type === 'base64' && b.source.data) : [];
 
 // your words without what the app wraps around them; a slash command reads as you typed it
 function yours(text) {
@@ -23,18 +26,25 @@ function yours(text) {
 
 export function follow(file, onChange) {
   let offset = 0, rest = '', msgs = [], busy = false;
+  // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
+  const imgs = new Map();
+  const keep = (c) => pictures(c).map((b) => {
+    const id = crypto.createHash('sha1').update(b.source.data).digest('hex').slice(0, 16);
+    imgs.set(id, { type: b.source.media_type || 'image/png', data: b.source.data }); return id;
+  });
   // each piece of Claude's words keeps its own time, so what you write from the map falls between them
   // in the right place; the page draws a run of Claude's pieces as one message
-  const add = (who, text, at) => msgs.push({ who, text, at });
+  const add = (who, text, at, pics = []) => msgs.push({ who, text, at, ...(pics.length ? { imgs: pics } : {}) });
+  const yourTurn = (c, at) => { const t = yours(words(c)), p = keep(c); if (t || p.length) add('you', t, at, p); };
   function line(raw) {
     let j; try { j = JSON.parse(raw); } catch { return; }
     if (j.isSidechain) return;
     const at = Date.parse(j.timestamp) || Date.now();
     if (j.type === 'user' && j.origin?.kind === 'human' && !j.isMeta) {
-      const t = yours(words(j.message?.content)); if (t) add('you', t, at);
+      yourTurn(j.message?.content, at);
     } else if (j.type === 'attachment' && j.attachment?.type === 'queued_command' && j.attachment.commandMode === 'prompt' && j.attachment.origin?.kind === 'human') {
       // what you typed while Claude was still working
-      const t = yours(words(j.attachment.prompt)); if (t) add('you', t, at);
+      yourTurn(j.attachment.prompt, at);
     } else if (j.type === 'assistant') {
       const t = (j.message?.content || []).filter((b) => b?.type === 'text').map((b) => b.text).join('\n').trim();
       if (t) add('claude', t, at);
@@ -51,7 +61,10 @@ export function follow(file, onChange) {
         fs.readSync(fd, buf, 0, buf.length, offset); fs.closeSync(fd); offset = size;
         const lines = (rest + buf.toString('utf8')).split('\n'); rest = lines.pop();
         for (const l of lines) if (l) line(l);
-        if (msgs.length > KEEP) msgs = msgs.slice(-KEEP);
+        if (msgs.length > KEEP) {
+          msgs = msgs.slice(-KEEP);
+          const used = new Set(msgs.flatMap((m) => m.imgs || [])); for (const id of imgs.keys()) if (!used.has(id)) imgs.delete(id);
+        }
         grew = true;
       }
     } catch { /* the file is gone or not there yet: try again next second */ } finally { busy = false; }
@@ -59,5 +72,5 @@ export function follow(file, onChange) {
   }
   const timer = setInterval(read, 1000);
   setImmediate(read);
-  return { stop: () => clearInterval(timer), msgs: () => msgs };
+  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id) };
 }

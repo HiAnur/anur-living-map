@@ -354,7 +354,6 @@ a{color:inherit;text-decoration:none}
 .dec{padding:8px 10px;border-left:3px solid var(--todo);background:#fff8e1;border-radius:0 8px 8px 0;font-size:13px}
 .msg{padding:6px 0}.msg b{font-weight:500}.msg .t{font-size:12px;color:var(--text-2);margin-left:6px}
 .msg.cl{border-left:2px solid var(--claude);padding-left:10px}
-.msg.cl.more{padding-top:0;margin-top:-2px}
 .msg .wait{color:var(--text-2)}.msg code{font:12px var(--mono)}
 /* Claude's words set the way the Claude app sets them: a code block keeps every space, so a diagram lines up
    and scrolls sideways instead of wrapping; tables, lists and headings read as such */
@@ -449,6 +448,38 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .sug:hover{border-color:var(--text)}
 #chat .sug span{display:block;font-size:12px;color:var(--text-2)}
 #chat .ask{margin:0;padding:10px 12px;border-top:1px solid var(--rule)}
+/* the Claude pane reads like the Claude app: what you wrote sits on the right in a grey bubble with the pictures
+   you attached above it; Claude's words run plain across the pane, with no name, time or line beside them */
+#chat .msg.um{display:flex;flex-direction:column;align-items:flex-end;padding:0;margin:18px 0 6px}
+#chat .ua{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-bottom:8px}
+#chat .ua img{display:block;width:auto;height:auto;max-height:120px;max-width:240px;border-radius:12px;border:1px solid var(--rule);cursor:zoom-in;background:#f3f2ee}
+#chat .ub{max-width:85%;padding:10px 14px;border-radius:16px;background:rgba(11,11,11,.05);white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:20px}
+#chat .um .about{align-self:flex-end}
+#chat .msg.cm{padding:0;margin:10px 0 4px;font-size:14px;line-height:1.55}
+#chat .msg.cm + .msg.cm{margin-top:2px}
+#chat .msg.cm .md p{margin-bottom:10px}
+#chat .spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
+@keyframes spark{50%{opacity:.35;transform:rotate(45deg)}}
+@media (prefers-reduced-motion:reduce){#chat .spark{animation:none}}
+/* the box you write in: rounded like Claude's, the pictures you are about to send above the words,
+   + to add a picture (paste or drop one too) and the send arrow below */
+#chat .ask.cbox{display:block;margin:6px 12px 12px;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);border-radius:18px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+#chat .cbox:focus-within{border-color:rgba(0,0,0,.3)}
+#chat .cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
+#chat .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
+#chat .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
+#chat .cbox .add:hover{background:#f3f2ee;color:var(--text)}
+#chat .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+#chat .cbox .send svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#chat .tray{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+#chat .tray span{position:relative}
+#chat .tray img{display:block;width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--rule)}
+#chat .tray b{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#141413;color:#fff;font:500 12px/18px var(--plex);text-align:center;cursor:pointer}
+#chat.drop .msgs{outline:2px dashed var(--claude);outline-offset:-8px}
+/* a picture opened from the chat, over everything; a click or Esc closes it */
+#lightbox{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);display:none;place-items:center;cursor:zoom-out}
+#lightbox.on{display:grid}
+#lightbox img{max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
 /* the box a chat message is about, and the box attached to what you are about to ask */
 .about{display:inline-block;margin:2px 6px 4px 0;padding:1px 8px;border:1px solid var(--rule-2);border-radius:999px;font-size:11.5px;color:var(--text-2);background:#fff;cursor:pointer}
 .about::before,.att b::before{content:'▭ ';color:var(--text-3)}
@@ -559,6 +590,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <div id="foot"><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><span class="zoom"><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div class="panel" id="chat"></div>
+<div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
 <div class="panel" id="decs"></div>
 <!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
@@ -1115,7 +1147,6 @@ function chatList(){
    sends it as "mirror": what you typed there, what Claude wrote back, what you wrote here (it reaches that chat
    through its listener) and the changes it proposed, Apply on each. Nobody else is sent your chat. */
 let MIRROR = null;
-const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);
 const changeP = (p) => {
   const head = p.status === 'pending' ? 'Change to the map' : p.status === 'applied' ? `Applied by ${p.by}` : 'Not applied';
   return `<div class="prop ${p.status}"><div class="ph">${head}</div>
@@ -1128,21 +1159,29 @@ function linkedList(){
     <span>${i === 0 ? 'The pane follows this one' : `Linked ${when(l.at)}`}</span></button>`);
   return `<div class="hist"><div class="h" style="margin-top:4px">Claude chats linked to this map</div>${rows.join('')}</div>`;
 }
+// what you wrote, as the Claude app shows it: the pictures you attached, then your words in a grey bubble
+const yours = (text, imgs, chip = '') => `<div class="msg um">${imgs?.length ? `<div class="ua">${imgs.map((id) => `<img src="api/chat-image/${id}" alt="A picture you attached">`).join('')}</div>` : ''}${chip}${text ? `<div class="ub">${esc(text)}</div>` : ''}</div>`;
+const claudes = (html) => `<div class="msg cm">${html}</div>`;
+// pictures waiting to go with your next message, as data: addresses; a redraw of the pane keeps them
+let chatPics = [];
+const SEND_ICON = '<svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg>';
+const composer = (placeholder, pics) => `<form class="ask cbox" data-chat>
+    ${pics && chatPics.length ? `<div class="tray">${chatPics.map((p, i) => `<span><img src="${p}" alt="A picture to send"><b data-unpic="${i}" title="Remove">×</b></span>`).join('')}</div>` : ''}
+    <input placeholder="${placeholder}" autocomplete="off">
+    <div class="crow">${pics ? '<button type="button" class="add" data-attach title="Add a picture" aria-label="Add a picture">+</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-pick>' : ''}
+      <button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
 function renderMirror(el){
   const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
-    <div class="msgs">${chatHist ? linkedList() : msgs.map((m, i) => {
-      // a run of Claude's pieces reads as one message: only the first carries its name and time
-      const more = i > 0 && m.who === 'claude' && msgs[i - 1].who === 'claude';
-      const head = more ? '' : `<b>${m.who === 'you' ? 'You' : 'Claude'}</b><span class="t">${hhmm(m.at)}${m.map ? ' · from the map' : ''}</span>`;
-      return `<div class="msg ${m.who === 'claude' ? 'cl' : ''} ${more ? 'more' : ''}">${head}${m.proposal ? changeP(m.proposal) : md(m.text)}</div>`;
-    }).join('')}
-      ${!chatHist && last?.who === 'you' ? '<div class="msg cl"><b>Claude</b><br><span class="wait">Waiting for your Claude chat…</span></div>' : ''}</div>
-    ${chatHist ? '' : '<form class="ask" data-chat><input placeholder="Message your Claude chat" autocomplete="off"><button class="gb" type="submit">Send</button></form>'}`;
+    <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
+      ${!chatHist && last?.who === 'you' ? claudes('<span class="spark" title="Waiting for your Claude chat">✳</span>') : ''}</div>
+    ${chatHist ? '' : composer('Reply to Claude…', true)}`;
   const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
   if (n !== chatSeen){ box.scrollTop = chatHist ? 0 : box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
+  // a picture still loading grows the chat: if you were at the bottom, stay there
+  for (const i of box.querySelectorAll('img')) if (!i.complete) i.onload = () => { if (box.scrollHeight - box.scrollTop - box.clientHeight < i.clientHeight + 80) box.scrollTop = box.scrollHeight; };
 }
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
@@ -1154,11 +1193,13 @@ function renderChat(){
       <button class="ci" data-newchat title="New chat" aria-label="New chat">${CHAT_ICON.newchat}</button>
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Chat history" aria-label="Chat history">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
-    <div class="msgs">${chatHist ? chatList() : thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.about && m.who !== 'Claude' && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : ''}${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : md(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
+    <div class="msgs">${chatHist ? chatList() : thread.length ? thread.map((m, i) => m.who !== 'Claude'
+        ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
+        : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, `@${ME}`, i)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
-    ${chatHist ? '' : `<form class="ask" data-chat><input placeholder="${chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map'}" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`}`;
+    ${chatHist ? '' : composer(chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map', false)}`;
   // a new message scrolls the chat to the bottom; any other redraw keeps where you were
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
   if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
@@ -1457,7 +1498,12 @@ document.addEventListener('submit', (e) => {
     return;
   }
   const c = e.target.closest('form[data-chat]');
-  if (c){ e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim(); if (text){ if (MIRROR) act('say', { text }); else act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; } return; }
+  if (c){
+    e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim();
+    if (MIRROR && (text || chatPics.length)){ act('say', { text, images: chatPics }); chatPics = []; i.value = ''; renderChat(); }
+    else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; }
+    return;
+  }
   // your own answer to a question with options
   const o = e.target.closest('form[data-other]');
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
@@ -1468,6 +1514,25 @@ document.addEventListener('submit', (e) => {
   const fx = flowOf(nodeById(f.dataset.ask));
   if (fx && /flow|visuali|diagram|draw|sequence/i.test(text)) setTimeout(() => openFlow(fx.id), 700);
 });
+/* pictures for your Claude chat: + picks them, or paste or drop them in the pane, up to five at a time;
+   a click on one in the chat opens it large */
+const addPics = (files) => {
+  const ok = [...files].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type) && f.size <= 10e6).slice(0, Math.max(0, 5 - chatPics.length));
+  Promise.all(ok.map((f) => new Promise((done) => { const r = new FileReader(); r.onload = () => done(r.result); r.onerror = () => done(null); r.readAsDataURL(f); })))
+    .then((urls) => { chatPics = [...chatPics, ...urls.filter(Boolean)]; renderChat(); document.querySelector('#chat form[data-chat] input')?.focus(); });
+};
+document.addEventListener('change', (e) => { if (e.target.matches?.('#chat [data-pick]')) addPics(e.target.files); });
+document.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])]; if (MIRROR && f.length && e.target.closest?.('#chat')){ e.preventDefault(); addPics(f); } });
+$('chat').addEventListener('dragover', (e) => { if (MIRROR && e.dataTransfer?.types.includes('Files')){ e.preventDefault(); $('chat').classList.add('drop'); } });
+$('chat').addEventListener('dragleave', (e) => { if (!$('chat').contains(e.relatedTarget)) $('chat').classList.remove('drop'); });
+$('chat').addEventListener('drop', (e) => { $('chat').classList.remove('drop'); if (MIRROR && e.dataTransfer?.files.length){ e.preventDefault(); addPics(e.dataTransfer.files); } });
+document.addEventListener('click', (e) => {
+  if (e.target.closest('#chat [data-attach]')) return $('chat').querySelector('[data-pick]')?.click();
+  const u = e.target.closest('#chat [data-unpic]'); if (u){ chatPics.splice(Number(u.dataset.unpic), 1); return renderChat(); }
+  const img = e.target.closest('#chat .ua img'); if (img){ $('lightbox').innerHTML = `<img src="${img.src}" alt="">`; return $('lightbox').classList.add('on'); }
+  if (e.target.closest('#lightbox')) $('lightbox').classList.remove('on');
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') $('lightbox').classList.remove('on'); });
 /* the menu: sessions that drew on this map, newest first, and saved copies of it */
 let drawerOpen = false;
 const when = (t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? d.toTimeString().slice(0, 5) : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
