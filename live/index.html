@@ -730,15 +730,15 @@ function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
   el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen);
   if (!open) return;
-  const thread = S.threads?.[`@${ME}`] || [];
+  const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="x" data-close-chat>×</span></div>
     <div class="msgs">${thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     <form class="ask" data-chat><input placeholder="Ask about this map" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
-  // a new message scrolls the chat to the bottom
+  // a new message scrolls the chat to the bottom; any other redraw keeps where you were
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
-  if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; }
+  if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
 }
 
 // The Inbox button, with a count when anyone is asking you something, and its list: your questions and the
