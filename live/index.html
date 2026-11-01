@@ -419,8 +419,7 @@ body.paned #foot{right:calc(88px + var(--chatw))}
 .zoom button+button{border-left:1px solid var(--rule)}
 .zoom button:hover{background:#f3f2ee}
 .levels .lv-h{padding:0 8px;border-right:1px solid var(--rule);font-size:12.5px;line-height:26px;color:var(--text-2)}
-.levels button{width:28px;font-size:12.5px}
-.levels button.on{background:#141413;color:#fff}
+.levels button:disabled{color:var(--text-3);cursor:default;background:none}
 /* Claude at the foot of the rail, the way Descript keeps Underlord there: Chat opens a chat about the whole map.
    It reads like the rail's other items, an icon over its word, with Claude's orange on the icon */
 #bot{position:relative;margin-top:auto;flex:none;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
@@ -607,7 +606,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg></span>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
-<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><span class="zoom"><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
+<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><span class="zoom"><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
@@ -792,8 +791,8 @@ function toggleFold(id){
   if (foldedAway(lit)) lit = null;
   render();
 }
-/* Levels, at the bottom of the map: 1 shows where the map starts and the boxes right off it, 2 one ring further,
-   and so on; the last shows every box. A level folds every box at that level that has boxes under it. */
+/* Level − + at the bottom of the map: level 1 shows where the map starts and the boxes right off it, 2 one ring
+   further, and so on; + at the deepest shows every box. A level folds every box at that level that has boxes under it. */
 const maxLevel = () => Math.max(0, ...fold.depth.values());
 const levelFolds = (k) => k >= maxLevel() ? [] : [...fold.depth].filter(([id, d]) => d === k && fold.kids.has(id)).map(([id]) => id);
 function setLevel(k){
@@ -804,13 +803,14 @@ function setLevel(k){
   if (foldedAway(lit)) lit = null;
   render();
 }
+// the level showing now: the furthest ring out with a box showing
+const shownLevel = () => Math.max(0, ...scope().nodes.map((n) => fold.depth.get(n.id) || 0));
 function renderLevels(){
   const el = $('levels'), max = flowBox() ? 0 : maxLevel();
   el.style.display = max ? '' : 'none'; if (!max) return;
-  const mine = [...folded].filter((id) => fold.depth.has(id)).sort().join();
-  const now = Array.from({ length: max }, (_, i) => i + 1).find((k) => levelFolds(k).sort().join() === mine);
-  el.innerHTML = `<span class="lv-h">Levels</span>${Array.from({ length: max }, (_, i) => i + 1).map((k) => `<button class="${k === now ? 'on' : ''}" data-level="${k}"
-    title="${k === max ? 'Show every box' : `Show ${k} level${k === 1 ? '' : 's'} out from where the map starts`}">${k}</button>`).join('')}`;
+  // + at the deepest level still unfolds whatever you folded by hand
+  const now = Math.max(1, shownLevel()), hidden = [...fold.hides.values()].some((h) => h.length);
+  el.innerHTML = `<span class="lv-h">Level ${now}</span><button data-level="${now - 1}" ${now <= 1 ? 'disabled' : ''} title="One level less" aria-label="One level less">−</button><button data-level="${Math.min(now + 1, max)}" ${now >= max && !hidden ? 'disabled' : ''} title="One level more" aria-label="One level more">+</button>`;
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-level]'); if (b) setLevel(Number(b.dataset.level)); });
 // the button sits on the side a box's lines leave from: − shows on hover, a folded box shows how many it hides
@@ -953,9 +953,12 @@ function render(){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
       const off = dup === null ? 0 : dup ? 7 : -7;
       const x1 = a.x < b.x ? a.x + W(a) / 2 : a.x - W(a) / 2, x2 = level ? (a.x < b.x ? b.x - W(b) / 2 : b.x + W(b) / 2) : b.x;
-      // a straight up-and-down line carries its words halfway between the two boxes
-      const mx = upright ? a.x : (x1 + x2) / 2;
-      const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : a.y + off;
+      // a straight up-and-down line carries its words halfway between the two boxes; a sideways line with a jog
+      // carries them on its own last stretch, so lines that share a stem out of one box keep their words apart
+      const branch = !level && !upright && Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
+      const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
+      const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
+      const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
       svg += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
     }
   }
@@ -1562,7 +1565,8 @@ document.addEventListener('click', (e) => {
   // a message's box name opens that box
   else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
-  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
+  // Tidy up lays out what you can see: boxes folded away take no room
+  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view, only: scope().nodes.filter((n) => !n.proposed).map((n) => n.id) }); }
   else if (t.id === 'fitb'){ fit(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }

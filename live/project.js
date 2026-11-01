@@ -246,6 +246,46 @@ export function tidy(nodes, edges = []) {
   }
 }
 
+// A topic map (one box everything hangs off, every other box under exactly one) tidies the way a mind map
+// does: the first box keeps its place, the boxes off it split left and right as they sit now (one straight
+// above or below goes to the lighter side), each ring one column further out, and every box centred beside
+// the boxes under it, so the lines fan out and never cross. Only the boxes in `shown` (all, without it) take
+// room; what is folded away under a showing box lines up beside it, ready for when it unfolds.
+// False, and nothing moves, when the map is not one tree.
+const SLOT = 80;
+export function tidyTree(nodes, edges, shown = null) {
+  const by = new Map(nodes.map((n) => [n.id, n])), kids = new Map(), parent = new Map();
+  for (const e of edges) {
+    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || parent.get(e.to) === e.from) continue;
+    if (parent.has(e.to)) return false;
+    parent.set(e.to, e.from); if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(by.get(e.to));
+  }
+  const roots = nodes.filter((n) => !parent.has(n.id));
+  if (nodes.length < 2 || roots.length !== 1 || (shown && !shown.has(roots[0].id))) return false;
+  const seen = new Set([roots[0].id]), q = [roots[0]];
+  while (q.length) for (const c of kids.get(q.pop().id) || []) if (!seen.has(c.id)) { seen.add(c.id); q.push(c); }
+  if (seen.size !== nodes.length) return false;
+  const vis = (n) => !shown || shown.has(n.id);
+  const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
+  const weight = (list, every) => list.reduce((s, c) => s + leaves(c, every), 0);
+  const order = (list) => [...list].sort((a, b) => a.y - b.y || a.x - b.x);
+  // a box's children in the next column out, stacked top to bottom as they sit now, centred on it
+  const stack = (n, list, side, every) => {
+    let top = n.y - (weight(list, every) - 1) * SLOT / 2;
+    for (const c of order(list)) {
+      const l = leaves(c, every);
+      c.x = n.x + side * COL; c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
+      const ks = kids.get(c.id) || [], open = ks.filter(vis);
+      stack(c, every || !open.length ? ks : open, side, every || !open.length);
+    }
+  };
+  const root = roots[0], all = kids.get(root.id) || [], open = all.filter(vis), every = !open.length, first = every ? all : open;
+  const left = first.filter((c) => c.x < root.x - 1), right = first.filter((c) => c.x > root.x + 1);
+  for (const c of order(first.filter((c) => Math.abs(c.x - root.x) <= 1))) (weight(left, every) <= weight(right, every) ? left : right).push(c);
+  stack(root, left, -1, every); stack(root, right, 1, every);
+  return true;
+}
+
 // node project.js <folder>: print what the map would draw
 if (import.meta.main) {
   const m = readProject(path.resolve(process.argv[2] || '.'));

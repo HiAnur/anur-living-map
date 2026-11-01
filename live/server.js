@@ -23,7 +23,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { follow } from './mirror.js';
-import { placeNew, readProject, tidy } from './project.js';
+import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { MIN, users } from './users.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
@@ -345,12 +345,14 @@ function openMap({ project = '', name = '', home }) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
       if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true;
     },
-    // Tidy up: every box in the view someone is looking at lines up on the grid, for everyone, with no line
-    // through a box; boxes Claude proposed and nobody applied yet find new places around the tidied map
+    // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
+    // in their window). A topic map lays out as a mind map; any other map lines its showing boxes up on the grid,
+    // with no line through a box. Boxes Claude proposed and nobody applied yet find new places around it.
     tidy(a) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
-      tidy(list, inside ? inside.edges || [] : state.edges);
+      const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
+      if (!tidyTree(list, edges, only)) tidy(only ? list.filter((n) => only.has(n.id)) : list, edges);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },
