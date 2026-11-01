@@ -583,7 +583,7 @@ const anyFocus = () => !decisionMap() && scope().nodes.some(focused);
 // a map of decisions rather than of a repo's code (GTM at /gtm/): nothing is built there, so a box's colour
 // says whether it still needs an answer (amber), has been answered (green), or is information (plain)
 const decisionMap = () => !!S && !S.project && !!location.pathname.split('/')[1];
-const decision = (n) => S.calls.some((c) => c.node === n.id && c.status === 'open') ? 'ask'
+const boxDecision = (n) => S.calls.some((c) => c.node === n.id && c.status === 'open') ? 'ask'
   : S.calls.some((c) => c.node === n.id) || n.decided ? 'done' : '';
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
 
@@ -740,7 +740,7 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', decisionMap() ? decision(n) : n.state || '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', decisionMap() ? boxDecision(n) : n.state || '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
