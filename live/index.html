@@ -230,6 +230,10 @@ button,input{font:inherit;color:inherit}
 .d .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .d-wait{margin-top:8px;font-size:12.5px;color:var(--text-2)}
 .d-said{margin-top:8px;font-size:13px;color:var(--text)}
+/* an answered question in History: the answer under it, More for the rest */
+.d-ans{font-size:13.5px;margin:-2px 0 4px}.d-ans b{font-weight:600}.d-ans span{color:var(--text-2)}
+.d-more{margin-left:10px;color:var(--new);font-weight:500;cursor:pointer}
+.d-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}.d-x .d-who{margin-bottom:2px}
 /* the box's notes, under its one-line summary */
 .d-desc{font-size:13.5px;line-height:1.5;color:var(--text);margin:-4px 0 12px}
 /* a question with options: one button per answer, then your own words */
@@ -699,6 +703,8 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null;
+// the answered questions opened with More in History, by call id
+const histOpen = new Set();
 const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
   <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open' && !c.options?.length
     ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
@@ -755,8 +761,26 @@ function renderSide(){
         : c.said ? `<div class="d-said">“${c.said}”</div>` : ''}
     </div>`;
   };
+  // an answered question in History, short: the question and what was decided; More opens why it was asked,
+  // the answers there were to pick from, and what the person said
+  const decided = (c) => {
+    const agent = c.from === 'Codex' ? 'Codex' : 'Claude', opts = c.options || [], more = histOpen.has(c.id);
+    const meant = c.status === 'confirmed' ? c.yes : c.status === 'disputed' ? c.no : c.pickedId === 'other' ? `“${prose(c.picked)}”` : '';
+    return `<div class="d done">
+      <div class="d-q">${c.ask || c.text}</div>
+      <div class="d-ans"><b>${ans(c)}</b>${meant ? `<span> · ${meant}</span>` : ''}</div>
+      <div class="d-who">${c.by}, ${c.at}<span class="d-more" data-hist-more="${c.id}">${more ? 'Less' : 'More'}</span></div>
+      ${more ? `<div class="d-x">
+        <div class="d-who">${agent} asked ${c.for === ME ? 'you' : c.for}</div>
+        ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
+        ${opts.length ? `<div class="d-opts">${opts.map((o) => `<div class="d-opt ${c.pickedId === o.id ? 'picked' : ''}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</div>`).join('')}</div>`
+          : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
+        ${c.said && c.pickedId !== 'other' ? `<div class="d-said">“${prose(c.said)}”</div>` : ''}
+      </div>` : ''}
+    </div>`;
+  };
   const answered = calls.filter((c) => c.status !== 'open').reverse();
-  const history = answered.length ? answered.map(decision).join('')
+  const history = answered.length ? answered.map(decided).join('')
     : n.decided ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>`
     : '<div class="d-wait">Nothing has been answered on this box yet.</div>';
   // three tabs: Information (what the box is and what is open on it), History (what was answered), Chat (what you asked
@@ -993,6 +1017,7 @@ document.addEventListener('click', (e) => {
   else if (t.dataset.flow){ openFlow(t.dataset.flow); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
+  else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
   else if (t.dataset.otherPick){ const c = S.calls.find((x) => x.id === t.dataset.otherPick); if (c){ selected = c.node; sideFor = c.node; sideTab = 'box'; render(); $(`other-${c.id}`)?.focus(); } }
   else if (t.closest('[data-call-row]') && !t.closest('.gb')){
