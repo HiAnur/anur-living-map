@@ -402,21 +402,30 @@ const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k
 // by side join left-to-right with one jog in the gap; boxes mostly above each
 // other join bottom-to-top the same way. So a line never runs along a box edge
 // or arrives where another line already does.
-function route(a, b, dup){
+function route(a, b, dup, others = []){
   // two lines between the same boxes sit 7px either side of the middle
   const off = dup === null ? 0 : dup ? 7 : -7;
   const dx = b.x - a.x, dy = b.y - a.y;
-  if (Math.abs(dx) >= Math.abs(dy)){
+  // sideways: out of the facing sides, one jog in the gap between them
+  const side = () => {
     const sx = dx > 0 ? a.x + W(a) / 2 : a.x - W(a) / 2, tx = dx > 0 ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
-    const y1 = a.y + off, y2 = b.y + off;
-    if (Math.abs(dy) < 2) return `M${sx} ${y1}H${tx}`;
-    const mx = (sx + tx) / 2;
-    return `M${sx} ${y1}H${mx}V${y2}H${tx}`;
-  }
-  const sy = dy > 0 ? a.y + HT(a) / 2 : a.y - HT(a) / 2, ty = dy > 0 ? b.y - HT(b) / 2 - 2 : b.y + HT(b) / 2 + 2;
-  if (Math.abs(dx) < 2) return `M${a.x} ${sy}V${ty}`;
-  const my = (sy + ty) / 2;
-  return `M${a.x} ${sy}V${my}H${b.x}V${ty}`;
+    const y1 = a.y + off, y2 = b.y + off, mx = (sx + tx) / 2;
+    return Math.abs(dy) < 2 ? [[sx, y1], [tx, y1]] : [[sx, y1], [mx, y1], [mx, y2], [tx, y2]];
+  };
+  // up or down: out of the top or bottom, one jog between the rows
+  const updown = () => {
+    const sy = dy > 0 ? a.y + HT(a) / 2 : a.y - HT(a) / 2, ty = dy > 0 ? b.y - HT(b) / 2 - 2 : b.y + HT(b) / 2 + 2, my = (sy + ty) / 2;
+    return Math.abs(dx) < 2 ? [[a.x, sy], [a.x, ty]] : [[a.x, sy], [a.x, my], [b.x, my], [b.x, ty]];
+  };
+  // the natural shape, unless it runs through another box and the other one does not
+  const blocked = (pts) => pts.slice(1).reduce((k, [x2, y2], i) => {
+    const [x1, y1] = pts[i];
+    return k + others.filter((n) => n !== a && n !== b && Math.max(x1, x2) > n.x - W(n) / 2 - 4 && Math.min(x1, x2) < n.x + W(n) / 2 + 4
+      && Math.max(y1, y2) > n.y - HT(n) / 2 - 4 && Math.min(y1, y2) < n.y + HT(n) / 2 + 4).length;
+  }, 0);
+  const first = Math.abs(dx) >= Math.abs(dy) ? side() : updown(), second = Math.abs(dx) >= Math.abs(dy) ? updown() : side();
+  const pts = blocked(first) && blocked(second) < blocked(first) ? second : first;
+  return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
 }
 
 function render(){
@@ -434,7 +443,7 @@ function render(){
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
     const k = e.state || 'old';
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
-    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup)}" marker-end="url(#a-${k})"/>`;
+    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;

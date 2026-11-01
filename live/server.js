@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
-import { readProject } from './project.js';
+import { placeNew, readProject } from './project.js';
 
 const PORT = Number(process.argv[2] || process.env.PORT || 4322);
 const DIR = import.meta.dirname;
@@ -112,6 +112,8 @@ const ACTS = {
     };
     merge(state.nodes, (n) => n.id, a.nodes);
     merge(state.edges, (e) => `${e.from}>${e.to}`, a.edges);
+    // a new box with no place goes where its lines cross nothing
+    placeNew(state.nodes, state.edges);
     merge(state.calls, (c) => c.id, a.calls);
     Object.assign(state.answers, a.answers || {});
     // the ask behind the plan shows on the map's top line

@@ -126,6 +126,54 @@ function layout(nodes, edges) {
   for (const n of nodes) { const [x, y] = at[n.id]; n.x = 90 + x * 230; n.y = 150 + y * 110; }
 }
 
+// A box an agent adds without a place goes on the free grid spot where its
+// lines, drawn the way the page draws them, pass through no other box, and
+// are shortest. Mirrors route() in index.html.
+const BW = (n) => n.w || (n.kind === 'actor' ? 110 : 140), BH = 50;
+// both shapes a line can take, natural one first
+function shapes(a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const sx = dx > 0 ? a.x + BW(a) / 2 : a.x - BW(a) / 2, tx = dx > 0 ? b.x - BW(b) / 2 : b.x + BW(b) / 2, mx = (sx + tx) / 2;
+  const sy = dy > 0 ? a.y + BH / 2 : a.y - BH / 2, ty = dy > 0 ? b.y - BH / 2 : b.y + BH / 2, my = (sy + ty) / 2;
+  const side = [[sx, a.y], [mx, a.y], [mx, b.y], [tx, b.y]], updown = [[a.x, sy], [a.x, my], [b.x, my], [b.x, ty]];
+  const segs = (pts) => pts.slice(1).map((p, i) => [pts[i], p]);
+  return Math.abs(dx) >= Math.abs(dy) ? [segs(side), segs(updown)] : [segs(updown), segs(side)];
+}
+const hits = ([[x1, y1], [x2, y2]], n) => {
+  const l = n.x - BW(n) / 2 - 6, r = n.x + BW(n) / 2 + 6, t = n.y - BH / 2 - 6, b = n.y + BH / 2 + 6;
+  return Math.max(x1, x2) > l && Math.min(x1, x2) < r && Math.max(y1, y2) > t && Math.min(y1, y2) < b;
+};
+
+export function placeNew(nodes, edges) {
+  for (const n of nodes) {
+    if (Number.isFinite(n.x) && Number.isFinite(n.y)) continue;
+    const placed = nodes.filter((o) => o !== n && Number.isFinite(o.x));
+    const links = edges.filter((e) => e.from === n.id || e.to === n.id)
+      .map((e) => placed.find((o) => o.id === (e.from === n.id ? e.to : e.from))).filter(Boolean);
+    const cols = placed.map((o) => Math.round((o.x - 90) / 230)), rows = placed.map((o) => Math.round((o.y - 150) / 110));
+    let best = null;
+    for (let r = Math.min(...rows) - 1; r <= Math.max(...rows) + 1; r++)
+      for (let c = Math.min(...cols) - 1; c <= Math.max(...cols) + 1; c++) {
+        const x = 90 + c * 230, y = 150 + r * 110;
+        if (placed.some((o) => Math.abs(o.x - x) < 200 && Math.abs(o.y - y) < 90)) continue;
+        const me = { ...n, x, y };
+        let cross = 0, len = 0;
+        for (const o of links) {
+          // the page takes the second shape when it crosses fewer boxes
+          const [one, two] = shapes(me, o).map((segs) => ({
+            segs, k: segs.reduce((k, s) => k + placed.filter((p) => p !== o && hits(s, p)).length, 0),
+          }));
+          const pick = one.k && two.k < one.k ? two : one;
+          cross += pick.k;
+          for (const s of pick.segs) len += Math.abs(s[0][0] - s[1][0]) + Math.abs(s[0][1] - s[1][1]);
+        }
+        const score = cross * 10000 + len;
+        if (!best || score < best.score) best = { x, y, score };
+      }
+    n.x = best ? best.x : 90; n.y = best ? best.y : 150;
+  }
+}
+
 // node project.js <folder>: print what the map would draw
 if (import.meta.main) {
   const m = readProject(path.resolve(process.argv[2] || '.'));
