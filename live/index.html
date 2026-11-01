@@ -364,12 +364,26 @@ a{color:inherit;text-decoration:none}
 #decs{right:88px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
 #decs.on{display:block}
 #decs .dl-sub{font-size:12.5px;color:var(--text-2);margin:-2px 0 10px}
-#decs .dl{padding:10px 0;border-top:1px solid var(--rule)}
-#decs .dl-q{font-size:13.5px;font-weight:500;line-height:1.35;margin:4px 0 2px}
-#decs .dl-a{font-size:13.5px}
-#decs .dl-a b{font-weight:600}
-#decs .dl-who{font-size:12px;color:var(--text-2);margin-top:3px}
-#decs .dl-said{font-size:13px;color:var(--text);margin-top:3px}
+#decs .dl{margin:0 -8px;padding:12px 8px;border-top:1px solid var(--rule);border-radius:8px;cursor:pointer}
+#decs .dl:hover{background:#fafaf7}
+#decs .dl.open{background:#f6f8fe}
+#decs .dl-top{display:flex;align-items:center;gap:8px}
+#decs .dl-top .about{margin:0}
+#decs .dl-who{margin-left:auto;font-size:12px;color:var(--text-2);white-space:nowrap}
+#decs .dl-row{display:grid;grid-template-columns:66px 1fr;column-gap:8px;align-items:baseline;margin-top:8px}
+#decs .dl-k{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+#decs .dl-q{font-size:13.5px;line-height:1.4;color:var(--text)}
+#decs .dl-v{justify-self:start;padding:3px 9px;border-radius:7px;background:#e8f4ec;color:#145c3a;font-size:13.5px;font-weight:600;line-height:1.35}
+#decs .dl-v::before{content:'✓ '}
+#decs .dl-m{grid-column:2;font-size:12.5px;color:var(--text-2);margin-top:4px;line-height:1.4}
+#decs .dl-more{grid-column:2;font-size:12px;color:var(--new);font-weight:500;margin-top:6px}
+#decs .dl-x{margin:10px 0 0 74px;padding-top:10px;border-top:1px solid var(--rule);font-size:13px;line-height:1.45;cursor:default}
+#decs .dl-x .h{margin:0 0 4px}
+#decs .dl-x p{margin:0 0 10px}
+#decs .dl-opt{display:flex;gap:6px;padding:3px 0;color:var(--text-2)}
+#decs .dl-opt i{flex:none;width:14px;font-style:normal;color:#145c3a}
+#decs .dl-opt.picked{color:var(--text);font-weight:500}
+#decs .dl-x .gb{margin-top:10px}
 #decs ul{margin:4px 0 0;padding-left:18px;font-size:13px}
 /* a change Claude proposed, under its reply */
 .prop{margin-top:8px;padding:10px 12px;border:1px solid var(--new);border-radius:10px;background:var(--new-tint);font-size:13px}
@@ -836,6 +850,8 @@ function renderChat(){
 /* the rail's Decisions panel: every question answered and every change applied on this map, newest first;
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
+// the decisions opened in the Decisions panel, by call id
+const decOpen = new Set();
 function renderDecs(){
   const el = $('decs'), open = railTab === 'decisions' && !selected;
   el.classList.toggle('on', open);
@@ -848,14 +864,37 @@ function renderDecs(){
   const older = S.calls.filter((c) => c.status !== 'open' && !logged.some((l) => l.c === c)).reverse().map((c) => ({ action: c.status, who: c.by, c, node: c.node }));
   const all = [...logged, ...older].filter((r) => r.action === 'applied' || canSee(nodeById(r.node || r.c?.node) || {}));
   const box = (id) => nodeById(id) ? `<span class="about" data-about-h="${id}" title="Open ${nodeById(id).label}">${nodeById(id).label}</span>` : '';
+  const by = (r) => `${r.who}${r.at ? ` · ${when(r.at)}` : r.c?.at ? ` · ${r.c.at}` : ''}`;
+  // what the decision means: what Yes or No does, what the picked option means, or the person's own words
+  const meant = (c) => c.status === 'confirmed' ? c.yes : c.status === 'disputed' ? c.no
+    : c.pickedId === 'other' ? `“${prose(c.picked)}”` : c.options?.find((o) => o.id === c.pickedId)?.means || '';
+  // opened: why it was asked, every answer there was (the one taken marked), what was said, and the box
+  const detail = (c, id) => `<div class="dl-x">
+      ${c.plain || c.context ? `<div class="h">Why Claude asked</div><p>${c.plain || c.context}</p>` : ''}
+      <div class="h">The choices</div>
+      ${(c.options?.length ? c.options.map((o) => ({ label: o.label, means: o.means, on: c.pickedId === o.id }))
+        : [{ label: 'Yes', means: c.yes, on: c.status === 'confirmed' }, { label: 'No', means: c.no, on: c.status === 'disputed' }])
+        .map((o) => `<div class="dl-opt ${o.on ? 'picked' : ''}"><i>${o.on ? '✓' : ''}</i><span>${o.label}${o.means ? `: ${o.means}` : ''}</span></div>`).join('')}
+      ${c.pickedId === 'other' ? `<div class="dl-opt picked"><i>✓</i><span>Own answer: “${prose(c.picked)}”</span></div>` : ''}
+      ${c.said && c.said !== c.picked ? `<div class="h" style="margin-top:10px">What ${c.by} said</div><p>“${prose(c.said)}”</p>` : ''}
+      ${nodeById(c.node) ? `<button class="gb" data-about-h="${c.node}">Open ${nodeById(c.node).label} ›</button>` : ''}
+    </div>`;
   el.innerHTML = `<div class="ct"><span>Decisions${all.length ? ` · ${all.length}` : ''}</span><span class="x" data-close-rail>×</span></div>
-    <div class="dl-sub">Every answer and every applied change on this map, newest first.</div>
-    ${all.length ? all.map((r) => r.action === 'applied'
-      ? `<div class="dl"><div class="dl-q">Applied a change Claude proposed</div><ul>${String(r.text || '').split('; ').map((o) => `<li>${prose(o)}</li>`).join('')}</ul><div class="dl-who">${r.who}${r.at ? `, ${when(r.at)}` : ''}</div></div>`
-      : `<div class="dl">${box(r.node || r.c?.node)}<div class="dl-q">${r.c?.ask || r.c?.text || r.text}</div>
-          <div class="dl-a"><b>${r.c ? ans(r.c) : r.action}</b></div>
-          ${r.c?.said && r.c.said !== r.c.picked ? `<div class="dl-said">“${prose(r.c.said)}”</div>` : ''}
-          <div class="dl-who">${r.who}${r.at ? `, ${when(r.at)}` : r.c?.at ? `, ${r.c.at}` : ''}</div></div>`).join('')
+    <div class="dl-sub">Every question answered and every change applied on this map, newest first. Click one for the whole decision.</div>
+    ${all.length ? all.map((r, i) => {
+      const id = r.c?.id || `applied-${r.at || i}`, open = decOpen.has(id);
+      if (r.action === 'applied') return `<div class="dl ${open ? 'open' : ''}" data-dec="${id}"><div class="dl-top"><span class="dl-k">Map change</span><span class="dl-who">${by(r)}</span></div>
+        <div class="dl-row"><span class="dl-k">Decision</span><span class="dl-v">Applied</span></div>
+        <div class="dl-row"><span class="dl-k">Change</span><ul>${String(r.text || '').split('; ').map((o) => `<li>${prose(o)}</li>`).join('')}</ul></div></div>`;
+      const c = r.c || { ask: r.text, status: r.action, by: r.who, node: r.node };
+      return `<div class="dl ${open ? 'open' : ''}" data-dec="${id}">
+        <div class="dl-top">${box(r.node || c.node)}<span class="dl-who">${by(r)}</span></div>
+        <div class="dl-row"><span class="dl-k">Question</span><span class="dl-q">${c.ask || c.text || ''}</span></div>
+        <div class="dl-row"><span class="dl-k">Decision</span><span class="dl-v">${r.c ? ans(c) : r.action}</span>
+          ${r.c && meant(c) ? `<span class="dl-m">${meant(c)}</span>` : ''}
+          ${r.c ? `<span class="dl-more">${open ? 'Less' : 'More'}</span>` : ''}</div>
+        ${open && r.c ? detail(c, id) : ''}</div>`;
+    }).join('')
       : '<div class="d-wait">Nothing has been decided on this map yet.</div>'}`;
 }
 
@@ -1076,6 +1115,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   // a box's name in Decisions opens that box on its History tab
+  else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec; decOpen.has(id) ? decOpen.delete(id) : decOpen.add(id); render(); }
   else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'history'; render(); } }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
