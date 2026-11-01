@@ -30,6 +30,13 @@ button,input{font:inherit;color:inherit}
 #crumbs .dir{font:12.5px var(--mono);color:var(--text-2);cursor:default}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
+#crumbs .mapw{position:relative;display:flex;margin-left:-6px}
+#crumbs .mapsw{width:24px;height:24px;border:0;border-radius:6px;background:none;display:grid;place-items:center;cursor:pointer}
+#crumbs .mapsw:hover,#crumbs .mapsw.on{background:#f3f2ee}
+#crumbs .mapsw .chev{width:16px;height:16px;fill:none;stroke:var(--text-2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+#crumbs .mapm{left:0;right:auto;top:30px;width:200px}
+#crumbs .mapm .pm-row{color:var(--text);font-size:13.5px}
+#crumbs .mapm .pm-row:hover{background:#f3f2ee}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
 #crumbs .sep{color:var(--text-3)}
 #ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
@@ -996,6 +1003,8 @@ function render(){
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
 let shareOpen = false, peopleOpen = false;
+// the menu beside the map's name, like Linear's workspace menu: Switch map opens the list of maps to pick from
+let mapMenu = false;
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
@@ -1008,7 +1017,7 @@ function renderShare(){
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
     </div>`;
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && mapMenu){ mapMenu = false; renderTop(); } });
 
 function renderTop(){
   const fb = flowBox();
@@ -1016,7 +1025,7 @@ function renderTop(){
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
   const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
   const where = `<span class="lbl">Folder</span><b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b>
-    <span class="lbl">Name</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
+    <span class="lbl">Name</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b><span class="mapw"><button class="mapsw ${mapMenu ? 'on' : ''}" data-mapmenu title="Switch map" aria-label="Switch map"><svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>${mapMenu ? `<div class="pm mapm"><a class="pm-row" href="/${location.search}">Switch map</a></div>` : ''}</span>`;
   // while you type a new name, a redraw leaves the box alone
   if (!$('renamei')) $('crumbs').innerHTML = fb
     ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button>${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
@@ -1513,6 +1522,8 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   // the people menu closes on any click outside it
   if (peopleOpen && !t.closest('#faces')){ peopleOpen = false; renderTop(); }
+  if (mapMenu && !t.closest('.mapw')){ mapMenu = false; renderTop(); }
+  if (t.closest('[data-mapmenu]')){ mapMenu = !mapMenu; renderTop(); return; }
   const face = t.closest('[data-as]');
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.closest('[data-signout]')){ fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); return; }
