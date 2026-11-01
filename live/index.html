@@ -47,7 +47,7 @@ button,input{font:inherit;color:inherit}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
 
-#canvas{position:absolute;inset:44px 0 0 0;overflow:hidden;cursor:grab;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#canvas{position:absolute;inset:44px 72px 0 0;overflow:hidden;cursor:grab;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
@@ -139,9 +139,9 @@ button,input{font:inherit;color:inherit}
 /* cards over the map */
 .panel{position:fixed;background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08);z-index:15;font-size:13.5px}
 #queue{left:16px;top:60px;width:360px;padding:12px 14px}
-#side{right:16px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
+#side{right:88px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
 #side.on{display:block}
-#prs{right:16px;top:60px;width:420px;padding:14px 16px;display:none;max-height:calc(100% - 120px);overflow:auto}
+#prs{right:88px;top:60px;width:420px;padding:14px 16px;display:none;max-height:calc(100% - 120px);overflow:auto}
 /* comments, the Figma way: a pin on the map, a thread beside it, every thread in a panel */
 /* with the comment tool on, the pointer is a comment bubble; its bottom-left tip is where the pin lands */
 #canvas.commenting,#canvas.commenting .node,#canvas.commenting .pinc{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M2 30V14C2 7.4 7.4 2 14 2h4c6.6 0 12 5.4 12 12s-5.4 12-12 12H6z' fill='%23fff' stroke='%237C3AED' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M16 9v10M11 14h10' stroke='%237C3AED' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") 2 30, crosshair}
@@ -171,7 +171,7 @@ button,input{font:inherit;color:inherit}
 .th-reply input{flex:1;height:36px;border:1px solid var(--rule-2);border-radius:18px;padding:0 14px;background:#f8f7f3}
 .th-reply input:focus{outline:none;border-color:#7C3AED;background:#fff}
 .th-reply button{width:30px;height:30px;border-radius:50%;border:0;background:#7C3AED;color:#fff;cursor:pointer}
-#cpanel{right:16px;top:60px;bottom:60px;width:340px;display:none;padding:0;overflow:hidden}
+#cpanel{right:88px;top:60px;bottom:60px;width:340px;display:none;padding:0;overflow:hidden}
 #cpanel.on{display:flex;flex-direction:column}
 .cp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule)}
 .cp-head input{flex:1;height:32px;border:0;border-radius:8px;background:#f3f2ee;padding:0 10px}
@@ -319,10 +319,10 @@ a{color:inherit;text-decoration:none}
 /* Legend, Tidy up and Fit sit together at the bottom left; Claude keeps the bottom-right corner */
 #foot{position:fixed;left:16px;bottom:16px;display:flex;align-items:center;gap:8px;z-index:10}
 /* Claude in the corner, the way Descript keeps Underlord there: the button opens a chat about the whole map */
-#bot{position:fixed;right:16px;bottom:14px;width:40px;height:40px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;color:var(--claude);font:500 22px/1 var(--plex);display:grid;place-items:center;cursor:pointer;z-index:16;box-shadow:0 2px 10px rgba(0,0,0,.06);transition:transform .15s var(--ease),border-color .15s}
+#bot{position:relative;margin-top:auto;flex:none;width:40px;height:40px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;color:var(--claude);font:500 22px/1 var(--plex);display:grid;place-items:center;cursor:pointer;z-index:16;box-shadow:0 2px 10px rgba(0,0,0,.06);transition:transform .15s var(--ease),border-color .15s}
 #bot:hover{transform:translateY(-1px);border-color:var(--claude)}
 #bot.on{background:var(--claude);border-color:var(--claude);color:#fff}
-#chat{right:16px;bottom:80px;width:380px;height:min(560px,calc(100% - 140px));display:none;flex-direction:column;padding:0;overflow:hidden}
+#chat{right:88px;bottom:80px;width:380px;height:min(560px,calc(100% - 140px));display:none;flex-direction:column;padding:0;overflow:hidden}
 #chat.on{display:flex}
 #chat .ct{padding:12px 16px;margin:0;border-bottom:1px solid var(--rule)}
 #chat .ct .star{color:var(--claude);margin-right:6px}
@@ -342,6 +342,23 @@ a{color:inherit;text-decoration:none}
 #chat .att b{font-weight:500;color:var(--text);padding:1px 8px;border:1px solid var(--rule-2);border-radius:999px}
 #chat .att .x{margin-left:auto;cursor:pointer}
 #chat .att + .ask{border-top:0}
+/* the rail down the right edge: a button per extra panel, icon over its name; Claude sits at the foot */
+#rail{position:fixed;right:0;top:44px;bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15}
+#rail .ri{width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
+#rail .ri svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+#rail .ri:hover{background:#f3f2ee;color:var(--text)}
+#rail .ri.on{background:#efeee9;color:var(--text)}
+/* the Decisions panel: every answer and applied change on the map, newest first */
+#decs{right:88px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
+#decs.on{display:block}
+#decs .dl-sub{font-size:12.5px;color:var(--text-2);margin:-2px 0 10px}
+#decs .dl{padding:10px 0;border-top:1px solid var(--rule)}
+#decs .dl-q{font-size:13.5px;font-weight:500;line-height:1.35;margin:4px 0 2px}
+#decs .dl-a{font-size:13.5px}
+#decs .dl-a b{font-weight:600}
+#decs .dl-who{font-size:12px;color:var(--text-2);margin-top:3px}
+#decs .dl-said{font-size:13px;color:var(--text);margin-top:3px}
+#decs ul{margin:4px 0 0;padding-left:18px;font-size:13px}
 /* a change Claude proposed, under its reply */
 .prop{margin-top:8px;padding:10px 12px;border:1px solid var(--new);border-radius:10px;background:var(--new-tint);font-size:13px}
 .prop .ph{font-weight:500;margin-bottom:4px}
@@ -421,7 +438,12 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 </div>
 <div id="foot"><div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div></div><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button></div>
 <div class="panel" id="chat"></div>
-<button id="bot" title="Ask Claude about this map" aria-label="Ask Claude about this map">✳</button>
+<div class="panel" id="decs"></div>
+<!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
+<nav id="rail">
+  <button class="ri" data-rail="decisions" title="Every decision made on this map"><svg viewBox="0 0 20 20"><path d="M3 5.5l1.6 1.6L7.5 4.2M3 11.5l1.6 1.6 2.9-2.9M10 6h7M10 12h7M3 16.5h14"/></svg><span>Decisions</span></button>
+  <button id="bot" title="Ask Claude about this map" aria-label="Ask Claude about this map">✳</button>
+</nav>
 <div id="toast"></div>
 <div id="sharebg"><div id="share" role="dialog" aria-label="Share this map"></div></div>
 
@@ -560,7 +582,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); return; }
+  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); return; }
   const { nodes, edges } = scope();
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -606,7 +628,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat();
+  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs();
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
@@ -774,6 +796,32 @@ function renderChat(){
   // a new message scrolls the chat to the bottom; any other redraw keeps where you were
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
   if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
+}
+
+/* the rail's Decisions panel: every question answered and every change applied on this map, newest first;
+   a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
+let railTab = null;
+function renderDecs(){
+  const el = $('decs'), open = railTab === 'decisions' && !selected;
+  el.classList.toggle('on', open);
+  document.querySelectorAll('#rail .ri').forEach((b) => b.classList.toggle('on', b.dataset.rail === railTab && !selected));
+  if (!open) return;
+  const when = (t) => { const d = new Date(t); return `${d.toDateString() === new Date().toDateString() ? '' : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, `}${d.toTimeString().slice(0, 5)}`; };
+  const logged = (S.log || []).filter((l) => ['confirmed', 'disputed', 'answered', 'applied'].includes(l.action))
+    .map((l) => ({ ...l, c: l.call ? S.calls.find((c) => c.id === l.call) : null })).reverse();
+  // an answer the log never held (an older map) still counts, after the logged ones
+  const older = S.calls.filter((c) => c.status !== 'open' && !logged.some((l) => l.c === c)).reverse().map((c) => ({ action: c.status, who: c.by, c, node: c.node }));
+  const all = [...logged, ...older].filter((r) => r.action === 'applied' || canSee(nodeById(r.node || r.c?.node) || {}));
+  const box = (id) => nodeById(id) ? `<span class="about" data-about-h="${id}" title="Open ${nodeById(id).label}">${nodeById(id).label}</span>` : '';
+  el.innerHTML = `<div class="ct"><span>Decisions${all.length ? ` · ${all.length}` : ''}</span><span class="x" data-close-rail>×</span></div>
+    <div class="dl-sub">Every answer and every applied change on this map, newest first.</div>
+    ${all.length ? all.map((r) => r.action === 'applied'
+      ? `<div class="dl"><div class="dl-q">Applied a change Claude proposed</div><ul>${String(r.text || '').split('; ').map((o) => `<li>${prose(o)}</li>`).join('')}</ul><div class="dl-who">${r.who}${r.at ? `, ${when(r.at)}` : ''}</div></div>`
+      : `<div class="dl">${box(r.node || r.c?.node)}<div class="dl-q">${r.c?.ask || r.c?.text || r.text}</div>
+          <div class="dl-a"><b>${r.c ? ans(r.c) : r.action}</b></div>
+          ${r.c?.said && r.c.said !== r.c.picked ? `<div class="dl-said">“${prose(r.c.said)}”</div>` : ''}
+          <div class="dl-who">${r.who}${r.at ? `, ${when(r.at)}` : r.c?.at ? `, ${r.c.at}` : ''}</div></div>`).join('')
+      : '<div class="d-wait">Nothing has been decided on this map yet.</div>'}`;
 }
 
 // The Inbox button, with a count when anyone is asking you something, and its list: your questions and the
@@ -977,7 +1025,7 @@ document.addEventListener('click', (e) => {
   // Ask Claude, in the tool bar or on a box card, opens your one chat; with a box open, that box comes attached
   else if (t.closest('.tb') && t.closest('.tb').dataset.tool === 'ask' || t.closest('[data-ask-box]')){
     chatAbout = t.closest('[data-ask-box]')?.dataset.askBox || selected || chatAbout;
-    selected = null; chatOpen = true; chatSeen = -1; render(); $('chat').querySelector('input')?.focus();
+    selected = null; chatOpen = true; railTab = null; chatSeen = -1; render(); $('chat').querySelector('input')?.focus();
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
   // a message's box name opens that box, on its Chat tab
@@ -985,7 +1033,11 @@ document.addEventListener('click', (e) => {
   else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask') setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
-  else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen) selected = null; chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
+  else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
+  else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
+  // a box's name in Decisions opens that box on its History tab
+  else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'history'; render(); } }
+  else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
   else if (t.closest('[data-rename]')){
     t.closest('[data-rename]').outerHTML = `<input id="renamei" value="${esc(S.title)}" maxlength="60" aria-label="Map name" autocomplete="off">`;
