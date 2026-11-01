@@ -30,7 +30,7 @@ button,input{font:inherit;color:inherit}
 #crumbs .dir{font:12.5px var(--mono);color:var(--text-2);cursor:default}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
-/* Switch map, first at the top left, the way Linear keeps its workspace switcher there: it opens the list of maps */
+/* Switch map, at the top left beside Inbox, the way Linear keeps its workspace switcher there: it opens the list of maps */
 #top .mapb{display:inline-flex;align-items:center;gap:6px;color:var(--text);text-decoration:none}
 #top .mapb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
@@ -586,9 +586,9 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 </head>
 <body>
 <div id="top">
-  <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
   <button class="hb" id="menub" title="Sessions and saved maps" aria-label="Sessions and saved maps"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
+  <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
   <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
   <div id="crumbs"></div>
   <div id="ticket"></div>
