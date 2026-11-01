@@ -26,6 +26,7 @@ const HOME = PROJECT ? path.join(PROJECT, '.living-map') : DIR;
 if (PROJECT) fs.mkdirSync(HOME, { recursive: true });
 const STATE = path.join(HOME, 'state.json');
 const OUTBOX = path.join(HOME, 'outbox.md');
+const SAVES = path.join(HOME, 'saves');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 const seed = () => {
   if (!PROJECT) return demo();
@@ -82,7 +83,25 @@ const ACTS = {
     state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: a.node, text: a.text });
     return true;
   },
-  reset() { state = fresh(); try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+  // starting over keeps the saved maps and the list of sessions that drew on it
+  reset() { const keep = { saves: state.saves || [], sessions: state.sessions || [] }; state = { ...fresh(), ...keep }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+  // a saved map is a copy of the whole map as it is now, kept in saves/<id>.json; the list lives in the map
+  save(a) {
+    const id = Date.now().toString(36), { saves = [], sessions = [], ...snap } = state;
+    fs.mkdirSync(SAVES, { recursive: true });
+    fs.writeFileSync(path.join(SAVES, `${id}.json`), JSON.stringify(snap));
+    const name = String(a.name || '').trim().slice(0, 80) || `${state.ticket || state.title} · ${stamp()}`;
+    state.saves = [{ id, name, by: a.by, at: Date.now(), boxes: snap.nodes.length, open: snap.calls.filter((c) => c.status === 'open').length }, ...saves];
+    return true;
+  },
+  // opening a saved map makes it the map everyone sees; the list and the sessions stay
+  load(a) {
+    const file = path.join(SAVES, `${String(a.id).replace(/[^\w]/g, '')}.json`);
+    if (!fs.existsSync(file)) return false;
+    const keep = { saves: state.saves || [], sessions: state.sessions || [] };
+    state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...keep };
+    return true;
+  },
   // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
   comment(a) {
     const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
@@ -121,6 +140,9 @@ const ACTS = {
     if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
     for (const id of a.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
     state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
+    // each plan an agent draws is one session in the map's list
+    state.sessions = [{ id: Date.now().toString(36), agent: a.by, chat: String(a.session || '').slice(0, 80), ticket: state.ticket, prompt: state.prompt,
+      note: a.note || '', at: Date.now(), boxes: (a.nodes || []).length, calls: (a.calls || []).length }, ...(state.sessions || [])];
     tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
     return true;
   },

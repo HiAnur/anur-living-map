@@ -20,7 +20,7 @@ Then wait. Priyanka's and Duy's answers arrive as plain lines at `curl -s localh
 ## The shape the map takes (`type: "plan"`)
 
 ```json
-{ "type": "plan", "by": "Claude", "note": "one line on what the plan changes",
+{ "type": "plan", "by": "Claude", "note": "one line on what the plan changes", "session": "three or four words naming this chat",
   "nodes": [ { "id": "billing", "label": "Billing", "x": 540, "y": 150, "w": 180,
                "state": "new",            // new (not built yet) | todo (something to do) | assumed-gone (you assume it can go)
                "sub": "New: Pro via the provider", "file": "services/billing/", "by": "Claude",
