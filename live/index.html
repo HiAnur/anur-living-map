@@ -271,9 +271,13 @@ a{color:inherit;text-decoration:none}
 .chk{margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12.5px;border:1px solid var(--rule)}
 .chk.ok{color:var(--ok);border-color:rgba(46,139,87,.4)}.chk.bad{color:var(--gone);border-color:rgba(210,59,50,.4);background:#fdf2f1}
 .chk .d{display:block;color:var(--text);margin-top:3px}
-/* the key: three swatches on one baseline, each the size of the mark it stands for */
-#legend{position:fixed;left:16px;bottom:16px;display:flex;align-items:center;gap:18px;height:28px;padding:0 12px;border:1px solid var(--rule);border-radius:999px;background:#fff;font-size:12px;color:var(--text-2);z-index:10}
-#legend span{display:inline-flex;align-items:center;gap:7px}
+/* the key: one small icon; hovering it opens the three swatches, each the size of the mark it stands for */
+#legend{position:fixed;left:16px;bottom:16px;width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--rule);border-radius:999px;background:#fff;color:var(--text-2);z-index:10;outline:none}
+#legend:hover,#legend:focus-visible{background:#f3f2ee}
+#legend .lk{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+#legend .lc{display:none;position:absolute;left:0;bottom:calc(100% + 8px);flex-direction:column;gap:10px;padding:12px 14px;border:1px solid var(--rule);border-radius:10px;background:#fff;font-size:12px;color:var(--text-2);white-space:nowrap;box-shadow:0 4px 16px rgba(20,20,19,.08)}
+#legend:hover .lc,#legend:focus .lc{display:flex}
+#legend span{display:grid;grid-template-columns:70px auto;column-gap:10px;align-items:center;justify-items:start}
 #legend i{display:block;width:22px;height:2px;font-style:normal}
 #legend i.n{background:repeating-linear-gradient(90deg,var(--new) 0 6px,transparent 6px 10px);background-size:20px 2px;animation:flowx .9s linear infinite}
 @keyframes flowx{to{background-position:20px 0}}
@@ -311,7 +315,7 @@ body.rec #foot,body.rec #legend{display:none}
 <div class="panel" id="prs"></div>
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
-<div id="legend"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div>
+<div id="legend" tabindex="0" aria-label="Key"><svg class="lk" viewBox="0 0 20 20"><path d="M4 6h1.5M8.5 6H16M4 10h1.5M8.5 10H16M4 14h1.5M8.5 14H16"/></svg><div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div></div>
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
   <span class="tb" data-tool="hand" title="Pan"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
