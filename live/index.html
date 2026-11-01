@@ -418,8 +418,10 @@ body.paned #foot{right:calc(88px + var(--chatw))}
 .zoom button{width:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--text);cursor:pointer}
 .zoom button+button{border-left:1px solid var(--rule)}
 .zoom button:hover{background:#f3f2ee}
-/* Fit sits in the zoom control, as its first button: one control for how much of the map you see */
-.zoom .fit{width:auto;padding:0 10px;font-size:12.5px}
+/* Fit sits in the zoom control, as its first button: one control for how much of the map you see; its icon is
+   the four corners of a frame, the map fitted inside */
+.zoom .fit{display:grid;place-items:center}
+.zoom .fit svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .levels .lv-h{padding:0 8px;border-right:1px solid var(--rule);font-size:12.5px;line-height:26px;color:var(--text-2)}
 .levels button:disabled{color:var(--text-3);cursor:default;background:none}
 /* Claude at the foot of the rail, the way Descript keeps Underlord there: Chat opens a chat about the whole map.
@@ -608,7 +610,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg></span>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
-<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view">Fit</button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
+<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
