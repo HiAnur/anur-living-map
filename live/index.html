@@ -139,6 +139,17 @@ button,input{font:inherit;color:inherit}
 /* a box with something inside: an Expand pill on its bottom edge; a double click does the same */
 .node .expand{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);height:18px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 10.5px/16px var(--plex);white-space:nowrap;cursor:pointer}
 .node .expand:hover{color:var(--text);border-color:var(--text-2)}
+/* fold and unfold: a small round button on the side a box's lines leave from; − on hover, and a folded box
+   keeps it showing, dark, with how many boxes it hides */
+.node .fold{position:absolute;z-index:2;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 11px/16px var(--plex);text-align:center;cursor:pointer;opacity:0;transition:opacity .15s}
+.node:hover .fold,.node .fold.shut{opacity:1}
+.node .fold:hover{border-color:var(--text-2);color:var(--text)}
+.node .fold.shut{background:#141413;border-color:#141413;color:#fff}
+.node .fold.shut:hover{background:#3d3c39}
+.node .fold.r{right:-10px;top:50%;margin-top:-9px}
+.node .fold.l{left:-10px;top:50%;margin-top:-9px}
+.node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
+.node .fold.t{top:-10px;left:50%;margin-left:-9px}
 .node.new .expand{border-color:var(--new);color:var(--new)}
 /* who the box waits on: their name as a pill in their colour, top-right */
 .node .mk.p{left:auto;right:8px;top:-10px;width:auto;height:18px;line-height:16px;padding:0 8px;border-radius:999px;border:1px solid #fff;font-size:10.5px;letter-spacing:.02em;box-shadow:0 1px 3px rgba(0,0,0,.15)}
@@ -407,6 +418,9 @@ body.paned #foot{right:calc(88px + var(--chatw))}
 .zoom button{width:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--text);cursor:pointer}
 .zoom button+button{border-left:1px solid var(--rule)}
 .zoom button:hover{background:#f3f2ee}
+.levels .lv-h{padding:0 8px;border-right:1px solid var(--rule);font-size:12.5px;line-height:26px;color:var(--text-2)}
+.levels button{width:28px;font-size:12.5px}
+.levels button.on{background:#141413;color:#fff}
 /* Claude at the foot of the rail, the way Descript keeps Underlord there: Chat opens a chat about the whole map.
    It reads like the rail's other items, an icon over its word, with Claude's orange on the icon */
 #bot{position:relative;margin-top:auto;flex:none;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
@@ -593,7 +607,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg></span>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
-<div id="foot"><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><span class="zoom"><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
+<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button><span class="zoom"><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
@@ -736,10 +750,78 @@ const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [
 const scope = () => {
   const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
-  if (view !== 'system') return all;
+  if (view !== 'system') return unfolded(all);
   const p = proposed();
-  return p.nodes.length || p.edges.length ? { nodes: [...all.nodes, ...p.nodes], edges: [...all.edges, ...p.edges] } : all;
+  return unfolded(p.nodes.length || p.edges.length ? { nodes: [...all.nodes, ...p.nodes], edges: [...all.edges, ...p.edges] } : all);
 };
+/* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
+   A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
+   What you fold is yours alone: this browser keeps it for this map. */
+const FOLD_KEY = `lm.folded:${location.pathname}`;
+let folded = new Set();
+try { folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch {}
+const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); } catch {} };
+// each box's children, and for each folded box the boxes it hides, as of the last drawing
+let fold = { kids: new Map(), depth: new Map(), hides: new Map() };
+function unfolded({ nodes, edges }){
+  const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
+  for (const e of edges) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
+  const walk = (starts, stop = () => false) => {
+    const seen = new Set(starts), q = [...starts];
+    while (q.length){ const id = q.shift(); if (stop(id)) continue; for (const k of kids.get(id) || []) if (!seen.has(k)){ seen.add(k); q.push(k); } }
+    return seen;
+  };
+  // the map starts at the boxes no line comes into, and at any loop of boxes none of those reach
+  let roots = [...ids].filter((id) => !into.has(id));
+  const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
+  const shown = walk(roots, (id) => folded.has(id));
+  // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
+  const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
+  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
+  fold = { kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  return shown.size === ids.size ? { nodes, edges } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter((e) => shown.has(e.from) && shown.has(e.to)) };
+}
+const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
+// a box you go to (from a question, the Inbox, a search) comes out from under whatever folded it away
+const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ folded.delete(f); out = true; } if (out) saveFolds(); return out; };
+function toggleFold(id){
+  if (folded.has(id)) folded.delete(id); else folded.add(id);
+  saveFolds(); scope();
+  // folding away the box you had open closes it, rather than unfolding again at once
+  if (foldedAway(selected)) selected = null;
+  if (foldedAway(lit)) lit = null;
+  render();
+}
+/* Levels, at the bottom of the map: 1 shows where the map starts and the boxes right off it, 2 one ring further,
+   and so on; the last shows every box. A level folds every box at that level that has boxes under it. */
+const maxLevel = () => Math.max(0, ...fold.depth.values());
+const levelFolds = (k) => k >= maxLevel() ? [] : [...fold.depth].filter(([id, d]) => d === k && fold.kids.has(id)).map(([id]) => id);
+function setLevel(k){
+  scope(); const here = new Set(fold.depth.keys());
+  folded = new Set([...[...folded].filter((id) => !here.has(id)), ...levelFolds(k)]);
+  saveFolds(); scope();
+  if (foldedAway(selected)) selected = null;
+  if (foldedAway(lit)) lit = null;
+  render();
+}
+function renderLevels(){
+  const el = $('levels'), max = flowBox() ? 0 : maxLevel();
+  el.style.display = max ? '' : 'none'; if (!max) return;
+  const mine = [...folded].filter((id) => fold.depth.has(id)).sort().join();
+  const now = Array.from({ length: max }, (_, i) => i + 1).find((k) => levelFolds(k).sort().join() === mine);
+  el.innerHTML = `<span class="lv-h">Levels</span>${Array.from({ length: max }, (_, i) => i + 1).map((k) => `<button class="${k === now ? 'on' : ''}" data-level="${k}"
+    title="${k === max ? 'Show every box' : `Show ${k} level${k === 1 ? '' : 's'} out from where the map starts`}">${k}</button>`).join('')}`;
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-level]'); if (b) setLevel(Number(b.dataset.level)); });
+// the button sits on the side a box's lines leave from: − shows on hover, a folded box shows how many it hides
+function foldButton(n, at){
+  const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return '';
+  const ks = kids.map((k) => at[k] || nodeById(k)).filter(Boolean), dx = ks.reduce((s, k) => s + k.x, 0) / ks.length - n.x, dy = ks.reduce((s, k) => s + k.y, 0) / ks.length - n.y;
+  let side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');
+  if (side === 'b' && n.inside) side = 'r';
+  const shut = folded.has(n.id), hid = fold.hides.get(n.id)?.length || 0;
+  return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${n.label}` : `Fold: hide the boxes under ${n.label}`}">${shut ? hid || '+' : '−'}</span>`;
+}
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
 // and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
 // yours: from your chats on the map, and from the Claude Code chat linked to this map for you
@@ -851,8 +933,9 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane(); return; }
-  const { nodes, edges } = scope();
+  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane(); return; }
+  let { nodes, edges } = scope();
+  while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
   let svg = '';
@@ -895,12 +978,13 @@ function render(){
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
+      ${foldButton(n, byId)}
       </div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane();
+  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane();
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
@@ -1298,7 +1382,7 @@ const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000));
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
 const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
 // a resolved comment leaves the map, as in Figma; the panel keeps it behind "Show resolved"
-const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.resolved || showResolved) && (!c.node || !locked(nodeById(c.node) || {})));
+const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.resolved || showResolved) && (!c.node || (!locked(nodeById(c.node) || {}) && !foldedAway(c.node))));
 function renderComments(){
   const pins = visibleComments().map((c) => `<div class="pinc ${openThread === c.id ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${c.msgs[0].who[0]}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`);
   if (draft) pins.push(`<div class="pinc on" style="left:${draft.x}px;top:${draft.y}px"><i style="background:${pcol(ME)}">${ME[0]}</i></div>`);
@@ -1356,6 +1440,8 @@ canvas.addEventListener('pointerdown', (e) => {
   // click event would land on the canvas, not on the pill
   const ex = e.target.closest('.expand');
   if (ex){ enter(ex.dataset.expand); return; }
+  const fo = e.target.closest('.fold');
+  if (fo){ toggleFold(fo.dataset.fold); return; }
   const nd = e.target.closest('.node');
   moved = false;
   // the comment tool drops a pin where you click, on a box or on the canvas
