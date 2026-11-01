@@ -180,7 +180,7 @@ button,input{font:inherit;color:inherit}
 .cp-empty{padding:24px;text-align:center;color:var(--text-2);font-size:13px}
 /* comment mode, the Figma way: the tool turns purple while it is on */
 .tb[data-tool="comment"].on{background:#7C3AED;color:#fff}
-.tb .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #1f1f1e}
+.tb .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
 .tb{position:relative}
 #prs.on{display:block}
 /* the Inbox: what anyone is asking you, on every map; a count on the button when something waits */
@@ -310,9 +310,9 @@ a{color:inherit;text-decoration:none}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
 #foot{position:fixed;right:80px;bottom:20px;display:flex;gap:8px;z-index:10}
 /* Claude in the corner, the way Descript keeps Underlord there: the button opens a chat about the whole map */
-#bot{position:fixed;right:16px;bottom:16px;width:52px;height:52px;border:0;border-radius:14px;background:#1f1f1e;color:#DE7E58;font:500 26px/1 var(--plex);display:grid;place-items:center;cursor:pointer;z-index:16;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:transform .15s var(--ease)}
-#bot:hover{transform:translateY(-2px)}
-#bot.on{background:var(--claude);color:#fff}
+#bot{position:fixed;right:16px;bottom:14px;width:40px;height:40px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;color:var(--claude);font:500 22px/1 var(--plex);display:grid;place-items:center;cursor:pointer;z-index:16;box-shadow:0 2px 10px rgba(0,0,0,.06);transition:transform .15s var(--ease),border-color .15s}
+#bot:hover{transform:translateY(-1px);border-color:var(--claude)}
+#bot.on{background:var(--claude);border-color:var(--claude);color:#fff}
 #chat{right:16px;bottom:80px;width:380px;height:min(560px,calc(100% - 140px));display:none;flex-direction:column;padding:0;overflow:hidden}
 #chat.on{display:flex}
 #chat .ct{padding:12px 16px;margin:0;border-bottom:1px solid var(--rule)}
@@ -335,14 +335,36 @@ a{color:inherit;text-decoration:none}
 .prop.applied{border-color:rgba(46,139,87,.4);background:#f2f8f4}.prop.applied .ph{color:var(--ok)}
 .prop.dropped{border-color:var(--rule-2);background:#fff;color:var(--text-2)}
 /* the tools dock: looks only, the pointer is the one tool that does anything */
-#tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#1f1f1e;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
-.tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:#e9e8e4;cursor:pointer}
-.tb:hover{background:rgba(255,255,255,.08)}
+#tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+.tb:hover{background:#f3f2ee}
 .tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.tb.on{background:rgba(255,255,255,.16);color:#fff}
-/* Claude's orange, lightened to read on the dark bar */
-.tb.ask{padding:0 10px;font:500 12px var(--plex);color:#DE7E58}
-.tdiv{width:1px;height:18px;background:rgba(255,255,255,.16);margin:0 4px}
+.tb.on{background:#ecebe6;color:var(--text)}
+/* the bar and Claude's corner button are white like every other card on the map; Claude's orange marks Ask Claude */
+.tb.ask{padding:0 10px;font:500 12px var(--plex);color:var(--claude)}
+.tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
+/* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
+.tbtn.share{background:var(--new);border-color:var(--new);color:#fff;font-weight:500;padding:0 14px}
+.tbtn.share:hover{filter:brightness(1.08)}
+#sharebg{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;padding-top:72px;background:rgba(20,20,19,.24)}
+#sharebg.on{display:flex}
+#share{width:480px;max-width:calc(100% - 32px);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.16);font-size:14px}
+.sh-head{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--rule)}
+.sh-head b{flex:1;font-weight:500}
+.sh-head .x{font-size:20px}
+.sh-link{display:inline-flex;align-items:center;gap:6px;color:var(--new);font-size:13.5px;cursor:pointer}
+.sh-link svg,.sh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.sh-body{padding:16px 20px 12px}
+.sh-invite{display:flex;gap:8px}
+.sh-invite input{flex:1;min-width:0;height:38px;border:1px solid transparent;border-radius:8px;background:#f3f2ee;padding:0 12px}
+.sh-invite input:focus{outline:none;border-color:var(--new);background:#fff}
+.sh-invite button{height:38px;padding:0 16px;border:0;border-radius:8px;background:var(--new);color:#fff;font-weight:500;opacity:.35}
+.sh-h{margin:18px 0 4px;font-size:13px;color:var(--text-2)}
+.sh-row{display:flex;align-items:center;gap:12px;padding:8px 0}
+.sh-ic{width:28px;height:28px;display:grid;place-items:center;color:var(--text-2)}
+.sh-face{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font:500 12px/1 var(--plex)}
+.sh-who{flex:1}.sh-who i{font-style:normal;color:var(--text-3)}
+.sh-role{font-size:13px;color:var(--text-2)}
 body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 #toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:30;pointer-events:none}
 #toast.on{opacity:1}
@@ -358,6 +380,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <button class="tbtn" id="prbtn">Pull requests</button>
   <span id="me"></span>
   <div class="faces" id="faces"></div>
+  <button class="tbtn share" id="shareb">Share</button>
 </div>
 <div id="drawer"></div>
 <div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="pins"></div><div id="curs"></div></div></div>
@@ -384,6 +407,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 <div class="panel" id="chat"></div>
 <button id="bot" title="Ask Claude about this map" aria-label="Ask Claude about this map">✳</button>
 <div id="toast"></div>
+<div id="sharebg"><div id="share" role="dialog" aria-label="Share this map"></div></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -567,6 +591,22 @@ function render(){
   nodesEl.innerHTML = html;
   renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat();
 }
+
+// Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
+let shareOpen = false;
+function renderShare(){
+  $('sharebg').classList.toggle('on', shareOpen);
+  if (!shareOpen || !S) return;
+  const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
+  $('share').innerHTML = `<div class="sh-head"><b>Share this map</b><span class="sh-link"><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>Copy link</span><span class="x" data-close-share aria-label="Close">×</span></div>
+    <div class="sh-body">
+      <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
+      <div class="sh-h">Who has access</div>
+      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team</span><span class="sh-role">can edit ›</span></div>
+      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
+    </div>`;
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } });
 
 function renderTop(){
   const fb = flowBox();
@@ -874,6 +914,8 @@ document.addEventListener('click', (e) => {
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
+  else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
+  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
