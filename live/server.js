@@ -305,7 +305,20 @@ function openMap({ project = '', name = '', home }) {
   const summary = () => ({ title: state.title, boxes: state.nodes.length, open: state.calls.filter((c) => c.status === 'open').length,
     at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0 });
 
-  return { handle, summary };
+  // what waits on a person here, for the Inbox: questions for them, and comment threads waiting on
+  // their reply (they wrote in it, or someone @-named them); only on boxes they may see
+  const asks = (who) => {
+    const sees = seesOf(who), seen = (id) => { const n = id && nodeOf(id); return !n || sees === 'all' || n.area === sees; };
+    const mention = new RegExp(`@${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    return [
+      ...state.calls.filter((c) => c.for === who && c.status === 'open' && seen(c.node))
+        .map((c) => ({ kind: 'call', id: c.id, node: c.node, text: c.ask || c.text, on: nodeOf(c.node)?.label || '', from: c.from || 'Claude' })),
+      ...(state.comments || []).filter((c) => !c.resolved && seen(c.node) && c.msgs.at(-1).who !== who && c.msgs.some((m) => m.who === who || mention.test(m.text)))
+        .map((c) => ({ kind: 'comment', id: c.id, node: c.node, text: c.msgs.at(-1).text, on: nodeOf(c.node)?.label || '', from: c.msgs.at(-1).who })),
+    ];
+  };
+
+  return { handle, summary, asks };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -314,16 +327,26 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 const main = openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 const named = new Map();
 const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
+// every map to choose from: the project's own, then each named one
+const everyMap = () => {
+  const MAPS = path.join(DIR, 'maps');
+  const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d)).sort() : [];
+  return [...(PROJECT ? [[path.basename(PROJECT), main]] : []), ...names.map((d) => [d, mapCalled(d)])];
+};
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html' }).end(fs.readFileSync(path.join(DIR, 'maps.html')));
   if (url.pathname === '/api/maps') {
-    const MAPS = path.join(DIR, 'maps');
-    const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d)).sort() : [];
-    const list = [...(PROJECT ? [[path.basename(PROJECT), main]] : []), ...names.map((d) => [d, mapCalled(d)])]
-      .map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
+    const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
+    return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
+  }
+  // the Inbox: what waits on one person on every map, the maps with nothing for them left out
+  if (url.pathname === '/api/inbox') {
+    const who = String(url.searchParams.get('as') || 'Duy').slice(0, 40);
+    const list = (PROJECT ? everyMap() : [['', main], ...everyMap()])
+      .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(who) })).filter((x) => x.items.length);
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // /<name>/... is the map called <name>, unless a file of the page has that name

@@ -183,6 +183,16 @@ button,input{font:inherit;color:inherit}
 .tb .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #1f1f1e}
 .tb{position:relative}
 #prs.on{display:block}
+/* the Inbox: what anyone is asking you, on every map; a count on the button when something waits */
+.tbtn.ib{display:inline-flex;align-items:center;gap:6px}
+.tbtn.ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
+.tbtn.ib .n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;padding:0 5px}
+#inbox{top:52px;width:380px;padding:12px 14px;display:none;max-height:calc(100% - 120px);overflow:auto;z-index:21}
+#inbox.on{display:block}
+#inbox .ib-map{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2);margin:12px 0 2px}
+#inbox .ib-row{display:block;padding:8px 0;border-top:1px solid var(--rule);cursor:pointer;color:inherit;text-decoration:none}
+#inbox .ib-row .on{font-size:12px;color:var(--text-2);margin-top:2px}
+#inbox .quiet{color:var(--text-2)}
 .ct{font-weight:500;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
 .x{cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:0 4px}
 .row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--rule)}
@@ -315,6 +325,15 @@ a{color:inherit;text-decoration:none}
 #chat .sug:hover{border-color:var(--text)}
 #chat .sug span{display:block;font-size:12px;color:var(--text-2)}
 #chat .ask{margin:0;padding:10px 12px;border-top:1px solid var(--rule)}
+/* a change Claude proposed, under its reply */
+.prop{margin-top:8px;padding:10px 12px;border:1px solid var(--new);border-radius:10px;background:var(--new-tint);font-size:13px}
+.prop .ph{font-weight:500;margin-bottom:4px}
+.prop ul{padding-left:18px;margin:0 0 8px}
+.prop .pd{font-size:12px;color:var(--text-2);margin-bottom:8px}
+.prop .btns{display:flex;gap:6px}
+.prop .gb.yes{background:#141413;color:#fff;border-color:#141413}
+.prop.applied{border-color:rgba(46,139,87,.4);background:#f2f8f4}.prop.applied .ph{color:var(--ok)}
+.prop.dropped{border-color:var(--rule-2);background:#fff;color:var(--text-2)}
 /* the tools dock: looks only, the pointer is the one tool that does anything */
 #tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#1f1f1e;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:#e9e8e4;cursor:pointer}
@@ -334,6 +353,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <button class="hb" id="menub" title="Sessions and saved maps" aria-label="Sessions and saved maps"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <div id="crumbs"></div>
   <div id="ticket"></div>
+  <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
   <button class="tbtn" id="prbtn">Pull requests</button>
   <span id="me"></span>
@@ -344,6 +364,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 <div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
 <div class="panel" id="prs"></div>
+<div class="panel" id="inbox"></div>
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div></div>
@@ -380,6 +401,11 @@ const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '
 const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
+// the Inbox: this map's asks come from its own live state; every other map's from /api/inbox, every few seconds
+const HERE = location.pathname.split('/')[1] || '';
+let inboxOpen = false, elsewhere = [];
+const fetchInbox = () => fetch(`/api/inbox?as=${encodeURIComponent(ME)}`).then((r) => r.json())
+  .then((x) => { elsewhere = x.filter((m) => m.name !== HERE); if (S) renderInbox(); }).catch(() => {});
 const cam = { x: 0, y: 0, z: 1 };
 const W = (n) => n.w || (n.kind === 'actor' ? 110 : 140), H = 50;
 // a box with a second line under its name is taller
@@ -493,7 +519,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); return; }
+  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); return; }
   const { nodes, edges } = scope();
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -539,7 +565,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat();
+  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat();
 }
 
 function renderTop(){
@@ -639,10 +665,20 @@ function renderSide(){
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     <div class="h">Ask Claude about this</div>
-    ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')}
+    ${thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, n.id, i)}</div>`).join('')}
     <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
 }
+
+/* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */
+const change = (m, key, i) => {
+  const p = m.proposal; if (!p) return '';
+  const head = p.status === 'pending' ? 'Change to the map' : p.status === 'applied' ? `Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : 'Not applied';
+  return `<div class="prop ${p.status}"><div class="ph">${head}</div>
+    ${p.ops.length ? `<ul>${p.ops.map((o) => `<li>${prose(o)}</li>`).join('')}</ul>` : ''}
+    ${p.dropped.length ? `<div class="pd">Left out: ${p.dropped.map((d) => prose(`${d.text}, ${d.why}`)).join('; ')}</div>` : ''}
+    ${p.status === 'pending' ? `<div class="btns"><span class="gb yes" data-apply="${key}|${i}">Apply</span><span class="gb" data-drop="${key}|${i}">Not now</span></div>` : ''}</div>`;
+};
 
 /* the chat in the corner: your own thread with Claude about the whole map; a box you open takes its place */
 let chatOpen = false, chatSeen = 0;
@@ -653,13 +689,34 @@ function renderChat(){
   if (!open) return;
   const thread = S.threads?.[`@${ME}`] || [];
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="x" data-close-chat>×</span></div>
-    <div class="msgs">${thread.length ? thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')
+    <div class="msgs">${thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     <form class="ask" data-chat><input placeholder="Ask about this map" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
   // a new message scrolls the chat to the bottom
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
   if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; }
+}
+
+// The Inbox button, with a count when anyone is asking you something, and its list: your questions and the
+// comment threads waiting on your reply (you wrote in it, or someone @-named you), this map first, then the others
+function renderInbox(){
+  const mention = new RegExp(`@${ME}\\b`, 'i');
+  const calls = S.calls.filter((c) => c.for === ME && c.status === 'open' && canSee(nodeById(c.node) || {}));
+  const talk = (S.comments || []).filter((c) => !c.resolved && (!c.node || canSee(nodeById(c.node) || {})) && c.msgs.at(-1).who !== ME
+    && c.msgs.some((m) => m.who === ME || mention.test(m.text)));
+  const n = calls.length + talk.length + elsewhere.reduce((k, m) => k + m.items.length, 0);
+  const b = $('inboxb');
+  b.innerHTML = `<svg viewBox="0 0 20 20"><path d="M3 11h4l1.2 2h3.6L13 11h4M3 11v4.5h14V11l-2.2-6.5H5.2z"/></svg>Inbox${n ? `<span class="n">${n}</span>` : ''}`;
+  b.classList.toggle('on', inboxOpen);
+  const el = $('inbox'); el.classList.toggle('on', inboxOpen); if (!inboxOpen) return;
+  el.style.left = `${Math.max(16, Math.min(b.getBoundingClientRect().left, innerWidth - 396))}px`;
+  const here = (c) => `<div class="ib-row" data-goto="${c.id}"><div>${prose(c.msgs.at(-1).text)}</div><div class="on">${c.msgs.at(-1).who} wrote${c.node ? ` · ${nodeById(c.node)?.label || c.node}` : ''}</div></div>`;
+  const far = (m, it) => `<a class="ib-row" href="${m.href}?as=${encodeURIComponent(ME)}"><div>${prose(it.text)}</div><div class="on">${it.kind === 'call' ? `${it.from} asks you` : `${it.from} wrote`}${it.on ? ` · ${prose(it.on)}` : ''}</div></a>`;
+  el.innerHTML = `<div class="ct"><span>Inbox${n ? ` <span class="ca-n">${n}</span>` : ''}</span><span class="x" data-close-inbox>×</span></div>
+    ${n ? '' : '<div class="quiet">Nobody is asking you anything.</div>'}
+    ${calls.length || talk.length ? `<div class="ib-map">${prose(S.title)} · this map</div>${calls.map((c) => callRow(c, true)).join('')}${talk.map(here).join('')}` : ''}
+    ${elsewhere.map((m) => `<div class="ib-map">${prose(m.title || m.name)}</div>${m.items.map((it) => far(m, it)).join('')}`).join('')}`;
 }
 
 function renderPrs(){
@@ -815,6 +872,8 @@ document.addEventListener('click', (e) => {
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
+  else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
+  else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
   else if (t.id === 'saveb' || t.closest('[data-save]')){ act('save'); toast('Map saved'); drawerOpen = true; }
   else if (t.closest('[data-unsave]')){ act('unsave', { id: t.closest('[data-unsave]').dataset.unsave }); toast('Saved map deleted'); }
@@ -839,6 +898,8 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'fitb'){ fit(); }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen) selected = null; chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
+  else if (t.closest('[data-apply]')){ const [thread, index] = t.closest('[data-apply]').dataset.apply.split('|'); act('apply', { thread, index: Number(index) }); toast('Applied to the map. The chat that drew it hears it now.'); }
+  else if (t.closest('[data-drop]')){ const [thread, index] = t.closest('[data-drop]').dataset.drop.split('|'); act('drop', { thread, index: Number(index) }); }
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
 document.addEventListener('submit', (e) => {
@@ -903,6 +964,7 @@ function listen(){
 }
 window.addEventListener('resize', fit);
 listen();
+fetchInbox(); setInterval(fetchInbox, 8000);
 </script>
 </body>
 </html>
