@@ -294,6 +294,13 @@ button,input{font:inherit;color:inherit}
 .nt-k{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);line-height:1.35;padding-top:3px}
 .nt-v{font-size:13.5px;line-height:1.45}
 .nt-list{margin:0 0 10px;padding-left:18px}.nt-list li{margin:3px 0}
+/* on Information: what was decided in green, a question still waiting in amber, as in the legend */
+.i-dec{margin:4px 0 12px;padding:10px 12px;border-left:3px solid var(--ok);background:#f2f8f4;border-radius:0 10px 10px 0}
+.i-h{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ok);font-weight:600;margin-bottom:4px}
+.i-d{padding:6px 0;border-top:1px solid rgba(46,139,87,.15)}.i-h+.i-d{border-top:0;padding-top:0}
+.i-a{font-size:13.5px;line-height:1.4}.i-a b{color:var(--ok);font-weight:600}
+.i-q{margin-top:2px;font-size:12px;line-height:1.35;color:var(--text-2)}.i-q span{margin-left:6px;color:var(--text-3)}
+#side.info .d:not(.done){border-left:3px solid var(--todo);background:#fffcf2}
 /* a question with options: one button per answer, then your own words */
 .d-opts{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .d-opt{display:block;width:100%;text-align:left;padding:8px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;font:inherit;font-size:13px;line-height:1.35}
@@ -1267,13 +1274,24 @@ function renderSide(){
     ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `<div class="info-body">
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
     ${(() => {
+      // the box so far, to scan: its notes as one list (a short first line saying what it is stays the lead),
+      // the first 5 points at once and the rest under More
       const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
-      // shown at once: the first line, with the bullets that follow it when it is one or ends in ":"; the rest waits under More
-      const bullet = (l) => /^[-•]\s/.test(l); let head = 1;
-      if (bullet(lines[0] || '') || /:$/.test(lines[0] || '')) while (head < lines.length && bullet(lines[head])) head++;
-      return `${notes(lines.slice(0, head).join('\n'))}
-        ${more ? notes(lines.slice(head).join('\n'), false) : ''}
-        ${lines.length > head ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
+      const lead = lines.length > 1 && !/^([-•]\s|\*\*)/.test(lines[0]) && lines[0].length <= 90;
+      const listed = lines.map((l, i) => (i === 0 && lead) || /^[-•]\s/.test(l) || /^[A-Z][\w' ]{1,23}:\s/.test(l) ? l : `- ${l}`);
+      const head = Math.min(listed.length, lead ? 6 : 5);
+      return `${notes(listed.slice(0, head).join('\n'), lead)}
+        ${more ? notes(listed.slice(head).join('\n'), false) : ''}
+        ${listed.length > head ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
+    })()}
+    ${(() => {
+      // what was decided on this box, in green: what it means, the question it answered, who and when
+      const done = calls.filter((c) => c.status !== 'open').reverse();
+      if (!done.length && !n.decided) return '';
+      const row = (c) => { const meant = c.status === 'confirmed' ? c.yes : c.status === 'disputed' ? c.no : c.pickedId === 'other' ? `“${prose(c.picked)}”` : '';
+        return `<div class="i-d"><div class="i-a"><b>${ans(c)}</b>${meant ? ` · ${meant}` : ''}</div><div class="i-q">${c.ask || c.text}<span>${c.by}, ${c.at}</span></div></div>`; };
+      return `<div class="i-dec"><div class="i-h">Decided</div>${done.length ? done.map(row).join('')
+        : `<div class="i-d"><div class="i-a"><b>${n.decided.what}</b></div><div class="i-q"><span>${n.decided.who}, ${n.decided.at}</span></div></div>`}</div>`;
     })()}
     ${memOf(n.id)}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
