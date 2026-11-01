@@ -14,5 +14,6 @@ node server.js            # http://localhost:4322
 - With `--project`, `/` is a list of every map to pick from (`/api/maps` gives the same list); the project's own map is at `/<project folder>/`, and `/api/...` still answers for it.
 - Sign-in: every page asks who you are at `/login`, and a person from the map's people who has no password yet chooses one there (at least 8 characters, kept scrambled in `~/.living-map-2/users.db`, outside the repo). A signed-in browser acts only as that person. `node users.js set <name>` changes a password; `list` and `remove <name>` too. The API stays open to this Mac's own tools (Claude's plans, the listeners).
 - The faces at the top right are who has this map open right now; the menu under them says who is here and who is not.
+- Any Claude Code chat on this Mac, in any folder, can read and change a map with two tools from `mcp.js`: `living_map_read` and `living_map_change` (boxes, lines, to-dos and questions for a teammate, many in one call, boxes named by id or by name). Registered once with `claude mcp add --scope user living-map -- node <path>/mcp.js`; `LIVING_MAP_URL` points it at another server.
 
 Demo only: the system map is a seed, not read from code; Codex and the merge check are staged.

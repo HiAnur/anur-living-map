@@ -539,6 +539,15 @@ function openMap({ project = '', name = '', home }) {
       tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
       return true;
     },
+    // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
+    // the way a plan draws them, without a new session in the map's list
+    edit(a) {
+      if (![a.nodes, a.edges, a.calls].some((x) => Array.isArray(x) && x.length)) return false;
+      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls });
+      state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });
+      tell(`${a.by} changed the map: ${String(a.note || 'a quick change').slice(0, 200)}`);
+      return true;
+    },
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
