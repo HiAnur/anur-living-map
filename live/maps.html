@@ -37,6 +37,17 @@ a.map:hover{border-color:var(--text)}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
 .sort button:hover{color:var(--text)}
 .sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
+/* a map made here can be deleted from the list, after a second click that says so */
+.row{position:relative;margin-bottom:10px}
+.row a.map{margin-bottom:0}
+.row.can a.map{padding-right:48px}
+.del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
+.del:hover{background:#f0eee8;color:#B42318}
+.ask{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 16px;background:#fff;border:1px solid #B42318;border-radius:10px}
+.ask span{flex:1}
+.ask button{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font:13px var(--plex);color:var(--text);cursor:pointer}
+.ask button.yes{background:#B42318;border-color:#B42318;color:#fff}
+.ask button:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -77,10 +88,28 @@ function list(){
   el.className = '';
   const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
     : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
-  el.innerHTML = sorted.map((m) => `<a class="map" href="${m.href}${location.search}">
+  el.innerHTML = sorted.map((m) => asking === m.name
+    ? `<div class="row ask"><span>Delete <b>${esc(titleOf(m))}</b> for everyone?</span>
+      <button type="button" data-cancel>Cancel</button><button type="button" class="yes" data-delete="${esc(m.name)}">Delete</button></div>`
+    : `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}">
     <span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span>
-    <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>`).join('');
+    <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>${m.deletable
+      ? `<button type="button" class="del" data-ask="${esc(m.name)}" title="Delete this map" aria-label="Delete ${esc(titleOf(m))}">✕</button>` : ''}</div>`).join('');
 }
+// ✕ asks first; only Delete removes the map, for everyone
+let asking = null;
+document.getElementById('list').addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.closest('[data-ask]')) { asking = t.closest('[data-ask]').dataset.ask; list(); }
+  else if (t.closest('[data-cancel]')) { asking = null; list(); }
+  else if (t.closest('[data-delete]')) {
+    const b = t.closest('[data-delete]'), name = b.dataset.delete; b.disabled = true;
+    fetch('/api/maps/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be deleted.'); maps = maps.filter((m) => m.name !== name); asking = null; list(); })
+      .catch((x) => { b.disabled = false; b.closest('.ask').querySelector('span').textContent = x.message; });
+  }
+});
 document.querySelector('.sort').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sort]'); if (!b) return;
   sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}

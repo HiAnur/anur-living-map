@@ -753,7 +753,14 @@ function openMap({ project = '', name = '', home }) {
     ];
   };
 
-  return { handle, summary, asks, build };
+  // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
+  function close() {
+    mirror?.f.stop(); mirror = null;
+    building?.kill('SIGTERM'); queued.length = 0;
+    for (const r of clients) r.end();
+  }
+
+  return { handle, summary, asks, build, close };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -834,8 +841,20 @@ http.createServer(async (req, res) => {
     mapCalled(name).build({ prompt, by: who });
     return json(200, { name, href: `/${name}/` });
   }
+  // deleting a map from the list: only a map made here, never a code folder's. Its folder moves to
+  // maps/.deleted/<name>-<when>/, out of the list but still on this Mac
+  if (url.pathname === '/api/maps/delete' && req.method === 'POST') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const name = String(a.name || ''), dir = path.join(DIR, 'maps', name);
+    if (!/^[a-z0-9-]+$/.test(name) || projects.has(name) || !fs.existsSync(dir)) return json(400, { error: 'That map cannot be deleted here.' });
+    named.get(name)?.close(); named.delete(name);
+    const bin = path.join(DIR, 'maps', '.deleted');
+    fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
+    return json(200, { name });
+  }
   if (url.pathname === '/api/maps') {
-    const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
+    const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // the Inbox: what waits on one person on every map, the maps with nothing for them left out
