@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
+import { follow } from './mirror.js';
 import { placeNew, readProject, tidy } from './project.js';
 import { MIN, users } from './users.js';
 
@@ -122,6 +123,28 @@ function openMap({ project = '', name = '', home }) {
   const save = () => { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) send(r, 'state', state); };
+
+  // The Claude pane, synced: the Claude Code chat linked last (state.linked[0]) is followed through its
+  // transcript, and its owner's windows get it as a "mirror" event: that chat's messages, what the owner
+  // wrote from the map, and the changes it proposed here, in time order. Nobody else is sent it.
+  let mirror = null;
+  const linkOf = () => state.linked?.[0] || null;
+  const ownsChat = (session, by) => (state.linked || []).some((l) => l.session === session && l.owner === by);
+  function mirrorView() {
+    const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
+    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true }));
+    const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
+    return { session: l.session, owner: l.owner, msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
+  }
+  const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
+  function startMirror() {
+    const l = linkOf();
+    if (mirror && mirror.session === l?.session) return;
+    mirror?.f.stop(); mirror = null;
+    if (l && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror) };
+  }
+  startMirror();
+
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const waiters = [];
@@ -243,6 +266,10 @@ function openMap({ project = '', name = '', home }) {
     const m = String(text).match(/```map\s*([\s\S]*?)```/);
     if (!m) return null;
     let p; try { p = JSON.parse(m[1]); } catch { return { status: 'dropped', ops: [], dropped: [{ text: 'the change', why: 'Claude wrote it in a form the map cannot read' }] }; }
+    return check(p, by);
+  }
+  // a proposed change ({nodes, edges, remove}) checked against the map for the person it is for
+  function check(p, by) {
     const sees = seesOf(by), mayTouch = (n) => sees === 'all' || n.area === sees;
     const ops = [], dropped = [], plan = { nodes: [], edges: [], remove: [] }, slug = /^[a-z0-9-]{1,40}$/;
     for (const n of (p.nodes || []).slice(0, 12)) {
@@ -282,6 +309,8 @@ function openMap({ project = '', name = '', home }) {
 
   // what outlives starting over or opening a saved map
   const kept = () => ({ saves: state.saves || [], sessions: state.sessions || [],
+    // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
+    linked: state.linked || [], said: state.said || {},
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}) });
 
   const ACTS = {
@@ -391,11 +420,13 @@ function openMap({ project = '', name = '', home }) {
     // Apply on a change Claude proposed in a chat: the map takes it, and the chat that drew those boxes hears it.
     // Your own chat's changes are yours to apply. The chat told is the one that drew the first box the
     // change touches or links to, else the box the question was about.
+    // A change the linked Claude chat proposed (a.proposal) is its owner's to apply, and that chat hears it.
     apply(a) {
-      const key = String(a.thread || ''), m = state.threads[key]?.[Number(a.index)], pr = m?.proposal;
-      if (!pr || pr.status !== 'pending' || !mineChat(key, a.by)) return false;
+      const fromChat = a.proposal ? (state.proposals || []).find((x) => x.id === a.proposal) : null;
+      const key = String(a.thread || ''), m = fromChat ? null : state.threads[key]?.[Number(a.index)], pr = fromChat || m?.proposal;
+      if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
-      const to = ownerOf(touched || m.about || null);
+      const to = fromChat ? fromChat.session : ownerOf(touched || m.about || null);
       draw(pr.plan);
       pr.status = 'applied'; pr.by = a.by; pr.at = stamp();
       state.log.push({ at: Date.now(), who: a.by, action: 'applied', text: pr.ops.join('; ') });
@@ -403,9 +434,33 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     drop(a) {
-      const key = String(a.thread || ''), pr = state.threads[key]?.[Number(a.index)]?.proposal;
-      if (!pr || pr.status !== 'pending' || !mineChat(key, a.by)) return false;
+      const fromChat = a.proposal ? (state.proposals || []).find((x) => x.id === a.proposal) : null;
+      const key = String(a.thread || ''), pr = fromChat || state.threads[key]?.[Number(a.index)]?.proposal;
+      if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       pr.status = 'dropped'; pr.by = a.by; return true;
+    },
+    // the Claude Code chat that opened this map with /living-map-2: its owner's Claude pane follows that chat
+    link(a) {
+      const session = String(a.session || ''), file = String(a.file || '');
+      if (!/^[\w-]{8,80}$/.test(session) || !file.endsWith(`/${session}.jsonl`) || !file.includes('/.claude/projects/') || !fs.existsSync(file)) return false;
+      state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((l) => l.session !== session)].slice(0, 10);
+      startMirror(); return true;
+    },
+    // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once
+    say(a) {
+      const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
+      if (!l || l.owner !== a.by || !text) return false;
+      ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now() });
+      tell(`${a.by} wrote in the map's chat: "${text}"`, l.session);
+      setTimeout(sendMirror); return true;
+    },
+    // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
+    propose(a) {
+      const session = String(a.session || ''), l = (state.linked || []).find((x) => x.session === session);
+      if (!l) return false;
+      const pr = check(a, l.owner); if (!pr.ops.length) return false;
+      state.proposals = [...(state.proposals || []), { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr }].slice(-30);
+      setTimeout(sendMirror); return true;
     },
     // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
     newchat(a) {
@@ -463,6 +518,7 @@ function openMap({ project = '', name = '', home }) {
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       send(res, 'state', state); send(res, 'cursors', cursors);
+      if (who) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); req.on('close', () => clients.delete(res));
       if (who) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();

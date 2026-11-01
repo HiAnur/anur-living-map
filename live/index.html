@@ -353,6 +353,7 @@ a{color:inherit;text-decoration:none}
 .dec{padding:8px 10px;border-left:3px solid var(--todo);background:#fff8e1;border-radius:0 8px 8px 0;font-size:13px}
 .msg{padding:6px 0}.msg b{font-weight:500}.msg .t{font-size:12px;color:var(--text-2);margin-left:6px}
 .msg.cl{border-left:2px solid var(--claude);padding-left:10px}
+.msg.cl.more{padding-top:0;margin-top:-2px}
 .msg .wait{color:var(--text-2)}.msg code{font:12px var(--mono)}
 .ask{display:flex;gap:6px;margin-top:8px}
 #side .side-ask{position:sticky;bottom:-14px;margin:8px -16px -14px;padding:10px 16px 14px;background:inherit;border-top:1px solid var(--rule)}
@@ -642,8 +643,10 @@ const scope = () => {
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
 // and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
 const proposed = () => {
+  // yours: from your chats on the map, and from the Claude Code chat linked to this map for you
+  const mine = (p) => (S.linked || []).some((l) => l.session === p.session && l.owner === ME);
   const ps = Object.keys(S.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`))
-    .flatMap((k) => S.threads[k].map((m) => m.proposal)).filter((p) => p?.status === 'pending' && p.plan);
+    .flatMap((k) => S.threads[k].map((m) => m.proposal)).concat((S.proposals || []).filter(mine)).filter((p) => p?.status === 'pending' && p.plan);
   const have = new Set(S.nodes.map((n) => n.id));
   return {
     nodes: ps.flatMap((p) => p.plan.nodes.filter((n) => !have.has(n.id) && Number.isFinite(n.x)).map((n) => ({ ...n, state: 'new', proposed: true }))),
@@ -1021,10 +1024,44 @@ function chatList(){
   });
   return `<div class="hist"><div class="h" style="margin-top:4px">Your chats on this map</div>${rows.join('') || '<div class="d-wait">No chats yet.</div>'}</div>`;
 }
+/* Synced: when a Claude Code chat opened this map with /living-map-2 for you, the pane is that chat. The server
+   sends it as "mirror": what you typed there, what Claude wrote back, what you wrote here (it reaches that chat
+   through its listener) and the changes it proposed, Apply on each. Nobody else is sent your chat. */
+let MIRROR = null;
+const hhmm = (t) => new Date(t).toTimeString().slice(0, 5);
+const changeP = (p) => {
+  const head = p.status === 'pending' ? 'Change to the map' : p.status === 'applied' ? `Applied by ${p.by}` : 'Not applied';
+  return `<div class="prop ${p.status}"><div class="ph">${head}</div>
+    <ul>${p.ops.map((o) => `<li>${prose(o)}</li>`).join('')}</ul>
+    ${p.dropped.length ? `<div class="pd">Left out: ${p.dropped.map((d) => prose(`${d.text}, ${d.why}`)).join('; ')}</div>` : ''}
+    ${p.status === 'pending' ? `<div class="btns"><span class="gb yes" data-applyp="${p.id}">Apply</span><span class="gb" data-dropp="${p.id}">Not now</span></div>` : ''}</div>`;
+};
+function linkedList(){
+  const rows = (S.linked || []).filter((l) => l.owner === ME).map((l, i) => `<button class="hrow ${i === 0 ? 'cur' : ''}" data-relink="${l.session}">Claude Code chat ${l.session.slice(0, 8)}
+    <span>${i === 0 ? 'The pane follows this one' : `Linked ${when(l.at)}`}</span></button>`);
+  return `<div class="hist"><div class="h" style="margin-top:4px">Claude chats linked to this map</div>${rows.join('')}</div>`;
+}
+function renderMirror(el){
+  const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
+  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
+      <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
+      <span class="x" data-close-chat>×</span></span></div>
+    <div class="msgs">${chatHist ? linkedList() : msgs.map((m, i) => {
+      // a run of Claude's pieces reads as one message: only the first carries its name and time
+      const more = i > 0 && m.who === 'claude' && msgs[i - 1].who === 'claude';
+      const head = more ? '' : `<b>${m.who === 'you' ? 'You' : 'Claude'}</b><span class="t">${hhmm(m.at)}${m.map ? ' · from the map' : ''}</span>${m.proposal ? '' : '<br>'}`;
+      return `<div class="msg ${m.who === 'claude' ? 'cl' : ''} ${more ? 'more' : ''}">${head}${m.proposal ? changeP(m.proposal) : prose(m.text)}</div>`;
+    }).join('')}
+      ${!chatHist && last?.who === 'you' ? '<div class="msg cl"><b>Claude</b><br><span class="wait">Waiting for your Claude chat…</span></div>' : ''}</div>
+    ${chatHist ? '' : '<form class="ask" data-chat><input placeholder="Message your Claude chat" autocomplete="off"><button class="gb" type="submit">Send</button></form>'}`;
+  const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
+  if (n !== chatSeen){ box.scrollTop = chatHist ? 0 : box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
+}
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
   el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen);
   if (!open) return;
+  if (MIRROR) return renderMirror(el);
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="cb">
       <button class="ci" data-newchat title="New chat" aria-label="New chat">${CHAT_ICON.newchat}</button>
@@ -1308,6 +1345,10 @@ document.addEventListener('click', (e) => {
   }
   else if (t.closest('[data-apply]')){ const [thread, index] = t.closest('[data-apply]').dataset.apply.split('|'); act('apply', { thread, index: Number(index) }); toast('Applied to the map. The chat that drew it hears it now.'); }
   else if (t.closest('[data-drop]')){ const [thread, index] = t.closest('[data-drop]').dataset.drop.split('|'); act('drop', { thread, index: Number(index) }); }
+  // a change your Claude Code chat proposed, and switching which linked chat the pane follows
+  else if (t.closest('[data-applyp]')){ act('apply', { proposal: t.closest('[data-applyp]').dataset.applyp }); toast('Applied to the map. Your Claude chat hears it now.'); }
+  else if (t.closest('[data-dropp]')){ act('drop', { proposal: t.closest('[data-dropp]').dataset.dropp }); }
+  else if (t.closest('[data-relink]')){ const l = (S.linked || []).find((x) => x.session === t.closest('[data-relink]').dataset.relink); if (l) act('link', { session: l.session, file: l.file }); chatHist = false; chatSeen = -1; }
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
 document.addEventListener('submit', (e) => {
@@ -1320,7 +1361,7 @@ document.addEventListener('submit', (e) => {
     return;
   }
   const c = e.target.closest('form[data-chat]');
-  if (c){ e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim(); if (text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; } return; }
+  if (c){ e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim(); if (text){ if (MIRROR) act('say', { text }); else act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; } return; }
   // your own answer to a question with options
   const o = e.target.closest('form[data-other]');
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
@@ -1368,6 +1409,13 @@ function listen(){
     if (first){ first = false; fit(); }
   });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
+  // your Claude Code chat, synced into the Claude pane; typing in the pane survives the redraw
+  es.addEventListener('mirror', (m) => {
+    const v = JSON.parse(m.data); MIRROR = v.owner === ME ? v : null;
+    const ae = document.activeElement, typing = ae?.closest?.('#chat') ? ae.value : null;
+    renderChat();
+    if (typing !== null){ const el = document.querySelector('#chat form[data-chat] input'); if (el){ el.value = typing; el.focus(); } }
+  });
   es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
 }
