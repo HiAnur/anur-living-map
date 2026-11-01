@@ -165,7 +165,10 @@ function openMap({ project = '', name = '', home }) {
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const waiters = [];
+  // what the change being made told the outbox; the history names that version with it
+  let told = null;
   const tell = (text, to = '') => {
+    told = text;
     fs.mkdirSync(home, { recursive: true }); fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`);
     if (to) { state.forChats = [...(state.forChats || []), { to, text, at: stamp() }].slice(-50); setTimeout(wake); }
   };
@@ -334,8 +337,50 @@ function openMap({ project = '', name = '', home }) {
     .filter((p) => p?.status === 'pending' && p.plan);
   const withoutBlock = (text) => String(text).split('```map')[0].trim();
 
-  // what outlives starting over or opening a saved map
-  const kept = () => ({ saves: state.saves || [], sessions: state.sessions || [],
+  // History: every change saves itself, and each one is a version of the map you can open and go back to,
+  // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
+  // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
+  const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
+  const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'ticket', 'prompt', 'answers'];
+  const contentOf = (s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
+  const clock = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
+  function keepVersion(v, json) {
+    fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
+    history = [v, ...history.filter((h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
+    for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch {}
+    fs.writeFileSync(HIST_LIST, JSON.stringify(history));
+  }
+  // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
+  const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', reset: 'started the map over from the code', rename: 'renamed the map' };
+  let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
+  function remember(type, by) {
+    const json = contentOf(state); if (json === lastContent) return;
+    lastContent = json;
+    const top = history[0], now = Date.now();
+    const run = top && RUNS.has(type) && top.kind === type && top.by === by && now - top.at < RUN_MS;
+    keepVersion({ id: run ? top.id : now.toString(36), at: now, by, kind: type, what: told || `${by} ${LABEL[type] || 'changed the map'}`, boxes: state.nodes.length }, json);
+  }
+  // maps saved with the old Save button become versions in the history, and their files go
+  if (state.saves?.length) {
+    for (const s of state.saves) {
+      const file = path.join(SAVES, `${s.id}.json`); if (!fs.existsSync(file)) continue;
+      keepVersion({ id: s.id, at: s.at, by: s.by, kind: 'save', what: `${s.by} saved the map as "${s.name}"`, boxes: s.boxes }, contentOf(JSON.parse(fs.readFileSync(file, 'utf8'))));
+      fs.unlinkSync(file);
+    }
+    delete state.saves; try { fs.rmdirSync(SAVES); } catch {}
+    save();
+    if (history[0]) lastContent = fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8');
+  }
+  // the map as it is now, when no version holds it yet, is the first version: the starting point to go back to
+  if (contentOf(state) !== lastContent) {
+    lastContent = contentOf(state);
+    keepVersion({ id: Date.now().toString(36), at: Date.now(), by: '', kind: 'start', what: history.length ? 'The map as it was left' : 'The map when its history began', boxes: state.nodes.length }, lastContent);
+  }
+
+  // what outlives starting over
+  const kept = () => ({ sessions: state.sessions || [],
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
     linked: state.linked || [], said: state.said || {},
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}) });
@@ -392,7 +437,7 @@ function openMap({ project = '', name = '', home }) {
         } });
       return true;
     },
-    // starting over keeps the saved maps, the list of sessions that drew on it, and the name someone gave it
+    // starting over keeps the list of sessions that drew on it and the name someone gave it; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
     // renaming the map: its name in the top bar and the list of maps; its folder stays
     rename(a) {
@@ -401,21 +446,13 @@ function openMap({ project = '', name = '', home }) {
       state.title = title; state.renamed = title;
       return true;
     },
-    // a saved map is a copy of the whole map as it is now, kept in saves/<id>.json; the list lives in the map
-    save(a) {
-      const id = Date.now().toString(36), { saves = [], sessions = [], ...snap } = state;
-      fs.mkdirSync(SAVES, { recursive: true });
-      fs.writeFileSync(path.join(SAVES, `${id}.json`), JSON.stringify(snap));
-      const name = String(a.name || '').trim().slice(0, 80) || `${state.ticket || state.title} · ${stamp()}`;
-      state.saves = [{ id, name, by: a.by, at: Date.now(), boxes: snap.nodes.length, open: snap.calls.filter((c) => c.status === 'open').length }, ...saves];
-      return true;
-    },
-    // deleting a saved map drops it from the list and removes its file
-    unsave(a) {
-      const id = String(a.id).replace(/[^\w]/g, '');
-      if (!(state.saves || []).some((s) => s.id === id)) return false;
-      state.saves = state.saves.filter((s) => s.id !== id);
-      try { fs.unlinkSync(path.join(SAVES, `${id}.json`)); } catch {}
+    // going back to a version in the history: the map takes that version's boxes, lines and questions, while chats,
+    // comments and people stay as they are; going back is a version itself, so it can be undone the same way
+    restore(a) {
+      const v = history.find((h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
+      if (!file || !fs.existsSync(file)) return false;
+      Object.assign(state, JSON.parse(fs.readFileSync(file, 'utf8')));
+      tell(`${a.by} went back to the version from ${clock(v.at)}`);
       return true;
     },
     // deleting a session drops it from the menu's list; the boxes it drew stay on the map
@@ -425,19 +462,8 @@ function openMap({ project = '', name = '', home }) {
       state.sessions = state.sessions.filter((s) => s.id !== id);
       return true;
     },
-    // opening a saved map makes it the map everyone sees; the list and the sessions stay
-    load(a) {
-      const file = path.join(SAVES, `${String(a.id).replace(/[^\w]/g, '')}.json`);
-      if (!fs.existsSync(file)) return false;
-      state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...kept() };
-      oneChat(state);
-      return true;
-    },
-    // a chat opening the map: the newest saved map if this folder has one, else a fresh map from the code
-    open() {
-      const last = (state.saves || []).find((s) => fs.existsSync(path.join(SAVES, `${s.id}.json`)));
-      return last ? ACTS.load({ id: last.id }) : ACTS.reset();
-    },
+    // a chat opening the map finds it as it was left: every change saved itself, and History has the versions before
+    open() { return true; },
     // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
     comment(a) {
       const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
@@ -553,6 +579,10 @@ function openMap({ project = '', name = '', home }) {
   // the map's API, at <map address>/api/...; false when the path is not one of them
   async function handle(req, res, p, who = null) {
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
+    // the map's versions, newest first, and one version's boxes, lines and questions
+    if (p === '/api/history') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(history)); return true; }
+    const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
+    if (ver) { if (!vfile || !fs.existsSync(vfile)) res.writeHead(404).end(); else res.writeHead(200, { 'content-type': 'application/json' }).end(fs.readFileSync(vfile)); return true; }
     if (p === '/api/outbox') { res.writeHead(200, { 'content-type': 'text/plain' }).end(fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8') : ''); return true; }
     // a chat's listener waits here until the map has something for that chat; after 4 minutes it gets
     // an empty answer and asks again
@@ -593,8 +623,9 @@ function openMap({ project = '', name = '', home }) {
         res.writeHead(200).end('{}');
         return true;
       }
+      told = null;
       const ok = !!ACTS[a.type]?.(a);
-      if (ok) { save(); push(); }
+      if (ok) { remember(a.type, a.by); save(); push(); }
       res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? '{}' : '{"error":"no"}');
       return true;
     }

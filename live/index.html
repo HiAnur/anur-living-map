@@ -523,6 +523,23 @@ body.resizing{cursor:col-resize;user-select:none}
 /* the Decisions panel: every answer and applied change on the map, newest first */
 #decs{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #decs.on{display:block}
+/* the History panel: every version of the map, newest first; the one you are looking at is lit */
+#hist{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#hist.on{display:block}
+#hist .hv{display:block;width:calc(100% + 16px);margin:0 -8px;padding:10px 8px 11px;text-align:left;border:0;border-top:1px solid var(--rule);border-radius:8px;background:none;font:inherit;cursor:pointer}
+#hist .hv:hover{background:#fafaf7}
+#hist .hv.on{background:#f6f8fe}
+#hist .hv-t{display:block;font-size:12px;color:var(--text-2);margin-bottom:2px}
+#hist .hv-w{display:block;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+/* looking at an earlier version: a bar over the map says which, with Restore and Back to now; nothing on it changes */
+#histbar{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:19;display:none;align-items:center;gap:8px;max-width:min(640px,calc(100% - 120px));padding:6px 6px 6px 14px;background:#141413;color:#fff;border-radius:10px;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+#histbar.on{display:flex}
+#histbar .hb-w{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#histbar button{flex:none;height:28px;padding:0 10px;border:0;border-radius:7px;background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:12.5px;cursor:pointer}
+#histbar button:hover{background:rgba(255,255,255,.24)}
+#histbar button.go{background:#fff;color:#141413}
+body.paned #histbar{left:calc((100% - 72px - var(--chatw)) / 2);max-width:calc(100% - 72px - var(--chatw) - 24px)}
+body.previewing .node.proposed{display:none}
 #decs .dl-sub{font-size:12.5px;color:var(--text-2);margin:-2px 0 10px}
 #decs .dl{margin:0 -8px;padding:11px 8px 12px;border-top:1px solid var(--rule);border-radius:8px;cursor:pointer}
 #decs .dl:hover{background:#fafaf7}
@@ -586,10 +603,9 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 </head>
 <body>
 <div id="top">
-  <button class="hb" id="menub" title="Sessions and saved maps" aria-label="Sessions and saved maps"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
+  <button class="hb" id="menub" title="Sessions" aria-label="Sessions"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
-  <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
   <div id="crumbs"></div>
   <div id="ticket"></div>
   <div class="faces" id="faces"></div>
@@ -619,10 +635,13 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
 <div class="panel" id="decs"></div>
+<div class="panel" id="hist"></div>
+<div id="histbar"></div>
 <!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
 <nav id="rail">
   <button class="ri" data-rail="decisions" title="Every decision made on this map"><svg viewBox="0 0 20 20"><path d="M3 5.5l1.6 1.6L7.5 4.2M3 11.5l1.6 1.6 2.9-2.9M10 6h7M10 12h7M3 16.5h14"/></svg><span>Decisions</span></button>
   <button class="ri" data-rail="comments" title="Every comment on this map"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><span>Comments</span></button>
+  <button class="ri" data-rail="history" title="Every version of this map"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 101.9-4.6M3.4 3.4v2.8h2.8"/><path d="M10 6.6V10l2.4 1.5"/></svg><span>History</span></button>
   <button id="bot" title="Chat with Claude about this map"><span class="star">✳</span><span>Chat</span></button>
 </nav>
 <div id="toast"></div>
@@ -706,9 +725,17 @@ function md(t){
   }
   return `<div class="md">${html}</div>`;
 }
-const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+// while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
+const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit']);
+const act = (type, extra = {}) => {
+  if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
+  return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+};
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {}, hereNow = [];
+// History: its versions, the one on show (null: the live map) and the live map underneath it
+let HIST = [], PREVIEW = null, LIVE = null, histAsk = 0;
 // the Inbox: this map's asks come from its own live state; every other map's from /api/inbox, every few seconds
 const HERE = location.pathname.split('/')[1] || '';
 let inboxOpen = false, elsewhere = [];
@@ -941,7 +968,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane(); return; }
+  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); renderHist(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
@@ -995,7 +1022,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane();
+  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); renderHist(); fitPane();
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
@@ -1214,7 +1241,7 @@ const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320
 const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('paned') && $('canvas').clientWidth < 560);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
-const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
+const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
 try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
 $('chatgrip').addEventListener('pointerdown', (e) => {
   e.preventDefault(); const g = e.currentTarget; let w = 0;
@@ -1517,6 +1544,12 @@ document.addEventListener('click', (e) => {
   const t = e.target;
   // the people menu closes on any click outside it
   if (peopleOpen && !t.closest('#faces')){ peopleOpen = false; renderTop(); }
+  // History: a version shows the map as it was; Restore makes it the map again; Back to now leaves it
+  if (t.closest('[data-hver]')){ const id = t.closest('[data-hver]').dataset.hver; if (id === HIST[0]?.id) backToNow(); else showVersion(id); return; }
+  if (t.closest('[data-hnow]')){ backToNow(); return; }
+  if (t.closest('[data-hrestore]')){ const v = PREVIEW; act('restore', { id: v.id }); backToNow(); toast(`Went back to the version from ${vtime(v.at)}.`); return; }
+  // and an earlier version on show takes no answers, Apply or Not now: its own toast says why, not theirs
+  if (PREVIEW && t.closest('[data-call], [data-apply], [data-drop], [data-applyp], [data-dropp], #tidyb')){ toast(FROZEN_SAYS); return; }
   const face = t.closest('[data-as]');
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.closest('[data-signout]')){ fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); return; }
@@ -1550,10 +1583,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
-  else if (t.id === 'saveb' || t.closest('[data-save]')){ act('save'); toast('Map saved'); drawerOpen = true; }
-  else if (t.closest('[data-unsave]')){ act('unsave', { id: t.closest('[data-unsave]').dataset.unsave }); toast('Saved map deleted'); }
   else if (t.closest('[data-unsession]')){ act('unsession', { id: t.closest('[data-unsession]').dataset.unsession }); toast('Session deleted. Its boxes stay on the map.'); }
-  else if (t.closest('[data-load]')){ act('load', { id: t.closest('[data-load]').dataset.load }); view = 'system'; selected = null; expanded = null; lit = null; setTimeout(fit, 400); toast('Opened the saved map'); }
   else if (t.closest('[data-session]')){ view = 'system'; selected = null; drawerOpen = false; render(); fit(); }
   else if (t.closest('[data-resolve]')){
     const id = Number(t.closest('[data-resolve]').dataset.resolve), c = S.comments.find((x) => x.id === id);
@@ -1651,14 +1681,38 @@ const when = (t) => { const d = new Date(t), today = new Date().toDateString() =
 function renderDrawer(){
   const el = $('drawer'); el.classList.toggle('on', drawerOpen); $('menub').classList.toggle('on', drawerOpen);
   if (!drawerOpen || !S) return;
-  const ss = S.sessions || [], sv = S.saves || [];
+  const ss = S.sessions || [];
   el.innerHTML = `<div class="dh">Sessions</div>
     ${ss.length ? ss.map((s, i) => `<div class="dsave"><button class="di ${i === 0 ? 'latest' : ''}" data-session="${s.id}"><b>${s.ticket || 'Plan'}${s.chat ? ` · ${s.chat}` : ''}</b><span><span class="ag">✳ ${s.agent}</span> drew ${s.boxes} box${s.boxes === 1 ? '' : 'es'}, ${s.calls} question${s.calls === 1 ? '' : 's'} · ${when(s.at)}</span></button><button class="dx" data-unsession="${s.id}" title="Delete this session from the list; its boxes stay on the map" aria-label="Delete this session">✕</button></div>`).join('')
-      : '<div class="dnone">No session has drawn on this map yet. Plan a ticket in Claude Code and it shows here.</div>'}
-    <div class="dh" style="margin-top:14px">Saved maps <span class="gb" data-save>Save now</span></div>
-    ${sv.length ? sv.map((s) => `<div class="dsave"><button class="di" data-load="${s.id}" title="Open this saved map for everyone"><b>${s.name}</b><span>${s.by} · ${when(s.at)} · ${s.boxes} boxes${s.open ? `, ${s.open} open` : ''}</span></button><button class="dx" data-unsave="${s.id}" title="Delete this saved map" aria-label="Delete ${s.name}">✕</button></div>`).join('')
-      : '<div class="dnone">Nothing saved yet.</div>'}`;
+      : '<div class="dnone">No session has drawn on this map yet. Plan a ticket in Claude Code and it shows here.</div>'}`;
 }
+
+/* History: every change saves itself, and each one is a version (the server's api/history, newest first).
+   A version shows the map as it was, over the live one, until Back to now; Restore makes it the map again. */
+const fetchHist = () => { const n = ++histAsk; fetch('api/history').then((r) => r.json()).then((h) => { if (n === histAsk){ HIST = h; renderHist(); } }).catch(() => {}); };
+const vtime = (t) => { const d = new Date(t), today = d.toDateString() === new Date().toDateString(); return `${today ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toTimeString().slice(0, 5)}`; };
+function renderHist(){
+  const el = $('hist'), open = railTab === 'history' && !selected;
+  el.classList.toggle('on', open);
+  // closing History while an earlier version shows goes back to now
+  if (!open){ if (PREVIEW) setTimeout(backToNow); return; }
+  if (!HIST.length) fetchHist();
+  const cur = PREVIEW?.id || HIST[0]?.id;
+  el.innerHTML = `<div class="ct"><span>History</span><span class="x" data-close-rail>×</span></div>
+    ${HIST.map((v, i) => `<button class="hv ${v.id === cur ? 'on' : ''}" data-hver="${v.id}"><span class="hv-t">${i === 0 ? 'Now' : vtime(v.at)}</span><span class="hv-w">${esc(v.what)}</span></button>`).join('')
+      || '<div class="d-wait">No changes yet.</div>'}`;
+}
+function renderHistBar(){
+  const el = $('histbar'); el.classList.toggle('on', !!PREVIEW); document.body.classList.toggle('previewing', !!PREVIEW);
+  el.innerHTML = PREVIEW ? `<span class="hb-w">${vtime(PREVIEW.at)} · ${esc(PREVIEW.what)}</span><button class="go" data-hrestore>Restore this version</button><button data-hnow>Back to now</button>` : '';
+}
+function showVersion(id){
+  const v = HIST.find((h) => h.id === id); if (!v) return;
+  fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
+    PREVIEW = { ...v, content }; S = { ...LIVE, ...content }; selected = null; renderHistBar(); render();
+  }).catch(() => toast('That version could not be opened.'));
+}
+function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHistBar(); render(); }
 
 let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); }
 
@@ -1677,7 +1731,9 @@ function listen(){
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : ae.closest('#chat') ? '#chat form[data-chat] input' : null), val: ae.value } : null;
-    S = next; render();
+    // an earlier version on show stays on show: the live map waits underneath until Back to now
+    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next; render();
+    if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
     if (first){ first = false; fit(); }
   });
