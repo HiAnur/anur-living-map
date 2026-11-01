@@ -22,6 +22,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { placeNew, readProject, tidy } from './project.js';
+import { users } from './users.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -428,7 +429,7 @@ function openMap({ project = '', name = '', home }) {
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
-  async function handle(req, res, p) {
+  async function handle(req, res, p, who = null) {
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
     if (p === '/api/outbox') { res.writeHead(200, { 'content-type': 'text/plain' }).end(fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8') : ''); return true; }
     // a chat's listener waits here until the map has something for that chat; after 4 minutes it gets
@@ -452,7 +453,8 @@ function openMap({ project = '', name = '', home }) {
     if (p === '/api/act' && req.method === 'POST') {
       let a = {};
       try { a = JSON.parse(await body(req)); } catch {}
-      a.by = String(a.by || 'You').slice(0, 40);
+      // a signed-in browser always acts as the person who signed in
+      a.by = String(who || a.by || 'You').slice(0, 40);
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -500,19 +502,42 @@ const everyMap = () => {
   return [...(PROJECT ? [[path.basename(PROJECT), main]] : []), ...names.map((d) => [d, mapCalled(d)])];
 };
 
+// a page, with the signed-in person written into it for the page's own script
+const page = (res, file, who) => res.writeHead(200, { 'content-type': 'text/html' })
+  .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', who ? `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">\n</head>` : '</head>'));
+const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  // Signing in. Once anyone has a password (node users.js set <name>), every page asks who you are. The API
+  // stays open to this Mac's own tools, Claude's plans and the listeners, since the server only answers on
+  // this Mac; a signed-in browser always acts as the person who signed in.
+  const who = users.whoIs(cookieOf(req, 'lm_session'));
+  if (url.pathname === '/login') return page(res, 'login.html', who);
+  if (url.pathname === '/api/login' && req.method === 'POST') {
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const name = users.check(a.name, a.password);
+    if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return res.writeHead(401, { 'content-type': 'application/json' }).end('{"error":"That name and password don\'t match."}'); }
+    return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` })
+      .end(JSON.stringify({ name }));
+  }
+  if (url.pathname === '/api/logout' && req.method === 'POST') {
+    users.end(cookieOf(req, 'lm_session'));
+    return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'lm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' }).end('{}');
+  }
+  const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
+  if (isPage && !who && users.any()) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   // with a project, / lists every map to choose from: the project's own, then each named one
-  if (PROJECT && url.pathname === '/') return res.writeHead(200, { 'content-type': 'text/html' }).end(fs.readFileSync(path.join(DIR, 'maps.html')));
+  if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
   if (url.pathname === '/api/maps') {
     const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // the Inbox: what waits on one person on every map, the maps with nothing for them left out
   if (url.pathname === '/api/inbox') {
-    const who = String(url.searchParams.get('as') || 'Duy').slice(0, 40);
+    const asker = String(who || url.searchParams.get('as') || 'Duy').slice(0, 40);
     const list = (PROJECT ? everyMap() : [['', main], ...everyMap()])
-      .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(who) })).filter((x) => x.items.length);
+      .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // /<name>/... is the map called <name>, unless a file of the page has that name
@@ -523,8 +548,9 @@ http.createServer(async (req, res) => {
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
   const map = !isMap || own ? main : mapCalled(first);
   const p = isMap ? rest : url.pathname;
-  if (await map.handle(req, res, p)) return;
-  const file = path.join(DIR, p === '/' ? 'index.html' : p.replace(/^\/+/, ''));
+  if (await map.handle(req, res, p, who)) return;
+  if (p === '/' || p === '/index.html') return page(res, 'index.html', who);
+  const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
 }).listen(PORT, '127.0.0.1', () => console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`));

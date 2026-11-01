@@ -12,5 +12,6 @@ node server.js            # http://localhost:4322
 - `curl -s localhost:4322/api/outbox` is what the chat hears; `POST /api/act {"type":"reset"}` starts the story over.
 - Each address is its own map: `http://localhost:4322/gtm/` is a map called `gtm`, with its API under it (`/gtm/api/state`, `/gtm/api/act`). It starts empty, keeps its state in `maps/gtm/`, and fills from the plans drawn on it.
 - With `--project`, `/` is a list of every map to pick from (`/api/maps` gives the same list); the project's own map is at `/<project folder>/`, and `/api/...` still answers for it.
+- Sign-in: `node users.js set Duy` gives a person from the map's people a password (asked twice, kept scrambled in `~/.living-map-2/users.db`, outside the repo); `list` and `remove <name>` too. Once anyone has one, every page asks who you are at `/login`, and a signed-in browser acts only as that person. Until then the map stays open, with `?as=`. The API stays open to this Mac's own tools (Claude's plans, the listeners).
 
 Demo only: the system map is a seed, not read from code; Codex and the merge check are staged.

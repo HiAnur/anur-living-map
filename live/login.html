@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · Sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --new:#2F6FE4; --gone:#D23B32; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
+form{width:340px;max-width:100%;padding:28px 24px 24px;background:#fff;border:1px solid var(--rule);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+h1{font-size:18px;font-weight:500;margin-bottom:18px}
+label{display:block;font-size:12.5px;color:var(--text-2);margin:12px 0 4px}
+input{width:100%;height:38px;border:1px solid var(--rule-2);border-radius:8px;padding:0 12px;background:#fff;font:inherit;color:inherit}
+input:focus{outline:none;border-color:var(--new)}
+button{width:100%;height:38px;margin-top:20px;border:0;border-radius:8px;background:#141413;color:#fff;font:500 14px var(--plex);cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+.err{min-height:20px;margin-top:10px;font-size:12.5px;color:var(--gone)}
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>Sign in to Living Map</h1>
+  <label for="name">Username</label>
+  <input id="name" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+  <label for="pw">Password</label>
+  <input id="pw" type="password" autocomplete="current-password" required>
+  <button id="go" type="submit">Sign in</button>
+  <div class="err" id="err"></div>
+</form>
+<script>
+// sign in, then go back to the page that asked; only an address on this server counts as "back"
+const next = new URLSearchParams(location.search).get('next') || '/';
+const back = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const go = document.getElementById('go'), err = document.getElementById('err');
+  go.disabled = true; err.textContent = '';
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: document.getElementById('name').value, password: document.getElementById('pw').value }) }).catch(() => null);
+  if (r?.ok) { location.href = back; return; }
+  err.textContent = r ? (await r.json().catch(() => ({}))).error || 'Could not sign in.' : 'The map server is not answering.';
+  go.disabled = false; document.getElementById('pw').select();
+});
+</script>
+</body>
+</html>
