@@ -259,6 +259,7 @@ button,input{font:inherit;color:inherit}
 .d .btns{margin-top:10px}
 .d .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .d-wait{margin-top:8px;font-size:12.5px;color:var(--text-2)}
+.d-prop{margin:-2px 0 10px;font-size:12.5px;color:var(--new)}
 .d-said{margin-top:8px;font-size:13px;color:var(--text)}
 /* an answered question in History: the answer under it, More for the rest */
 .d-ans{font-size:13.5px;margin:-2px 0 4px}.d-ans b{font-weight:600}.d-ans span{color:var(--text-2)}
@@ -674,7 +675,7 @@ const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) 
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
 // part you can see, beside the pane that opens for it, at a zoom you can read; a box inside another opens that one
 // a box opened by a click stays where it is, unless the pane that opens for it covers it; then it glides into view
-const keepInView = (id) => { const n = nodeById(id), r = canvas.getBoundingClientRect(); if (n && (n.x + W(n) / 2) * cam.z + cam.x > r.width - 16) centerOn(id); };
+const keepInView = (id) => { const n = nodeById(id) || proposedBox(id), r = canvas.getBoundingClientRect(); if (n && (n.x + W(n) / 2) * cam.z + cam.x > r.width - 16) centerOn(id); };
 function centerOn(id){
   const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
@@ -958,8 +959,15 @@ function renderQueue(){
 
 function renderSide(){
   const el = $('side');
-  const n = selected && nodeById(selected);
-  el.classList.toggle('on', !!n);
+  const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
+  el.classList.toggle('on', !!(n || pb));
+  // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
+  if (pb){
+    el.innerHTML = `<div class="ct"><span>${pb.label}</span><span class="ct-r"><span class="x" data-close>×</span></span></div>
+      <div class="d-prop">Proposed. It joins the map when you press Apply.</div>
+      ${pb.sub ? `<div class="d-sub">${pb.sub}</div>` : ''}${notes(pb.desc && pb.desc !== pb.sub ? pb.desc : '')}${proposalOf(pb.id)}`;
+    return;
+  }
   if (!n) return;
   if (locked(n)){
     const admin = S.people.find((p) => p.role === 'Admin')?.id || 'an admin';
@@ -1045,6 +1053,14 @@ function renderSide(){
   if (sideTab === 'chat' && seen !== sideSeen){ el.scrollTop = el.scrollHeight; sideSeen = seen; }
 }
 
+// the change a proposed box comes with, as its Apply card: from your chats on the map, or the Claude Code chat linked for you
+const proposalOf = (id) => {
+  const has = (p) => p?.status === 'pending' && p.plan?.nodes.some((n) => n.id === id);
+  for (const k of Object.keys(S.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`)))
+    for (const [i, m] of S.threads[k].entries()) if (has(m?.proposal)) return change(m, k, i);
+  const p = (S.proposals || []).find((p) => has(p) && (S.linked || []).some((l) => l.session === p.session && l.owner === ME));
+  return p ? changeP(p) : '';
+};
 /* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */
 const change = (m, key, i) => {
   const p = m.proposal; if (!p) return '';
@@ -1294,7 +1310,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (n && locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
     draft = { x: Math.round(sx), y: Math.round(sy), node: n?.id || null }; openThread = null; render(); return;
   }
-  // a proposed box only drags: it is not on the map yet, so there is nothing to open
+  // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);
     if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy, proposed: true }; canvas.setPointerCapture(e.pointerId); }
@@ -1322,7 +1338,8 @@ let lastTap = { id: null, at: 0 };
 canvas.addEventListener('pointerup', (e) => {
   if (drag){
     if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y });
-    else if (drag.proposed) {}
+    // a proposed box you click, not drag, opens its card
+    else if (drag.proposed){ selected = selected === drag.n.id ? null : drag.n.id; render(); if (selected) keepInView(selected); }
     else {
       const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < 350;
       lastTap = { id: n.id, at: Date.now() };
