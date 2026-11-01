@@ -263,6 +263,12 @@ function openMap({ project = '', name = '', home }) {
       if (!had || !mayTouch(had)) { dropped.push({ text: `remove ${id}`, why: had ? 'outside your access' : 'no such box' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
     }
+    // a new box gets its place now, so the page can show it on the map as proposed and Apply puts it exactly there
+    const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map((n) => ({ ...n }));
+    if (fresh.length) {
+      placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges]);
+      for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
+    }
     return { status: ops.length ? 'pending' : 'dropped', ops, dropped, plan };
   }
   const withoutBlock = (text) => String(text).split('```map')[0].trim();

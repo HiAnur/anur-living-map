@@ -85,6 +85,9 @@ button,input{font:inherit;color:inherit}
 .node.actor{width:110px;border-radius:999px;align-items:center}
 .node.ext{border-style:solid}
 .node.ghost{opacity:.5}
+/* a box Claude proposed in your chat, before you press Apply: blue, dashed, marked Proposed, and not yet something to click */
+.node.proposed{border-style:dashed;pointer-events:none}
+.node.proposed::after{content:'Proposed';position:absolute;top:-9px;right:8px;padding:0 7px;border-radius:999px;background:var(--new);color:#fff;font:500 10px/16px var(--plex)}
 /* outside your reach: hatched, a lock before the name, nothing to drag or open */
 .node.locked{cursor:not-allowed;color:var(--text-3);border-style:dashed;border-color:var(--box-line);background:repeating-linear-gradient(135deg,#fff 0 6px,#f3f2ee 6px 8px)}
 .node.locked .n{color:var(--text-3)}
@@ -604,7 +607,7 @@ const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) 
 function centerOn(id){
   const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
-  const n = nodeById(id); if (!n) return;
+  const n = nodeById(id) || proposed().nodes.find((x) => x.id === id); if (!n) return;
   const r = canvas.getBoundingClientRect(), card = 376, z = Math.max(cam.z, 0.8);
   const to = { x: (r.width - card) / 2 - n.x * z, y: r.height / 2 - n.y * z, z }, from = { ...cam }, t0 = performance.now();
   const step = (now) => {
@@ -624,7 +627,19 @@ const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [
 const scope = () => {
   const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
-  return all;
+  if (view !== 'system') return all;
+  const p = proposed();
+  return p.nodes.length || p.edges.length ? { nodes: [...all.nodes, ...p.nodes], edges: [...all.edges, ...p.edges] } : all;
+};
+// what Claude proposed in your open chat that you have not applied: its new boxes and lines, drawn blue and dashed
+// where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
+const proposed = () => {
+  const ps = (S.threads?.[`@${ME}`] || []).map((m) => m.proposal).filter((p) => p?.status === 'pending' && p.plan);
+  const have = new Set(S.nodes.map((n) => n.id));
+  return {
+    nodes: ps.flatMap((p) => p.plan.nodes.filter((n) => !have.has(n.id) && Number.isFinite(n.x)).map((n) => ({ ...n, state: 'new', proposed: true }))),
+    edges: ps.flatMap((p) => p.plan.edges.map((e) => ({ ...e, state: 'new', proposed: true }))),
+  };
 };
 const locked = (n) => !canSee(n);
 const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === id);
@@ -754,7 +769,7 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', decisionMap() ? boxDecision(n) : n.state || '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? boxDecision(n) : n.state || '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}${n.label}</div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
