@@ -20,7 +20,8 @@
 html,body{height:100%;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex);overflow:hidden;user-select:none}
 button,input{font:inherit;color:inherit}
 #top{position:fixed;left:0;right:0;top:0;height:44px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
-#crumbs{display:flex;align-items:center;gap:8px;color:var(--text-2)}
+/* the map's folder and name sit in the middle of the top bar, like a file name in Figma */
+#crumbs{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;color:var(--text-2)}
 #crumbs b{font-weight:500;color:var(--text);cursor:pointer}
 #crumbs b:last-child{cursor:default}
 #crumbs .back{margin-right:6px;padding:0 9px 0 7px}
@@ -468,10 +469,9 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 <div id="top">
   <button class="hb" id="menub" title="Sessions and saved maps" aria-label="Sessions and saved maps"><svg viewBox="0 0 20 20"><path d="M3 5.5h14M3 10h14M3 14.5h14"/></svg></button>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
+  <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
   <div id="crumbs"></div>
   <div id="ticket"></div>
-  <button class="tbtn" id="saveb" title="Save this map as it is now">Save</button>
-  <button class="tbtn" id="prbtn">Pull requests</button>
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
@@ -728,9 +728,6 @@ function renderTop(){
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map">${ppl.map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''}" data-as="${p.id}"${p.id === ME ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${roleOf(p)}</span></span></div>`).join('')}
       <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div></div>` : ''}`;
-  const blocked = S.prs.filter((p) => p.status === 'blocked').length;
-  $('prbtn').innerHTML = `Pull requests ${blocked ? `<span class="bad">· ${blocked} blocked</span>` : ''}`;
-  $('prbtn').classList.toggle('on', prsOpen);
 }
 
 // renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one
@@ -1143,7 +1140,6 @@ document.addEventListener('click', (e) => {
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
-  else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
