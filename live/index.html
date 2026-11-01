@@ -245,6 +245,8 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .d.done .d-opt:not(.picked){opacity:.55}
 .d-other{display:flex;gap:6px;margin-top:6px}.d-other input{flex:1;height:32px;border:1px solid var(--rule-2);border-radius:8px;padding:0 10px;font:inherit;font-size:13px}
 /* the box card's two tabs: what is open on it now, and what was answered before */
+.side-back{display:inline-block;margin:-4px 0 8px;font-size:12.5px;font-weight:500;color:var(--new);cursor:pointer}
+.side-back:hover{text-decoration:underline}
 .side-tabs{display:flex;gap:2px;margin:-2px 0 12px;border-bottom:1px solid var(--rule)}
 .side-tabs span{padding:6px 10px;font-size:12.5px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
@@ -380,9 +382,6 @@ a{color:inherit;text-decoration:none}
 #decs .dl-x{margin:10px 0 0 74px;padding-top:10px;border-top:1px solid var(--rule);font-size:13px;line-height:1.45;cursor:default}
 #decs .dl-x .h{margin:0 0 4px}
 #decs .dl-x p{margin:0 0 10px}
-#decs .dl-opt{display:flex;gap:6px;padding:3px 0;color:var(--text-2)}
-#decs .dl-opt i{flex:none;width:14px;font-style:normal;color:#145c3a}
-#decs .dl-opt.picked{color:var(--text);font-weight:500}
 #decs .dl-x .gb{margin-top:10px}
 #decs ul{margin:4px 0 0;padding-left:18px;font-size:13px}
 /* a change Claude proposed, under its reply */
@@ -719,6 +718,8 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null;
+// a box opened from Decisions or Claude's chat has a Back to it, which returns to where you were in that list
+let backTo = null, decsScroll = 0;
 // the answered questions opened with More in History, by call id
 const histOpen = new Set();
 const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
@@ -756,7 +757,7 @@ function renderSide(){
   // this box's part of your one chat with Claude: the messages that carry this box, at their place in that chat
   const thread = (S.threads?.[`@${ME}`] || []).map((m, i) => ({ m, i })).filter(({ m }) => m.about === n.id);
   // a box you just opened starts on what is open on it now
-  if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; }
+  if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
   // Open questions sit on "This box"; once answered they move to "History", with what was picked and why.
   const decision = (c) => {
@@ -806,7 +807,7 @@ function renderSide(){
   const chat = `${thread.length ? thread.map(({ m, i }) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, `@${ME}`, i)}</div>`).join('')
       : '<div class="d-wait">Nothing asked about this box yet.</div>'}
     <div class="btns"><button class="gb yes" data-ask-box="${n.id}">✳ Ask Claude about ${n.label}</button></div>`;
-  el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
+  el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
@@ -868,16 +869,10 @@ function renderDecs(){
   // what the decision means: what Yes or No does, what the picked option means, or the person's own words
   const meant = (c) => c.status === 'confirmed' ? c.yes : c.status === 'disputed' ? c.no
     : c.pickedId === 'other' ? `“${prose(c.picked)}”` : c.options?.find((o) => o.id === c.pickedId)?.means || '';
-  // opened: why it was asked, every answer there was (the one taken marked), what was said, and the box
-  const detail = (c, id) => `<div class="dl-x">
+  // opened: why it was asked, and the way into the box, where its History has the choices and what was said
+  const detail = (c) => `<div class="dl-x">
       ${c.plain || c.context ? `<div class="h">Why Claude asked</div><p>${c.plain || c.context}</p>` : ''}
-      <div class="h">The choices</div>
-      ${(c.options?.length ? c.options.map((o) => ({ label: o.label, means: o.means, on: c.pickedId === o.id }))
-        : [{ label: 'Yes', means: c.yes, on: c.status === 'confirmed' }, { label: 'No', means: c.no, on: c.status === 'disputed' }])
-        .map((o) => `<div class="dl-opt ${o.on ? 'picked' : ''}"><i>${o.on ? '✓' : ''}</i><span>${o.label}${o.means ? `: ${o.means}` : ''}</span></div>`).join('')}
-      ${c.pickedId === 'other' ? `<div class="dl-opt picked"><i>✓</i><span>Own answer: “${prose(c.picked)}”</span></div>` : ''}
-      ${c.said && c.said !== c.picked ? `<div class="h" style="margin-top:10px">What ${c.by} said</div><p>“${prose(c.said)}”</p>` : ''}
-      ${nodeById(c.node) ? `<button class="gb" data-about-h="${c.node}">Open ${nodeById(c.node).label} ›</button>` : ''}
+      ${nodeById(c.node) ? `<button class="gb" data-about-h="${c.node}">Go to ${nodeById(c.node).label} ›</button>` : ''}
     </div>`;
   el.innerHTML = `<div class="ct"><span>Decisions${all.length ? ` · ${all.length}` : ''}</span><span class="x" data-close-rail>×</span></div>
     <div class="dl-sub">Every question answered and every change applied on this map, newest first. Click one for the whole decision.</div>
@@ -893,7 +888,7 @@ function renderDecs(){
         <div class="dl-row"><span class="dl-k">Decision</span><span class="dl-v">${r.c ? ans(c) : r.action}</span>
           ${r.c && meant(c) ? `<span class="dl-m">${meant(c)}</span>` : ''}
           ${r.c ? `<span class="dl-more">${open ? 'Less' : 'More'}</span>` : ''}</div>
-        ${open && r.c ? detail(c, id) : ''}</div>`;
+        ${open && r.c ? detail(c) : ''}</div>`;
     }).join('')
       : '<div class="d-wait">Nothing has been decided on this map yet.</div>'}`;
 }
@@ -1057,7 +1052,8 @@ document.addEventListener('click', (e) => {
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.dataset.flow){ openFlow(t.dataset.flow); }
-  else if (t.hasAttribute('data-close')){ selected = null; render(); }
+  else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
+  else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
@@ -1108,7 +1104,7 @@ document.addEventListener('click', (e) => {
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
   // a message's box name opens that box, on its Chat tab
-  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'chat'; render(); } }
+  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'chat'; render(); } }
   else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask') setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
@@ -1116,7 +1112,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   // a box's name in Decisions opens that box on its History tab
   else if (t.closest('[data-dec]') && !t.closest('[data-about-h]') && !t.closest('.dl-x')){ const id = t.closest('[data-dec]').dataset.dec; decOpen.has(id) ? decOpen.delete(id) : decOpen.add(id); render(); }
-  else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'history'; render(); } }
+  else if (t.closest('[data-about-h]')){ const id = t.closest('[data-about-h]').dataset.aboutH; if (nodeById(id)){ backTo = railTab === 'decisions' && !selected ? 'decisions' : null; if (backTo) decsScroll = $('decs').scrollTop; selected = id; sideFor = id; sideTab = 'history'; render(); } }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen){ selected = null; railTab = null; } chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
   else if (t.closest('[data-rename]')){
