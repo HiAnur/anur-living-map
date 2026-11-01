@@ -26,17 +26,17 @@ The live, shared version (pan, drag, click a box, Confirm or Dispute from a queu
 
 ## Journey (`journey.html`)
 
-The YC demo, in 7 clicks and a 60-second video. You own a draft of the production map and drive it with Claude Code; Priyanka reviews; Sam's Codex works in parallel.
+The YC demo, in 7 clicks, shown only with what the YC application claims today. You own a draft of the system map and drive it with Claude Code; Priyanka, the PM, reviews from her own laptop; Sam's Claude starts later from what the team agreed. Switching people looks like changing laptops, and Priyanka sees a product view of the same map.
 
-0. The production map, drawn from repo and Terraform. You start a draft and ask Claude Code for a Pro plan with Stripe, and to remove the old renewal job.
-1. Claude draws its plan on your draft, no code yet: Billing is new, with the requirement "Charge each customer once"; the renewal job is dashed red because Claude assumed it could go, so it asks Priyanka.
-2. Priyanka decides: keep it for annual customers. You accept, the dashed line closes, and her decision goes back to Claude and onto ACME-212.
-3. Priyanka and Duy approve; the design doc is generated into the branch; Claude builds what was agreed.
-4. Sam's Codex opens #219, which deletes the renewal schedule in `infra/scheduler.tf`. Review passed; the Living Map check blocks the merge.
-5. Codex reads Priyanka's decision from Living Map and restores the job.
-6. Nov 1: production is redrawn from what's deployed; the requirement held, and so did her decision.
+0. Your screen: production snapshot 41, drawn from the repo. Nothing changed yet.
+1. You start a draft and ask Claude Code for a Pro plan with Stripe, and to remove the old renewal job. Claude draws its plan; the renewal job is dashed red because Claude assumed it could go. You ask Priyanka to review.
+2. Priyanka's laptop, product view: she suggests keeping annual renewals and approves with that change.
+3. Your laptop: you accept her change; Claude hears it and builds. Tests pass.
+4. Check: the map sees Claude's migration replaced a field the renewal job still reads. It would renew 0 of 312 annual customers.
+5. That goes back to Claude, which fixes the job and the data; released as snapshot 42.
+6. Sam's laptop, a week later: his Claude starts from Priyanka's decision and leaves the renewal job alone.
 
-`journey.html#3` opens at step 3, `#3a` plays step 3 from its start, and `?rec` hides Back/Next for recording. The voice-over, timed to the steps, is in [journey-script.md](journey-script.md).
+`journey.html#3` opens at step 3, `#3a` plays step 3 from its start, and `?rec` hides Back/Next for recording. [journey-script.md](journey-script.md) is the voice-over for the previous version; it will be rewritten with the next video.
 
 ## Plan first (`plan-first.html`)
 

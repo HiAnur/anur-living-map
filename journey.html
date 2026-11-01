@@ -23,7 +23,11 @@
   --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;overflow:hidden;background:#e9e8e3}
+html,body{margin:0;height:100%;overflow:hidden;background:#e4e2dc}
+#app{transition:transform .45s cubic-bezier(.45,.05,.2,1), border-radius .45s, box-shadow .45s}
+body.dev #app{border-radius:16px;box-shadow:0 0 0 14px #1f1f22, 0 0 0 15px #3a3a3e, 0 40px 90px rgba(0,0,0,.28)}
+#devLabel{position:fixed;left:50%;bottom:7vh;transform:translateX(-50%);font:500 15px 'IBM Plex Sans',sans-serif;color:#3a3a3e;opacity:0;transition:opacity .3s;z-index:5;white-space:nowrap}
+body.dev #devLabel{opacity:1}
 body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webkit-font-smoothing:antialiased}
 #app{position:absolute;inset:0;min-width:1100px;min-height:640px;background:var(--canvas);overflow:hidden;cursor:default}
 #app.instant *, #app.instant *::before, #app.instant *::after{transition:none !important;animation:none !important}
@@ -244,6 +248,65 @@ body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webk
 @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
 
 
+
+
+
+/* v15: Priyanka's product view of the same map */
+#prodLens{opacity:0;transition:opacity .4s;pointer-events:none}
+#app.lensP #prodLens{opacity:1}
+#app.lensP #world > svg > .node, #app.lensP #edges, #app.lensP .frame, #app.lensP .ftitle:not(#prodLens .ftitle), #app.lensP #lAssume, #app.lensP #waitR, #app.lensP #lKeep{opacity:0 !important}
+#prodLens .node{opacity:1}
+.lensT{display:none;align-items:center;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;font-size:12px}
+.lensT span{padding:2px 10px;color:var(--muted)}
+.lensT span.on{background:var(--ink);color:#fff}
+#app.lensP .lensT{display:inline-flex}
+#app.lensP #life{display:none}
+.th-q .prod{display:none}
+#app.lensP .th-q .prod{display:inline} #app.lensP .th-q .eng{display:none}
+/* v14: whose screen it is */
+.povc{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);font-weight:500;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:2px 10px 2px 4px;white-space:nowrap}
+.povc i{width:18px;height:18px;border-radius:50%;color:#fff;font:600 9.5px/18px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal}
+#pnlYou,#pnlP,#pnlS{display:flex;flex-direction:column;height:100%}
+#app[data-pov="you"] #pnlP, #app[data-pov="you"] #pnlS, #app[data-pov="p"] #pnlYou, #app[data-pov="p"] #pnlS, #app[data-pov="s"] #pnlYou, #app[data-pov="s"] #pnlP{display:none !important}
+#povCard{position:absolute;inset:0;display:grid;place-items:center;background:rgba(247,248,250,.88);z-index:70;opacity:0;pointer-events:none;transition:opacity .3s}
+#povCard.on{opacity:1}
+#povCard .pc{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);padding:20px 28px;display:flex;gap:14px;align-items:center}
+#povCard .pc i{width:44px;height:44px;border-radius:50%;color:#fff;font:600 17px/44px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal}
+#povCard .pc b{display:block;font-size:18px;color:var(--ink);font-weight:600}
+#povCard .pc span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.rvb{padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.rvb .who{font-size:12px;color:var(--muted)}
+.chg{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff}
+.chg b{display:block;font-size:13px;color:var(--ink);font-weight:600}
+.chg .t{font-size:11px;font-weight:500;margin-left:6px}
+.chg p{margin:3px 0 0;font-size:12px;color:var(--body)}
+.chg.n .t{color:var(--new-text)} .chg.c .t{color:var(--chg-text)} .chg.r .t{color:var(--rem-text)}
+.chg.r{border-style:dashed;border-color:var(--rem-line)}
+#rvStatus{font-size:12.5px;color:var(--muted);padding-top:4px}
+#rvStatus.ok{color:var(--ok-text);font-weight:500}
+/* v13: lifecycle bar, inspector, the dependency that breaks */
+.life{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--faint);white-space:nowrap}
+.life .st{transition:color .3s}
+.life .st.on{color:var(--ink);font-weight:500}
+.life .st.done{color:var(--muted)}
+.life .gt{color:#c9c7c0}
+.insp{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.insp h4{margin:0 4px 2px;font-size:15px;font-weight:600;color:var(--ink)}
+.insp .d{margin:0 4px 10px;font-size:12.5px;color:var(--body)}
+.kv{display:flex;gap:10px;padding:4px 4px;font-size:12px}
+.kv span{color:var(--muted);width:84px;flex:none}
+.kv b{font-weight:400;color:var(--ink)}
+.kv.new b{color:var(--new-text);border-left:2px solid var(--new);padding-left:6px}
+.edge text.dep{opacity:0;transition:opacity .3s;font-size:11.5px;fill:#3a3f47}
+.edge.hot path{stroke:#3a3f47 !important;stroke-width:2.5}
+.edge.hot text.dep{opacity:1}
+#app.dimrest .node:not(#n-db):not(#n-renewal), #app.dimrest .edge:not(#e4), #app.dimrest .wl.on:not(#lBreak):not(#lDb), #app.dimrest .frame, #app.dimrest .ftitle{opacity:.3 !important}
+.wl.brk{background:#3a3f47;color:#fff;border-radius:8px;padding:6px 10px;white-space:normal;width:300px}
+.wl.brk b{display:block;font-weight:600;font-size:12.5px}
+.wl.brk small{display:block;color:#d9dbe0;font-size:11px;margin-top:2px}
+.wl.brk.ok{background:var(--ok-soft);color:var(--ok-text);border:1px solid var(--ok-line)}
+.wl.dbl{font-size:11.5px;color:var(--chg-text);background:#fff;border:1px solid var(--chg-line);border-radius:6px;padding:3px 8px}
+.wl.rec{font-size:11.5px;color:var(--body);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 9px}
 /* v11: the draft chip, reviewers, a requirement tag, the owner's Accept, the design doc */
 .dchip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;border:1px solid #3a3f47;font-size:12px;color:var(--ink);background:#fff;white-space:nowrap}
 .dchip.draft{border-style:dashed}
@@ -279,6 +342,7 @@ body.rec #nav{display:none}
 </head>
 <body>
 <div id="app"></div>
+<div id="devLabel"></div>
 
 <script>
 /* ---------- the scene, built once; every step re-renders from this ---------- */
@@ -320,6 +384,10 @@ function shape(n){
     s = `<path class="body" transform="translate(${x} ${y}) scale(${k})" d="M38 94H134A30 30 0 0 0 140 35A44 44 0 0 0 62 24A32 32 0 0 0 30 54A20 20 0 0 0 38 94Z"/>
       <text class="lbl" x="${x + w / 2 + 4}" y="${y + 62}" text-anchor="middle">${n.label}</text>
       <text class="sub" x="${x + w / 2 + 4}" y="${y + 79}" text-anchor="middle">${n.sub}</text>`;
+  } else if (n.kind === 'plain'){
+    s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/>
+      <text class="lbl" x="${x + 16}" y="${y + 38}">${n.label}</text>
+      <text class="sub" x="${x + 16}" y="${y + 58}">${n.sub}</text>`;
   } else if (n.kind === 'job'){
     const cx = x + w - 18, cy = y + 18;
     s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
@@ -343,7 +411,7 @@ const EDGES = [
   {id:'e1', d:'M110 153H160'},
   {id:'e2', d:'M310 153H360'},
   {id:'e3', d:'M435 196V330'},
-  {id:'e4', d:'M310 381H360'},
+  {id:'e4', d:'M310 381H360', dep:1},
   {id:'p1', d:'M510 153H570', plan:1},
   {id:'p2', d:'M730 138H838', plan:1},
   {id:'p3', d:'M838 172H730', plan:1},
@@ -388,7 +456,7 @@ function infra(){
 }
 
 function edgesSvg(){
-  return EDGES.map(e => `<g class="edge ${e.plan ? 'plan' : ''}" id="${e.id}"><path d="${e.d}" pathLength="1"${e.plan ? '' : ' marker-end="url(#ah)"'}/>${e.t ? `<text x="${e.tx}" y="${e.ty}" text-anchor="middle">${e.t}</text>` : ''}</g>`).join('');
+  return EDGES.map(e => `<g class="edge ${e.plan ? 'plan' : ''}" id="${e.id}"><path d="${e.d}" pathLength="1"${e.plan ? '' : ' marker-end="url(#ah)"'}/>${e.t ? `<text x="${e.tx}" y="${e.ty}" text-anchor="middle">${e.t}</text>` : ''}${e.dep ? '<text class="dep" id="depT" x="335" y="320" text-anchor="middle">reads <tspan id="depC">users.billing_cycle</tspan></text>' : ''}</g>`).join('');
 }
 
 const SEQ = {
@@ -423,72 +491,86 @@ function build(){
     <line class="strike" id="rstrike" pathLength="1" x1="110" y1="381" x2="320" y2="381"/>
     <text class="hint" id="hintR" x="215" y="332" text-anchor="middle">Double-click to open ›</text>
     <text class="hint" id="hintP" x="784" y="208" text-anchor="middle">Open flow ›</text>
+    <g id="prodLens">
+      ${shape({id: 'lc', kind: 'person', x: 70, y: 150, w: 90, h: 110, label: 'Customers'})}
+      <text class="ftitle" x="115" y="278" text-anchor="middle" style="font-size:11.5px">4,120 active, 312 on annual plans</text>
+      ${shape({id: 'lp', kind: 'plain', x: 300, y: 110, w: 230, h: 86, label: 'Pro plan', sub: 'New: billed monthly by Stripe', cls: 'new'})}
+      ${shape({id: 'lr', kind: 'job', x: 300, y: 338, w: 230, h: 86, label: 'Annual renewals', sub: 'Renews annual customers every night', cls: 'rem assumed'})}
+      <g class="edge"><path d="M165 190H300" marker-end="url(#ah)"/><text x="232" y="182" text-anchor="middle">upgrade</text><path d="M115 292V366Q115 381 130 381H300" marker-end="url(#ah)"/><text x="210" y="372" text-anchor="middle">renew yearly</text></g>
+      <text class="ftitle" x="300" y="440" style="font-size:11.5px;fill:#b02e2e">Claude wants to remove this</text>
+    </g>
     ${infra()}
   </svg>`;
   const wl = (id, x, y, html, cls = '') => `<div class="wl ${cls}" id="${id}" style="left:${x}px;top:${y}px">${html}</div>`;
   return `
   <header id="top">
     <div class="logo">${LOGO}Living Map</div><div class="vsep"></div>
-    <div class="crumbs"><span class="c">acme-app</span><span class="sl">/</span><span class="c cur" id="crSys">System</span><span class="sl hide" id="crSl">/</span><span class="c cur hide" id="crSub"></span></div>
-    <span class="dchip" id="dchip">Production</span><span class="srcn" id="srcn">from repo and Terraform</span>
+    <span class="povc" id="povChip"><i id="povDot" style="background:${PCOL.You}">Y</i><span id="povName">Your screen</span></span>
+    <div class="crumbs"><span class="c">acme-app</span></div>
+    <div class="life" id="life"><span class="st on" id="st0">Snapshot 41 (from repo)</span><span class="gt">›</span><span class="st" id="st1">Draft</span><span class="gt">›</span><span class="st" id="st2">Review</span><span class="gt">›</span><span class="st" id="st3">Build</span><span class="gt">›</span><span class="st" id="st4">Check</span><span class="gt">›</span><span class="st" id="st5">Released</span></div>
     <span class="btn" id="newDraft">New draft</span>
+    <span class="lensT"><span class="on">Product view</span><span>Engineering view</span></span>
     <div class="grow"></div>
     <div id="clock">Oct 31, 09:58</div>
     <div class="avs">
-      <div class="av p live" id="avY" style="background:${PCOL.You}" title="You">Y</div><div class="av p" id="avP" style="background:${PCOL.Priyanka}" title="Priyanka">P</div><div class="av p" id="avS" style="background:${PCOL.Sam}" title="Sam">S</div><div class="av p" id="avD" style="background:${PCOL.Duy}" title="Duy">D</div>
+      <div class="av p live" id="avY" style="background:${PCOL.You}" title="You">Y</div><div class="av p" id="avP" style="background:${PCOL.Priyanka}" title="Priyanka">P</div><div class="av p" id="avS" style="background:${PCOL.Sam}" title="Sam">S</div>
       <div class="vsep" style="margin:0 2px"></div>
-      <div class="av agent" id="avCl" title="Claude Code">${CLAUDE(13)}</div><div class="av cx" id="avCx" title="Codex">&gt;_</div>
+      <div class="av agent" id="avCl" title="Claude Code">${CLAUDE(13)}</div>
     </div>
   </header>
   <main id="view">
     <div id="world">${sysSvg}
       ${wl('lAssume', 120, 430, 'Claude assumed: remove it', 'rem')}
       ${wl('lKeep', 120, 430, 'Remove → Keep for annual customers', 'chg')}
-      ${wl('tagB', 576, 187, 'Charge each customer once <span style="color:var(--muted)">← ACME-212</span>', 'tagp')}
+      ${wl('lDb', 360, 436, 'Planned: + plan column<br><b style="font-weight:600">Built: billing_cycle → plan</b>', 'dbl')}
+      ${wl('lBreak', 30, 460, '<b>✕ Would renew 0 of 312 annual customers</b><small>reads users.billing_cycle ← jobs/renewal.ts:18 (raw SQL, no integration test). Inferred from code, not run.</small>', 'brk')}
       ${wl('lBuilt', 570, 66, '<span class="big" style="color:var(--ok-text)">Built as agreed ✓</span>', 'new')}
+      ${wl('lRec', 120, 456, 'Kept for annual customers (Priyanka, Oct 31). Checked at build ✓', 'rec')}
+      <div class="wait" id="waitR" style="left:128px;top:328px"><span class="who" style="background:${PCOL.Priyanka}">Priyanka</span><span class="pend">Waiting</span></div>
       <div class="thread" id="thR" style="left:340px;top:490px">
-        <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>for Priyanka, owner of ACME-212</span></div>
-        <div class="th-q">Remove the renewal job? 312 annual customers renew through it.</div>
+        <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>asks Priyanka, owner of ACME-212</span></div>
+        <div class="th-q"><span class="eng">Remove the renewal job? 312 annual customers renew through it.</span><span class="prod">Claude assumed annual renewals can stop. 312 customers renew this way. Keep or remove?</span></div>
         <div class="th-reply" id="replyR"></div>
-        <div class="th-btns" id="btnsR"><span class="btn" id="cfR">Confirm</span><span class="btn" id="dsR">Dispute</span></div>
-        <div class="th-acc hide" id="accR"><span class="btn dark" id="acceptR">Accept</span><span class="txtbtn">Reply</span></div>
-        <div id="recR">Priyanka decided 10:02: keep for annual customers. Accepted by you. On ACME-212.</div>
-      </div>
-      <div class="wl card" id="record" style="left:340px;top:490px;width:300px">
-        <div style="font-weight:600">Priyanka’s decision held up: 9 renewals ran <span style="font-weight:400;color:var(--muted)">← job run log</span></div>
-        <div style="margin-top:3px;color:var(--muted);font-size:11.5px">Read by Claude Code (#212) and Codex (#219)</div>
+        <div class="th-btns" id="btnsP"><span class="btn" id="sugR">Suggest change</span><span class="btn dark" id="aprR">Approve</span></div>
+        <div class="th-ans hide" id="ansP">Priyanka approved with this change, 10:02</div>
+        <div class="th-acc hide" id="accR"><span class="btn dark" id="acceptR">Accept change</span></div>
+        <div id="recR">Priyanka decided 10:02: keep for annual customers. Accepted by you.</div>
       </div>
     </div>
   </main>
   <aside id="drawer">
-    <div class="dh">${CLAUDE(15)}<b>Claude Code</b><span class="m">acme-app</span><span class="grow"></span><span class="chip" id="modeChip">plan mode</span></div>
-    <div id="msgs"></div>
-    <div class="composer" id="composer"><div id="input"></div><div class="cfoot"><span>Opus 5.5</span><span class="send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div></div>
+    <div id="pnlYou">
+      <div class="dh">${CLAUDE(15)}<b>Claude Code</b><span class="m">acme-app</span><span class="grow"></span><span class="chip" id="modeChip">plan mode</span></div>
+      <div id="msgs"></div>
+      <div class="composer" id="composer"><div id="input"></div><div class="cfoot"><span>Opus 5.5</span><span class="send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div></div>
+    </div>
+    <div id="pnlP">
+      <div class="dh">${LOGO}<b>Review</b><span class="m">Pro plan, ACME-212</span></div>
+      <div class="rvb">
+        <div class="who">Harshit asked for your review, 09:59.</div>
+        <div class="chg n"><b>Pro plan<span class="t">New</span></b><p>Billed monthly by Stripe. Each customer is charged once.</p></div>
+        <div class="chg r"><b>Annual renewals<span class="t">Claude wants to remove</span></b><p>312 customers renew this way. A question for you on the map.</p></div>
+        <div id="rvStatus">Not reviewed yet</div>
+      </div>
+    </div>
+    <div id="pnlS">
+      <div class="dh">${CLAUDE(15)}<b>Claude Code</b><span class="m">Sam, acme-app</span></div>
+      <div id="msgsS" style="flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end"></div>
+      <div class="composer"><div style="flex:1;color:var(--faint)">Reply to Claude…</div><div class="cfoot"><span>Opus 5.5</span><span class="send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div></div>
+    </div>
   </aside>
   <aside id="side">
     <div class="sh">On this map</div>
+    <div class="none" id="emptyMap">Production only. Start a draft to plan a change.</div>
     <div class="row hide" id="rCl"><span class="ic">${CLAUDE(12)}</span><div><b>Claude Code for you</b><span id="rClS">ACME-212, your draft</span></div><span class="eye">${EYE}</span></div>
-    <div class="row" id="rCx"><span class="ic" style="background:#131313;color:#fff">${CODEX}</span><div><b>Codex for Sam</b><span id="rCxS">ACME-219, own draft</span></div><em>preview</em></div>
+    <div class="row hide" id="rSam"><span class="ic" style="background:${PCOL.Sam};color:#fff;font-size:10px;font-weight:600">S</span><div><b>Sam's draft</b><span id="rSamS">from snapshot 42</span></div></div>
     <div class="decs hide" id="reviewers"><div class="sh">Reviewers</div>
       <div class="rv" id="rvP"><i style="background:${PCOL.Priyanka}">P</i><div><b>Priyanka</b><span>owner of ACME-212</span></div><em>Requested</em></div>
-      <div class="rv" id="rvD"><i style="background:${PCOL.Duy}">D</i><div><b>Duy</b><span>CODEOWNERS jobs/</span></div><em>Requested</em></div>
     </div>
+    <div class="decs hide" id="reqBtn"><span class="btn" id="reqReview">Request review: Priyanka</span></div>
   </aside>
   <div id="scrim"></div>
-  <div class="inset" id="inPR">
-    <div class="wbar"><i></i><i></i><i></i><span>Sam’s pull request</span></div>
-    <div class="pr"><h3>#219 Remove schedules Stripe now handles</h3><div class="meta">Opened by Codex for Sam. Approved by a teammate. <span style="font-family:var(--mono)">infra/scheduler.tf −18</span></div>
-      <div class="checks">
-        <div class="ck"><span class="st ok">✓</span><div>Tests<small>42 passed</small></div></div>
-        <div class="ck" id="ckLM"><span class="st"><i class="spin"></i></span><div>Living Map<small>Checking against agreed decisions…</small></div></div>
-      </div>
-      <div class="merge"><span id="mergeT">Waiting for checks</span><span class="btn" id="mergeB" style="color:var(--faint)">Merge</span></div>
-    </div>
-  </div>
-  <div class="inset" id="inTerm">
-    <div class="wbar"><i></i><i></i><i></i><span>Sam’s terminal: Codex (preview), #219</span></div>
-    <div class="term" id="term"></div>
-  </div>
+  <div id="povCard"><div class="pc"><i id="pcDot">P</i><div><b id="pcName">Priyanka’s screen</b><span id="pcSub">Oct 31, 10:02</span></div></div></div>
   <div id="curs">
     <div class="cursor" id="cY">${ARROW(PCOL.You)}<span class="nm" style="background:${PCOL.You}">You</span></div>
     <div class="cursor" id="cP">${ARROW(PCOL.Priyanka)}<span class="nm" style="background:${PCOL.Priyanka}">Priyanka</span></div>
@@ -572,98 +654,102 @@ function seqFrom(el){
 }
 
 const DOC = `<svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="#55534e" stroke-width="1.3" style="flex:none;margin-top:1px"><path d="M2 1.5h8l4 4V16.5H2z"/><path d="M10 1.5v4h4M5 9h6M5 12h6"/></svg>`;
-function setChip(state){
-  const c = $('dchip'), n = $('srcn');
-  c.className = 'dchip ' + (state === 'draft' ? 'draft' : state === 'approved' ? 'approved' : '');
-  c.textContent = { prod: 'Production', draft: 'Draft', approved: 'Draft, approved', live: 'Production' }[state];
-  n.textContent = { prod: 'from repo and Terraform', draft: 'of production, Oct 31', approved: 'of production, Oct 31', live: 'deployed Nov 1: #212, #219. No drift from the approved draft.' }[state];
-  $('newDraft').classList.toggle('hide', state !== 'prod');
+const POV = { you: ['You', 'Your screen'], p: ['Priyanka', 'Priyanka’s screen'], s: ['Sam', 'Sam’s screen'] };
+function povState(who){
+  app.dataset.pov = who; app.classList.toggle('lensP', who === 'p');
+  const rb = $('rCl').querySelector('b'); if (rb){ rb.textContent = who === 'p' ? 'Harshit’s draft' : 'Claude Code for you'; if (who === 'p') $('rClS').textContent = 'Pro plan, ACME-212'; else if ($('rClS').textContent === 'Pro plan, ACME-212') $('rClS').textContent = 'ACME-212, your draft'; }
+  const [name, label] = POV[who];
+  $('povDot').style.background = PCOL[name]; $('povDot').textContent = name[0]; $('povName').textContent = label;
+  ['avY', 'avP', 'avS'].forEach(a => off(a, 'live')); on({ you: 'avY', p: 'avP', s: 'avS' }[who], 'live');
+}
+const LAPTOP = { you: 'Your laptop', p: 'Priyanka’s laptop', s: 'Sam’s laptop' };
+function pov(who, sub){
+  if (I || !sub){ povState(who); return; }
+  // your laptop shrinks and slides away; theirs slides in and opens
+  const lab = document.getElementById('devLabel'), from = app.dataset.pov || 'you', k = app.dataset.k || '';
+  const T = (tr, anim = true) => { app.style.transition = anim ? '' : 'none'; app.style.transform = tr; };
+  lab.textContent = LAPTOP[from]; document.body.classList.add('dev'); T('scale(.6)');
+  later(500, () => T('translateX(-125vw) scale(.6)'));
+  later(950, () => { T('translateX(125vw) scale(.6)', false); povState(who); lab.textContent = LAPTOP[who] + ', ' + sub; void app.offsetWidth; });
+  later(1000, () => T('translateX(0) scale(.6)'));
+  later(1550, () => { document.body.classList.remove('dev'); T(''); });
+}
+function msgS(html, cls){ const d = document.createElement('div'); d.className = cls + (I ? '' : ' anim'); d.innerHTML = html; $('msgsS').appendChild(d); }
+function stage(i, first){
+  for (let k = 0; k <= 5; k++){ const e = $('st' + k); e.classList.toggle('on', k === i); e.classList.toggle('done', k < i); }
+  if (first) $('st0').textContent = first;
+  $('newDraft').classList.toggle('hide', i !== 0);
 }
 function approve(id){ const e = $(id).querySelector('em'); e.textContent = '✓ Approved'; e.classList.add('ok'); flash(id); }
 
 /* ---------- the journey: each step is one person's action and what it changes ---------- */
 const STEPS = [
-  // 0. Production, then your draft of it; you ask Claude Code
+  // 0. Your screen: snapshot 41, the system as the repo has it today. Nothing changed yet.
+  () => { pov('you'); cam(...SYSCAM); },
+  // 1. Your screen: a draft of snapshot 41; Claude proposes; you ask Priyanka to review
   () => {
-    cam(...SYSCAM);
-    later(500, () => curTo('cY', pt('newDraft')));
-    later(1200, () => { tap('cY'); setChip('draft'); });
-    later(1800, () => curTo('cY', pt('input', .25, .5)));
-    later(2400, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
-    later(2600, () => typeInto('input', 'Plan ACME-212: add a Pro plan with Stripe, and remove the old renewal job.', 40));
+    later(400, () => curTo('cY', pt('newDraft')));
+    later(1000, () => { tap('cY'); stage(1); $('emptyMap').textContent = 'Your draft from snapshot 41.'; });
+    later(1500, () => curTo('cY', pt('input', .25, .5)));
+    later(2000, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
+    later(2200, () => typeInto('input', 'Plan ACME-212: add a Pro plan with Stripe, and remove the old renewal job.', 46));
+    later(4000, () => { clock('Oct 31, 09:59'); send(); });
+    later(4300, () => tools([['Read', '6 files'], ['Query', 'customers (read-only copy)', '312 annual']]));
+    later(4900, () => msg('Drawing the plan on Living Map. No code yet.', 'say'));
+    later(5300, () => { on('n-billing', 'new'); app.classList.add('focus'); $('emptyMap').classList.add('hide'); $('rCl').classList.remove('hide'); });
+    ['p1', 'p2', 'p3', 'p4'].forEach((e, i) => later(5500 + i * 180, () => draw(e)));
+    later(6300, () => { on('n-db', 'chg'); $('n-db').querySelector('.sub').textContent = '+ plan column'; });
+    later(6900, () => { on('n-renewal', 'rem'); on('n-renewal', 'assumed'); on('lAssume'); });
+    later(7600, () => { $('reqBtn').classList.remove('hide'); curTo('cY', pt('reqReview')); });
+    later(8300, () => { tap('cY'); on('reqReview', 'press'); stage(2); $('reviewers').classList.remove('hide'); $('reqBtn').classList.add('hide'); on('waitR'); curTo('cY', {x: 1000, y: 860}, false); });
   },
-  // 1. Claude's plan on your draft, no code yet; its guess waits on Priyanka
+  // 2. Priyanka's screen: she opens your draft, suggests a change and approves with it
   () => {
-    clock('Oct 31, 09:59'); send();
-    later(300, () => tools([['Read', '6 files'], ['Query', 'customers (read-only copy)', '312 annual']]));
-    later(1100, () => msg('Drawing the plan on Living Map. No code yet.', 'say'));
-    later(1800, () => { on('n-billing', 'new'); app.classList.add('focus'); $('rCl').classList.remove('hide'); flash('rCl'); });
-    ['p1', 'p2', 'p3', 'p4'].forEach((e, i) => later(2000 + i * 200, () => draw(e)));
-    later(2900, () => on('tagB'));
-    later(3800, () => { on('n-renewal', 'rem'); on('n-renewal', 'assumed'); on('lAssume'); });
-    later(4800, () => { on('thR'); $('reviewers').classList.remove('hide'); });
-    later(5600, () => msg('One product call is waiting on Priyanka.', 'say'));
+    clock('Oct 31, 10:02'); pov('p', '10:02');
+    later(1800, () => { off('waitR'); on('thR'); curTo('cP', {x: 900, y: 780}, false); });
+    later(2000, () => curTo('cP', pt('sugR')));
+    later(2700, () => { tap('cP'); on('sugR', 'press'); });
+    later(2900, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 46); });
+    later(4500, () => curTo('cP', pt('aprR')));
+    later(5200, () => { tap('cP'); on('aprR', 'press'); });
+    later(5500, () => { $('btnsP').classList.add('hide'); $('ansP').classList.remove('hide'); $('rvStatus').textContent = '✓ Approved with 1 suggested change'; on('rvStatus', 'ok');
+      const e = $('rvP').querySelector('em'); e.textContent = '✓ Approved, 1 change'; e.classList.add('ok'); curTo('cP', {x: 900, y: 860}, false); });
   },
-  // 2. Priyanka decides; you accept; it goes back to Claude
+  // 3. Your screen: you accept her change; Claude hears it and builds
   () => {
-    clock('Oct 31, 10:02'); on('avP', 'live');
-    later(100, () => curTo('cP', {x: 900, y: 780}, false));
-    later(200, () => curTo('cP', pt('dsR')));
-    later(900, () => { tap('cP'); on('dsR', 'press'); });
-    later(1200, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 42); });
-    later(4200, () => { $('btnsR').classList.add('hide'); $('accR').classList.remove('hide'); off('avP', 'live'); curTo('cP', {x: 900, y: 820}, false); clock('Oct 31, 10:05'); });
-    later(4400, () => curTo('cY', pt('acceptR')));
-    later(5100, () => { tap('cY'); on('acceptR', 'press'); });
-    later(5400, () => { off('n-renewal', 'assumed'); off('n-renewal', 'rem'); on('n-renewal', 'chg'); off('lAssume'); on('lKeep'); on('thR', 'col'); curTo('cY', {x: 1000, y: 840}, false);
-      on('s-0', 'chg'); $('s-0').querySelector('.sub').textContent = 'Agreed: keep for annual customers'; });
-    later(6100, () => msg('<small>From Living Map</small>Priyanka decided: keep the renewal job for annual customers. Accepted by you.', 'fromlm'));
-    later(6800, () => msg('Updated the plan: the renewal job stays for annual customers.', 'say'));
+    clock('Oct 31, 10:15'); pov('you', '10:15');
+    later(1800, () => { $('accR').classList.remove('hide'); curTo('cY', pt('acceptR')); });
+    later(2500, () => { tap('cY'); on('acceptR', 'press'); });
+    later(2800, () => { off('n-renewal', 'assumed'); off('n-renewal', 'rem'); on('n-renewal', 'chg'); off('lAssume'); on('lKeep'); on('thR', 'col'); curTo('cY', {x: 1000, y: 860}, false);
+      msg('<small>From Living Map</small>Priyanka approved, with a change: keep the renewal job for annual customers. Accepted by you.', 'fromlm'); });
+    later(3500, () => msg('Updated the plan. Building it.', 'say'));
+    later(3900, () => { stage(3); off('thR'); $('modeChip').classList.add('hide'); tools([['Write', 'services/billing/index.ts', '+128'], ['Write', 'migrations/007_plan.sql', 'users.billing_cycle → users.plan'], ['Bash', 'npm test', '✓ 14 passed'], ['Bash', 'gh pr create', '#212']]); });
   },
-  // 3. Reviewers approve; the design doc is saved; Claude builds it
+  // 4. Check: the map catches what the build changed
   () => {
-    clock('Oct 31, 14:40');
-    later(200, () => approve('rvP'));
-    later(700, () => approve('rvD'));
-    later(1100, () => { setChip('approved'); off('thR'); });
-    later(1500, () => msg(`<span class="dfile">${DOC}<span><b>docs/design/acme-212-pro-plan.md</b><small>Committed on branch acme-212-pro-plan. Linked on ACME-212.</small></span></span>`, 'filemsg'));
-    later(1900, () => msg('Design approved. Code review still happens on GitHub.', 'note'));
-    later(2400, () => { $('modeChip').classList.add('hide'); tools([['Read', 'docs/design/acme-212-pro-plan.md'], ['Write', 'services/billing/index.ts', '+128'], ['Edit', 'jobs/renewal.ts', '+6'], ['Bash', 'npm test billing', '✓ 14 passed'], ['Bash', 'gh pr create', '#212']]); });
-    later(4200, () => { on('lBuilt'); $('rClS').textContent = '#212, built as agreed'; flash('rCl'); });
+    clock('Oct 31, 10:40'); stage(4);
+    later(400, () => on('lDb'));
+    later(1400, () => { app.classList.add('dimrest'); on('e4', 'hot'); $('depC').textContent = 'users.billing_cycle (removed)'; });
+    later(2300, () => on('lBreak'));
   },
-  // 4. The clash: Sam's Codex removes the job in code; the check blocks the merge
+  // 5. Back to Claude: fixed; released as snapshot 42
   () => {
-    clock('Oct 31, 16:40'); on('avS', 'live');
-    inset('inPR', true);
-    later(1800, () => { on('inPR', 'corner'); off('scrim'); app.classList.add('deep'); crumbs('Renewal job'); cam(IX - 4, IY - 4, 190 + 8, 478 * IK + 8); });
-    later(3000, () => { on('s-0', 'struck'); $('s-0').querySelector('.strike').classList.add('on'); });
-    later(3500, () => { $('clashNote').style.opacity = 1; });
-    later(5000, () => { $('ckLM').innerHTML = '<span class="st bad">✕</span><div>Living Map: conflicts with Priyanka’s decision (ACME-212). Merge blocked.<small>Accepted by you; approved draft, #212 open. 9 renewals due tomorrow ← customer database</small></div>'; $('mergeT').innerHTML = '<span class="bad">Merge blocked</span>'; $('rCxS').innerHTML = '<span class="bad">#219 blocked</span>'; flash('rCx'); });
-  },
-  // 5. Codex reads the decision from Living Map and fixes its own PR
-  () => {
-    clock('Oct 31, 16:52');
-    off('inPR'); off('inPR', 'corner');
-    later(200, () => inset('inTerm', true));
-    const T = $('term'), line = (html, cls = '') => { const d = document.createElement('div'); d.className = cls + (I ? '' : ' anim'); d.innerHTML = html; T.appendChild(d); };
-    later(500, () => line('<span class="you">›</span> <span class="you" id="samT"></span>'));
-    later(600, () => typeInto('samT', 'Fix it.', 16));
-    later(1300, () => line('<div>• Called <b style="font-weight:500;color:#131313">living_map.get_decision</b>({ "ticket": "ACME-212", "component": "Renewal job" })</div><div class="k">  └ keep the renewal job for annual customers (Priyanka, 2026-10-31 10:02)</div>'));
-    later(2300, () => line('<div>• Edited infra/scheduler.tf <span class="ok">(+5)</span></div><div>• Ran git push</div>'));
-    later(2800, () => line('<span class="ok">✓ Living Map: no conflict with agreed decisions</span>'));
-    later(3400, () => { on('inTerm', 'corner'); off('scrim'); });
-    later(3900, () => { off('s-0', 'struck'); $('s-0').querySelector('.strike').classList.remove('on'); $('clashNote').style.opacity = 0; });
-    later(4800, () => { inset('inTerm', false); off('avS', 'live'); app.classList.remove('deep'); crumbs(''); cam(...SYSCAM); $('rCxS').innerHTML = '<span class="ok">#219 passing</span>'; flash('rCx'); });
-  },
-  // 6. Nov 1: production redrawn from what's deployed; it held up
-  () => {
-    clock('Nov 1, 08:12'); cam(...SYSCAM);
-    later(300, () => setChip('live'));
-    later(1000, () => { app.classList.remove('focus'); off('n-billing', 'plan'); off('n-billing', 'new'); off('n-renewal', 'chg'); off('lKeep'); off('lBuilt');
+    later(200, () => msg('<small>From Living Map</small>Your migration breaks the Renewal job Priyanka kept: it still reads users.billing_cycle.', 'fromlm'));
+    later(900, () => tools([['Edit', 'migrations/007_plan.sql', 'backfills users.plan'], ['Edit', 'jobs/renewal.ts', 'reads users.plan'], ['Bash', 'npm test', '✓ 15 passed']]));
+    later(2000, () => { $('depC').textContent = 'users.plan ✓'; $('lBreak').innerHTML = '<b>✓ Reads users.plan; 312 annual customers renew</b>'; on('lBreak', 'ok'); });
+    later(3000, () => { app.classList.remove('dimrest'); off('e4', 'hot'); off('lBreak'); off('lDb'); clock('Oct 31, 15:30'); stage(5); });
+    later(3600, () => { app.classList.remove('focus'); off('n-billing', 'plan'); off('n-billing', 'new'); off('n-db', 'chg'); off('n-renewal', 'chg'); off('lKeep');
       EDGES.filter(e => e.plan).forEach(e => { off(e.id, 'new'); off(e.id, 'plan'); $(e.id).querySelector('path').setAttribute('marker-end', 'url(#ah)'); });
-      $('n-billing').querySelector('.sub').textContent = 'services/billing'; $('n-renewal').querySelector('.sub').textContent = 'Keeps annual customers';
-      $('rClS').textContent = '#212 deployed'; $('rCxS').textContent = '#219 deployed'; });
-    later(1800, () => { $('tagB').innerHTML = 'Charge each customer once ✓ <span style="opacity:.8">← Stripe events</span>'; on('tagB', 'held'); });
-    later(2400, () => on('record'));
+      $('n-billing').querySelector('.sub').textContent = 'services/billing'; $('n-db').querySelector('.sub').textContent = 'Postgres'; $('rClS').textContent = '#212 merged'; });
+    later(4200, () => { stage(0, 'Snapshot 42 (from repo, #212 merged)'); $('newDraft').classList.add('hide'); on('lRec'); });
+  },
+  // 6. Sam's screen, a week later: his Claude starts from what the team agreed
+  () => {
+    clock('Nov 6, 11:20'); pov('s', 'Nov 6');
+    later(1700, () => { stage(1, 'Snapshot 42 (from repo)'); $('newDraft').classList.add('hide'); $('rCl').classList.add('hide'); $('reviewers').classList.add('hide'); $('rSam').classList.remove('hide'); $('rSamS').textContent = 'ACME-230, from snapshot 42'; flash('rSam'); });
+    later(2000, () => msgS('Clean up the old billing jobs.', 'bub'));
+    later(2800, () => msgS('<small>From Living Map, snapshot 42</small>Renewal job: kept for annual customers (Priyanka, Oct 31). Checked at build.', 'fromlm'));
+    later(3800, () => msgS('I’ll leave the renewal job and remove only the jobs Stripe now handles.', 'say'));
   },
 ];
 const LAST = STEPS.length - 1;
@@ -671,7 +757,7 @@ const LAST = STEPS.length - 1;
 /* ---------- stepping ---------- */
 function render(t, animate){
   token++; timers.forEach(clearTimeout); timers = [];
-  app.innerHTML = HTML; app.classList.remove('dopen', 'deep', 'unread', 'pulse', 'seqon', 'clashz', 'focus');
+  app.innerHTML = HTML; app.dataset.pov = 'you'; app.classList.remove('lensP'); app.style.transform = ''; document.body.classList.remove('dev'); app.classList.remove('dopen', 'deep', 'unread', 'pulse', 'seqon', 'clashz', 'focus');
   app.classList.add('instant');
   camState = {x: SYSCAM[0], y: SYSCAM[1], w: SYSCAM[2], h: SYSCAM[3], max: SYSCAM[4]};
   I = true; const upto = animate ? t - 1 : t;

@@ -1,5 +1,7 @@
 # Journey: 60-second script
 
+> Written for the previous version of `journey.html` (commit b8318b9). The current version changed the story; this script will be rewritten with the next video.
+
 The voice-over for [`journey.html`](journey.html), 58 seconds. A narrator explains; you and Priyanka say your own lines in your own voices. One click per step: click when the step's first line starts.
 
 Record at 1536×864 (or any 16:9 size) with `journey.html?rec`. `→` steps forward; `#0`…`#6` open a step's end state; `#3a` plays step 3 from its start.
