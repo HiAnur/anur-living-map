@@ -24,6 +24,14 @@ button,input{font:inherit;color:inherit}
 #crumbs b{font-weight:500;color:var(--text);cursor:pointer}
 #crumbs b:last-child{cursor:default}
 #crumbs .back{margin-right:6px;padding:0 9px 0 7px}
+/* where the map lives, then what it is called: Folder and Name, each with its own small label; the name renames in place */
+#crumbs .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
+#crumbs .dir{font:12.5px var(--mono);color:var(--text-2);cursor:default}
+#crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
+#crumbs b.nm:hover{background:#f3f2ee}
+#crumbs b.nm .pen{font-size:11px;color:var(--text-3);margin-left:6px}
+#crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
+#crumbs .sep{color:var(--text-3)}
 #ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
 #ticket b{color:var(--text);font-weight:500}
 .faces{display:flex;align-items:center;gap:8px}
@@ -430,6 +438,7 @@ const pcol = (who) => PCOL[who] || '#141413';
 // words as the page shows them: escaped, with Claude's **bold**, `code` and line breaks kept
 const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
   .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
@@ -619,14 +628,16 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpe
 function renderTop(){
   const fb = flowBox();
   const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
-  // inside a box: a Back button first, then where you are
-  $('crumbs').innerHTML = fb
-    ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button><b data-v="system">System</b> <span>›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span>›</span> <b>${fb.flow.title}</b>`
-    : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the system (Esc)">‹ Back</button>` : ''}<b data-v="system">System</b>${inside ? ` <span>›</span> <b>${inside.label}</b>` : ''}`;
-  // the top line is the folder's name, nothing more; the ticket and its prompt live in the menu's sessions
-  const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : S.title;
-  $('ticket').innerHTML = `<b>${folder}</b>`;
-  document.title = `Living Map · ${folder}`;
+  // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
+  const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
+  const where = `<span class="lbl">Folder</span><b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b>
+    <span class="lbl">Name</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}<span class="pen">✎</span></b>`;
+  // while you type a new name, a redraw leaves the box alone
+  if (!$('renamei')) $('crumbs').innerHTML = fb
+    ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button>${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
+    : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
+  $('ticket').innerHTML = '';
+  document.title = `Living Map · ${S.title}`;
   $('me').innerHTML = `You are <b>${ME}</b>${me().role ? ` · ${me().role.split(',')[0]}` : ''}${me().sees && me().sees !== 'all' ? ` · ${me().sees} only` : ''}`;
   const names = S.people.map((p) => p.id);
   // click a person to see the map as them: their queue, their cursor, their clicks
@@ -635,6 +646,18 @@ function renderTop(){
   $('prbtn').innerHTML = `Pull requests ${blocked ? `<span class="bad">· ${blocked} blocked</span>` : ''}`;
   $('prbtn').classList.toggle('on', prsOpen);
 }
+
+// renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one
+let renaming = false;
+const endRename = (keep) => {
+  if (!renaming) return; renaming = false;
+  const v = $('renamei')?.value.trim() || '';
+  $('renamei')?.remove();
+  if (keep && v && v !== S.title){ S.title = v; act('rename', { title: v }); }
+  renderTop();
+};
+document.addEventListener('keydown', (e) => { if (e.target.id !== 'renamei') return; if (e.key === 'Enter') endRename(true); if (e.key === 'Escape') endRename(false); });
+document.addEventListener('focusout', (e) => { if (e.target.id === 'renamei') endRename(true); });
 
 // What someone answered: Yes or No, or the option they picked ("Own answer" when they wrote their own)
 const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answer' : c.picked) : c.status === 'confirmed' ? 'Yes' : 'No';
@@ -964,6 +987,10 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'fitb'){ fit(); }
   else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen) selected = null; chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
   else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
+  else if (t.closest('[data-rename]')){
+    t.closest('[data-rename]').outerHTML = `<input id="renamei" value="${esc(S.title)}" maxlength="60" aria-label="Map name" autocomplete="off">`;
+    renaming = true; $('renamei').focus(); $('renamei').select();
+  }
   else if (t.closest('[data-apply]')){ const [thread, index] = t.closest('[data-apply]').dataset.apply.split('|'); act('apply', { thread, index: Number(index) }); toast('Applied to the map. The chat that drew it hears it now.'); }
   else if (t.closest('[data-drop]')){ const [thread, index] = t.closest('[data-drop]').dataset.drop.split('|'); act('drop', { thread, index: Number(index) }); }
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }

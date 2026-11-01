@@ -262,6 +262,10 @@ function openMap({ project = '', name = '', home }) {
   }
   const withoutBlock = (text) => String(text).split('```map')[0].trim();
 
+  // what outlives starting over or opening a saved map
+  const kept = () => ({ saves: state.saves || [], sessions: state.sessions || [],
+    ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}) });
+
   const ACTS = {
     move(a) { const n = nodeOf(a.id); if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true; },
     // Tidy up: every box in the view someone is looking at lines up on the grid, for everyone
@@ -299,8 +303,15 @@ function openMap({ project = '', name = '', home }) {
         } });
       return true;
     },
-    // starting over keeps the saved maps and the list of sessions that drew on it
-    reset() { const keep = { saves: state.saves || [], sessions: state.sessions || [] }; state = { ...fresh(), ...keep }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+    // starting over keeps the saved maps, the list of sessions that drew on it, and the name someone gave it
+    reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+    // renaming the map: its name in the top bar and the list of maps; its folder stays
+    rename(a) {
+      const title = String(a.title || '').trim().slice(0, 60);
+      if (!title) return false;
+      state.title = title; state.renamed = title;
+      return true;
+    },
     // a saved map is a copy of the whole map as it is now, kept in saves/<id>.json; the list lives in the map
     save(a) {
       const id = Date.now().toString(36), { saves = [], sessions = [], ...snap } = state;
@@ -329,8 +340,7 @@ function openMap({ project = '', name = '', home }) {
     load(a) {
       const file = path.join(SAVES, `${String(a.id).replace(/[^\w]/g, '')}.json`);
       if (!fs.existsSync(file)) return false;
-      const keep = { saves: state.saves || [], sessions: state.sessions || [] };
-      state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...keep };
+      state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...kept() };
       oneChat(state);
       return true;
     },
@@ -385,7 +395,7 @@ function openMap({ project = '', name = '', home }) {
       draw(a);
       Object.assign(state.answers, a.answers || {});
       // the ask behind the plan shows on the map's top line; a named map takes the plan's title
-      if (a.title && name) state.title = String(a.title).slice(0, 60);
+      if (a.title && name && !state.renamed) state.title = String(a.title).slice(0, 60);
       if (a.ticket) state.ticket = String(a.ticket).slice(0, 40);
       if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
