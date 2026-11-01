@@ -283,6 +283,7 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .side-back{display:inline-block;margin:-4px 0 8px;font-size:12.5px;font-weight:500;color:var(--new);cursor:pointer}
 .side-back:hover{text-decoration:underline}
 .side-tabs{display:flex;gap:2px;margin:-2px 0 12px;border-bottom:1px solid var(--rule)}
+.ct-r{display:flex;align-items:center;gap:8px}.ask-h{height:26px;padding:0 9px;font-size:12px;color:var(--claude)}.ask-h:hover{border-color:var(--claude)}
 .side-tabs span{padding:6px 10px;font-size:12.5px;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
 .ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
@@ -871,7 +872,6 @@ function renderSide(){
   }
   const calls = S.calls.filter((c) => c.node === n.id);
   // this box's part of your chats with Claude, earlier chats first: the messages that carry this box, at their place in each chat
-  const thread = myChats().flatMap((k) => S.threads[k].map((m, i) => ({ m, i, k }))).filter(({ m }) => m.about === n.id);
   // a box you just opened starts on what is open on it now
   if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
@@ -920,16 +920,12 @@ function renderSide(){
   const history = answered.length ? answered.map(decided).join('')
     : n.decided ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>`
     : '<div class="d-wait">Nothing has been answered on this box yet.</div>';
-  // three tabs: Information (what the box is and what is open on it), History (what was answered), Chat (what you asked
-  // Claude about it). Asking opens your one chat with Claude, this box attached.
+  // two tabs: Information (what the box is and what is open on it) and History (what was answered); Ask Claude sits
+  // beside ×, and opens your one chat with Claude with this box attached
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
-  const asked = thread.filter(({ m }) => m.who !== 'Claude').length;
-  const chat = `${thread.length ? thread.map(({ m, i, k }) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, k, i)}</div>`).join('')
-      : '<div class="d-wait">Nothing asked about this box yet.</div>'}
-    <div class="btns"><button class="gb yes" data-ask-box="${n.id}">✳ Ask Claude about ${n.label}</button></div>`;
-  el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
-    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
+  el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb ask-h" data-ask-box="${n.id}" title="Ask Claude about ${n.label}">✳ Ask Claude</button><span class="x" data-close>×</span></span></div>
+    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}</div>
+    ${sideTab === 'history' ? history : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
     ${(() => {
       const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
@@ -1259,8 +1255,8 @@ document.addEventListener('click', (e) => {
     selected = null; chatOpen = true; railTab = null; chatSeen = -1; render(); $('chat').querySelector('input')?.focus();
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
-  // a message's box name opens that box, on its Chat tab
-  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'chat'; render(); centerOn(id); } }
+  // a message's box name opens that box
+  else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
