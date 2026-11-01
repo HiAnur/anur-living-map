@@ -1215,12 +1215,13 @@ function renderSide(){
       const bullet = (l) => /^[-•]\s/.test(l); let head = 1;
       if (bullet(lines[0] || '') || /:$/.test(lines[0] || '')) while (head < lines.length && bullet(lines[head])) head++;
       return `${notes(lines.slice(0, head).join('\n'))}
-        ${more ? `${notes(lines.slice(head).join('\n'), false)}${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}` : ''}
-        ${lines.length > head || n.fact ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
+        ${more ? notes(lines.slice(head).join('\n'), false) : ''}
+        ${lines.length > head ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
     })()}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
-    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
+    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
+    ${n.fact ? `<div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}`}`;
   // a new message in the box's chat scrolls the card to the bottom
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`;
   if (sideTab === 'chat' && seen !== sideSeen){ el.scrollTop = el.scrollHeight; sideSeen = seen; }
