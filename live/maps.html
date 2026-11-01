@@ -30,17 +30,16 @@ a.map:hover{border-color:var(--text)}
 #new button:disabled{opacity:.5;cursor:default}
 #new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
-h2{font-size:13px;font-weight:500;color:var(--text-2);margin-bottom:10px}
 </style>
 </head>
 <body>
 <div id="top">Living Map</div>
 <main>
-  <h1>Pick a map</h1>
-  <form id="new"><textarea rows="2" placeholder="Start a new map: what should Claude map?" aria-label="Start a new map"></textarea>
+  <h1>Start a new map</h1>
+  <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" hidden></div>
-  <h2>Your maps</h2>
+  <h1>Or pick a map you have</h1>
   <div id="list" class="none">Loading…</div>
 </main>
 <script>

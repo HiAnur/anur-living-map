@@ -138,7 +138,7 @@ function openMap({ project = '', name = '', home }) {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
     const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, ...(s.imgs ? { imgs: s.imgs } : {}) }));
     const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
-    return { session: l.session, owner: l.owner, model: mirror.f.model(), msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
+    return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
   }
   const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
   function startMirror() {
@@ -149,11 +149,10 @@ function openMap({ project = '', name = '', home }) {
   }
   startMirror();
 
-  // A map started from a prompt on the list of maps: a Claude Code chat runs here, in the map's folder, with
-  // everything this Mac's Claude Code is connected to, and draws the map through the living-map tools. It runs in
-  // auto mode with nobody to ask, so anything auto mode would stop to ask about (sending, posting, changing
-  // things outside the map) is refused. The map's Claude pane follows that chat, and what its owner writes there
-  // continues it, one turn at a time.
+  // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
+  // here, headless, in the map's folder: claude -p in auto mode with nobody to ask, so anything auto mode would stop
+  // to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
+  // and what the owner writes there continues it, one turn at a time.
   let building = null; const queued = [];
   const brief = () => [
     `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
@@ -183,13 +182,18 @@ function openMap({ project = '', name = '', home }) {
       }, 500);
     }
   }
+  // A new map from a prompt opens a new Claude Code session in the Claude app, in the map's folder, so it sits in
+  // Recents like any other chat, with every tool, connector and permission the app gives it. The session starts
+  // with /living-map-2 map:<name> and the prompt: the skill links it to this map (the pane follows it from then)
+  // and draws. Until it links, the pane shows the prompt and that the session is starting.
   function build({ prompt, by }) {
     const words = prompt.replace(/\s+/g, ' ').split(' ');
     let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
     state.title = state.renamed = (title || 'New map').replace(/^./, (c) => c.toUpperCase());
-    const l = { session: crypto.randomUUID(), file: '', owner: by, at: Date.now(), built: true };
-    state.linked = [l, ...(state.linked || [])].slice(0, 10); save(); push();
-    converse(l, prompt);
+    state.starting = { prompt, by, at: Date.now() };
+    save(); push();
+    const q = `/living-map-2 map:${name} ${prompt}`;
+    spawn('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(home)}`]).on('error', () => {});
   }
   // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
   // a picture from the chat itself is read from its transcript; both go by the same kind of id
@@ -567,6 +571,7 @@ function openMap({ project = '', name = '', home }) {
       const session = String(a.session || ''), file = String(a.file || '');
       if (!/^[\w-]{8,80}$/.test(session) || !file.endsWith(`/${session}.jsonl`) || !file.includes('/.claude/projects/') || !fs.existsSync(file)) return false;
       state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((l) => l.session !== session)].slice(0, 10);
+      delete state.starting;
       startMirror(); return true;
     },
     // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once;
@@ -780,8 +785,8 @@ http.createServer(async (req, res) => {
   if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
-  // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a Claude Code chat
-  // drawing it for the person who asked, signed in
+  // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
+  // session in the Claude app drawing it, for the person who asked, signed in
   if (url.pathname === '/api/newmap' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}

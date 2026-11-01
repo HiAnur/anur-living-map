@@ -24,10 +24,30 @@ function yours(text) {
   return /^<[a-z-]+>/.test(t) ? '' : t;
 }
 
+// a step Claude takes, said the way the Claude app says it while it works
+function plainStep(b) {
+  const n = String(b.name || ''), i = b.input || {}, file = (p) => String(p || '').split('/').pop();
+  if (n === 'Read') return `Reading ${file(i.file_path)}`;
+  if (n === 'Grep' || n === 'Glob') return 'Searching files';
+  if (n === 'Bash') return i.description || 'Running a command';
+  if (n === 'Edit' || n === 'Write' || n === 'NotebookEdit') return `Editing ${file(i.file_path || i.notebook_path)}`;
+  if (n === 'WebSearch') return i.query ? `Searching the web: ${i.query}` : 'Searching the web';
+  if (n === 'WebFetch') return 'Reading a web page';
+  if (n === 'Skill') return `Using ${i.skill || 'a skill'}`;
+  if (n === 'Agent' || n === 'Task') return i.description ? `A helper is ${i.description.replace(/^./, (c) => c.toLowerCase())}` : 'Asking a helper';
+  if (n === 'ToolSearch') return 'Loading its tools';
+  if (/living_map_change$/.test(n)) return 'Drawing on the map';
+  if (/living_map_read$/.test(n)) return 'Reading the map';
+  const t = n.split('__').pop().replace(/_/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 // anyUser: a chat the map started itself (claude -p) records your words without marking them as typed by a
 // person, so every user entry with words counts as yours there
 export function follow(file, onChange, { anyUser = false } = {}) {
   let offset = 0, rest = '', msgs = [], busy = false, model = null;
+  // whether Claude is in the middle of a turn, what it is doing now, and when it last did anything
+  let state = { working: false, doing: '', at: 0 };
   // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
   const imgs = new Map();
   const keep = (c) => pictures(c).map((b) => {
@@ -44,6 +64,7 @@ export function follow(file, onChange, { anyUser = false } = {}) {
     const at = Date.parse(j.timestamp) || Date.now();
     if (j.type === 'user' && (j.origin?.kind === 'human' || (anyUser && !j.toolUseResult)) && !j.isMeta) {
       yourTurn(j.message?.content, at);
+      state = { working: true, doing: '', at };
     } else if (j.type === 'attachment' && j.attachment?.type === 'queued_command' && j.attachment.commandMode === 'prompt' && j.attachment.origin?.kind === 'human') {
       // what you typed while Claude was still working
       yourTurn(j.attachment.prompt, at);
@@ -52,7 +73,10 @@ export function follow(file, onChange, { anyUser = false } = {}) {
       if (/^claude-/.test(j.message?.model || '')) model = { id: j.message.model, effort: j.effort || j.perTurnEffort || null };
       const t = (j.message?.content || []).filter((b) => b?.type === 'text').map((b) => b.text).join('\n').trim();
       if (t) add('claude', t, at);
-    }
+      // still at it until a reply ends the turn; the step it is on, in plain words
+      const step = (j.message?.content || []).filter((b) => b?.type === 'tool_use').at(-1);
+      state = j.message?.stop_reason === 'end_turn' ? { working: false, doing: '', at } : { working: true, doing: step ? plainStep(step) : state.doing, at };
+    } else if (j.type === 'user' && state.working) state = { ...state, at };
   }
   function read() {
     let grew = false;
@@ -76,5 +100,5 @@ export function follow(file, onChange, { anyUser = false } = {}) {
   }
   const timer = setInterval(read, 1000);
   setImmediate(read);
-  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id), model: () => model };
+  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id), model: () => model, status: () => state };
 }

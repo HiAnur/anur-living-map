@@ -489,6 +489,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .msg.cm + .msg.cm{margin-top:2px}
 .msg.cm .md p{margin-bottom:10px}
 .spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
+.doing{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:13.5px}
 @keyframes spark{50%{opacity:.35;transform:rotate(45deg)}}
 @media (prefers-reduced-motion:reduce){.spark{animation:none}}
 /* the box you write in: rounded like Claude's, the pictures you are about to send above the words,
@@ -1327,13 +1328,17 @@ const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat
     <input placeholder="${placeholder}" autocomplete="off">
     <div class="crow">${pics ? '<button type="button" class="add" data-attach title="Add a picture" aria-label="Add a picture">+</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-pick>' : ''}
       ${modelLabel(model)}<button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
+// while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
+// way the Claude app does; a turn quiet for ten minutes was stopped, not working
+const busy = () => !!MIRROR?.status?.working && Date.now() - MIRROR.status.at < 10 * 60_000;
+const working = (doing) => claudes(`<div class="doing"><span class="spark">✳</span><span>${esc(doing || 'Working')}…</span></div>`);
 function renderMirror(el){
   const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
-      ${!chatHist && last?.who === 'you' ? claudes('<span class="spark" title="Waiting for your Claude chat">✳</span>') : ''}</div>
+      ${!chatHist && (busy() || last?.who === 'you') ? working(MIRROR.status?.doing) : ''}</div>
     ${chatHist ? '' : composer('Reply to Claude…', true, MIRROR.model)}`;
   const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
   if (n !== chatSeen){ box.scrollTop = chatHist ? 0 : box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
@@ -1350,7 +1355,7 @@ function renderChat(){
       <button class="ci" data-newchat title="New chat" aria-label="New chat">${CHAT_ICON.newchat}</button>
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Chat history" aria-label="Chat history">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
-    <div class="msgs">${chatHist ? chatList() : thread.length ? thread.map((m, i) => m.who !== 'Claude'
+    <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
         : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, `@${ME}`, i)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
