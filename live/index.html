@@ -153,7 +153,7 @@ button,input{font:inherit;color:inherit}
 /* cards over the map */
 .panel{position:fixed;background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08);z-index:15;font-size:13.5px}
 #queue{left:16px;top:60px;width:360px;padding:12px 14px}
-#side{right:88px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
+#side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #prs{right:88px;top:60px;width:420px;padding:14px 16px;display:none;max-height:calc(100% - 120px);overflow:auto}
 /* comments, the Figma way: a pin on the map, a thread beside it, every thread in a panel */
@@ -185,7 +185,7 @@ button,input{font:inherit;color:inherit}
 .th-reply input{flex:1;height:36px;border:1px solid var(--rule-2);border-radius:18px;padding:0 14px;background:#f8f7f3}
 .th-reply input:focus{outline:none;border-color:#7C3AED;background:#fff}
 .th-reply button{width:30px;height:30px;border-radius:50%;border:0;background:#7C3AED;color:#fff;cursor:pointer}
-#cpanel{right:88px;top:60px;bottom:60px;width:340px;display:none;padding:0;overflow:hidden}
+#cpanel{right:72px;top:44px;bottom:0;width:var(--chatw);display:none;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #cpanel.on{display:flex;flex-direction:column}
 .cp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule)}
 .cp-head input{flex:1;height:32px;border:0;border-radius:8px;background:#f3f2ee;padding:0 10px}
@@ -383,7 +383,7 @@ a{color:inherit;text-decoration:none}
 body.decide #legend .lc:not(.dec),body:not(.decide) #legend .lc.dec{display:none!important}
 /* Tidy up, Fit and zoom sit at the bottom right of the map, just left of the rail; Legend keeps the bottom left */
 #foot{position:fixed;right:88px;bottom:16px;display:flex;align-items:center;gap:8px;z-index:10}
-body.chatting #foot{right:calc(88px + var(--chatw))}
+body.paned #foot{right:calc(88px + var(--chatw))}
 .zoom{display:flex;height:28px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;overflow:hidden}
 .zoom button{width:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--text);cursor:pointer}
 .zoom button+button{border-left:1px solid var(--rule)}
@@ -394,17 +394,18 @@ body.chatting #foot{right:calc(88px + var(--chatw))}
 #bot .star{height:20px;font:500 21px/20px var(--plex);color:var(--claude)}
 #bot:hover{background:#f3f2ee;color:var(--text)}
 #bot.on{background:#f7e6de;color:var(--text)}
-/* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it */
-/* its width is --chatw: drag the pane's left edge to change it, the way Descript's divider moves */
+/* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it;
+   so do a box's card, Decisions and Comments, one pane at a time (body.paned) */
+/* its width is --chatw, shared by every pane: drag the pane's left edge to change it, the way Descript's divider moves */
 body{--chatw:400px}
 #chat{right:72px;top:44px;bottom:0;width:var(--chatw);display:none;flex-direction:column;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
-body.chatting #canvas{right:calc(72px + var(--chatw))}
-body.chatting #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
+body.paned #canvas{right:calc(72px + var(--chatw))}
+body.paned #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
-body.chatting #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
-body.chatting.tight #tools{bottom:58px}
+body.paned #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
+body.paned.tight #tools{bottom:58px}
 #chatgrip{position:fixed;top:44px;bottom:0;right:calc(72px + var(--chatw) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
-body.chatting #chatgrip{display:block}
+body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
 body.resizing{cursor:col-resize;user-select:none}
 #chat.on{display:flex}
@@ -444,7 +445,7 @@ body.resizing{cursor:col-resize;user-select:none}
 #rail .ri.on{background:#efeee9;color:var(--text)}
 #rail .ri .dot{position:absolute;top:6px;right:17px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
 /* the Decisions panel: every answer and applied change on the map, newest first */
-#decs{right:88px;top:60px;bottom:60px;width:360px;padding:14px 16px;overflow:auto;display:none}
+#decs{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #decs.on{display:block}
 #decs .dl-sub{font-size:12.5px;color:var(--text-2);margin:-2px 0 10px}
 #decs .dl{margin:0 -8px;padding:11px 8px 12px;border-top:1px solid var(--rule);border-radius:8px;cursor:pointer}
@@ -608,13 +609,15 @@ const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = 
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
-// part you can see, left of the card that opens for it, at a zoom you can read; a box inside another opens that one
+// part you can see, beside the pane that opens for it, at a zoom you can read; a box inside another opens that one
+// a box opened by a click stays where it is, unless the pane that opens for it covers it; then it glides into view
+const keepInView = (id) => { const n = nodeById(id), r = canvas.getBoundingClientRect(); if (n && (n.x + W(n) / 2) * cam.z + cam.x > r.width - 16) centerOn(id); };
 function centerOn(id){
   const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
   const n = nodeById(id) || proposed().nodes.find((x) => x.id === id); if (!n) return;
-  const r = canvas.getBoundingClientRect(), card = 376, z = Math.max(cam.z, 0.8);
-  const to = { x: (r.width - card) / 2 - n.x * z, y: r.height / 2 - n.y * z, z }, from = { ...cam }, t0 = performance.now();
+  const r = canvas.getBoundingClientRect(), z = Math.max(cam.z, 0.8);
+  const to = { x: r.width / 2 - n.x * z, y: r.height / 2 - n.y * z, z }, from = { ...cam }, t0 = performance.now();
   const step = (now) => {
     const k = Math.min(1, (now - t0) / 320), e = 1 - (1 - k) ** 3;
     cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e; cam.z = from.z + (to.z - from.z) * e;
@@ -740,7 +743,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); return; }
+  if (fb){ drawFlow(fb); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane(); return; }
   const { nodes, edges } = scope();
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -789,7 +792,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs();
+  renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); renderDecs(); fitPane();
 }
 
 // Share: who can open this map. The look only for now: Copy link and Invite are not wired up yet.
@@ -985,8 +988,10 @@ let chatOpen = false, chatSeen = 0, chatAbout = null;
 // the pane's width follows its left edge as you drag it, between 320px and leaving the map 360px; this browser remembers it
 const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320, innerWidth - 72 - 360))); document.body.style.setProperty('--chatw', `${w}px`); fitTools(); return w; };
 // the tool bar and Legend, Tidy up and Fit need about 560px side by side
-const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('chatting') && $('canvas').clientWidth < 560);
+const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('paned') && $('canvas').clientWidth < 560);
 window.addEventListener('resize', fitTools);
+// the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
+const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
 try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
 $('chatgrip').addEventListener('pointerdown', (e) => {
   e.preventDefault(); const g = e.currentTarget; let w = 0;
@@ -1019,7 +1024,7 @@ function chatList(){
 }
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
-  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen); document.body.classList.toggle('chatting', open); fitTools();
+  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen);
   if (!open) return;
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="cb">
@@ -1185,7 +1190,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
-    if (locked(n)){ selected = selected === n.id ? null : n.id; render(); return; }
+    if (locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy };
   }
   else { panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
@@ -1208,7 +1213,7 @@ canvas.addEventListener('pointerup', (e) => {
       const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < 350;
       lastTap = { id: n.id, at: Date.now() };
       if (twice && n.inside && !locked(n)){ drag = null; enter(n.id); return; }
-      selected = selected === n.id ? null : n.id; render();
+      selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected);
     }
     drag = null;
   }
@@ -1278,7 +1283,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-goto]')){
     const c = S.comments.find((x) => x.id === Number(t.closest('[data-goto]').dataset.goto));
     if (c){ if (c.view !== view){ view = c.view; } openThread = c.id; draft = null;
-      const r = canvas.getBoundingClientRect(); cam.x = (r.width - 340) / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
+      const r = canvas.getBoundingClientRect(); cam.x = r.width / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
   }
   // Ask Claude, in the tool bar or on a box card, opens your one chat; with a box open, that box comes attached
   else if (t.closest('[data-ask-box]')){
