@@ -142,12 +142,55 @@ function openMap({ project = '', name = '', home }) {
     const l = linkOf();
     if (mirror && mirror.session === l?.session) return;
     mirror?.f.stop(); mirror = null;
-    if (l && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror) };
+    if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror, { anyUser: !!l.built }) };
   }
   startMirror();
   // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
   // a picture from the chat itself is read from its transcript; both go by the same kind of id
   const PICS = path.join(home, 'chat-images'), EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+
+  // A map started from a prompt on the list of maps: a Claude Code chat runs here, in the map's folder, with
+  // everything this Mac's Claude Code is connected to, and draws the map through the living-map tools. It runs in
+  // auto mode with nobody to ask, so anything auto mode would stop to ask about (sending, posting, changing
+  // things outside the map) is refused. The map's Claude pane follows that chat, and what its owner writes there
+  // continues it, one turn at a time.
+  let building = null; const queued = [];
+  const brief = () => [
+    `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
+    'It began as a blank canvas from the prompt you are given. Find what it needs with the tools you have (files, the web, and the apps this Claude Code is connected to), then draw it with living_map_change: boxes for the parts, lines between them, and a question for a teammate where something is not known.',
+    'Read, never act: do not send, post, book, buy, or change anything outside this map.',
+    'Your replies show in the chat beside the map: say in two or three short lines what you drew, what you found, and what you could not reach.',
+  ].join('\n');
+  function converse(l, text) {
+    if (building) { queued.push(text); return; }
+    const env = { ...process.env }; for (const k of SESSION_VARS) delete env[k];
+    fs.mkdirSync(home, { recursive: true });
+    const first = !l.started; l.started = true; save();
+    building = spawn('claude', ['-p', ...(first ? ['--session-id', l.session, '--name', `Living Map: ${state.title}`] : ['--resume', l.session]),
+      '--permission-mode', 'auto', '--permission-prompts', 'none', '--append-system-prompt', brief(), '--output-format', 'json'], { cwd: home, env });
+    const limit = setTimeout(() => building?.kill('SIGTERM'), 20 * 60_000);
+    building.stdout.on('data', () => {}); building.stderr.on('data', () => {}); building.stdin.on('error', () => {});
+    building.on('error', () => {});
+    building.on('close', () => { clearTimeout(limit); building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); });
+    building.stdin.end(text);
+    // its transcript appears once it starts; the pane follows it from then
+    if (!l.file) {
+      const PROJECTS = path.join(process.env.HOME || '', '.claude', 'projects'); let tries = 0;
+      const look = setInterval(() => {
+        const dir = fs.existsSync(PROJECTS) && fs.readdirSync(PROJECTS).find((d) => fs.existsSync(path.join(PROJECTS, d, `${l.session}.jsonl`)));
+        if (dir) { l.file = path.join(PROJECTS, dir, `${l.session}.jsonl`); save(); startMirror(); }
+        if (dir || ++tries > 240) clearInterval(look);
+      }, 500);
+    }
+  }
+  function build({ prompt, by }) {
+    const words = prompt.replace(/\s+/g, ' ').split(' ');
+    let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
+    state.title = state.renamed = (title || 'New map').replace(/^./, (c) => c.toUpperCase());
+    const l = { session: crypto.randomUUID(), file: '', owner: by, at: Date.now(), built: true };
+    state.linked = [l, ...(state.linked || [])].slice(0, 10); save(); push();
+    converse(l, prompt);
+  }
   function savePicture(p) {
     const m = String(p || '').match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!m) return null;
@@ -533,6 +576,8 @@ function openMap({ project = '', name = '', home }) {
       ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
       tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session);
       setTimeout(sendMirror); return true;
+      // a chat the map started itself hears it straight away, and its transcript shows it in the pane
+      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((p) => p.file).join(', ')})` : ''}`); return true; }
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
     propose(a) {
@@ -664,7 +709,7 @@ function openMap({ project = '', name = '', home }) {
     ];
   };
 
-  return { handle, summary, asks };
+  return { handle, summary, asks, build };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -735,6 +780,19 @@ http.createServer(async (req, res) => {
   const own = PROJECT && first === path.basename(PROJECT);
   const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
   // the page asks its API by relative address, so a map's address ends in a slash
+  // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a Claude Code chat
+  // drawing it for the person who asked, signed in
+  if (url.pathname === '/api/newmap' && req.method === 'POST') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const prompt = String(a.prompt || '').trim().slice(0, 4000);
+    if (!prompt) return json(400, { error: 'Say what the map is about.' });
+    const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
+    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === path.basename(PROJECT));
+    let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
+    mapCalled(name).build({ prompt, by: who });
+    return json(200, { name, href: `/${name}/` });
+  }
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
   const map = !isMap || own ? main : mapCalled(first);
   const p = isMap ? rest : url.pathname;

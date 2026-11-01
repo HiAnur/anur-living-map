@@ -22,12 +22,25 @@ a.map:hover{border-color:var(--text)}
 .n{margin-left:auto;color:var(--text-2);font-size:12.5px;white-space:nowrap}
 .n b{color:var(--claude);font-weight:500}
 .none{color:var(--text-2)}
+/* a new map from a prompt, in a box like Claude's: Claude Code starts it on a blank canvas */
+#new{display:flex;align-items:flex-end;gap:8px;margin-bottom:28px;padding:12px 10px 10px 14px;background:#fff;border:1px solid var(--rule-2);border-radius:18px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+#new:focus-within{border-color:rgba(0,0,0,.3)}
+#new textarea{flex:1;min-height:44px;max-height:200px;border:0;outline:none;resize:none;background:none;font:14px/1.5 var(--plex);color:var(--text)}
+#new button{flex:none;width:32px;height:32px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+#new button:disabled{opacity:.5;cursor:default}
+#new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
+h2{font-size:13px;font-weight:500;color:var(--text-2);margin-bottom:10px}
 </style>
 </head>
 <body>
 <div id="top">Living Map</div>
 <main>
   <h1>Pick a map</h1>
+  <form id="new"><textarea rows="2" placeholder="Start a new map: what should Claude map?" aria-label="Start a new map"></textarea>
+    <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
+  <div id="err" hidden></div>
+  <h2>Your maps</h2>
   <div id="list" class="none">Loading…</div>
 </main>
 <script>
@@ -35,6 +48,17 @@ a.map:hover{border-color:var(--text)}
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+// a new map: Claude Code starts drawing it on a blank canvas, and the map opens with its chat beside it
+const form = document.getElementById('new'), box = form.querySelector('textarea'), go = form.querySelector('button'), err = document.getElementById('err');
+box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); form.requestSubmit(); } });
+form.addEventListener('submit', (e) => {
+  e.preventDefault(); const prompt = box.value.trim(); if (!prompt || go.disabled) return;
+  go.disabled = true; err.hidden = true;
+  fetch('/api/newmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt }) })
+    .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not start.'); location.href = `${d.href}?chat=1`; })
+    .catch((x) => { err.textContent = x.message; err.hidden = false; go.disabled = false; });
+});
 fetch('api/maps').then((r) => r.json()).then((maps) => {
   const el = document.getElementById('list');
   if (!maps.length) { el.textContent = 'No maps yet.'; return; }

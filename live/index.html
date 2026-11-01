@@ -1254,7 +1254,8 @@ const change = (m, key, i) => {
 
 /* the chat in the corner: your one thread with Claude, about the whole map or, with a box attached, about that box;
    a message about a box wears its name, and clicking it opens the box. A box you open takes the chat's place. */
-let chatOpen = false, chatSeen = 0, chatAbout = null;
+// a map just started from a prompt opens with ?chat, the pane showing Claude drawing it
+let chatOpen = new URLSearchParams(location.search).has('chat'), chatSeen = 0, chatAbout = null;
 // the pane's width follows its left edge as you drag it, between 320px and leaving the map 360px; this browser remembers it
 const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320, innerWidth - 72 - 360))); document.body.style.setProperty('--chatw', `${w}px`); fitTools(); return w; };
 // the tool bar and Legend, Tidy up and Fit need about 560px side by side

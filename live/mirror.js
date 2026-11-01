@@ -24,7 +24,9 @@ function yours(text) {
   return /^<[a-z-]+>/.test(t) ? '' : t;
 }
 
-export function follow(file, onChange) {
+// anyUser: a chat the map started itself (claude -p) records your words without marking them as typed by a
+// person, so every user entry with words counts as yours there
+export function follow(file, onChange, { anyUser = false } = {}) {
   let offset = 0, rest = '', msgs = [], busy = false, model = null;
   // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
   const imgs = new Map();
@@ -40,7 +42,7 @@ export function follow(file, onChange) {
     let j; try { j = JSON.parse(raw); } catch { return; }
     if (j.isSidechain) return;
     const at = Date.parse(j.timestamp) || Date.now();
-    if (j.type === 'user' && j.origin?.kind === 'human' && !j.isMeta) {
+    if (j.type === 'user' && (j.origin?.kind === 'human' || (anyUser && !j.toolUseResult)) && !j.isMeta) {
       yourTurn(j.message?.content, at);
     } else if (j.type === 'attachment' && j.attachment?.type === 'queued_command' && j.attachment.commandMode === 'prompt' && j.attachment.origin?.kind === 'human') {
       // what you typed while Claude was still working
