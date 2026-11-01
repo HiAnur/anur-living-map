@@ -595,7 +595,7 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 // Yes / No when that is the whole choice, or a few options plus "Other…" to say it in your own words.
 // Click it and it opens in place: why it is asked, and what each answer does; its box lights up on the map.
 let expanded = null;
-// the box card's tab ('box' or 'history') and the box it was chosen on
+// the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null;
 const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
   <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open' && !c.options?.length
@@ -656,17 +656,20 @@ function renderSide(){
   const history = answered.length ? answered.map(decision).join('')
     : n.decided ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>`
     : '<div class="d-wait">Nothing has been answered on this box yet.</div>';
+  // three tabs: Information (what the box is and what is open on it), History (what was answered), Chat (asking Claude about it)
+  const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
+  const asked = thread.filter((m) => m.who !== 'Claude').length;
+  const chat = `${thread.length ? thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, n.id, i)}</div>`).join('')
+      : '<div class="d-wait">Ask Claude about this box: why it is here, what depends on it.</div>'}
+    <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
   el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
-    <div class="side-tabs"><span data-side-tab="box" class="${sideTab === 'box' ? 'on' : ''}">This box</span><span data-side-tab="history" class="${sideTab === 'history' ? 'on' : ''}">History${answered.length ? ` · ${answered.length}` : ''}</span></div>
-    ${sideTab === 'history' ? history : `
+    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
     ${n.desc && n.desc !== n.sub ? `<div class="d-desc">${prose(n.desc)}</div>` : ''}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
-    <div class="h">Ask Claude about this</div>
-    ${thread.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}${change(m, n.id, i)}</div>`).join('')}
-    <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`}`;
 }
 
