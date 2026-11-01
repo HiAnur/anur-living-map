@@ -168,6 +168,8 @@ button,input{font:inherit;color:inherit}
 #queue{left:16px;top:60px;width:360px;padding:12px 14px}
 #side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
+#side.on.info{display:flex;flex-direction:column}
+#side .refs{margin-top:auto;padding-bottom:4px}
 #prs{right:88px;top:60px;width:420px;padding:14px 16px;display:none;max-height:calc(100% - 120px);overflow:auto}
 /* comments, the Figma way: a pin on the map, a thread beside it, every thread in a panel */
 /* with the comment tool on, the pointer is a comment bubble; its bottom-left tip is where the pin lands */
@@ -1166,6 +1168,7 @@ function renderSide(){
   const el = $('side');
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
   el.classList.toggle('on', !!(n || pb));
+  el.classList.remove('info');
   // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
   if (pb){
     el.innerHTML = `<div class="ct"><span>${pb.label}</span><span class="ct-r"><span class="x" data-close>×</span></span></div>
@@ -1239,9 +1242,11 @@ function renderSide(){
   // three tabs: Information (what the box is and what is open on it), History (what was answered) and Chat;
   // ✳ Chat beside × opens the Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
-  el.innerHTML = `${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Chat about ${n.label}">✳ Chat</button><span class="x" data-close>×</span></span></div>
+  // on Information the panel is a column, so Claude references can sit on its bottom edge
+  el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat');
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Chat about ${n.label}">✳ Chat</button><span class="x" data-close>×</span></span></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('history', `History${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Chat${asked ? ` · ${asked}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? chat : `<div class="info-body">
     ${n.sub ? `<div class="d-sub">${n.sub}</div>` : ''}
     ${(() => {
       const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
@@ -1254,8 +1259,8 @@ function renderSide(){
     })()}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
-    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
-    ${n.fact ? `<div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}`}`;
+    ${n.file ? `<div class="d-file">${n.file}</div>` : ''}</div>
+    ${n.fact ? `<div class="refs"><div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></div>` : ''}`}`;
   // a new message in the box's chat scrolls the card to the bottom
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`;
   if (sideTab === 'chat' && seen !== sideSeen){ el.scrollTop = el.scrollHeight; sideSeen = seen; }
