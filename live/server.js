@@ -14,11 +14,24 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 
+import { readProject } from './project.js';
+
 const PORT = Number(process.argv[2] || process.env.PORT || 4322);
 const DIR = import.meta.dirname;
-const STATE = path.join(DIR, 'state.json');
-const OUTBOX = path.join(DIR, 'outbox.md');
-const seed = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
+// --project <folder>: draw that project from its own files, and keep the map's
+// state beside it in <folder>/.living-map/; without it, the fixed demo in seed.json
+const at = process.argv.indexOf('--project');
+const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
+const HOME = PROJECT ? path.join(PROJECT, '.living-map') : DIR;
+if (PROJECT) fs.mkdirSync(HOME, { recursive: true });
+const STATE = path.join(HOME, 'state.json');
+const OUTBOX = path.join(HOME, 'outbox.md');
+const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
+const seed = () => {
+  if (!PROJECT) return demo();
+  const { people } = demo();
+  return { ...readProject(PROJECT), ticket: '', prompt: '', people, calls: [], prs: [], answers: { '*': 'I drew what I know on the map. Click a box for its files, or ask me about one.' } };
+};
 
 const fresh = () => ({ ...seed(), log: [], threads: {}, comments: [] });
 let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
@@ -96,6 +109,9 @@ const ACTS = {
     merge(state.edges, (e) => `${e.from}>${e.to}`, a.edges);
     merge(state.calls, (c) => c.id, a.calls);
     Object.assign(state.answers, a.answers || {});
+    // the ask behind the plan shows on the map's top line
+    if (a.ticket) state.ticket = String(a.ticket).slice(0, 40);
+    if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
     for (const id of a.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
     state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
     tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
@@ -132,4 +148,4 @@ http.createServer(async (req, res) => {
   const file = path.join(DIR, url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
-}).listen(PORT, '127.0.0.1', () => console.log(`Living Map live demo on http://localhost:${PORT}`));
+}).listen(PORT, '127.0.0.1', () => console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`));
