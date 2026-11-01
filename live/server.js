@@ -441,8 +441,10 @@ function openMap({ project = '', name = '', home }) {
     save();
     if (history[0]) lastContent = fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8');
   }
-  // the map as it is now, when no version holds it yet, is the first version: the starting point to go back to
-  if (contentOf(state) !== lastContent) {
+  // the map as it is now, when no version holds it yet, is the first version: the starting point to go back to.
+  // A named map nobody has drawn on yet (no state.json) keeps none, so visiting an address, or a page left open
+  // on a map that was deleted, never makes its folder again
+  if ((project || fs.existsSync(STATE)) && contentOf(state) !== lastContent) {
     lastContent = contentOf(state);
     keepVersion({ id: Date.now().toString(36), at: Date.now(), by: '', kind: 'start', what: history.length ? 'The map as it was left' : 'The map when its history began', boxes: state.nodes.length }, lastContent);
   }

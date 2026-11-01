@@ -30,6 +30,13 @@ a.map:hover{border-color:var(--text)}
 #new button:disabled{opacity:.5;cursor:default}
 #new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
+/* the list sorts by time (last changed first) or by name; this browser remembers the choice */
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.head h1{margin:0}
+.sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
+.sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
+.sort button:hover{color:var(--text)}
+.sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
 </style>
 </head>
 <body>
@@ -39,7 +46,8 @@ a.map:hover{border-color:var(--text)}
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" hidden></div>
-  <h1>Or pick a map you have</h1>
+  <div class="head"><h1>Or pick a map you have</h1>
+    <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
   <div id="list" class="none">Loading…</div>
 </main>
 <script>
@@ -58,14 +66,28 @@ form.addEventListener('submit', (e) => {
     .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not start.'); location.href = `${d.href}?chat=1`; })
     .catch((x) => { err.textContent = x.message; err.hidden = false; go.disabled = false; });
 });
-fetch('api/maps').then((r) => r.json()).then((maps) => {
+let maps = null, sortBy = 'time';
+try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
+const titleOf = (m) => m.title || m.name;
+function list(){
   const el = document.getElementById('list');
+  document.querySelectorAll('.sort button').forEach((b) => b.classList.toggle('on', b.dataset.sort === sortBy));
+  if (!maps) return;
   if (!maps.length) { el.textContent = 'No maps yet.'; return; }
   el.className = '';
-  el.innerHTML = maps.map((m) => `<a class="map" href="${m.href}${location.search}">
-    <span class="t">${esc(m.title || m.name)}</span><span class="addr">${m.href}</span>
+  const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
+    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
+  el.innerHTML = sorted.map((m) => `<a class="map" href="${m.href}${location.search}">
+    <span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span>
     <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>`).join('');
+}
+document.querySelector('.sort').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sort]'); if (!b) return;
+  sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}
+  list();
 });
+list();
+fetch('api/maps').then((r) => r.json()).then((m) => { maps = m; list(); });
 </script>
 </body>
 </html>
