@@ -43,7 +43,69 @@
             "file": "services/billing/routes/",
             "by": "Claude",
             "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back.",
-            "area": "billing"
+            "area": "billing",
+            "flow": {
+              "title": "Payment confirmed",
+              "sub": "Drawn from the plan, not run",
+              "lanes": [
+                {
+                  "id": "customer",
+                  "label": "Customer"
+                },
+                {
+                  "id": "provider",
+                  "label": "Provider"
+                },
+                {
+                  "id": "billing",
+                  "label": "Billing",
+                  "state": "new"
+                },
+                {
+                  "id": "renewal",
+                  "label": "Renewal job"
+                }
+              ],
+              "steps": [
+                {
+                  "from": "customer",
+                  "to": "provider",
+                  "label": "Upgrades to Pro"
+                },
+                {
+                  "from": "provider",
+                  "to": "billing",
+                  "label": "Payment confirmed"
+                },
+                {
+                  "note": "billing",
+                  "label": "Verify sender, ignore repeats"
+                },
+                {
+                  "from": "provider",
+                  "to": "customer",
+                  "label": "Bills Pro",
+                  "dashed": true
+                },
+                {
+                  "from": "renewal",
+                  "to": "customer",
+                  "label": "Bills the annual renewal too",
+                  "dashed": true,
+                  "goneWhen": "b"
+                }
+              ],
+              "problem": {
+                "label": "Charged twice",
+                "fixedBy": "b",
+                "fixed": "Billed once"
+              },
+              "fix": {
+                "lane": "renewal",
+                "label": "Skip anyone the provider bills",
+                "call": "b"
+              }
+            }
           },
           {
             "id": "db2",

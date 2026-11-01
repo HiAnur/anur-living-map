@@ -73,7 +73,12 @@ const ACTS = {
   ask(a) {
     const t = (state.threads[a.node] ??= []);
     t.push({ who: a.by, text: String(a.text).slice(0, 400), at: stamp() });
-    t.push({ who: 'Claude', text: state.answers[a.node] || state.answers['*'], at: stamp(), staged: true });
+    // asking to see a flow opens it; the page does the drawing
+    const n = nodeOf(a.node), hasFlow = n && (n.flow || n.inside?.nodes?.some((x) => x.flow));
+    const answer = hasFlow && /flow|visuali|diagram|draw|sequence/i.test(a.text)
+      ? 'Drew the payment flow on the map: the upgrade, Payment confirmed, and where an annual customer gets billed twice.'
+      : state.answers[a.node] || state.answers['*'];
+    t.push({ who: 'Claude', text: answer, at: stamp(), staged: true });
     state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: a.node, text: a.text });
     return true;
   },

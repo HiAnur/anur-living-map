@@ -74,6 +74,18 @@ button,input{font:inherit;color:inherit}
 .node.locked.new,.node.locked.todo,.node.locked.assumed-gone{border-color:var(--box-line);background:repeating-linear-gradient(135deg,#fff 0 6px,#f3f2ee 6px 8px)}
 .node.locked .n{text-decoration:none}
 .nope{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:10px 12px;border:1px solid var(--rule);border-radius:8px;background:#f8f7f3;font-size:13px}
+/* a flow: lanes across the top, calls as arrows down the page, the problem and its fix at the bottom */
+.flowframe{position:absolute;border:1px solid var(--rule-2);border-radius:12px;background:rgba(0,0,0,.015);pointer-events:none}
+.flowframe b{position:absolute;left:16px;top:12px;font:500 14px var(--plex)}
+.flowframe span{position:absolute;left:16px;top:32px;font-size:12px;color:var(--text-2)}
+.flowlane{position:absolute;transform:translate(-50%,-50%);width:140px;height:36px;display:grid;place-items:center;background:#fff;border:1px solid var(--box-line);border-radius:6px;font:500 13.5px var(--plex)}
+.flowlane.new{border:1.5px solid var(--new);background:var(--new-tint);color:var(--new);animation:breathe 2s ease-in-out infinite}
+.flownote{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:4px 10px;border:1px solid rgba(47,111,228,.5);border-radius:6px;background:#eef3fd;color:#2a5bbf;font-size:12.5px}
+.flowbad{position:absolute;transform:translateY(-50%);font:500 16px var(--plex);color:var(--gone);white-space:nowrap}
+.flowbad.ok{color:#2E8B57}
+.flowfix{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:5px 10px;border:1.5px dashed var(--claude);border-radius:6px;background:#fff7f2;font-size:13px}
+.flowfix.solid{border-style:solid;border-color:#2E8B57;background:#f0f8f3}
+.flowfix i{font-style:normal;margin-left:6px;padding:0 5px;border-radius:999px;background:var(--claude);color:#fff;font-size:9px;line-height:14px;display:inline-block}
 .nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
 /* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
 .node.new{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
@@ -328,11 +340,41 @@ const scope = () => {
 };
 const locked = (n) => !canSee(n);
 const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === id);
+// a flow is a third level: the calls one route makes, drawn as a sequence, at view "flow:<box id>"
+const flowBox = () => view.startsWith('flow:') ? nodeById(view.slice(5)) : null;
+const flowOf = (n) => n?.flow ? n : n?.inside?.nodes?.find((x) => x.flow) || null;
+function openFlow(id){ view = `flow:${id}`; selected = null; expanded = null; lit = null; render(); fit(); }
+const LANE_X = (i) => 120 + i * 190, STEP_Y0 = 150, STEP_DY = 62;
+function drawFlow(fb){
+  const f = fb.flow, lx = Object.fromEntries(f.lanes.map((l, i) => [l.id, LANE_X(i)]));
+  const fixCall = S.calls.find((c) => c.id === f.fix?.call), fixed = fixCall?.status === 'confirmed';
+  let y = STEP_Y0, svg = '', html = '';
+  const bottom = STEP_Y0 + (f.steps.length + 2) * STEP_DY;
+  html += `<div class="flowframe" style="left:30px;top:20px;width:${LANE_X(f.lanes.length - 1) + 130}px;height:${bottom}px"><b>${f.title}</b><span>${f.sub}</span></div>`;
+  f.lanes.forEach((l) => {
+    html += `<div class="flowlane ${l.state || ''}" style="left:${lx[l.id]}px;top:100px">${l.label}</div>`;
+    svg += `<path d="M${lx[l.id]} 118V${bottom}" stroke="#d6d3cb" stroke-width="1" stroke-dasharray="3 4" fill="none"/>`;
+  });
+  for (const s of f.steps){
+    if (s.note){ html += `<div class="flownote" style="left:${lx[s.note]}px;top:${y}px">${s.label}</div>`; y += STEP_DY; continue; }
+    const gone = s.goneWhen && S.calls.find((c) => c.id === s.goneWhen)?.status === 'confirmed';
+    const x1 = lx[s.from], x2 = lx[s.to], dir = x2 > x1 ? 1 : -1;
+    svg += `<path d="M${x1 + dir * 4} ${y}H${x2 - dir * 6}" stroke="${gone ? '#d6d3cb' : s.dashed ? '#141413' : '#6c6a64'}" stroke-width="1.5" fill="none" ${s.dashed ? 'stroke-dasharray="6 5"' : ''} marker-end="url(#a-old)"/>`;
+    svg += `<text x="${Math.min(x1, x2) + 14}" y="${y - 10}" font-size="13" fill="${gone ? '#b9b6ae' : '#141413'}" ${gone ? 'text-decoration="line-through"' : ''}>${s.label}</text>`;
+    y += STEP_DY;
+  }
+  if (f.problem) html += `<div class="flowbad ${fixed ? 'ok' : ''}" style="left:60px;top:${y - 6}px">${fixed ? `✓ ${f.problem.fixed}` : `✕ ${f.problem.label}`}</div>`;
+  if (f.fix) html += `<div class="flowfix ${fixed ? 'solid' : ''}" style="left:${lx[f.fix.lane]}px;top:${y + STEP_DY - 10}px">${f.fix.label}${fixed ? '' : ' <i>Need clarify</i>'}</div>`;
+  edgesEl.innerHTML = defsHtml + svg;
+  nodesEl.innerHTML = html;
+}
 
 function fit(){
-  const { nodes } = scope(); if (!nodes.length) return;
+  const fb = flowBox();
+  const { nodes } = scope(); if (!fb && !nodes.length) return;
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
-  const minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
+  let minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
+  if (fb){ minX = 20; maxX = LANE_X(fb.flow.lanes.length - 1) + 180; minY = 10; maxY = STEP_Y0 + (fb.flow.steps.length + 2) * STEP_DY + 40; }
   const r = canvas.getBoundingClientRect();
   // the map takes whichever is bigger: the space beside the queue, or the full width under it
   const q = $('queue').getBoundingClientRect();
@@ -379,6 +421,8 @@ function route(a, b, dup){
 
 function render(){
   if (!S) return;
+  const fb = flowBox();
+  if (fb){ drawFlow(fb); renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); return; }
   const { nodes, edges } = scope();
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -428,9 +472,12 @@ function render(){
 }
 
 function renderTop(){
-  const inside = view !== 'system' ? nodeById(view) : null;
+  const fb = flowBox();
+  const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
   // inside a box: a Back button first, then where you are
-  $('crumbs').innerHTML = `${inside ? `<button class="tbtn back" data-v="system" title="Back to the system (Esc)">‹ Back</button>` : ''}<b data-v="system">System</b>${inside ? ` <span>›</span> <b>${inside.label}</b>` : ''}`;
+  $('crumbs').innerHTML = fb
+    ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button><b data-v="system">System</b> <span>›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span>›</span> <b>${fb.flow.title}</b>`
+    : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the system (Esc)">‹ Back</button>` : ''}<b data-v="system">System</b>${inside ? ` <span>›</span> <b>${inside.label}</b>` : ''}`;
   // a ticket being planned, else the project's own one-line description
   $('ticket').innerHTML = S.ticket ? `<b>${S.ticket}</b> · ${S.prompt}` : `<b>${S.title}</b>${S.desc ? ` · ${S.desc}` : ''}`;
   $('me').innerHTML = `You are <b>${ME}</b>${me().role ? ` · ${me().role.split(',')[0]}` : ''}${me().sees && me().sees !== 'all' ? ` · ${me().sees} only` : ''}`;
@@ -501,7 +548,7 @@ function renderSide(){
     ${n.decided && !calls.some((c) => c.status !== 'open') ? `<div class="dec"><b>${n.decided.what}</b><span class="who">${n.decided.who}, ${n.decided.at}</span></div>` : ''}
     ${calls.filter((c) => c.status !== 'open').map(decision).join('')}
     ${n.fact ? `<div class="h">What Claude found</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div>` : ''}
-    ${n.inside ? `<div class="h">Inside</div><button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}
+    ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
     <div class="h">Ask Claude about this</div>
     ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.text}</div>`).join('')}
     <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
@@ -642,6 +689,7 @@ document.addEventListener('click', (e) => {
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
+  else if (t.dataset.flow){ openFlow(t.dataset.flow); }
   else if (t.hasAttribute('data-close')){ selected = null; render(); }
   else if (t.closest('[data-call-row]') && !t.closest('.gb')){
     // the call opens in place; its box lights up on the map, and no other card opens
@@ -683,6 +731,9 @@ document.addEventListener('submit', (e) => {
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
   act('ask', { node: f.dataset.ask, text }); i.value = '';
+  // "visualize this flow": Claude draws it, so the map opens on it
+  const fx = flowOf(nodeById(f.dataset.ask));
+  if (fx && /flow|visuali|diagram|draw|sequence/i.test(text)) setTimeout(() => openFlow(fx.id), 700);
 });
 let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); }
 
@@ -693,7 +744,9 @@ function listen(){
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
     if (drag){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
-    if (view !== 'system' && !next.nodes.some((n) => n.id === view)) view = 'system';
+    // a box or flow you are inside that no longer exists sends you back to the system
+    const here = view.startsWith('flow:') ? view.slice(5) : view;
+    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))) view = 'system';
     // the comment you just posted opens as a thread
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply survives the redraw
