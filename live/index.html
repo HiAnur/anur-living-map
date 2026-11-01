@@ -283,7 +283,23 @@ a{color:inherit;text-decoration:none}
 @keyframes flowx{to{background-position:20px 0}}
 #legend i.gone{background:repeating-linear-gradient(90deg,var(--gone) 0 5px,transparent 5px 9px)}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
-#foot{position:fixed;right:16px;bottom:16px;display:flex;gap:8px;z-index:10}
+#foot{position:fixed;right:80px;bottom:20px;display:flex;gap:8px;z-index:10}
+/* Claude in the corner, the way Descript keeps Underlord there: the button opens a chat about the whole map */
+#bot{position:fixed;right:16px;bottom:16px;width:52px;height:52px;border:0;border-radius:14px;background:#1f1f1e;color:#DE7E58;font:500 26px/1 var(--plex);display:grid;place-items:center;cursor:pointer;z-index:16;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:transform .15s var(--ease)}
+#bot:hover{transform:translateY(-2px)}
+#bot.on{background:var(--claude);color:#fff}
+#chat{right:16px;bottom:80px;width:380px;height:min(560px,calc(100% - 140px));display:none;flex-direction:column;padding:0;overflow:hidden}
+#chat.on{display:flex}
+#chat .ct{padding:12px 16px;margin:0;border-bottom:1px solid var(--rule)}
+#chat .ct .star{color:var(--claude);margin-right:6px}
+#chat .msgs{flex:1;overflow:auto;padding:8px 16px;display:flex;flex-direction:column}
+#chat .hello{margin-top:auto;padding:16px 0 4px}
+#chat .hello .ic{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--claude);display:grid;place-items:center;color:var(--claude);font-size:22px}
+#chat .hello .big{font-size:17px;font-weight:500;margin:10px 0 14px;line-height:1.35}
+#chat .sug{display:block;width:100%;text-align:left;padding:10px 12px;margin-bottom:8px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;cursor:pointer}
+#chat .sug:hover{border-color:var(--text)}
+#chat .sug span{display:block;font-size:12px;color:var(--text-2)}
+#chat .ask{margin:0;padding:10px 12px;border-top:1px solid var(--rule)}
 /* the tools dock: looks only, the pointer is the one tool that does anything */
 #tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#1f1f1e;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.18)}
 .tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:#e9e8e4;cursor:pointer}
@@ -293,7 +309,7 @@ a{color:inherit;text-decoration:none}
 /* Claude's orange, lightened to read on the dark bar */
 .tb.ask{padding:0 10px;font:500 12px var(--plex);color:#DE7E58}
 .tdiv{width:1px;height:18px;background:rgba(255,255,255,.16);margin:0 4px}
-body.rec #foot,body.rec #legend{display:none}
+body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 #toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:30;pointer-events:none}
 #toast.on{opacity:1}
 </style>
@@ -329,6 +345,8 @@ body.rec #foot,body.rec #legend{display:none}
   <span class="tb ask" data-tool="ask">✳ Ask Claude</span>
 </div>
 <div id="foot"><button class="tbtn" id="tidyb" title="Line every box up so the lines run straight, for everyone">Tidy up</button><button class="tbtn" id="fitb">Fit</button></div>
+<div class="panel" id="chat"></div>
+<button id="bot" title="Ask Claude about this map" aria-label="Ask Claude about this map">✳</button>
 <div id="toast"></div>
 
 <script>
@@ -460,7 +478,7 @@ function route(a, b, dup, others = []){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); return; }
+  if (fb){ drawFlow(fb); renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat(); return; }
   const { nodes, edges } = scope();
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -506,7 +524,7 @@ function render(){
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
-  renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer();
+  renderTop(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderDrawer(); renderChat();
 }
 
 function renderTop(){
@@ -593,6 +611,24 @@ function renderSide(){
     ${thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')}
     <form class="ask" data-ask="${n.id}"><input placeholder="Why is this here? What depends on it?" autocomplete="off"><button class="gb" type="submit">Ask</button></form>
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}`;
+}
+
+/* the chat in the corner: your own thread with Claude about the whole map; a box you open takes its place */
+let chatOpen = false, chatSeen = 0;
+const CHAT_IDEAS = [['What is waiting on me?', 'The questions on this map that need your answer'], ['Sum up this map', 'What it shows, in a few lines']];
+function renderChat(){
+  const el = $('chat'), open = chatOpen && !selected;
+  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen);
+  if (!open) return;
+  const thread = S.threads?.[`@${ME}`] || [];
+  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="x" data-close-chat>×</span></div>
+    <div class="msgs">${thread.length ? thread.map((m) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : prose(m.text)}</div>`).join('')
+      : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
+        ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
+    <form class="ask" data-chat><input placeholder="Ask about this map" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
+  // a new message scrolls the chat to the bottom
+  const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
+  if (n !== chatSeen){ box.scrollTop = box.scrollHeight; chatSeen = n; }
 }
 
 function renderPrs(){
@@ -763,6 +799,9 @@ document.addEventListener('click', (e) => {
   else if (t.closest('.tb')){ const b = t.closest('.tb'); if (b.dataset.tool !== 'ask') setTool(tool === b.dataset.tool && b.dataset.tool === 'comment' ? 'select' : b.dataset.tool); }
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view }); }
   else if (t.id === 'fitb'){ fit(); }
+  else if (t.closest('#bot')){ chatOpen = !(chatOpen && !selected); if (chatOpen) selected = null; chatSeen = -1; render(); if (chatOpen) $('chat').querySelector('input')?.focus(); }
+  else if (t.closest('[data-close-chat]')){ chatOpen = false; render(); }
+  else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
 document.addEventListener('submit', (e) => {
   const r = e.target.closest('form[data-reply], form[data-new]');
@@ -773,6 +812,8 @@ document.addEventListener('submit', (e) => {
     r.querySelector('input').value = '';
     return;
   }
+  const c = e.target.closest('form[data-chat]');
+  if (c){ e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim(); if (text){ act('ask', { text }); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
   act('ask', { node: f.dataset.ask, text }); i.value = '';
@@ -811,7 +852,7 @@ function listen(){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : ae.closest('#chat') ? '#chat form[data-chat] input' : null), val: ae.value } : null;
     S = next; render();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
     if (first){ first = false; fit(); }
