@@ -91,6 +91,10 @@ button,input{font:inherit;color:inherit}
 .node.faint{opacity:.62}
 .node.faint:hover,.node.faint.sel{opacity:1}
 #edges > path.faint{opacity:.55}
+/* a cross-link on a topic map: "related to", not part of the tree (crossLinks) */
+#edges > path.cross{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4;opacity:.55}
+#edges > path.cross.faint{opacity:.3}
+#edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
 /* selected: the box lights up blue */
 .node.sel{outline:2px solid #0D99FF;outline-offset:3px;box-shadow:none}
@@ -970,6 +974,30 @@ function route(a, b, dup, others = []){
 
 function render(){
   if (!S) return;
+// A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
+// has a line to it, as Tidy up lays it out. Its other lines are cross-links, drawn faint, dashed and curved the
+// way XMind draws its relationships, so they read as "related to" and never as part of the tree.
+function crossLinks(){
+  const ids = new Set(S.nodes.map((n) => n.id)), es = S.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+  const into = new Set(es.map((e) => e.to)), roots = S.nodes.filter((n) => !into.has(n.id));
+  if (roots.length !== 1) return null;
+  const out = new Map(); for (const e of es){ if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e); }
+  const seen = new Set([roots[0].id]), tree = new Set(), q = [roots[0].id];
+  while (q.length) for (const e of out.get(q.shift()) || []) if (!seen.has(e.to)){ seen.add(e.to); tree.add(e); q.push(e.to); }
+  if (seen.size !== S.nodes.length) return null;
+  return { root: roots[0], links: new Set(es.filter((e) => !tree.has(e)).map((e) => `${e.from}>${e.to}`)) };
+}
+// a cross-link's curve: out of the side facing the other box and into its facing side; two boxes in one column
+// join on their outer side (away from the first box), the curve bowing out past them
+function curve(a, b, cx){
+  const column = Math.abs(b.x - a.x) < (W(a) + W(b)) / 2 + 24, dir = column ? (a.x >= cx ? 1 : -1) : Math.sign(b.x - a.x);
+  const sx = a.x + dir * W(a) / 2, tx = column ? b.x + dir * (W(b) / 2 + 2) : b.x - dir * (W(b) / 2 + 2);
+  const bow = column ? Math.min(64, 32 + Math.abs(b.y - a.y) / 8) : Math.max(40, Math.abs(tx - sx) / 2);
+  const c1 = [sx + dir * bow, a.y], c2 = [column ? tx + dir * bow : tx - dir * bow, b.y];
+  return { d: `M${sx} ${a.y}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${tx} ${b.y}`,
+    mid: [(sx + 3 * c1[0] + 3 * c2[0] + tx) / 8, (a.y + 3 * c1[1] + 3 * c2[1] + b.y) / 8] };
+}
+
   const fb = flowBox();
   if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); fitPane(); return; }
   let { nodes, edges } = scope();
@@ -978,7 +1006,7 @@ function render(){
   // lines
   let svg = '';
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
-  const seen = new Set();
+  const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
@@ -987,6 +1015,12 @@ function render(){
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
+    if (!e.proposed && !e.state && cross?.links.has(`${e.from}>${e.to}`)){
+      const c = curve(a, b, cross.root.x);
+      svg += `<path class="cross ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-old)"/>`;
+      if (e.label) svg += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="cross" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      continue;
+    }
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
       const off = dup === null ? 0 : dup ? 7 : -7;
