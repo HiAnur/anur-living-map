@@ -89,6 +89,10 @@ button,input{font:inherit;color:inherit}
 .di > span{display:block;font-size:12px;color:var(--text-2);margin-top:1px}
 .di .ag{color:var(--claude);font-weight:500}
 .dnone{font-size:12.5px;color:var(--text-3);padding:4px 10px 10px}
+.dsave{position:relative}
+.dsave .dx{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:0;border-radius:6px;background:transparent;color:var(--text-3);cursor:pointer;opacity:0}
+.dsave:hover .dx{opacity:1}
+.dsave .dx:hover{background:#fdecea;color:var(--gone)}
 /* a flow: lanes across the top, calls as arrows down the page, the problem and its fix at the bottom */
 .flowframe{position:absolute;border:1px solid var(--rule-2);border-radius:12px;background:rgba(0,0,0,.015);pointer-events:none}
 .flowframe b{position:absolute;left:16px;top:12px;font:500 14px var(--plex)}
@@ -730,6 +734,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'prbtn'){ prsOpen = !prsOpen; render(); }
   else if (t.closest('#menub')){ drawerOpen = !drawerOpen; renderDrawer(); }
   else if (t.id === 'saveb' || t.closest('[data-save]')){ act('save'); toast('Map saved'); drawerOpen = true; }
+  else if (t.closest('[data-unsave]')){ act('unsave', { id: t.closest('[data-unsave]').dataset.unsave }); toast('Saved map deleted'); }
   else if (t.closest('[data-load]')){ act('load', { id: t.closest('[data-load]').dataset.load }); view = 'system'; selected = null; expanded = null; lit = null; setTimeout(fit, 400); toast('Opened the saved map'); }
   else if (t.closest('[data-session]')){ view = 'system'; selected = null; drawerOpen = false; render(); fit(); }
   else if (t.closest('[data-resolve]')){
@@ -777,7 +782,7 @@ function renderDrawer(){
     ${ss.length ? ss.map((s, i) => `<button class="di ${i === 0 ? 'latest' : ''}" data-session="${s.id}"><b>${s.ticket || 'Plan'}${s.chat ? ` · ${s.chat}` : ''}</b><span><span class="ag">✳ ${s.agent}</span> drew ${s.boxes} box${s.boxes === 1 ? '' : 'es'}, ${s.calls} question${s.calls === 1 ? '' : 's'} · ${when(s.at)}</span></button>`).join('')
       : '<div class="dnone">No session has drawn on this map yet. Plan a ticket in Claude Code and it shows here.</div>'}
     <div class="dh" style="margin-top:14px">Saved maps <span class="gb" data-save>Save now</span></div>
-    ${sv.length ? sv.map((s) => `<button class="di" data-load="${s.id}" title="Open this saved map for everyone"><b>${s.name}</b><span>${s.by} · ${when(s.at)} · ${s.boxes} boxes${s.open ? `, ${s.open} open` : ''}</span></button>`).join('')
+    ${sv.length ? sv.map((s) => `<div class="dsave"><button class="di" data-load="${s.id}" title="Open this saved map for everyone"><b>${s.name}</b><span>${s.by} · ${when(s.at)} · ${s.boxes} boxes${s.open ? `, ${s.open} open` : ''}</span></button><button class="dx" data-unsave="${s.id}" title="Delete this saved map" aria-label="Delete ${s.name}">✕</button></div>`).join('')
       : '<div class="dnone">Nothing saved yet.</div>'}`;
 }
 

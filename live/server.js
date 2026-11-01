@@ -94,6 +94,14 @@ const ACTS = {
     state.saves = [{ id, name, by: a.by, at: Date.now(), boxes: snap.nodes.length, open: snap.calls.filter((c) => c.status === 'open').length }, ...saves];
     return true;
   },
+  // deleting a saved map drops it from the list and removes its file
+  unsave(a) {
+    const id = String(a.id).replace(/[^\w]/g, '');
+    if (!(state.saves || []).some((s) => s.id === id)) return false;
+    state.saves = state.saves.filter((s) => s.id !== id);
+    try { fs.unlinkSync(path.join(SAVES, `${id}.json`)); } catch {}
+    return true;
+  },
   // opening a saved map makes it the map everyone sees; the list and the sessions stay
   load(a) {
     const file = path.join(SAVES, `${String(a.id).replace(/[^\w]/g, '')}.json`);
