@@ -81,9 +81,31 @@ function openMap({ project = '', name = '', home }) {
   };
 
   const fresh = () => ({ ...seed(), log: [], threads: {}, comments: [] });
+  // All chat is one place: each person's chat with Claude (threads['@Duy']). A question about a box
+  // carries the box as `about`. Older maps kept a thread per box; those messages move into the chat of
+  // whoever asked, keep their box, and fall into time order by the log, which kept the moment of each ask.
+  function oneChat(s) {
+    const boxes = Object.keys(s.threads || {}).filter((k) => !k.startsWith('@'));
+    if (!boxes.length) return;
+    const used = new Set(), when = (m) => {
+      const i = (s.log || []).findIndex((l, j) => !used.has(j) && l.action === 'asked' && l.who === m.who && l.text === m.text);
+      if (i < 0) return null; used.add(i); return s.log[i].at;
+    };
+    const into = {};
+    const add = (key, list, about) => {
+      let t = 0, who = key.startsWith('@') ? key.slice(1) : null;
+      for (const m of list) {
+        if (m.who !== 'Claude') { who = m.who; t = when(m) ?? t; } else t += 0.001;
+        (into[`@${who || 'Duy'}`] ??= []).push({ m: about ? { ...m, about } : m, t });
+      }
+    };
+    for (const [key, list] of Object.entries(s.threads)) add(key, list, key.startsWith('@') ? null : key);
+    s.threads = Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((a, b) => a.t - b.t).map((x) => x.m)]));
+  }
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
+  oneChat(state);
   const clients = new Set();
   const cursors = {}; // by name: {x, y, view, at}; never saved
 
@@ -168,7 +190,7 @@ function openMap({ project = '', name = '', home }) {
         : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));
     return [
       `You answer a question asked on Living Map, a map a team and its coding agents plan on together. This map is "${state.title}"${state.prompt ? `, drawn for "${state.prompt}"` : ''}.`,
-      `${by}${person?.role ? ` (${person.role})` : ''} asked ${n ? `about the box "${n.label}"` : 'about the whole map, in the chat beside it'}.`,
+      `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
       'Lead with the answer, in plain words and at most about 120 words: no headings, no tables, no file paths unless asked.',
       project ? 'Read the project files in your working folder when the question needs them.' : 'Answer from the map below.',
       'You cannot change any file, and you never change the map yourself. When the person asks for a change to the map, say it in one line,',
@@ -182,7 +204,7 @@ function openMap({ project = '', name = '', home }) {
       '', `## Every box${sees === 'all' ? '' : ` ${by} can see (their access covers ${sees})`}`, ...nodes.map(box),
       lines.length ? ['', '## Lines between boxes', ...lines] : [],
       calls.length ? ['', '## Questions on the map', ...calls] : [],
-      before.length ? ['', `## Earlier ${n ? 'on this box' : 'in this chat'}`, ...before.map((m) => `${m.who}: ${m.text}`)] : [],
+      before.length ? ['', '## Earlier in this chat', ...before.map((m) => `${m.who}${m.about ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
       '', '## The question', q,
     ].flat().join('\n');
   }
@@ -246,25 +268,25 @@ function openMap({ project = '', name = '', home }) {
     tidy(a) { const list = !a.view || a.view === 'system' ? state.nodes : nodeOf(a.view)?.inside?.nodes; if (!list?.length) return false; tidy(list); return true; },
     call: answerCall,
     ask(a) {
-      // no box: the chat in the corner asks about the whole map, and each person has their own thread there
-      const n = a.node ? nodeOf(a.node) : null, sees = seesOf(a.by);
-      if (a.node && (!n || (sees !== 'all' && n.area !== sees))) return false;
-      const t = (state.threads[n ? a.node : `@${a.by}`] ??= []), q = String(a.text).slice(0, 400);
-      const before = t.filter((m) => !m.staged && !m.thinking);
-      t.push({ who: a.by, text: q, at: stamp() });
-      state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: a.node, text: a.text });
+      // every question goes into the asker's one chat with Claude; one about a box carries the box with it
+      const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
+      if (boxId && (!n || (sees !== 'all' && n.area !== sees))) return false;
+      const t = (state.threads[`@${a.by}`] ??= []), q = String(a.text).slice(0, 400);
+      const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
+      t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
+      state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: a.text });
       // the scripted demo answers from its seed; a project's map or a named one asks Claude
       if (!project && !name) {
         // asking to see a flow opens it; the page does the drawing
         const hasFlow = n && (n.flow || n.inside?.nodes?.some((x) => x.flow));
         const answer = hasFlow && /flow|visuali|diagram|draw|sequence/i.test(a.text)
           ? 'Drew the payment flow on the map: the upgrade, Payment confirmed, and where an annual customer gets billed twice.'
-          : state.answers[a.node] || state.answers['*'];
-        t.push({ who: 'Claude', text: answer, at: stamp(), staged: true });
+          : state.answers[n?.id] || state.answers['*'];
+        t.push({ who: 'Claude', text: answer, at: stamp(), staged: true, ...(n ? { about: n.id } : {}) });
         return true;
       }
       // the reply fills in as Claude writes it, pushed to every window a few times a second
-      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true };
+      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
@@ -302,6 +324,7 @@ function openMap({ project = '', name = '', home }) {
       if (!fs.existsSync(file)) return false;
       const keep = { saves: state.saves || [], sessions: state.sessions || [] };
       state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...keep };
+      oneChat(state);
       return true;
     },
     // a chat opening the map: the newest saved map if this folder has one, else a fresh map from the code
