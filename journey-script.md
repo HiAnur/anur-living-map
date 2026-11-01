@@ -1,28 +1,28 @@
 # Journey: 60-second script
 
-> Written for the previous version of `journey.html` (commit b8318b9). The current version changed the story; this script will be rewritten with the next video.
-
-The voice-over for [`journey.html`](journey.html), 58 seconds. A narrator explains; you and Priyanka say your own lines in your own voices. One click per step: click when the step's first line starts.
+The voice-over for [`journey.html`](journey.html), 60 seconds. A narrator explains; you and Priyanka say your own lines. One click per step: click when the step's first line starts. Steps 2, 3 and 6 open with a laptop switch of about 1.5 s, so their first line starts after it.
 
 Record at 1536×864 (or any 16:9 size) with `journey.html?rec`. `→` steps forward; `#0`…`#6` open a step's end state; `#3a` plays step 3 from its start.
 
 | Time | Step | On screen | Who | Line |
 |---|---|---|---|---|
-| 0:00 | 0 | Production map; you start a draft and type the task | You | I start a draft of our system: a Pro plan on Stripe, and remove the old renewal job. |
-| 0:06 | 1 | Claude's plan on your draft; its guess waits on Priyanka | Narrator | Claude Code and Codex write much of our code now. Living Map draws what they plan. Dashed red is a guess: Claude assumed the renewal job can go, so it asks Priyanka. |
-| 0:18 | 2 | Priyanka decides; you accept; it goes back to Claude | Priyanka | Keep it for annual customers; new customers bill through Stripe. |
-| 0:22 |  |  | You | I accept, and her decision goes back to Claude. |
-| 0:25 | 3 | Priyanka and Duy approve; the design doc is saved; Claude builds | Narrator | She and Duy approve, the design doc is saved, and Claude builds what we agreed. |
-| 0:31 | 4 | Sam's #219; the job struck one level down; the check blocks the merge | Narrator | Then my teammate Sam's Codex deletes that job in its pull request. It planned before Priyanka decided. Review passed; Living Map's check blocks the merge. |
-| 0:42 | 5 | Codex reads the decision and restores the job | Narrator | Codex reads Priyanka's decision from Living Map and puts the job back. |
-| 0:48 | 6 | Nov 1: production redrawn from the deploy; it held up | Narrator | November first: nine renewals ran. Her decision held up, and both agents read it. |
-| 0:53 |  |  | You | Humans and AI agents, on the same page. |
+| 0:00 | 0 | Your laptop: production snapshot 41 | You | Today, annual plans renew through our own nightly job, drawn here from our repo. |
+| 0:05 | 1 | Your laptop: draft, your request, Claude's plan, the dashed renewal job, the review request | You | I ask Claude Code for a Pro plan on Stripe, and to drop that job. |
+| 0:09 |  |  | Narrator | Claude draws its plan before writing any code. Dashed red is a guess: it assumed the job can go. |
+| 0:15 |  |  | You | So I ask Priyanka. |
+| 0:18 | 2 | Switch to Priyanka's laptop: product view; she suggests a change and approves | Narrator | On her laptop, Priyanka sees only the parts she owns. |
+| 0:22 |  |  | Priyanka | Wait, 312 customers still renew through that job. Keep it. Approved. |
+| 0:28 | 3 | Switch back to your laptop: you accept; Claude builds; tests pass | You | I accept, and send it to build. Claude writes it, and every test passes. |
+| 0:33 | 4 | Check: Users DB changes, the link to the renewal job lights up, ✕ 0 of 312 | Narrator | But Living Map reads Claude's session as it builds. The migration renamed a field the renewal job reads. Those 312 customers would never renew. |
+| 0:42 | 5 | Back to Claude: fixed; snapshot 42 | Narrator | Claude gets that back and fixes it. Once merged, the map is redrawn as snapshot 42. |
+| 0:49 | 6 | Switch to Sam's laptop: his Claude starts from Priyanka's decision | Narrator | A week later, Sam's Claude reads snapshot 42 first, and leaves Priyanka's job alone. |
+| 0:54 |  |  | Narrator | Every change that ships becomes the next snapshot, so everyone starts from what the team agreed. |
 
 ## Voices
 
-`video/journey-voiced.mp4` uses ElevenLabs stand-ins at 1.12× speed: Eric for the narrator, Will for you, Laura for Priyanka. Re-record with real voices before sending it anywhere. `video/journey-silent.mp4` is the same take with no voice and no captions, on the same timing, for recording over.
+`video/journey-voiced.mp4` uses ElevenLabs `eleven_v4` stand-ins at 1.2× speed: Eric for the narrator, Will for you, Laura for Priyanka. Re-record with real voices before sending it anywhere. `video/journey-silent.mp4` is the same take with no voice and no captions, on the same timing, for recording over.
 
 ## Notes for the take
 
-- **Step 4 is the aha.** Leave a beat after "Review passed;" before "Living Map's check blocks the merge."
-- **Step 5 shows a Living Map call inside Codex.** Codex is marked preview because the Codex plugin isn't shipped. If the call isn't real in your recording, keep the label and don't claim it's live.
+- **Step 4 is the aha.** Let "Those 312 customers would never renew" land before the next click.
+- **Everything shown is claimed in the YC application today:** Living Map reads Claude's session, draws the plan and the changes from the repo, sends answers back to the agent, and the next session starts from what the team agreed. The "0 of 312" is inferred from code, and the screen says so.

@@ -36,7 +36,7 @@ The YC demo, in 7 clicks, shown only with what the YC application claims today. 
 5. That goes back to Claude, which fixes the job and the data; released as snapshot 42.
 6. Sam's laptop, a week later: his Claude starts from Priyanka's decision and leaves the renewal job alone.
 
-`journey.html#3` opens at step 3, `#3a` plays step 3 from its start, and `?rec` hides Back/Next for recording. [journey-script.md](journey-script.md) is the voice-over for the previous version; it will be rewritten with the next video.
+`journey.html#3` opens at step 3, `#3a` plays step 3 from its start, and `?rec` hides Back/Next for recording. The 60-second voice-over, timed to the steps, is in [journey-script.md](journey-script.md).
 
 ## Plan first (`plan-first.html`)
 
