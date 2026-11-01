@@ -8,7 +8,7 @@
 //   GET  /api/events                    server-sent events: state after every change
 //   GET  /api/outbox                    what the chat hears, plain words
 //   POST /api/act  {type, by, ...}      move {id,x,y} · call {id, answer: confirm|dispute}
-//                                       ask {node, text} · cursor {x,y,view} · reset
+//                                       ask {node, text} · cursor {x,y,view} · reset · open
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -109,6 +109,11 @@ const ACTS = {
     const keep = { saves: state.saves || [], sessions: state.sessions || [] };
     state = { ...JSON.parse(fs.readFileSync(file, 'utf8')), ...keep };
     return true;
+  },
+  // a chat opening the map: the newest saved map if this folder has one, else a fresh map from the code
+  open() {
+    const last = (state.saves || []).find((s) => fs.existsSync(path.join(SAVES, `${s.id}.json`)));
+    return last ? ACTS.load({ id: last.id }) : ACTS.reset();
   },
   // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
   comment(a) {
