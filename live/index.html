@@ -48,6 +48,8 @@ button,input{font:inherit;color:inherit}
 .pm-row[data-as]:not(.me){cursor:pointer}.pm-row[data-as]:not(.me):hover{background:#f3f2ee}
 .pm-row .face{width:30px;height:30px;margin:0;border:0;font-size:12px}
 .pm-who{display:flex;flex-direction:column;line-height:1.3}
+.pm-row.away .face{opacity:.35}
+.pm-who em.on{font-style:normal;color:#1E8A4A}
 .pm-out{margin-top:4px;border-top:1px solid var(--rule);border-radius:0 0 8px 8px;color:var(--text-2);cursor:pointer}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
@@ -580,7 +582,7 @@ const notes = (desc, lead = true) => {
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const act = (type, extra = {}) => fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 
-let S = null, view = 'system', selected = null, prsOpen = false, cursors = {};
+let S = null, view = 'system', selected = null, prsOpen = false, cursors = {}, hereNow = [];
 // the Inbox: this map's asks come from its own live state; every other map's from /api/inbox, every few seconds
 const HERE = location.pathname.split('/')[1] || '';
 let inboxOpen = false, elsewhere = [];
@@ -814,13 +816,14 @@ function renderTop(){
     : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
   $('ticket').innerHTML = '';
   document.title = `Living Map · ${S.title}`;
-  // people, Figma style: one button with everyone's initial; it opens who each person is and their role,
-  // you first. Signed in, the menu ends with Sign out; before anyone has a password, a click on someone else
-  // shows the map as they see it
+  // people, Figma style: the button shows the faces of who has this map open right now, you first; it opens
+  // everyone on the map with their role and whether they are here. Signed in, the menu ends with Sign out;
+  // before anyone signs in, a click on someone else shows the map as they see it
   const roleOf = (p) => [p.role?.split(',')[0], p.sees && p.sees !== 'all' ? `${p.sees} only` : ''].filter(Boolean).join(' · ');
-  const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME));
-  $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map">${ppl.map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
-    ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${roleOf(p)}</span></span></div>`).join('')}
+  const isHere = (p) => p.id === ME || hereNow.includes(p.id);
+  const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
+  $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
+    ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
       <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
       ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
@@ -1354,6 +1357,7 @@ function listen(){
     if (first){ first = false; fit(); }
   });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
+  es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
 }
 window.addEventListener('resize', fit);

@@ -13,38 +13,54 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 form{width:340px;max-width:100%;padding:28px 24px 24px;background:#fff;border:1px solid var(--rule);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
-h1{font-size:18px;font-weight:500;margin-bottom:18px}
+h1{font-size:18px;font-weight:500;margin-bottom:6px}
+.sub{font-size:13px;color:var(--text-2);margin-bottom:6px;min-height:0}
 label{display:block;font-size:12.5px;color:var(--text-2);margin:12px 0 4px}
 input{width:100%;height:38px;border:1px solid var(--rule-2);border-radius:8px;padding:0 12px;background:#fff;font:inherit;color:inherit}
 input:focus{outline:none;border-color:var(--new)}
 button{width:100%;height:38px;margin-top:20px;border:0;border-radius:8px;background:#141413;color:#fff;font:500 14px var(--plex);cursor:pointer}
 button:disabled{opacity:.5;cursor:default}
+.again{display:none}
+form.first .again{display:block}
 .err{min-height:20px;margin-top:10px;font-size:12.5px;color:var(--gone)}
 </style>
 </head>
 <body>
 <form id="f">
-  <h1>Sign in to Living Map</h1>
+  <h1 id="h">Sign in to Living Map</h1>
+  <div class="sub" id="sub"></div>
   <label for="name">Username</label>
   <input id="name" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
-  <label for="pw">Password</label>
+  <label for="pw" id="pwl">Password</label>
   <input id="pw" type="password" autocomplete="current-password" required>
+  <div class="again"><label for="pw2">Password again</label><input id="pw2" type="password" autocomplete="new-password"></div>
   <button id="go" type="submit">Sign in</button>
   <div class="err" id="err"></div>
 </form>
 <script>
-// sign in, then go back to the page that asked; only an address on this server counts as "back"
+// Sign in, then go back to the page that asked; only an address on this server counts as "back".
+// A person with no password yet chooses one here: the same form asks for it twice.
+const $ = (id) => document.getElementById(id);
 const next = new URLSearchParams(location.search).get('next') || '/';
 const back = next.startsWith('/') && !next.startsWith('//') ? next : '/';
-document.getElementById('f').addEventListener('submit', async (e) => {
+let first = null;
+const post = (to, data) => fetch(to, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }).catch(() => null);
+$('f').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const go = document.getElementById('go'), err = document.getElementById('err');
-  go.disabled = true; err.textContent = '';
-  const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: document.getElementById('name').value, password: document.getElementById('pw').value }) }).catch(() => null);
+  $('go').disabled = true; $('err').textContent = '';
+  const name = $('name').value, password = $('pw').value;
+  if (first && password !== $('pw2').value) { $('err').textContent = 'The two passwords differ.'; $('go').disabled = false; return; }
+  const r = await post(first ? '/api/first' : '/api/login', { name, password });
+  const d = r ? await r.json().catch(() => ({})) : null;
   if (r?.ok) { location.href = back; return; }
-  err.textContent = r ? (await r.json().catch(() => ({}))).error || 'Could not sign in.' : 'The map server is not answering.';
-  go.disabled = false; document.getElementById('pw').select();
+  if (r?.status === 409) {
+    first = d.first; $('f').classList.add('first'); $('name').value = first; $('name').readOnly = true;
+    $('h').textContent = `Welcome, ${first}`; $('sub').textContent = `Choose your password, at least ${d.min} characters.`;
+    $('pwl').textContent = 'New password'; $('pw').autocomplete = 'new-password'; $('pw2').required = true; $('go').textContent = 'Set password and sign in';
+    $('go').disabled = false; $('pw').focus(); return;
+  }
+  $('err').textContent = d?.error || (r ? 'Could not sign in.' : 'The map server is not answering.');
+  $('go').disabled = false; $('pw').select();
 });
 </script>
 </body>

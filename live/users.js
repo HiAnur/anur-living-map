@@ -1,5 +1,6 @@
 // Who may sign in to the team map: a person from the map's people (seed.json) and a password, kept
-// scrambled with scrypt in one SQLite file outside the repo, ~/.living-map-2/users.db. Signing in gives
+// scrambled with scrypt in one SQLite file outside the repo, ~/.living-map-2/users.db. A person chooses
+// their password the first time they sign in; after that only this command changes it. Signing in gives
 // the browser a cookie; the session behind it is kept in the same file, so a server restart keeps you in.
 // Both scrypt and SQLite are built into Node: nothing to install.
 //
@@ -29,9 +30,24 @@ const sha = (token) => crypto.createHash('sha256').update(String(token)).digest(
 // a person's name as the map writes it, whatever case it was typed in
 const person = (name) => PEOPLE.find((p) => p.toLowerCase() === String(name || '').trim().toLowerCase()) || null;
 
+const setPassword = (who, password) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  db.prepare(`INSERT INTO users (name, salt, hash) VALUES (?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET salt = excluded.salt, hash = excluded.hash, set_at = datetime('now')`).run(who, salt, scramble(password, salt));
+  db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
+};
+export const MIN = 8;
+
 export const users = {
-  // until someone has a password, the map stays open as it was
-  any: () => !!db.prepare('SELECT 1 FROM users LIMIT 1').get(),
+  person,
+  // whether this person has chosen a password yet
+  has: (who) => !!db.prepare('SELECT 1 FROM users WHERE name = ?').get(who),
+  // a person's first password, chosen on the sign-in page; changing one later is node users.js set
+  first(name, password) {
+    const who = person(name);
+    if (!who || users.has(who) || String(password || '').length < MIN) return null;
+    setPassword(who, String(password)); return who;
+  },
   // the person a name and password belong to, or null
   check(name, password) {
     const who = person(name), row = who && db.prepare('SELECT salt, hash FROM users WHERE name = ?').get(who);
@@ -58,19 +74,16 @@ if (import.meta.main) {
   const [cmd, name] = process.argv.slice(2), who = person(name);
   if (cmd === 'list') {
     const rows = db.prepare('SELECT name, set_at FROM users ORDER BY name').all();
-    console.log(rows.length ? rows.map((r) => `${r.name}  (set ${r.set_at} UTC)`).join('\n') : 'No one has a password yet, so the map is open.');
+    console.log(rows.length ? rows.map((r) => `${r.name}  (set ${r.set_at} UTC)`).join('\n') : 'No one has a password yet. Each person chooses one the first time they sign in.');
   } else if (cmd === 'remove' && who) {
     db.prepare('DELETE FROM users WHERE name = ?').run(who); db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
     console.log(`${who} has no password now and is signed out.`);
   } else if (cmd === 'set' && who) {
     const [one, two] = await askTwice(`New password for ${who}: `, 'Again: ');
-    if (one.length < 8) { console.log('Use at least 8 characters.'); process.exit(1); }
+    if (one.length < MIN) { console.log(`Use at least ${MIN} characters. Nothing changed.`); process.exit(1); }
     if (one !== two) { console.log('The two passwords differ. Nothing changed.'); process.exit(1); }
-    const salt = crypto.randomBytes(16).toString('hex');
-    db.prepare(`INSERT INTO users (name, salt, hash) VALUES (?, ?, ?)
-      ON CONFLICT(name) DO UPDATE SET salt = excluded.salt, hash = excluded.hash, set_at = datetime('now')`).run(who, salt, scramble(one, salt));
-    db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
-    console.log(`${who} can sign in now. From now on the map asks everyone to sign in.`);
+    setPassword(who, one);
+    console.log(`${who} can sign in now with this password.`);
   } else {
     console.log(`node users.js set <name> | list | remove <name>\nNames: ${PEOPLE.join(', ')}`);
     process.exit(cmd ? 1 : 0);

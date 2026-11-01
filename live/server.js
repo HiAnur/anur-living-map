@@ -22,7 +22,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { placeNew, readProject, tidy } from './project.js';
-import { users } from './users.js';
+import { MIN, users } from './users.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -113,6 +113,9 @@ function openMap({ project = '', name = '', home }) {
   oneChat(state);
   const clients = new Set();
   const cursors = {}; // by name: {x, y, view, at}; never saved
+  // who has this map open right now: each signed-in window, told to every window as people come and go
+  const viewers = new Map();
+  const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
   const save = () => { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
@@ -454,6 +457,8 @@ function openMap({ project = '', name = '', home }) {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       send(res, 'state', state); send(res, 'cursors', cursors);
       clients.add(res); req.on('close', () => clients.delete(res));
+      if (who) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
+      here();
       return true;
     }
     if (p === '/api/act' && req.method === 'POST') {
@@ -515,24 +520,36 @@ const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) 
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  // Signing in. Once anyone has a password (node users.js set <name>), every page asks who you are. The API
-  // stays open to this Mac's own tools, Claude's plans and the listeners, since the server only answers on
-  // this Mac; a signed-in browser always acts as the person who signed in.
+  // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
+  // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
+  // answers on this Mac; a signed-in browser always acts as the person who signed in.
   const who = users.whoIs(cookieOf(req, 'lm_session'));
+  const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
+  const signIn = (name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
   if (url.pathname === '/login') return page(res, 'login.html', who);
   if (url.pathname === '/api/login' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const one = users.person(a.name);
+    // a person with no password yet: the page asks them to choose one
+    if (one && !users.has(one)) return json(409, { first: one, min: MIN });
     const name = users.check(a.name, a.password);
-    if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return res.writeHead(401, { 'content-type': 'application/json' }).end('{"error":"That name and password don\'t match."}'); }
-    return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` })
-      .end(JSON.stringify({ name }));
+    if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(401, { error: one ? 'That password is not right.' : `There is no one called that on this map.` }); }
+    return signIn(name);
+  }
+  if (url.pathname === '/api/first' && req.method === 'POST') {
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const one = users.person(a.name);
+    if (!one) return json(400, { error: 'There is no one called that on this map.' });
+    if (users.has(one)) return json(400, { error: `${one} already has a password. Sign in instead.` });
+    const name = users.first(one, a.password);
+    return name ? signIn(name) : json(400, { error: `Use at least ${MIN} characters.` });
   }
   if (url.pathname === '/api/logout' && req.method === 'POST') {
     users.end(cookieOf(req, 'lm_session'));
     return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'lm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' }).end('{}');
   }
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
-  if (isPage && !who && users.any()) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
+  if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
   if (url.pathname === '/api/maps') {
