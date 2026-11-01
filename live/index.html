@@ -267,6 +267,8 @@ button,input{font:inherit;color:inherit}
 .nt-more{margin:-4px 0 12px}
 .d-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.d-chips .gb{height:30px;font-size:13px}
 .d-list{margin-top:6px;font-size:13px;color:var(--text-2)}
+.d-optx{margin-top:2px}.d-optx div{padding:7px 0;border-top:1px solid var(--rule)}.d-optx div:first-child{border-top:0;padding-top:2px}
+.d-optx b{display:block;font-size:13.5px;font-weight:600;color:var(--text)}.d-optx span{display:block;margin-top:1px;font-size:13px;color:var(--text-2);line-height:1.4}
 .d-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}.d-x .d-who{margin-bottom:2px}
 /* the box's notes, under its one-line summary */
 .notes{margin:0 0 12px;font-size:13.5px;line-height:1.5;color:var(--text)}
@@ -905,9 +907,9 @@ function renderSide(){
         ? `<div class="d-chips">${opts.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}">${o.label}</span>`).join('')}<span class="gb" data-more="o:${c.id}">Other…</span></div>
           ${other ? `<form class="d-other" data-other="${c.id}"><input id="other-${c.id}" placeholder="Say it in your words" autocomplete="off"><button class="gb" type="submit">Send</button></form>` : ''}`
         : `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
-      : opts.length ? `<div class="d-list">${opts.map((o) => o.label).join(' · ')}</div>` : '';
+      : opts.length && !more ? `<div class="d-list">${opts.map((o) => o.label).join(' · ')}</div>` : '';
     const why = `${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}${opts.length
-      ? opts.map((o) => `<div class="d-if"><b>${o.label}</b><span>${o.means || ''}</span></div>`).join('')
+      ? `<div class="d-optx">${opts.map((o) => `<div><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</div>`).join('')}</div>`
       : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}`;
     return `<div class="d">
       <div class="d-who">${agent} asks ${mine ? 'you' : c.for}${mine ? '' : waitPill([c], 'wpill')}</div>
