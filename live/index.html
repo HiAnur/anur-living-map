@@ -450,31 +450,36 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .ask{margin:0;padding:10px 12px;border-top:1px solid var(--rule)}
 /* the Claude pane reads like the Claude app: what you wrote sits on the right in a grey bubble with the pictures
    you attached above it; Claude's words run plain across the pane, with no name, time or line beside them */
-#chat .msg.um{display:flex;flex-direction:column;align-items:flex-end;padding:0;margin:18px 0 6px}
-#chat .ua{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-bottom:8px}
-#chat .ua img{display:block;width:auto;height:auto;max-height:120px;max-width:240px;border-radius:12px;border:1px solid var(--rule);cursor:zoom-in;background:#f3f2ee}
-#chat .ub{max-width:85%;padding:10px 14px;border-radius:16px;background:rgba(11,11,11,.05);white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:20px}
-#chat .um .about{align-self:flex-end}
-#chat .msg.cm{padding:0;margin:10px 0 4px;font-size:14px;line-height:1.55}
-#chat .msg.cm + .msg.cm{margin-top:2px}
-#chat .msg.cm .md p{margin-bottom:10px}
-#chat .spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
+.msg.um{display:flex;flex-direction:column;align-items:flex-end;padding:0;margin:18px 0 6px}
+.ua{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-bottom:8px}
+.ua img{display:block;width:auto;height:auto;max-height:120px;max-width:240px;border-radius:12px;border:1px solid var(--rule);cursor:zoom-in;background:#f3f2ee}
+.ub{max-width:85%;padding:10px 14px;border-radius:16px;background:rgba(11,11,11,.05);white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:20px}
+.um .about{align-self:flex-end}
+.msg.cm{padding:0;margin:10px 0 4px;font-size:14px;line-height:1.55}
+.msg.cm + .msg.cm{margin-top:2px}
+.msg.cm .md p{margin-bottom:10px}
+.spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
 @keyframes spark{50%{opacity:.35;transform:rotate(45deg)}}
-@media (prefers-reduced-motion:reduce){#chat .spark{animation:none}}
+@media (prefers-reduced-motion:reduce){.spark{animation:none}}
 /* the box you write in: rounded like Claude's, the pictures you are about to send above the words,
    + to add a picture (paste or drop one too) and the send arrow below */
-#chat .ask.cbox{display:block;margin:6px 12px 12px;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);border-radius:18px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.04)}
-#chat .cbox:focus-within{border-color:rgba(0,0,0,.3)}
-#chat .cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
-#chat .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
-#chat .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
-#chat .cbox .add:hover{background:#f3f2ee;color:var(--text)}
-#chat .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
-#chat .cbox .send svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-#chat .tray{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
-#chat .tray span{position:relative}
-#chat .tray img{display:block;width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--rule)}
-#chat .tray b{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#141413;color:#fff;font:500 12px/18px var(--plex);text-align:center;cursor:pointer}
+.ask.cbox{display:block;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);border-radius:18px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+#chat .ask.cbox{margin:6px 12px 12px}
+#side .side-ask.cbox{bottom:8px;margin:12px 0 0;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);background:#fff}
+.cbox:focus-within{border-color:rgba(0,0,0,.3)}
+.cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
+.cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
+.cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
+.cbox .add:hover{background:#f3f2ee;color:var(--text)}
+.cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+.cbox .mdl{margin-left:auto;font-size:13px;color:var(--text);white-space:nowrap}
+.cbox .mdl span{color:var(--text-3)}
+.cbox .mdl + .send{margin-left:10px}
+.cbox .send svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tray{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 10px}
+.tray span{position:relative}
+.tray img{display:block;width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--rule)}
+.tray b{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#141413;color:#fff;font:500 12px/18px var(--plex);text-align:center;cursor:pointer}
 #chat.drop .msgs{outline:2px dashed var(--claude);outline-offset:-8px}
 /* a picture opened from the chat, over everything; a click or Esc closes it */
 #lightbox{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.6);display:none;place-items:center;cursor:zoom-out}
@@ -1059,8 +1064,10 @@ function renderSide(){
   // Chat: your side chat on this box (threads['@Duy>billing']), to brainstorm and refine it. Claude reads your main chat
   // each time you ask, so it knows what you said there; what you say here stays on this box and never fills the main chat.
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
-  const chat = `${sideT.map((m, i) => `<div class="msg ${m.who === 'Claude' ? 'cl' : ''}"><b>${m.who === ME ? 'You' : m.who}</b><span class="t">${m.at}</span><br>${m.thinking && !m.text ? '<span class="wait">Reading the map…</span>' : md(m.text)}${change(m, sideKey, i)}</div>`).join('')}
-    <form class="ask side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><button class="gb" type="submit">Ask</button></form>`;
+  // laid out like the Claude app: Claude on the left, you on the right
+  const chat = `${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
+      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}
+    <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow"><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), History (what was answered) and Chat;
   // ✳ Chat beside × opens the Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -1165,11 +1172,18 @@ const claudes = (html) => `<div class="msg cm">${html}</div>`;
 // pictures waiting to go with your next message, as data: addresses; a redraw of the pane keeps them
 let chatPics = [];
 const SEND_ICON = '<svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg>';
-const composer = (placeholder, pics) => `<form class="ask cbox" data-chat>
+// the model and effort your Claude chat answers with, named as the Claude app names them ("Opus 5.5 Extra");
+// it changes in the app's own model menu, and shows here from the chat's next reply
+const EFFORT = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra', max: 'Max' };
+const modelLabel = (m) => {
+  const k = m?.id?.match(/^claude-([a-z]+)-(\d+)-(\d+)/); if (!k) return '';
+  return `<span class="mdl" title="Your Claude chat's model and effort">${k[1][0].toUpperCase()}${k[1].slice(1)} ${k[2]}.${k[3]}${m.effort ? ` <span>${EFFORT[m.effort] || esc(m.effort)}</span>` : ''}</span>`;
+};
+const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat>
     ${pics && chatPics.length ? `<div class="tray">${chatPics.map((p, i) => `<span><img src="${p}" alt="A picture to send"><b data-unpic="${i}" title="Remove">×</b></span>`).join('')}</div>` : ''}
     <input placeholder="${placeholder}" autocomplete="off">
     <div class="crow">${pics ? '<button type="button" class="add" data-attach title="Add a picture" aria-label="Add a picture">+</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-pick>' : ''}
-      <button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
+      ${modelLabel(model)}<button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
 function renderMirror(el){
   const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
@@ -1177,7 +1191,7 @@ function renderMirror(el){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
       ${!chatHist && last?.who === 'you' ? claudes('<span class="spark" title="Waiting for your Claude chat">✳</span>') : ''}</div>
-    ${chatHist ? '' : composer('Reply to Claude…', true)}`;
+    ${chatHist ? '' : composer('Reply to Claude…', true, MIRROR.model)}`;
   const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
   if (n !== chatSeen){ box.scrollTop = chatHist ? 0 : box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
   // a picture still loading grows the chat: if you were at the bottom, stay there

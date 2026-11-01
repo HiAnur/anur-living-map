@@ -135,7 +135,7 @@ function openMap({ project = '', name = '', home }) {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
     const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, ...(s.imgs ? { imgs: s.imgs } : {}) }));
     const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
-    return { session: l.session, owner: l.owner, msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
+    return { session: l.session, owner: l.owner, model: mirror.f.model(), msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
   }
   const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
   function startMirror() {

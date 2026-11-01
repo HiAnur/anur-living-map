@@ -25,7 +25,7 @@ function yours(text) {
 }
 
 export function follow(file, onChange) {
-  let offset = 0, rest = '', msgs = [], busy = false;
+  let offset = 0, rest = '', msgs = [], busy = false, model = null;
   // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
   const imgs = new Map();
   const keep = (c) => pictures(c).map((b) => {
@@ -46,6 +46,8 @@ export function follow(file, onChange) {
       // what you typed while Claude was still working
       yourTurn(j.attachment.prompt, at);
     } else if (j.type === 'assistant') {
+      // the model and effort the chat answers with, as of its latest reply
+      if (/^claude-/.test(j.message?.model || '')) model = { id: j.message.model, effort: j.effort || j.perTurnEffort || null };
       const t = (j.message?.content || []).filter((b) => b?.type === 'text').map((b) => b.text).join('\n').trim();
       if (t) add('claude', t, at);
     }
@@ -72,5 +74,5 @@ export function follow(file, onChange) {
   }
   const timer = setInterval(read, 1000);
   setImmediate(read);
-  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id) };
+  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id), model: () => model };
 }
