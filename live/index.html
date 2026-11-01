@@ -235,13 +235,15 @@ button,input{font:inherit;color:inherit}
 .d{margin:10px 0;padding:12px 14px;border:1px solid var(--rule-2);border-radius:10px;background:#fff}
 .d.done{background:#fafaf7;border-color:var(--rule)}
 .d-who{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2)}
-/* a question that waits on someone else, not you: "Wait on" in grey, then each person's initial in their colour; hover an initial for the name */
-.wpill{margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 3px 0 8px;border-radius:999px;background:#f0efea;color:var(--text-2);font:500 10.5px/20px var(--plex);white-space:nowrap;cursor:default}
-.wav{display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;color:#fff;font:500 8px/1 var(--plex);font-style:normal}
-.wav+.wav{margin-left:-3px;box-shadow:0 0 0 1.5px #f0efea}
-.node .mk.q.wait{display:inline-flex;align-items:center;gap:3px;padding:0 2px 0 6px;background:#fff;color:var(--text-2);border:1px solid var(--rule-2);line-height:12px}
+/* a question that waits on someone else, not you: "Wait on" in the map's pending amber, then each person's initial in their colour */
+.wpill{margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 3px 0 8px;border:1px solid var(--todo);border-radius:999px;background:#fff6d6;color:#7a5a00;font:500 10.5px/18px var(--plex);white-space:nowrap;cursor:default}
+.wav{position:relative;display:inline-grid;place-items:center;width:14px;height:14px;border-radius:50%;color:#fff;font:500 8px/1 var(--plex);font-style:normal}
+.wav+.wav{margin-left:-3px;box-shadow:0 0 0 1.5px #fff6d6}
+/* the name shows the moment you hover an initial, not after the browser's slow tooltip */
+.wav[data-name]:hover::after{content:attr(data-name);position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);padding:3px 8px;border:1px solid var(--rule-2);border-radius:6px;background:#fff;color:var(--text);font:500 11.5px/1.3 var(--plex);letter-spacing:0;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.10);z-index:50;pointer-events:none}
+.node .mk.q.wait{display:inline-flex;align-items:center;gap:3px;padding:0 2px 0 6px;background:#fff6d6;color:#7a5a00;border:1px solid var(--todo);line-height:12px}
 .node .mk.q.wait .wav{width:11px;height:11px;font-size:6.5px}
-.node .mk.q.wait .wav+.wav{box-shadow:0 0 0 1px #fff}
+.node .mk.q.wait .wav+.wav{box-shadow:0 0 0 1px #fff6d6}
 .d-q{font-size:15px;font-weight:600;line-height:1.3;margin:3px 0 6px}
 .d-why{font-size:13px;color:var(--text);margin-bottom:8px}
 .d-if{display:flex;gap:10px;padding:2px 0;font-size:13px}
@@ -773,7 +775,7 @@ document.addEventListener('focusout', (e) => { if (e.target.id === 'renamei') en
 // What someone answered: Yes or No, or the option they picked ("Own answer" when they wrote their own)
 // "Wait on (P)": the question waits on someone else, not you; each person's initial in their colour, their name on hover
 const waitPill = (calls, cls) => { const who = [...new Set(calls.map((c) => c.for))];
-  return `<span class="${cls} wait">Wait on ${who.map((w) => `<i class="wav" style="background:${pcol(w)}" title="${w}">${w[0]}</i>`).join('')}</span>`; };
+  return `<span class="${cls} wait">Wait on ${who.map((w) => `<i class="wav" style="background:${pcol(w)}" data-name="${w}" aria-label="${w}">${w[0]}</i>`).join('')}</span>`; };
 const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answer' : c.picked) : c.status === 'confirmed' ? 'Yes' : 'No';
 
 // What the agent needs from you before it builds: one short question, the box it is on, and its answers:
