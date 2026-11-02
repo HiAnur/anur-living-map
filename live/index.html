@@ -281,6 +281,7 @@ button,input{font:inherit;color:inherit}
 .d-po{padding:7px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13.5px;color:var(--text-3)}
 .d-po.on{border-color:rgba(46,139,87,.55);background:#e8f4ec;color:#145c3a;font-weight:600}
 .d-po span{display:block;margin-top:2px;font-weight:400;color:var(--text)}
+.d-po i{display:block;margin-top:1px;font-style:normal;font-weight:400;font-size:12.5px;color:var(--text-3)}.d-po.on i{color:#2f6b4b}
 .d-ans{font-size:13.5px;margin:-2px 0 4px}.d-ans b{font-weight:600}.d-ans span{color:var(--text-2)}
 .d-more{margin-left:10px;color:var(--new);font-weight:500;cursor:pointer}
 .d-morel{margin-top:8px;font-size:12.5px}.d-morel .d-more{margin-left:0}
@@ -1250,16 +1251,17 @@ function renderSide(){
       <div class="d-morel"><span class="d-more" data-more="c:${c.id}">${more ? 'Less' : 'More'}</span></div>
     </div>`;
   };
-  // an answered question in History: the question, then the answers there were, the picked one green with what the
-  // person wrote; an own answer is one more choice, Other, picked, with their words
+  // an answered question in History: the question and why it was asked, then the answers there were with what each
+  // meant, the picked one green with what the person wrote; an own answer is one more choice, Other, picked, with their words
   const decided = (c) => {
-    const opts = c.options?.length ? c.options.map((o) => ({ label: o.label, on: c.pickedId === o.id }))
-      : [{ label: 'Yes', on: c.status === 'confirmed' }, { label: 'No', on: c.status === 'disputed' }];
+    const opts = c.options?.length ? c.options.map((o) => ({ label: o.label, means: o.means, on: c.pickedId === o.id }))
+      : [{ label: 'Yes', means: c.yes, on: c.status === 'confirmed' }, { label: 'No', means: c.no, on: c.status === 'disputed' }];
     if (c.pickedId === 'other') opts.push({ label: 'Other', on: true });
     const words = c.pickedId === 'other' ? c.picked : c.said && c.said !== c.picked ? c.said : '';
     return `<div class="d done">
       <div class="d-q">${c.ask || c.text}</div>
-      <div class="d-pick">${opts.map((o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`).join('')}</div>
+      ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
+      <div class="d-pick">${opts.map((o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.means ? `<i>${prose(o.means)}</i>` : ''}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`).join('')}</div>
       <div class="d-who">${c.by}, ${c.at}</div>
     </div>`;
   };
