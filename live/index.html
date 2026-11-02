@@ -25,9 +25,10 @@ button,input{font:inherit;color:inherit}
 #crumbs b{font-weight:500;color:var(--text);cursor:pointer}
 #crumbs b:last-child{cursor:default}
 #crumbs .back{margin-right:6px;padding:0 9px 0 7px}
-/* where the map lives, then what it is called: Folder and Name, each with its own small label; the name renames in place */
-#crumbs .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3)}
-#crumbs .dir{font:12.5px var(--mono);color:var(--text-2);cursor:default}
+/* where the map lives, then what it is called, as one path in one font, the way Linear and Figma show it:
+   the folder in grey, a slash, the name; the name renames in place */
+#crumbs .dir{font-weight:400;color:var(--text-2);cursor:default}
+#crumbs .slash{color:var(--text-3)}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
 /* Switch map, at the top left beside Inbox, the way Linear keeps its workspace switcher there: it opens the list of maps */
@@ -1279,8 +1280,7 @@ function renderTop(){
   const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
   const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
-  const where = `<span class="lbl">Folder</span><b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b>
-    <span class="lbl">Name</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
+  const where = `<b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
   // while you type a new name, a redraw leaves the box alone
   const db = diagramBox();
   if (!$('renamei')) $('crumbs').innerHTML = db
