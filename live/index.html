@@ -143,6 +143,17 @@ button,input{font:inherit;color:inherit}
 .dgframe.small span{opacity:0;transition:none}
 .dgstill .dg,.dgstill .dgl{animation:none}
 .dgclose .dg,.dgclose .dgl{animation:none;opacity:0;transition:opacity .2s}
+/* a change Claude proposes to a box's diagram, before Apply: new parts blue and dashed, parts going away red and struck */
+.dg.dot.add{border-color:var(--new);border-style:dashed}
+.dg.dot.gone{border-color:var(--gone);opacity:.6}
+.dg.ev.add .dgt,.dg.ev.add .dgw,.dg.say.add{color:var(--new)}
+.dg.ev.gone .dgt,.dg.ev.gone .dgw,.dg.ev.gone .dgn,.dg.say.gone{color:var(--gone);text-decoration:line-through}
+.dg.chip.add,.flownote.add{border:1.5px dashed var(--new);color:var(--new);background:#eef3fd}
+.dg.chip.gone,.flownote.gone{border-color:var(--gone);color:var(--gone);text-decoration:line-through;background:#fff}
+.flowlane.lnew{border:1.5px dashed var(--new);background:#eef3fd;color:var(--new)}
+.flowlane.gone{border-style:dashed;border-color:var(--gone);color:var(--gone);text-decoration:line-through}
+.dgask{position:absolute;transform:translateX(-100%);display:flex;align-items:center;gap:8px;font:500 12.5px var(--plex);color:var(--new);white-space:nowrap}
+.dgask .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .dg{position:absolute;animation:dgpop .4s cubic-bezier(.2,.9,.3,1.25) both}
 .dg.c{transform:translate(-50%,-50%);animation-name:dgpopc}
 .dg.ev{width:150px;text-align:center}
@@ -178,6 +189,8 @@ button,input{font:inherit;color:inherit}
 .node .expand.dgp.dg-sequence{color:#BE185D;border-color:rgba(190,24,93,.5)}
 .node .expand.dgp.dg-venn{color:#4D7C0F;border-color:rgba(77,124,15,.5)}
 .node .expand.dgp:hover{border-color:currentColor}
+/* a box whose diagram has a change waiting says so on its pill, in the blue of a proposal */
+.node .expand.dgp.chg{color:var(--new);border-color:var(--new);background:#eef3fd}
 /* fold and unfold: a small round button on the side a box's lines leave from; − on hover, and a folded box
    keeps it showing, dark, with how many boxes it hides */
 .node .fold{position:absolute;z-index:2;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 11px/16px var(--plex);text-align:center;cursor:pointer;opacity:0;transition:opacity .15s}
@@ -1013,9 +1026,40 @@ let dgSize = { w: 0, h: 0 }, dgBack = null, dgFresh = false;
 const onScreen = (n, c) => ({ x: (n.x - W(n) / 2) * c.z + c.x, y: (n.y - HT(n) / 2) * c.z + c.y, w: W(n) * c.z, h: HT(n) * c.z });
 const inStage = (s) => ({ x: (s.x - cam.x) / cam.z, y: (s.y - cam.y) / cam.z, w: s.w / cam.z, h: s.h / cam.z });
 const frameAt = (f, r) => Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+// a change Claude proposes to a box's diagram, waiting for Apply: the newest one, with what its buttons answer
+function diagramChange(id){
+  const has = (p) => p?.status === 'pending' && p.plan?.nodes.some((n) => n.id === id && 'diagram' in n);
+  const of = (p) => p.plan.nodes.find((n) => n.id === id).diagram;
+  for (const k of Object.keys(S.threads || {}).filter((k) => k === `@${ME}` || k.startsWith(`@${ME}>`)))
+    for (const [i, m] of [...S.threads[k].entries()].reverse()) if (has(m?.proposal)) return { d: of(m.proposal), yes: `data-apply="${k}|${i}"`, no: `data-drop="${k}|${i}"` };
+  const p = (S.proposals || []).filter((p) => has(p) && (S.linked || []).some((l) => l.session === p.session && l.owner === ME)).at(-1);
+  return p ? { d: of(p), yes: `data-applyp="${p.id}"`, no: `data-dropp="${p.id}"` } : null;
+}
+// the diagram as it is and as proposed, as one: what both share in order, the rest marked add or gone where it sits
+const itemKey = (kind, m) => kind === 'sequence' ? `${m.from || ''}>${m.to || ''}:${m.label}` : kind === 'timeline' ? `${m.when || ''}:${m.label}:${m.note || ''}` : `${m.label}:${(m.in || []).slice().sort().join('+')}`;
+function diagramDiff(was, now){
+  const kind = (now || was).kind, a = was?.kind === kind ? was.items : [], b = now?.items || [];
+  const ka = a.map((m) => itemKey(kind, m)), kb = b.map((m) => itemKey(kind, m));
+  const L = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) L[i][j] = ka[i] === kb[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const items = []; let i = 0, j = 0;
+  while (i < a.length || j < b.length){
+    if (i < a.length && j < b.length && ka[i] === kb[j]){ items.push(b[j]); i++; j++; }
+    else if (i < a.length && (j >= b.length || L[i + 1][j] >= L[i][j + 1])){ items.push({ ...a[i], st: 'gone' }); i++; }
+    else { items.push({ ...b[j], st: 'add' }); j++; }
+  }
+  return { ...(now || was), kind, items };
+}
+// a box's pill on the map: its kind, and how many changes wait when Claude proposed some
+function dgPill(n){
+  const ch = !n.proposed && nodeById(n.id) && diagramChange(n.id), d = ch ? diagramDiff(n.diagram || null, ch.d) : n.diagram;
+  if (!d) return '';
+  const k = ch ? d.items.filter((m) => m.st).length : 0, s = k === 1 ? '' : 's';
+  return `<span class="expand dgp dg-${KIND_NAME[d.kind] ? d.kind : ''}${k ? ' chg' : ''}" data-dgx="${n.id}" title="Open ${esc(n.label)}: its ${d.kind}${k ? `, with ${k} proposed change${s}` : ''} (double click)">${KIND_NAME[d.kind]}${k ? ` · ${k} change${s}` : ''} ›</span>`;
+}
 // the box grows into a section with its name on it, the way Billing opens in the plan demo, and what it holds pops in
 function openDiagram(id){
-  const n = nodeById(id) || proposedBox(id); if (!n?.diagram || locked(n)) return;
+  const n = nodeById(id) || proposedBox(id); if ((!n?.diagram && !diagramChange(id)) || locked(n)) return;
   const from = onScreen(n, cam);
   dgBack = { cam: { ...cam }, view };
   view = `diagram:${id}`; selected = null; expanded = null; lit = null; dgFresh = true; render(); fit();
@@ -1037,7 +1081,9 @@ function closeDiagram(){
   setTimeout(done, 450);
 }
 function drawDiagram(db){
-  const d = db.diagram, pop = (i) => `animation-delay:${480 + i * 70}ms`;
+  // with a change waiting, the diagram as proposed, new parts and parts going away marked
+  const ch = diagramChange(db.id), d = ch ? diagramDiff(nodeById(db.id)?.diagram || null, ch.d) : db.diagram;
+  const pop = (i) => `animation-delay:${480 + i * 70}ms`;
   // the parts pop in once, when the box opens; a redraw while you look leaves them still
   stage.classList.toggle('dgstill', !dgFresh); dgFresh = false;
   let svg = '', html = '', w = 0, h = 0;
@@ -1047,26 +1093,30 @@ function drawDiagram(db){
     w = last + 130; h = Y + 130;
     svg += `<path class="dgl" d="M${X(0) - 50} ${Y}H${last + 50}" stroke="#c9c6bd" stroke-width="2" fill="none"/>`;
     d.items.forEach((m, i) => {
-      html += `<div class="dg dot" style="left:${X(i) - 7}px;top:${Y - 7}px;${pop(i)}"></div>
-        <div class="dg ev" style="left:${X(i) - 75}px;top:${Y - 34}px;${pop(i)}"><div class="dgw">${esc(m.when || '')}</div></div>
-        <div class="dg ev" style="left:${X(i) - 75}px;top:${Y + 18}px;${pop(i)}"><div class="dgt">${esc(m.label)}</div>${m.note ? `<div class="dgn">${esc(m.note)}</div>` : ''}</div>`;
+      html += `<div class="dg dot ${m.st || ''}" style="left:${X(i) - 7}px;top:${Y - 7}px;${pop(i)}"></div>
+        <div class="dg ev ${m.st || ''}" style="left:${X(i) - 75}px;top:${Y - 34}px;${pop(i)}"><div class="dgw">${esc(m.when || '')}</div></div>
+        <div class="dg ev ${m.st || ''}" style="left:${X(i) - 75}px;top:${Y + 18}px;${pop(i)}"><div class="dgt">${esc(m.label)}</div>${m.note ? `<div class="dgn">${esc(m.note)}</div>` : ''}</div>`;
     });
   } else if (d.kind === 'sequence'){
     // everyone in it across the top, each step an arrow down the page from who sends it to who gets it
     const lanes = [...new Set(d.items.flatMap((m) => m.from ? [m.from, m.to] : []))], X = (i) => 130 + i * 190, Y0 = 180, DY = 58;
     const lx = Object.fromEntries(lanes.map((l, i) => [l, X(i)])), mid = (X(0) + X(Math.max(0, lanes.length - 1))) / 2;
     w = X(Math.max(0, lanes.length - 1)) + 140; h = Y0 + d.items.length * DY + 20;
+    // someone only new steps touch is new; someone only steps going away touch goes away too
+    const laneSt = (l) => { const s = d.items.filter((m) => m.from === l || m.to === l).map((m) => m.st || ''); return s.every((x) => x === 'add') ? 'lnew' : s.every((x) => x === 'gone') ? 'gone' : ''; };
     lanes.forEach((l, i) => {
-      html += `<div class="flowlane dg c" style="left:${lx[l]}px;top:110px;${pop(i)}">${esc(l)}</div>`;
+      html += `<div class="flowlane dg c ${laneSt(l)}" style="left:${lx[l]}px;top:110px;${pop(i)}">${esc(l)}</div>`;
       svg += `<path class="dgl" d="M${lx[l]} 128V${h - 10}" stroke="#d6d3cb" stroke-width="1" stroke-dasharray="3 4" fill="none"/>`;
     });
     d.items.forEach((m, i) => {
       const y = Y0 + i * DY, at = pop(lanes.length + i);
-      if (!m.from){ html += `<div class="flownote dg c" style="left:${mid}px;top:${y}px;${at}">${esc(m.label)}</div>`; return; }
+      if (!m.from){ html += `<div class="flownote dg c ${m.st || ''}" style="left:${mid}px;top:${y}px;${at}">${esc(m.label)}</div>`; return; }
       const x1 = lx[m.from], x2 = lx[m.to], dir = x2 >= x1 ? 1 : -1;
-      svg += x1 === x2 ? `<path class="dgl" style="${at}" d="M${x1 + 4} ${y - 10}h34v20h-28" stroke="#6c6a64" stroke-width="1.5" fill="none" marker-end="url(#a-old)"/>`
-        : `<path class="dgl" style="${at}" d="M${x1 + dir * 4} ${y}H${x2 - dir * 6}" stroke="#6c6a64" stroke-width="1.5" fill="none" marker-end="url(#a-old)"/>`;
-      html += `<div class="dg say" style="left:${Math.min(x1, x2) + 14}px;top:${y - 24}px;${at}">${esc(m.label)}</div>`;
+      const col = m.st === 'add' ? '#2F6FE4' : m.st === 'gone' ? '#D23B32' : '#6c6a64', mk = m.st === 'add' ? 'new' : m.st === 'gone' ? 'assumed-gone' : 'old';
+      const how = m.st === 'add' ? ' stroke-dasharray="6 5"' : m.st === 'gone' ? ' stroke-opacity=".55"' : '';
+      svg += x1 === x2 ? `<path class="dgl" style="${at}" d="M${x1 + 4} ${y - 10}h34v20h-28" stroke="${col}" stroke-width="1.5" fill="none"${how} marker-end="url(#a-${mk})"/>`
+        : `<path class="dgl" style="${at}" d="M${x1 + dir * 4} ${y}H${x2 - dir * 6}" stroke="${col}" stroke-width="1.5" fill="none"${how} marker-end="url(#a-${mk})"/>`;
+      html += `<div class="dg say ${m.st || ''}" style="left:${Math.min(x1, x2) + 14}px;top:${y - 24}px;${at}">${esc(m.label)}</div>`;
     });
   } else {
     // one circle per group, overlapping; each item sits in the part for the groups it is in
@@ -1086,12 +1136,15 @@ function drawDiagram(db){
     let k = 0;
     for (const [key, list] of Object.entries(part)){
       const [x, y] = SPOT[key] || SPOT[''];
-      list.forEach((m, j) => { html += `<div class="dg c chip" style="left:${x}px;top:${y + (j - (list.length - 1) / 2) * 28}px;${pop(n + k++)}">${esc(m.label)}</div>`; });
+      list.forEach((m, j) => { html += `<div class="dg c chip ${m.st || ''}" style="left:${x}px;top:${y + (j - (list.length - 1) / 2) * 28}px;${pop(n + k++)}">${esc(m.label)}</div>`; });
     }
     w = 720; h = n === 3 ? 570 : n === 2 ? 500 : 440;
   }
   dgSize = { w, h };
   html = `<div class="dgframe dk-${d.kind}" id="dgf" style="left:30px;top:20px;width:${w - 30}px;height:${h - 20}px"><b>${esc(d.title || db.label)}</b><span>${esc(db.sub || `${KIND_NAME[d.kind]} · ${d.items.length}`)}</span></div>${html}`;
+  // the change waiting, and Apply and Not now, at the section's top right
+  const k = d.items.filter((m) => m.st).length;
+  if (ch) html += `<div class="dgask" style="left:${w - 14}px;top:30px">${!nodeById(db.id) ? 'Claude proposes this box' : k ? `Claude proposes ${k} change${k === 1 ? '' : 's'}` : 'Claude proposes no change here'}<span class="gb yes" ${ch.yes}>Apply</span><span class="gb" ${ch.no}>Not now</span></div>`;
   edgesEl.innerHTML = defsHtml + svg;
   nodesEl.innerHTML = html;
 }
@@ -1186,6 +1239,7 @@ function render(){
   if (!S) return;
   const fb = flowBox();
   const db = !fb && diagramBox();
+  if (db && !db.diagram && !diagramChange(db.id)){ view = 'system'; return render(); }
   if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
@@ -1242,7 +1296,7 @@ function render(){
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
-        : n.diagram && !locked(n) ? `<span class="expand dgp dg-${KIND_NAME[n.diagram.kind] ? n.diagram.kind : ''}" data-dgx="${n.id}" title="Open ${esc(n.label)}: its ${n.diagram.kind} (double click)">${KIND_NAME[n.diagram.kind]} ›</span>` : ''}
+        : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       </div>`;
     // the file only for the box you picked; the card has it too
@@ -1794,6 +1848,8 @@ function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x
 let drag = null, panning = null, moved = false;
 canvas.addEventListener('pointerdown', (e) => {
   const pin = e.target.closest('.pinc');
+  // Apply and Not now inside a box's diagram are buttons: their click goes to the page, not the map
+  if (e.target.closest('.dgask')) return;
   if (pin){ if (pin.dataset.pin){ openThread = openThread === Number(pin.dataset.pin) ? null : Number(pin.dataset.pin); draft = null; render(); } return; }
   // the Expand pill opens the box here: the canvas captures the pointer, so a
   // click event would land on the canvas, not on the pill
@@ -1858,7 +1914,7 @@ canvas.addEventListener('pointerup', (e) => {
     else {
       const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < DBL;
       lastTap = { id: n.id, at: Date.now() };
-      if (twice && (n.inside || n.diagram) && !locked(n)){ clearTimeout(tapTimer); drag = null; if (n.inside) enter(n.id); else openDiagram(n.id); return; }
+      if (twice && (n.inside || n.diagram || diagramChange(n.id)) && !locked(n)){ clearTimeout(tapTimer); drag = null; if (n.inside) enter(n.id); else openDiagram(n.id); return; }
       pick(n);
     }
     drag = null;
@@ -2063,7 +2119,7 @@ function listen(){
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
-    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow) && (!dg || n.diagram))
+    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))
       && !(dg && proposedBox(here, next)?.diagram)) view = 'system';
     // the comment you just posted opens as a thread
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }

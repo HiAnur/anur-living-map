@@ -359,6 +359,15 @@ function openMap({ project = '', name = '', home }) {
       ...(Array.isArray(m.in) ? { in: m.in.map((g) => s(g, 40)).filter(Boolean).slice(0, 3) } : {}) }));
     return items.length ? { kind: d.kind, ...(d.title ? { title: s(d.title, 80) } : {}), items } : null;
   }
+  // what a change does to a box's diagram, in plain words: how many parts come and how many go
+  function diagramSaid(was, now) {
+    if (!now) return was ? `take its ${was.kind} away` : 'no diagram';
+    const key = (m) => JSON.stringify([m.when, m.label, m.note, m.from, m.to, (m.in || []).slice().sort()]);
+    const left = (was?.kind === now.kind ? was.items : []).map(key); let added = 0;
+    for (const m of now.items) { const i = left.indexOf(key(m)); if (i >= 0) left.splice(i, 1); else added++; }
+    const part = { timeline: 'moment', sequence: 'step', venn: 'item' }[now.kind], n = (k) => `${k} ${part}${k === 1 ? '' : 's'}`;
+    return was?.kind === now.kind ? `its ${now.kind}: ${n(added)} added, ${n(left.length)} taken out` : `a ${now.kind} of ${n(now.items.length)}`;
+  }
   function draw(p) {
     for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
     const merge = (list, key, items = []) => {
@@ -398,7 +407,7 @@ function openMap({ project = '', name = '', home }) {
       if (!had && sees !== 'all') box.area = sees;
       if (!had) box.by = 'Claude';
       plan.nodes.push(box);
-      const said = (k) => k === 'diagram' ? (box.diagram ? `a ${box.diagram.kind} of ${box.diagram.items.length}` : 'no diagram') : `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`;
+      const said = (k) => k === 'diagram' ? diagramSaid(had?.diagram, box.diagram) : `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`;
       ops.push(had ? `Change ${had.label}: ${Object.keys(box).filter((k) => k !== 'id' && box[k] !== had[k]).map(said).join(', ')}`
         : `Add the box ${box.label}${box.sub ? ` (${box.sub})` : ''}${box.diagram ? ` opening into a ${box.diagram.kind} of ${box.diagram.items.length}` : ''}`);
     }
