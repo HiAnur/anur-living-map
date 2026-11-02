@@ -86,8 +86,8 @@ button,input{font:inherit;color:inherit}
 #edges > path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 #edges text.new{fill:var(--new)}
-#edges > path.assumed{stroke:var(--assume);stroke-dasharray:5 4}
-#edges text.assumed{fill:var(--assume)}
+/* a line that stops or goes away reads as bad: red, ending in a ✕ instead of an arrow */
+#edges text.assumed-gone{fill:var(--gone)}
 .node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
 .node:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 /* the plan touches two boxes: they carry their sentence in full ink, the rest steps back until you look at it */
@@ -1187,30 +1187,34 @@ const ICON = {
 };
 
 /* arrowheads, one per line colour */
-const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32', assumed: '#7C5CE6' };
-const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`).join('')}</defs>`;
+const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32' };
+const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`).join('')}`
+  + `<marker id="x-gone" viewBox="0 0 12 12" refX="6" refY="6" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12"><path d="M2 2L10 10M10 2L2 10" stroke="#D23B32" stroke-width="2" stroke-linecap="round"/></marker></defs>`;
+const endOf = (k) => k === 'assumed-gone' ? 'url(#x-gone)' : `url(#a-${k})`;
 
 // out of one box, into the next: straight when they line up, one elbow otherwise
 // A line leaves and enters on the sides that face each other: boxes mostly side
 // by side join left-to-right with one jog in the gap; boxes mostly above each
 // other join bottom-to-top the same way. So a line never runs along a box edge
 // or arrives where another line already does.
-function route(a, b, dup, others = []){ return routePts(a, b, dup, others).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(''); }
-// a line's corner points, so its words can be put where no other line runs
-function routePts(a, b, dup, others = []){
+function route(a, b, dup, others = [], port){ return routePts(a, b, dup, others, port).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(''); }
+// a line's corner points, so its words can be put where no other line runs; `port` moves where it leaves
+// its first box and enters its second along that side, so lines meeting one side never share a stretch
+function routePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
   // two lines between the same boxes sit 7px either side of the middle
   const off = dup === null ? 0 : dup ? 7 : -7;
   const dx = b.x - a.x, dy = b.y - a.y;
   // sideways: out of the facing sides, one jog in the gap between them
   const side = () => {
     const sx = dx > 0 ? a.x + W(a) / 2 : a.x - W(a) / 2, tx = dx > 0 ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
-    const y1 = a.y + off, y2 = b.y + off, mx = (sx + tx) / 2;
-    return Math.abs(dy) < 2 ? [[sx, y1], [tx, y1]] : [[sx, y1], [mx, y1], [mx, y2], [tx, y2]];
+    const y1 = a.y + off + port.from, y2 = b.y + off + port.to, mx = (sx + tx) / 2;
+    return Math.abs(y2 - y1) < 2 ? [[sx, y1], [tx, y1]] : [[sx, y1], [mx, y1], [mx, y2], [tx, y2]];
   };
   // up or down: out of the top or bottom, one jog between the rows
   const updown = () => {
     const sy = dy > 0 ? a.y + HT(a) / 2 : a.y - HT(a) / 2, ty = dy > 0 ? b.y - HT(b) / 2 - 2 : b.y + HT(b) / 2 + 2, my = (sy + ty) / 2;
-    return Math.abs(dx) < 2 ? [[a.x, sy], [a.x, ty]] : [[a.x, sy], [a.x, my], [b.x, my], [b.x, ty]];
+    const x1 = a.x + port.from, x2 = b.x + port.to;
+    return Math.abs(x2 - x1) < 2 ? [[x1, sy], [x1, ty]] : [[x1, sy], [x1, my], [x2, my], [x2, ty]];
   };
   // the natural shape, unless it runs through another box and the other one does not
   const blocked = (pts) => pts.slice(1).reduce((k, [x2, y2], i) => {
@@ -1220,6 +1224,33 @@ function routePts(a, b, dup, others = []){
   }, 0);
   const first = Math.abs(dx) >= Math.abs(dy) ? side() : updown(), second = Math.abs(dx) >= Math.abs(dy) ? updown() : side();
   return blocked(first) && blocked(second) < blocked(first) ? second : first;
+}
+
+// Lines that enter the same side of one box spread out along it, up to 28px apart and never past its corners,
+// so two arrows never merge into one stretch (Charge $99 and Sends the saved cards both arriving under Stripe).
+// A line that arrives straight keeps the middle; the others step aside towards where they come from. Lines
+// leaving one box spread the same way, except on a mind map, where fanning out of one stem is the shape.
+function portsFor(list, nodes, spreadOut = true){
+  const plain = list.map((l) => ({ ...l, pts: routePts(l.a, l.b, l.dup, nodes) }));
+  const vertical = (p, q) => Math.abs(p[0] - q[0]) < 1;
+  const groups = new Map(), add = (key, item) => { if (!groups.has(key)) groups.set(key, []); groups.get(key).push(item); };
+  for (const l of plain){
+    const p = l.pts, n = p.length, outV = vertical(p[0], p[1]), inV = vertical(p[n - 2], p[n - 1]);
+    const outSide = outV ? (p[1][1] < p[0][1] ? 'top' : 'bottom') : (p[1][0] > p[0][0] ? 'right' : 'left');
+    const inSide = inV ? (p[n - 1][1] < p[n - 2][1] ? 'bottom' : 'top') : (p[n - 1][0] > p[n - 2][0] ? 'left' : 'right');
+    if (spreadOut) add(`${l.a.id}:${outSide}`, { id: l.id, end: 'from', from: outV ? p[n - 1][0] : p[n - 1][1], mid: outV ? l.a.x : l.a.y, side: outV ? W(l.a) : HT(l.a) });
+    add(`${l.b.id}:${inSide}`, { id: l.id, end: 'to', from: inV ? p[0][0] : p[0][1], mid: inV ? l.b.x : l.b.y, side: inV ? W(l.b) : HT(l.b) });
+  }
+  const ports = new Map(plain.map((l) => [l.id, { from: 0, to: 0 }]));
+  for (const g of groups.values()){
+    if (g.length < 2) continue;
+    g.sort((s, t) => s.from - t.from);
+    const at = g.findIndex((s) => Math.abs(s.from - s.mid) < 1), anchor = at < 0 ? (g.length - 1) / 2 : at;
+    // every port stays at least 8px inside the side's corners
+    const reach = Math.max(anchor, g.length - 1 - anchor) || 1, step = Math.min(28, (g[0].side / 2 - 8) / reach);
+    g.forEach((s, i) => { ports.get(s.id)[s.end] = (i - anchor) * step; });
+  }
+  return ports;
 }
 
 // A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
@@ -1284,24 +1315,31 @@ function render(){
   const lines = [], labels = [];
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
+  const routed = [], dupOf = new Map();
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
-    const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`);
+    const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
+    if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup });
+  }
+  const ports = portsFor(routed, nodes, !cross);
+  for (const e of edges){
+    const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
+    const dup = dupOf.get(e);
     // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
     const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
-    const k = k0 === 'assumed-gone' && [a, b].some(guessGone) ? 'assumed' : k0;
+    const k = k0;
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
     if (cross?.links.has(`${e.from}>${e.to}`)){
       const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
-      svg += `<path class="${kc} ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-${kc === 'cross' ? 'old' : k})"/>`;
+      svg += `<path class="${kc} ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
       lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
       if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
       continue;
     }
-    const pts = routePts(a, b, dup, nodes);
+    const pts = routePts(a, b, dup, nodes, ports.get(`${e.from}>${e.to}`));
     lines.push({ id: `${e.from}>${e.to}`, pts });
-    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="url(#a-${k})"/>`;
+    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="${endOf(k)}"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
