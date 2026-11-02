@@ -184,7 +184,7 @@ body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webk
 .btn.press{background:var(--ink);color:#fff;border-color:var(--ink)}
 .btn.wide{display:block;text-align:center;margin-top:8px}
 .th-reply{margin-top:8px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-height:30px;color:var(--ink);font-size:12.5px}
-.th-reply:empty::before{content:'Reply with a reason…';color:var(--faint)}
+.th-reply:empty::before{content:'Approve, or write another answer…';color:var(--faint)}
 .th-ans{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink)}
 .th-ans small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
 
@@ -531,7 +531,7 @@ function build(){
         <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>asks Priyanka, owner of ACME-212</span></div>
         <div class="th-q"><span class="eng">Remove the renewal job? 312 annual customers renew through it.</span><span class="prod">Claude assumed annual renewals can stop. 312 customers renew this way. Keep or remove?</span></div>
         <div class="th-reply" id="replyR"></div>
-        <div class="th-btns" id="btnsP"><span class="btn" id="sugR">Suggest change</span><span class="btn dark" id="aprR">Approve</span></div>
+        <div class="th-btns" id="btnsP"><span class="btn dark" id="aprR">Approve</span></div>
         <div class="th-ans hide" id="ansP">Priyanka approved with this change, 10:02</div>
         <div class="th-acc hide" id="accR"><span class="btn dark" id="acceptR">Accept change</span></div>
         <div id="recR">Priyanka decided 10:02: keep for annual customers. Accepted by you.</div>
@@ -707,9 +707,8 @@ const STEPS = [
   () => {
     clock('Oct 31, 10:02'); pov('p', '10:02');
     later(1800, () => { off('waitR'); on('thR'); curTo('cP', {x: 900, y: 780}, false); });
-    later(2000, () => curTo('cP', pt('sugR')));
-    later(2700, () => { tap('cP'); on('sugR', 'press'); });
-    later(2900, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 46); });
+    // the answer box is open on the card already: she types her own answer straight in, then approves
+    later(2400, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 46); });
     later(4500, () => curTo('cP', pt('aprR')));
     later(5200, () => { tap('cP'); on('aprR', 'press'); });
     later(5500, () => { $('btnsP').classList.add('hide'); $('ansP').classList.remove('hide'); $('rvStatus').textContent = '✓ Approved with 1 suggested change'; on('rvStatus', 'ok');
