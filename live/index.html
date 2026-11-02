@@ -495,6 +495,8 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .ask.cbox{margin:6px 12px 12px}
 #side .side-ask.cbox{bottom:8px;margin:12px 0 0;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);background:#fff}
 .cbox:focus-within{border-color:rgba(0,0,0,.3)}
+.att-row{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 7px}
+.att-c{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;border:1px solid var(--rule);border-radius:7px;background:#fafaf7;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
 .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
@@ -1272,7 +1274,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}
-    <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow"><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
+    <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow"><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), Decision history (what was answered) and Chat;
   // ✳ Side Chat beside × opens the Side Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -1474,6 +1476,16 @@ function renderMem(){
     ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map. Ask Claude to make something a rule.')}
     ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date. Ask Claude to remember something.')}`;
 }
+// what a Side Chat reads before each answer, shown as chips in its input box: the whole map, this box, and your earlier
+// chat on the map when there is one; hovering a chip says what is in it
+const attached = (n) => {
+  const rules = (S.memory || []).filter((m) => m.box === n.id), main = (S.threads?.[`@${ME}`] || []).filter((m) => !m.staged && !m.thinking);
+  const seen = S.nodes.filter(canSee).length, done = S.calls.filter((c) => c.status !== 'open').length;
+  const chip = (icon, label, title) => `<span class="att-c" title="${prose(title)}">${icon}${prose(label)}</span>`;
+  return `<div class="att-row">${chip('▦', `${S.title} · ${seen} boxes`, `The whole map: ${seen} boxes and their notes, the lines between them, ${done} answered questions, its Instructions and Memory`)}${
+    chip('▢', `${n.label}${rules.length ? ` · ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}` : ''}`, `This box: its notes, what Claude found${rules.length ? `, and ${rules.length === 1 ? 'its rule' : 'its rules'}: ${rules.map((m) => m.text).join('; ')}` : ''}`)}${
+    main.length ? chip('✳', `Your map chat · ${main.length}`, `Your earlier chat on this map, last at ${main.at(-1).at}`) : ''}</div>`;
+};
 /* the rail's Side Chats: every box you have a side chat on (threads['@Duy>rivals']), the newest started first, with
    the last thing you asked; a click opens the box on its Side Chat tab, and Back comes here */
 function renderSideChats(){
