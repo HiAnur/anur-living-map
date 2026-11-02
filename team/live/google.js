@@ -1,7 +1,6 @@
-// Sign in with Google, through Living Map login (login/server.js, on Cloud Run): the one list of who may sign in
-// lives there, not on this Mac. The browser goes there, Google says who it is, and it comes back to
-// /auth/done with a one-time code that only this server can trade (it keeps the secret the code was asked
-// with) for the person. LIVING_MAP_LOGIN_URL points at another login service; empty turns Google off.
+// Sign in with Google, through Living Map login (login/server.js, on Cloud Run). Anyone with a Google account
+// gets in. The browser goes there, Google says who it is, and it comes back to /auth/done with a one-time code
+// that only this server can trade (it keeps the secret the code was asked with) for the person. LIVING_MAP_LOGIN_URL points at another login service; empty turns Google off.
 import crypto from 'node:crypto';
 
 const LOGIN = (process.env.LIVING_MAP_LOGIN_URL ?? 'https://living-map-login-572969880390.us-west1.run.app').replace(/\/$/, '');
@@ -30,7 +29,8 @@ export async function googleFinish(params) {
     body: JSON.stringify({ code: params.get('code') || '', verifier: s.verifier }), signal: AbortSignal.timeout(10_000) }).catch(() => null);
   const d = r ? await r.json().catch(() => ({})) : {};
   if (!r?.ok || !d.name) throw new Error(d.error || 'The sign-in service did not answer. Try again.');
-  return { email: d.email, name: d.name, next: s.next };
+  const name = String(d.name).replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) || String(d.email || '').split('@')[0] || 'Someone';
+  return { email: d.email, name, next: s.next };
 }
 
 // a name and password kept at Living Map login, for someone with no Google account: the name to sign in as, or null

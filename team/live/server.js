@@ -893,8 +893,8 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname === '/auth/done' && req.method === 'GET') {
     let got; try { got = await googleFinish(url.searchParams); } catch (e) { return signInError(e.message); }
-    const name = users.person(got.name);
-    if (!name) return signInError(`${got.name} is not one of this map's people.`);
+    // one of this map's people, by full name or first name; anyone else acts under the name Google gave
+    const name = users.person(got.name) || users.person(got.name.split(' ')[0]) || got.name;
     return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
   }
   if (url.pathname === '/api/login' && req.method === 'POST') {
