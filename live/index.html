@@ -1440,7 +1440,8 @@ function planBar(){
   if (!S.prompt && !S.owner) return '';
   const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
   const pr = (S.prs || []).find((p) => p.id === S.pr);
-  const chip = pr ? `<button class="prchip ${pr.status}" data-prs title="${esc(pr.title || '')}">PR ${esc(pr.id)} · ${esc(pr.status)}</button>`
+  // a pull request with no address is local: the plan's branch in a repo with no GitHub copy
+  const chip = pr ? `<button class="prchip ${pr.status}" data-prs title="${esc(pr.url ? pr.title || '' : `${pr.title ? `${pr.title}, ` : ''}on the branch ${pr.id}, not on GitHub`)}">${pr.url ? `PR ${esc(pr.id)}` : 'Local PR'} · ${esc(pr.status)}</button>`
     : '<span class="prchip none" title="The chat that drew this plan opens a draft pull request for it">No PR yet</span>';
   const admin = S.people.find((p) => p.id === ME)?.role === 'Admin';
   if (S.executed) return chip + `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
