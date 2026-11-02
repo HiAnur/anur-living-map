@@ -227,7 +227,7 @@ button,input{font:inherit;color:inherit}
 .node .mk.q.ok{background:#1E8A4A}
 .file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
 /* a warning under a box, one short line: what breaks if the plan's guess about it is wrong; the why is on the box's card */
-.warn{position:absolute;font:500 12px/1.35 var(--plex);color:var(--gone);white-space:nowrap;pointer-events:none}
+.warn{position:absolute;font:500 12px/1.35 var(--plex);color:var(--gone);white-space:normal;overflow-wrap:break-word;pointer-events:none}
 .d-warn{margin:10px 0;padding:8px 10px;border:1px solid rgba(210,59,50,.4);border-radius:8px;background:#fdf2f1;font:13px/1.4 var(--plex);color:var(--text)}
 .d-warn b{display:block;font-weight:500;color:var(--gone)}.d-warn span{display:block;margin-top:2px;color:var(--text-2)}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
@@ -1401,9 +1401,10 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       </div>`;
-    // a warning sits under the box: `warn` is what breaks, `why` the comment under it
+    // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
+    // bottom edge: `warn` is what breaks, `why` the comment under it
     const warn = n.warn && !locked(n);
-    if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 6}px">⚠ ${n.warn}</div>`;
+    if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (n.inside || n.diagram ? 14 : 6)}px;width:${W(n)}px">⚠ ${n.warn}</div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
   }
