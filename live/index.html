@@ -128,10 +128,20 @@ button,input{font:inherit;color:inherit}
 .flowbad.ok{color:#2E8B57}
 .flowfix{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:5px 10px;border:1.5px dashed var(--claude);border-radius:6px;background:#fff7f2;font-size:13px}
 .flowfix.solid{border-style:solid;border-color:#2E8B57;background:#f0f8f3}
-/* a diagram a box opens into (a timeline, a sequence, a Venn): the map zooms into the box and the parts pop in */
-.dgframe{position:absolute;border:1px solid var(--rule-2);border-radius:12px;background:rgba(0,0,0,.015);pointer-events:none;animation:dgin .3s ease-out both}
-.dgframe b{position:absolute;left:16px;top:12px;font:500 14px var(--plex)}
-.dgframe span{position:absolute;left:16px;top:32px;font-size:12px;color:var(--text-2)}
+/* a diagram a box opens into (a timeline, a sequence, a Venn): the box grows into a section with its name on it,
+   tinted in its kind's colour, and the parts pop in inside it */
+.dgframe{position:absolute;border:1px solid var(--rule-2);border-radius:10px;background:rgba(0,0,0,.015);pointer-events:none;
+  transition:left .5s var(--ease),top .5s var(--ease),width .5s var(--ease),height .5s var(--ease),border-radius .5s ease-out}
+.dgframe.small{border-radius:6px}
+.dgframe.still{transition:none}
+.dgframe.dk-timeline{border-color:rgba(15,118,110,.35);background:rgba(15,118,110,.035)}
+.dgframe.dk-sequence{border-color:rgba(190,24,93,.3);background:rgba(190,24,93,.03)}
+.dgframe.dk-venn{border-color:rgba(77,124,15,.35);background:rgba(77,124,15,.035)}
+.dgframe b{position:absolute;left:14px;top:12px;font:500 13.5px var(--plex);white-space:nowrap}
+.dgframe span{position:absolute;left:14px;top:32px;font-size:12px;color:var(--text-2);white-space:nowrap;transition:opacity .3s ease-out .35s}
+.dgframe.small span{opacity:0;transition:none}
+.dgstill .dg,.dgstill .dgl{animation:none}
+.dgclose .dg,.dgclose .dgl{animation:none;opacity:0;transition:opacity .2s}
 .dg{position:absolute;animation:dgpop .4s cubic-bezier(.2,.9,.3,1.25) both}
 .dg.c{transform:translate(-50%,-50%);animation-name:dgpopc}
 .dg.ev{width:150px;text-align:center}
@@ -142,12 +152,11 @@ button,input{font:inherit;color:inherit}
 .dg.chip{padding:3px 9px;border:1px solid var(--box-line);border-radius:999px;background:#fff;font-size:12.5px;white-space:nowrap}
 .dg.set{font:500 13.5px var(--plex);white-space:nowrap}
 .dg.say{font-size:13px;white-space:nowrap}
-.dgl{animation:dgfade .35s ease-out both}
+.dgl{animation:dgfade .35s ease-out .45s both}
 @keyframes dgpop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
 @keyframes dgpopc{from{opacity:0;transform:translate(-50%,-50%) scale(.3)}to{opacity:1;transform:translate(-50%,-50%)}}
-@keyframes dgin{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
 @keyframes dgfade{from{opacity:0}to{opacity:1}}
-@media (prefers-reduced-motion: reduce){.dg,.dgframe,.dgl{animation:none}}
+@media (prefers-reduced-motion: reduce){.dg,.dgl{animation:none}.dgframe{transition:none}}
 .flowfix i{font-style:normal;margin-left:6px;padding:0 5px;border-radius:999px;background:var(--claude);color:#fff;font-size:9px;line-height:14px;display:inline-block}
 .nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
 /* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
@@ -998,28 +1007,38 @@ function drawFlow(fb){
 // in order), a sequence (who sends what to whom, in turn) or a Venn (what belongs to which of 2 or 3 groups)
 const KIND_NAME = { timeline: 'Timeline', sequence: 'Sequence', venn: 'Venn' };
 const diagramBox = () => view.startsWith('diagram:') ? nodeById(view.slice(8)) || proposedBox(view.slice(8)) || null : null;
-let dgSize = { w: 0, h: 0 };
-const zoomOnto = (n, z) => { const r = canvas.getBoundingClientRect(); Object.assign(cam, { z, x: r.width / 2 - n.x * z, y: r.height / 2 - n.y * z }); place(); };
-// the map glides into the box, then the box opens into its diagram
+let dgSize = { w: 0, h: 0 }, dgBack = null, dgFresh = false;
+// a box's place on screen under a camera, and a place on screen in the stage's own units under the camera now
+const onScreen = (n, c) => ({ x: (n.x - W(n) / 2) * c.z + c.x, y: (n.y - HT(n) / 2) * c.z + c.y, w: W(n) * c.z, h: HT(n) * c.z });
+const inStage = (s) => ({ x: (s.x - cam.x) / cam.z, y: (s.y - cam.y) / cam.z, w: s.w / cam.z, h: s.h / cam.z });
+const frameAt = (f, r) => Object.assign(f.style, { left: `${r.x}px`, top: `${r.y}px`, width: `${r.w}px`, height: `${r.h}px` });
+// the box grows into a section with its name on it, the way Billing opens in the plan demo, and what it holds pops in
 function openDiagram(id){
   const n = nodeById(id) || proposedBox(id); if (!n?.diagram || locked(n)) return;
-  stage.style.transition = 'transform .28s ease-in';
-  zoomOnto(n, Math.min(2.5, cam.z * 2.4));
-  setTimeout(() => { stage.style.transition = ''; view = `diagram:${id}`; selected = null; expanded = null; lit = null; render(); fit(); }, 280);
+  const from = onScreen(n, cam);
+  dgBack = { cam: { ...cam }, view };
+  view = `diagram:${id}`; selected = null; expanded = null; lit = null; dgFresh = true; render(); fit();
+  const f = $('dgf'); if (!f) return;
+  f.classList.add('small', 'still'); frameAt(f, inStage(from)); f.getBoundingClientRect();
+  f.classList.remove('small', 'still'); frameAt(f, { x: 30, y: 20, w: dgSize.w - 30, h: dgSize.h - 20 });
 }
-// Back: the map comes back zoomed into the box and glides out to where it was
+// Back: what it holds fades, the section shrinks back into the box, and the map is where you left it
 function closeDiagram(){
-  const id = view.slice(8), up = S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === id));
-  view = up ? up.id : 'system'; selected = null; render(); fit();
-  const n = nodeById(id) || proposedBox(id); if (!n) return;
-  const to = { ...cam };
-  zoomOnto(n, Math.min(2.5, to.z * 2.4));
-  stage.getBoundingClientRect();
-  stage.style.transition = 'transform .3s ease-out'; Object.assign(cam, to); place();
-  setTimeout(() => { stage.style.transition = ''; }, 320);
+  if (stage.classList.contains('dgclose')) return;
+  const id = view.slice(8), n = nodeById(id) || proposedBox(id), f = $('dgf'), back = dgBack;
+  const up = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
+  const done = () => {
+    view = back?.view || (up ? up.id : 'system'); dgBack = null; selected = null; stage.classList.remove('dgclose'); render();
+    if (back){ Object.assign(cam, back.cam); place(); } else fit();
+  };
+  if (!n || !f || !back || matchMedia('(prefers-reduced-motion: reduce)').matches) return done();
+  stage.classList.add('dgclose'); f.classList.add('small'); frameAt(f, inStage(onScreen(n, back.cam)));
+  setTimeout(done, 450);
 }
 function drawDiagram(db){
-  const d = db.diagram, pop = (i) => `animation-delay:${120 + i * 70}ms`;
+  const d = db.diagram, pop = (i) => `animation-delay:${480 + i * 70}ms`;
+  // the parts pop in once, when the box opens; a redraw while you look leaves them still
+  stage.classList.toggle('dgstill', !dgFresh); dgFresh = false;
   let svg = '', html = '', w = 0, h = 0;
   if (d.kind === 'timeline'){
     // one dot per moment along a line, when above it, what below it
@@ -1055,7 +1074,7 @@ function drawDiagram(db){
     const C = n <= 1 ? [[cx, cy]] : n === 2 ? [[cx - 95, cy], [cx + 95, cy]] : [[cx - 85, cy - 55], [cx + 85, cy - 55], [cx, cy + 85]];
     const FILL = ['rgba(47,111,228,.10)', 'rgba(201,100,66,.10)', 'rgba(46,139,87,.10)'], LINE = ['#2F6FE4', '#C96442', '#2E8B57'];
     C.forEach(([x, y], i) => {
-      svg += `<circle class="dgl" style="animation-delay:${i * 90}ms" cx="${x}" cy="${y}" r="${r}" fill="${FILL[i]}" stroke="${LINE[i]}" stroke-width="1.5"/>`;
+      svg += `<circle class="dgl" style="animation-delay:${450 + i * 90}ms" cx="${x}" cy="${y}" r="${r}" fill="${FILL[i]}" stroke="${LINE[i]}" stroke-width="1.5"/>`;
       if (groups[i]) html += `<div class="dg c set" style="left:${x}px;top:${i === 2 ? y + r + 18 : y - r - 18}px;color:${LINE[i]};${pop(i)}">${esc(groups[i])}</div>`;
     });
     const SPOT = n <= 1 ? { 0: [cx, cy], '': [cx + r + 110, cy] }
@@ -1071,7 +1090,7 @@ function drawDiagram(db){
     w = 720; h = n === 3 ? 570 : n === 2 ? 500 : 440;
   }
   dgSize = { w, h };
-  html = `<div class="dgframe" style="left:30px;top:20px;width:${w - 30}px;height:${h - 20}px"><b>${esc(d.title || db.label)}</b><span>${KIND_NAME[d.kind]} · ${d.items.length}</span></div>${html}`;
+  html = `<div class="dgframe dk-${d.kind}" id="dgf" style="left:30px;top:20px;width:${w - 30}px;height:${h - 20}px"><b>${esc(d.title || db.label)}</b><span>${esc(db.sub || `${KIND_NAME[d.kind]} · ${d.items.length}`)}</span></div>${html}`;
   edgesEl.innerHTML = defsHtml + svg;
   nodesEl.innerHTML = html;
 }
