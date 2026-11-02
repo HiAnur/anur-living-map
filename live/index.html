@@ -501,6 +501,7 @@ body.resizing{cursor:col-resize;user-select:none}
 #side .side-ask.cbox{bottom:8px;margin:12px 0 0;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);background:#fff}
 .cbox:focus-within{border-color:rgba(0,0,0,.3)}
 .att-row{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 7px}
+.att-c svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 .att-c{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;border:1px solid var(--rule);border-radius:7px;background:#fafaf7;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
 .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
@@ -1483,8 +1484,11 @@ const attached = (n) => {
   const rules = (S.memory || []).filter((m) => m.box === n.id);
   const seen = S.nodes.filter(canSee).length, done = S.calls.filter((c) => c.status !== 'open').length;
   const chip = (icon, label, title) => `<span class="att-c" title="${prose(title)}">${icon}${prose(label)}</span>`;
-  return `<div class="att-row">${chip('▦', `${S.title} · ${seen} boxes`, `The whole map: ${seen} boxes and their notes, the lines between them, ${done} answered questions, its Instructions and Memory`)}${
-    chip('▢', `${n.label}${rules.length ? ` · ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}` : ''}`, `This box: its notes, what Claude found${rules.length ? `, and ${rules.length === 1 ? 'its rule' : 'its rules'}: ${rules.map((m) => m.text).join('; ')}` : ''}`)}</div>`;
+  // the map: three boxes joined by lines; a box: one rounded box with a line of text
+  const MAP_I = '<svg viewBox="0 0 16 16"><rect x="1.5" y="6" width="4.5" height="4" rx="1"/><rect x="10" y="2" width="4.5" height="4" rx="1"/><rect x="10" y="10" width="4.5" height="4" rx="1"/><path d="M6 8h2v-4h2M8 8v4h2"/></svg>';
+  const BOX_I = '<svg viewBox="0 0 16 16"><rect x="2" y="3.5" width="12" height="9" rx="2"/><path d="M5 7h6M5 9.5h4"/></svg>';
+  return `<div class="att-row">${chip(MAP_I, `${S.title} · ${seen} boxes`, `The whole map: ${seen} boxes and their notes, the lines between them, ${done} answered questions, its Instructions and Memory`)}${
+    chip(BOX_I, `${n.label}${rules.length ? ` · ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}` : ''}`, `This box: its notes, what Claude found${rules.length ? `, and ${rules.length === 1 ? 'its rule' : 'its rules'}: ${rules.map((m) => m.text).join('; ')}` : ''}`)}</div>`;
 };
 /* the rail's Side Chats: every box you have a side chat on (threads['@Duy>rivals']), the newest started first, with
    the last thing you asked; a click opens the box on its Side Chat tab, and Back comes here */
