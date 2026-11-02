@@ -2,11 +2,13 @@
 // scrambled with scrypt in one SQLite file outside the repo, ~/.living-map-2/users.db. A person chooses
 // their password the first time they sign in; after that only this command changes it. Signing in gives
 // the browser a cookie; the session behind it is kept in the same file, so a server restart keeps you in.
-// Both scrypt and SQLite are built into Node: nothing to install.
+// Both scrypt and SQLite are built into Node: nothing to install. Google sign-in (google.js) lets in
+// only the Google addresses listed here, each as one person.
 //
-//   node users.js set <name>      set or change that person's password (asks for it twice)
-//   node users.js list            who has a password
-//   node users.js remove <name>   take their password away and sign them out
+//   node users.js set <name>              set or change that person's password (asks for it twice)
+//   node users.js google <name> <email>   let that Google address sign in as that person
+//   node users.js list                    who has a password, and which Google addresses are let in
+//   node users.js remove <name>           take their password and Google addresses away and sign them out
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -23,7 +25,8 @@ fs.mkdirSync(path.dirname(FILE), { recursive: true, mode: 0o700 });
 const db = new DatabaseSync(FILE);
 fs.chmodSync(FILE, 0o600);
 db.exec(`CREATE TABLE IF NOT EXISTS users (name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, set_at TEXT NOT NULL DEFAULT (datetime('now')));
-  CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL);`);
+  CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS emails (email TEXT PRIMARY KEY, name TEXT NOT NULL);`);
 
 const scramble = (password, salt) => crypto.scryptSync(String(password), salt, 64).toString('hex');
 const sha = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -54,6 +57,8 @@ export const users = {
     if (!row) return null;
     return crypto.timingSafeEqual(Buffer.from(scramble(password, row.salt), 'hex'), Buffer.from(row.hash, 'hex')) ? who : null;
   },
+  // the person a Google address signs in as, or null when it is not on the list
+  byEmail: (email) => db.prepare('SELECT name FROM emails WHERE email = ?').get(String(email || '').toLowerCase())?.name || null,
   start(name) {
     const token = crypto.randomBytes(32).toString('hex');
     db.prepare('INSERT INTO sessions (token_hash, name, at) VALUES (?, ?, ?)').run(sha(token), name, Date.now());
@@ -75,9 +80,16 @@ if (import.meta.main) {
   if (cmd === 'list') {
     const rows = db.prepare('SELECT name, set_at FROM users ORDER BY name').all();
     console.log(rows.length ? rows.map((r) => `${r.name}  (set ${r.set_at} UTC)`).join('\n') : 'No one has a password yet. Each person chooses one the first time they sign in.');
+    const mails = db.prepare('SELECT email, name FROM emails ORDER BY name, email').all();
+    console.log(mails.length ? `\nGoogle sign-in:\n${mails.map((m) => `${m.email}  as ${m.name}`).join('\n')}` : '\nNo Google address is let in yet: node users.js google <name> <email>');
+  } else if (cmd === 'google' && who && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(process.argv[4] || '')) {
+    const email = process.argv[4].toLowerCase();
+    db.prepare('INSERT INTO emails (email, name) VALUES (?, ?) ON CONFLICT(email) DO UPDATE SET name = excluded.name').run(email, who);
+    console.log(`${email} can sign in with Google as ${who} now.`);
   } else if (cmd === 'remove' && who) {
     db.prepare('DELETE FROM users WHERE name = ?').run(who); db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
-    console.log(`${who} has no password now and is signed out.`);
+    db.prepare('DELETE FROM emails WHERE name = ?').run(who);
+    console.log(`${who} has no password or Google address now and is signed out.`);
   } else if (cmd === 'set' && who) {
     const [one, two] = await askTwice(`New password for ${who}: `, 'Again: ');
     if (one.length < MIN) { console.log(`Use at least ${MIN} characters. Nothing changed.`); process.exit(1); }
@@ -85,7 +97,7 @@ if (import.meta.main) {
     setPassword(who, one);
     console.log(`${who} can sign in now with this password.`);
   } else {
-    console.log(`node users.js set <name> | list | remove <name>\nNames: ${PEOPLE.join(', ')}`);
+    console.log(`node users.js set <name> | google <name> <email> | list | remove <name>\nNames: ${PEOPLE.join(', ')}`);
     process.exit(cmd ? 1 : 0);
   }
 }
