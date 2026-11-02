@@ -16,10 +16,11 @@
 // (/gtm/api/state, /gtm/api/act). A named map starts empty, keeps its state in
 // live/maps/<name>/, and fills from the plans drawn on it.
 
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 
 import { follow } from './mirror.js';
@@ -878,7 +879,7 @@ const page = (res, file, who) => res.writeHead(200, { 'content-type': 'text/html
     googleOn() && '<meta name="lm-google" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
   // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
@@ -984,4 +985,32 @@ http.createServer(async (req, res) => {
   const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
-}).listen(PORT, '127.0.0.1', () => console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`));
+});
+
+// ── keeps itself current ──
+// Run from a git clone on main with no changes of its own, the server looks at GitHub when it starts and every
+// ten minutes, pulls what is new, refreshes the skill's copy under ~/.claude/skills, and starts itself again in
+// its place: every change is on disk already, pages and listeners reconnect by themselves. A copy without git
+// (npx) is left to npx, which fetches the newest version each run. The commit it runs from goes in
+// ~/.living-map-2/server.rev, which /anur-living-map reads to tell a server on older code.
+const REPO = path.resolve(DIR, '..', '..');
+const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
+const git = (...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
+const EVERY = 10 * 60_000;
+async function keepCurrent() {
+  if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true' || (await git('branch', '--show-current')) !== 'main' || (await git('status', '--porcelain'))) return;
+  const was = await git('rev-parse', 'HEAD');
+  if ((await git('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=4', 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
+  const now = await git('rev-parse', 'HEAD');
+  if (now === was) return;
+  try { fs.cpSync(path.join(REPO, 'team', 'skill', 'anur-living-map'), path.join(os.homedir(), '.claude', 'skills', 'anur-living-map'), { recursive: true }); } catch {}
+  console.log(`update: ${await git('rev-list', '--count', `${was}..${now}`)} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`);
+  server.closeAllConnections();
+  server.close(() => { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'inherit' }).unref(); process.exit(0); });
+}
+server.listen(PORT, '127.0.0.1', async () => {
+  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
+  const head = await git('rev-parse', 'HEAD');
+  if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
+  keepCurrent(); setInterval(keepCurrent, EVERY).unref();
+});
