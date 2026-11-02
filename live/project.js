@@ -70,16 +70,17 @@ export function readProject(root) {
     }
     for (const t of to) edges.push({ from: n.id, to: t });
   }
-  // the person at the front door
+  // the person at the front door, named by the repo itself when it says so (package.json "livingMap": { "person": … }),
+  // so a map started over from the code keeps the name the team gave it
+  const pkg = (() => { try { return JSON.parse(read(path.join(root, 'package.json'))); } catch { return {}; } })();
   const apps = nodes.filter((n) => n.group === 'apps');
   if (apps.length) {
-    nodes.unshift({ id: 'customer', label: 'Customer', kind: 'actor', desc: 'Anyone with an account.' });
+    nodes.unshift({ id: 'customer', label: pkg.livingMap?.person || 'Customer', kind: 'actor', desc: 'Anyone with an account.' });
     for (const a of apps) edges.unshift({ from: 'customer', to: a.id });
   }
 
   layout(nodes, edges);
   for (const n of nodes) { delete n.dir; delete n.group; }
-  const pkg = (() => { try { return JSON.parse(read(path.join(root, 'package.json'))); } catch { return {}; } })();
   return { title: pkg.name || path.basename(root), desc: pkg.description || '', project: root, nodes, edges };
 }
 
