@@ -1,4 +1,4 @@
-# Living Map demo
+# Anur Living Map
 
 A click-through mockup of [Living Map](https://github.com/HiAnur/living-map): what the map
 shows while you ask Claude Code for a feature, before it builds anything.
