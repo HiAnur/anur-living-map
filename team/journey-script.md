@@ -25,4 +25,4 @@ Record at 1536×864 (or any 16:9 size) with `journey.html?rec`. `→` steps forw
 ## Notes for the take
 
 - **Step 4 is the aha.** Let "Those 312 customers would never renew" land before the next click.
-- **Everything shown is claimed in the YC application today:** Living Map reads Claude's session, draws the plan and the changes from the repo, sends answers back to the agent, and the next session starts from what the team agreed. The "0 of 312" is inferred from code, and the screen says so.
+- **Everything shown is what the map does today:** Living Map reads Claude's session, draws the plan and the changes from the repo, sends answers back to the agent, and the next session starts from what the team agreed. The "0 of 312" is inferred from code, and the screen says so.
