@@ -1,16 +1,16 @@
-// Living Map login: the one list of who may sign in to Living Map, for every map running on anyone's Mac.
+// Living Map login: Google sign-in for every map running on anyone's Mac. Anyone with a Google account gets in.
 // The map stays on each Mac; only signing in happens here, on Cloud Run in the GCP project living-map-login.
-// A map sends the browser here, Google says which address it is, the list (Firestore, collection "people",
-// one document per address) says which person that is, and the browser goes back to the map on localhost
-// with a one-time code. The map trades the code here, with the secret it started with, for the person.
+// A map sends the browser here, Google says which address it is and what the person is called, the list
+// (Firestore, collection "people", one document per address) may give that address a name of its own, and the
+// browser goes back to the map on localhost with a one-time code. The map trades the code here, with the secret it started with, for the person.
 //
 //   GET  /start?return=http://localhost:4322/auth/done&state=S&challenge=C    → Google
 //   GET  /auth/google/callback                                              → <return>?code=…&state=S
 //   POST /exchange {code, verifier}                                          → {email, name}
 //   POST /password {name, password}                                          → {name}, a sign-in with no Google account
 //
-// Who is on the list, from any Mac signed in to gcloud with access to the project:
-//   node login/server.js add <email> <name>        let that Google address sign in as that person
+// The list, from any Mac signed in to gcloud with access to the project:
+//   node login/server.js add <email> <name>        that Google address signs in as that name, not its Google name
 //   node login/server.js password <name>           a name and password for someone with no Google account
 //                                                  (the password is read from stdin and kept scrambled, scrypt)
 //   node login/server.js remove <email or name> | list
@@ -120,7 +120,7 @@ async function google(code, verifier) {
   if (c.aud !== ID || !['accounts.google.com', 'https://accounts.google.com'].includes(c.iss) || c.exp * 1000 < Date.now())
     throw new Error('Google did not confirm the sign-in.');
   if (!(c.email_verified === true || c.email_verified === 'true')) throw new Error('Google has not verified that address.');
-  return String(c.email).toLowerCase();
+  return { email: String(c.email).toLowerCase(), name: String(c.name || '').replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) };
 }
 
 http.createServer(async (req, res) => {
@@ -131,16 +131,16 @@ http.createServer(async (req, res) => {
     if (!ID || !SECRET || !KEY) return text(res, 503, 'Google sign-in is not set up here yet.');
     f.verifier = token(32);
     return go(res, `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-      client_id: ID, redirect_uri: `${PUBLIC_URL}/auth/google/callback`, response_type: 'code', scope: 'openid email',
+      client_id: ID, redirect_uri: `${PUBLIC_URL}/auth/google/callback`, response_type: 'code', scope: 'openid email profile',
       state: seal('flow', f), code_challenge: sha(f.verifier), code_challenge_method: 'S256', prompt: 'select_account' })}`);
   }
   if (url.pathname === '/auth/google/callback' && req.method === 'GET') {
     const f = KEY && unseal('flow', q.get('state'), TTL);
     if (!f) return text(res, 400, 'That sign-in took too long. Go back to the map and sign in again.');
     if (q.get('error')) return back(res, f, { error: q.get('error') === 'access_denied' ? 'Google sign-in was cancelled.' : `Google said: ${q.get('error')}.` });
+    // the name the list gives this address, else the name Google has for the person, else the address's first part
     let email, name;
-    try { email = await google(q.get('code') || '', f.verifier); name = await nameOf(email); } catch (e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
-    if (!name) { console.log(`refused ${email}`); return back(res, f, { error: `${email} is not on the Living Map list. Ask Duy to add it.` }); }
+    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; name = (await nameOf(email)) || g.name || email.split('@')[0]; } catch (e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
     console.log(`signed in ${email} as ${name}`);
     return back(res, f, { code: seal('code', { email, name, challenge: f.challenge }) });
   }
