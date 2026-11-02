@@ -451,7 +451,7 @@ function openMap({ project = '', name = '', home }) {
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
-  const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'ticket', 'prompt', 'answers'];
+  const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
   const contentOf = (s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
   const clock = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
@@ -675,6 +675,8 @@ function openMap({ project = '', name = '', home }) {
       // what a chat draws is that chat's: changes people make to it go back to that chat
       const who = String(a.session || '').slice(0, 80);
       if (who) { for (const it of [...(a.nodes || []), ...(a.calls || [])]) it.session = who; state.owner = who; }
+      // a plan that asks something new waits for answers again before anyone can press Execute
+      if ((a.calls || []).some((c) => c.status === 'open')) state.executed = null;
       draw(a);
       Object.assign(state.answers, a.answers || {});
       // the ask behind the plan shows on the map's top line; a named map takes the plan's title
@@ -683,6 +685,30 @@ function openMap({ project = '', name = '', home }) {
       if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
       tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
+      return true;
+    },
+    // the plan's pull request, posted by the chat that drew it: a draft holding the plan while it waits for
+    // answers, then open, with what the map checked, once the code is on it
+    pr(a) {
+      const id = String(a.id || '').slice(0, 20); if (!id) return false;
+      const had = (state.prs ||= []).find((p) => p.id === id), s = (v, n) => String(v ?? '').slice(0, n);
+      const pr = { id, title: s(a.title || had?.title, 120), url: s(a.url || had?.url, 300),
+        status: ['draft', 'open', 'merged', 'closed'].includes(a.status) ? a.status : had?.status || 'draft',
+        agent: s(a.agent || had?.agent || 'Claude Code', 40), by: a.by,
+        checks: Array.isArray(a.checks) ? a.checks.slice(0, 12).map((c) => ({ name: s(c.name, 120), ok: !!c.ok, ...(c.detail ? { detail: s(c.detail, 200) } : {}) })) : had?.checks || [],
+        files: Array.isArray(a.files) ? a.files.slice(0, 30).map((f) => s(f, 120)) : had?.files || [] };
+      if (had) Object.assign(had, pr); else state.prs.push(pr);
+      state.pr = id;
+      tell(`${a.by} ${had ? 'updated' : 'opened'} pull request ${id}${pr.title ? `: ${pr.title}` : ''} (${pr.status})`);
+      return true;
+    },
+    // Execute: the map's admin says go once nothing on the plan waits on anyone; the chat that drew the plan builds it
+    execute(a) {
+      const admin = state.people?.find((p) => p.id === a.by)?.role === 'Admin';
+      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((c) => c.status === 'open')) return false;
+      state.executed = { by: a.by, at: stamp() };
+      const pr = state.prs?.find((p) => p.id === state.pr);
+      tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, state.owner || '*');
       return true;
     },
     // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,

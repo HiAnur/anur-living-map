@@ -46,7 +46,16 @@ button,input{font:inherit;color:inherit}
 #top .sw.on::after{transform:translateX(12px)}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
 #crumbs .sep{color:var(--text-3)}
-#ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+#ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;display:flex;align-items:center;justify-content:flex-end;gap:8px}
+/* the plan's line in the top bar: its pull request, and Execute, which turns on once nothing waits on anyone */
+.prchip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border:1px solid var(--rule-2);border-radius:999px;background:#fff;font:500 11.5px var(--plex);color:var(--text-2);cursor:pointer;white-space:nowrap}
+.prchip.draft{border-style:dashed}
+.prchip.open{color:var(--new);border-color:var(--new)}
+.prchip.merged{color:var(--ok);border-color:var(--ok)}
+.prchip.none{cursor:default;color:var(--text-3)}
+.tbtn.xbtn{background:#141413;border-color:#141413;color:#fff;font-weight:500;padding:0 14px}
+.tbtn.xbtn:disabled{background:#fff;color:var(--text-3);border-color:var(--rule-2);cursor:not-allowed}
+.xdone{font:500 12.5px var(--plex);color:var(--new);white-space:nowrap}
 #ticket b{color:var(--text);font-weight:500}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
@@ -1418,6 +1427,21 @@ function renderShare(){
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
+// A plan's line: its pull request (a draft that holds the plan while it waits), then Execute. Execute stays off
+// while any question on the map is open and says whom it waits on; only the map's admin can press it, and then
+// the chat that drew the plan builds it. Once that chat opens the PR for review, the line says Built.
+function planBar(){
+  if (!S.prompt && !S.owner) return '';
+  const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
+  const pr = (S.prs || []).find((p) => p.id === S.pr);
+  const chip = pr ? `<button class="prchip ${pr.status}" data-prs title="${esc(pr.title || '')}">PR ${esc(pr.id)} · ${esc(pr.status)}</button>`
+    : '<span class="prchip none" title="The chat that drew this plan opens a draft pull request for it">No PR yet</span>';
+  const admin = S.people.find((p) => p.id === ME)?.role === 'Admin';
+  if (S.executed) return chip + `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
+  const why = open.length ? `Waiting on ${waiting.join(', ') || 'an answer'}` : admin ? 'Every question is answered: Claude Code builds the plan' : `Only ${S.people.find((p) => p.role === 'Admin')?.id || 'the admin'} can press Execute`;
+  return chip + `<button class="tbtn xbtn" data-execute ${open.length || !admin ? 'disabled' : ''} title="${esc(why)}">Execute</button>`;
+}
+
 function renderTop(){
   const fb = flowBox();
   const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
@@ -1438,7 +1462,7 @@ function renderTop(){
   if (db){ back.dataset.dback = ''; back.textContent = `‹ Back to ${up ? up.label : 'the map'}`; }
   else if (fb){ back.dataset.enter = inside.id; back.textContent = `‹ Back to ${inside.label}`; }
   else if (inside){ back.dataset.v = 'system'; back.textContent = '‹ Back to the map'; }
-  $('ticket').innerHTML = '';
+  $('ticket').innerHTML = planBar();
   document.title = `Living Map · ${S.title}`;
   renderSave();
   // people, Figma style: the button shows the faces of who has this map open right now, you first; it opens
@@ -1866,7 +1890,7 @@ function renderInbox(){
 
 function renderPrs(){
   const el = $('prs'); el.classList.toggle('on', prsOpen); if (!prsOpen) return;
-  el.innerHTML = `<div class="ct"><span>Pull requests on ${S.title}</span><span class="x" data-close-prs>×</span></div>` + S.prs.map((p) => `<div class="pr"><span class="id">${p.id}</span> ${p.title}<div class="st">${p.agent}, ${p.by} · ${p.status}</div>
+  el.innerHTML = `<div class="ct"><span>Pull requests on ${S.title}</span><span class="x" data-close-prs>×</span></div>` + S.prs.map((p) => `<div class="pr">${p.url ? `<a class="id" href="${esc(p.url)}" target="_blank" rel="noopener">${p.id}</a>` : `<span class="id">${p.id}</span>`} ${p.title}<div class="st">${p.agent}, ${p.by} · ${p.status}</div>
     ${p.checks.map((c) => `<div class="chk ${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✕'} ${c.name}${c.detail ? `<span class="d">${c.detail}</span>` : ''}</div>`).join('')}
     <div class="mono" style="margin-top:6px">${p.files.join(' · ')}</div></div>`).join('');
 }
@@ -2059,6 +2083,8 @@ document.addEventListener('click', (e) => {
     render();
   }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
+  else if (t.closest('[data-prs]')){ prsOpen = true; render(); }
+  else if (t.closest('[data-execute]') && !t.closest('[data-execute]').disabled){ act('execute'); toast('Sent to Claude Code: build the plan'); }
   else if (t.closest('[data-call]')){
     const b = t.closest('[data-call]'), o = b.dataset.opt; b.classList.add('pressed');
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
