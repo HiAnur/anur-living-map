@@ -524,9 +524,9 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .ask.cbox{margin:6px 12px 12px}
 #side .side-ask.cbox{bottom:8px;margin:12px 0 0;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);background:#fff}
 .cbox:focus-within{border-color:rgba(0,0,0,.3)}
-.att-row{display:flex;flex-wrap:wrap;gap:5px;margin:0 0 7px}
+.att-row{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden;margin:0}
 .att-c svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
-.att-c{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:2px 8px;border:1px solid var(--rule);border-radius:7px;background:#fafaf7;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.att-c{display:inline-flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;padding:2px 7px;border:1px solid var(--rule);border-radius:7px;background:#fafaf7;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
 .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
@@ -627,6 +627,8 @@ body.previewing .node.proposed{display:none}
 .prop .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .prop.applied{border-color:rgba(46,139,87,.4);background:#f2f8f4}.prop.applied .ph{color:var(--ok)}
 .prop.dropped{border-color:var(--rule-2);background:#fff;color:var(--text-2)}
+.prop.mini{display:flex;gap:8px;align-items:baseline;padding:5px 10px;font-size:12px;font-weight:500;white-space:nowrap}
+.prop.mini.applied{color:var(--ok)}.prop.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:400;color:var(--text-2)}
 /* the tools dock: looks only, the pointer is the one tool that does anything */
 #tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
 .tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:var(--text);cursor:pointer}
@@ -1390,7 +1392,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}
-    <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow"><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
+    <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow">${attached(n)}<button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // two tabs: Information (what the box is and what is open on it, then its Side Chat under a divider) and Decision
   // history (what was answered); ✳ Side Chat beside × goes down to the Side Chat, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -1445,6 +1447,8 @@ const proposalOf = (id) => {
 /* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */
 const change = (m, key, i) => {
   const p = m.proposal; if (!p) return '';
+  // once applied or set aside it is one quiet line; hovering it lists the changes
+  if (p.status !== 'pending') return `<div class="prop ${p.status} mini" title="${prose(p.ops.join('\n'))}">${p.status === 'applied' ? `✓ Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : 'Not applied'}<span>${prose(p.ops[0] || '')}${p.ops.length > 1 ? ` +${p.ops.length - 1}` : ''}</span></div>`;
   const head = p.status === 'pending' ? 'Change to the map' : p.status === 'applied' ? `Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : 'Not applied';
   return `<div class="prop ${p.status}"><div class="ph">${head}</div>
     ${p.ops.length ? `<ul>${p.ops.map((o) => `<li>${prose(o)}</li>`).join('')}</ul>` : ''}
