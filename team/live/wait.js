@@ -6,7 +6,9 @@
 // question, applies a change Claude proposed, comments on its boxes), prints it and ends, and its
 // ending wakes the chat. If the map server stays down for a minute, it says so and ends.
 
-const [port = '4323', map = '', session = ''] = process.argv.slice(2);
+const [port = '4323', given = '', session = ''] = process.argv.slice(2);
+// a map's address is its folder's name in lowercase letters, digits and dashes, as the server names it
+const map = given.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const base = `http://localhost:${port}${map ? `/${map}` : ''}`;
 if (!session) {
   console.log('No session id, so the map cannot tell which chat this is. Start the listener again with the chat\'s session id.');

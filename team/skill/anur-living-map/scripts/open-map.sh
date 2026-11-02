@@ -6,7 +6,10 @@
 #   open-map.sh          this repo's own map, at localhost:4323/<folder name>/
 #   open-map.sh gtm      another map on the same server, at localhost:4323/gtm/
 set -u
-R="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"; M="${1:-$(basename "$R")}"
+R="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# a map's address is its folder's name in lowercase letters, digits and dashes, as the server names it (PiTrade -> pitrade)
+name_of() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//'; }
+M="$(name_of "${1:-$(basename "$R")}")"
 H="${LIVING_MAP_HOME:-$HOME/anur-living-map}"; S="$H/team/live/server.js"
 U="http://localhost:4323/$M/"
 REV="$HOME/.living-map-2/server.rev"   # the commit the running server was started from
@@ -48,7 +51,7 @@ if curl -sf localhost:4323/api/maps >/dev/null; then
 else start_server; echo "server: started for $R"; fi
 
 # 2. this repo's map on the server's list (nothing changes when it is there); the map keeps what it was left with
-if [ "$M" = "$(basename "$R")" ]; then
+if [ "$M" = "$(name_of "$(basename "$R")")" ]; then
   out=$(curl -s -X POST localhost:4323/api/projects -H 'content-type: application/json' --data "{\"folder\":\"$R\"}")
   case "$out" in *'"error"'*) echo "map: could not add $R: $out"; exit 1;; esac
   git -C "$R" check-ignore -q .living-map/ 2>/dev/null || echo "gitignore: add .living-map/ to $R/.gitignore (it holds the map's state)"

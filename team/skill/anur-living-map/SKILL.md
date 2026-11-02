@@ -5,7 +5,7 @@ description: Opens the team's Living Map of this repo's system (boxes and lines 
 
 # Anur Living Map: the system map of this repo
 
-The map is drawn from the repo's own files by the server in `$LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `LIVING_MAP_HOME` says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<folder name>/` (acme at `/acme/`, password at `/password/`); opening it from another repo never takes the others off.
+The map is drawn from the repo's own files by the server in `$LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `LIVING_MAP_HOME` says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off.
 
 ## A new map started from a prompt
 
@@ -31,7 +31,7 @@ Opening keeps the map as it was left: every change saves itself, and History, on
 
 ## 2. Open it beside the chat too
 
-The script already brought the map up in Chrome. If you have a browser pane (tools named `mcp__Claude_Browser__*`), open the map there as well (`http://localhost:4323/<folder name>/`), in the same message as the script, so it sits beside the chat.
+The script already brought the map up in Chrome. If you have a browser pane (tools named `mcp__Claude_Browser__*`), open the map there as well (`http://localhost:4323/<map name>/`), in the same message as the script, so it sits beside the chat.
 
 The map asks who you are: a browser that has not signed in lands on `localhost:4323/login`, and someone signing in for the first time chooses their password there. Never type a password for the user, and never set one with `users.js`; signing in is theirs.
 
@@ -43,7 +43,7 @@ People answer the map's questions, press Apply on changes Claude proposed in the
 node "${LIVING_MAP_HOME:-$HOME/anur-living-map}/team/live/wait.js" 4323 "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" "$CLAUDE_CODE_SESSION_ID"
 ```
 
-The second argument is the map: this repo's folder name for its own map, `gtm` for `localhost:4323/gtm/`. Start one listener for each map this chat draws on.
+The second argument is the map: this repo's folder name for its own map (the listener lowercases it as the server does), `gtm` for `localhost:4323/gtm/`. Start one listener for each map this chat draws on.
 
 The script links this chat to the map, so the map's Claude pane shows this conversation, live, and what is typed there comes here. It links as the person who uses this Mac (the first word of the account's full name, or `LIVING_MAP_ME`): only their signed-in browser is shown this chat. The chat linked last is the one the pane follows.
 
@@ -82,5 +82,5 @@ Otherwise, one line, from what step 1 printed: the map is open as it was left (h
 
 ## Reading it back
 
-- What people answered on the map: `curl -s localhost:4323/<folder name>/api/outbox` (on another map, `localhost:4323/gtm/api/outbox`)
-- The whole map: `curl -s localhost:4323/<folder name>/api/state`
+- What people answered on the map: `curl -s localhost:4323/<map name>/api/outbox` (on another map, `localhost:4323/gtm/api/outbox`)
+- The whole map: `curl -s localhost:4323/<map name>/api/state`
