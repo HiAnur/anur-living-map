@@ -22,6 +22,7 @@ const pageOf = (map) => `${BASE}/${map ? `${map}/` : ''}`;
 
 const slug = (t) => String(t).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 40) || 'box';
 const clip = (t, n) => String(t ?? '').slice(0, n);
+const KINDS = ['timeline', 'sequence', 'venn'];
 
 // ---- the tools ----
 
@@ -37,6 +38,7 @@ async function read({ map } = {}) {
     const tags = [n.state, n.area].filter(Boolean).join(', ');
     out.push(`- ${n.id} · ${n.label}${n.sub ? ` · ${n.sub}` : ''}${tags ? ` [${tags}]` : ''}`);
     if (n.desc && n.desc !== n.sub) out.push(...clip(n.desc, 500).split('\n').map((l) => `    ${l}`));
+    if (n.diagram?.items?.length) out.push(`    Opens into a ${n.diagram.kind}: ${n.diagram.items.map((m) => m.from ? `${m.from} → ${m.to}: ${m.label}` : `${m.when ? `${m.when} ` : ''}${m.label}${m.in?.length ? ` (${m.in.join(' + ')})` : ''}`).join('; ')}`);
   }
   const edges = s.edges || [];
   if (edges.length) out.push('', 'Lines:', ...edges.map((e) => `- ${e.from} → ${e.to}${e.label ? ` (${e.label})` : ''}`));
@@ -67,14 +69,16 @@ async function change({ map, note, boxes = [], lines = [], questions = [], remem
     const old = b.id ? had.find((n) => n.id === b.id) : find(b.label);
     if (!old && !b.label) { skipped.push(`a box with no name${b.id ? ` (${b.id})` : ''}`); continue; }
     if (b.state && !STATES.includes(b.state)) { skipped.push(`state "${b.state}" on ${b.label || b.id}: use ${STATES.join(', ')}`); delete b.state; }
+    if (b.diagram && !KINDS.includes(b.diagram.kind)) { skipped.push(`diagram "${b.diagram.kind}" on ${b.label || b.id}: use ${KINDS.join(', ')}`); delete b.diagram; }
     let id = old?.id || (b.id && /^[a-z0-9-]{1,40}$/.test(b.id) ? b.id : slug(b.label));
     if (!old) { const base = id; for (let k = 2; taken.has(id); k++) id = `${base}-${k}`; taken.add(id); }
     // a box found by its name keeps its own spelling; given its id, a new name renames it
     const box = { id, ...(b.label && (!old || b.id) ? { label: clip(b.label, 60) } : {}), ...(b.sub !== undefined ? { sub: clip(b.sub, 80) } : {}),
       ...(b.notes !== undefined ? { desc: clip(b.notes, 1500) } : {}), ...(b.state ? { state: b.state } : {}),
-      ...(b.area ? { area: clip(b.area, 30) } : {}), ...(old ? {} : { by: 'Claude' }) };
+      ...(b.area ? { area: clip(b.area, 30) } : {}), ...(b.diagram !== undefined ? { diagram: b.diagram } : {}), ...(old ? {} : { by: 'Claude' }) };
     nodes.push(box);
     done.push(old ? `Changed ${old.label} (${id})` : `Added ${box.label} (${id})`);
+    if (box.diagram?.items?.length) done.push(`  opens into a ${box.diagram.kind} of ${box.diagram.items.length} with a double click`);
     if (b.under) {
       const up = find(b.under);
       if (up && up.id !== id) { edges.push({ from: up.id, to: id }); done.push(`  under ${up.label}`); } else skipped.push(`"${b.under}" above ${box.label || id}: no such box`);
@@ -122,7 +126,10 @@ const TOOLS = [
   { name: 'living_map_change', run: change,
     description: 'Change a Living Map in one call, shown to everyone at once: add or update any number of boxes, lines, and questions for a teammate. '
       + 'Name boxes by id or by their name; a box whose name is already on the map is updated, not doubled. New boxes find their own place. '
-      + 'Mark a to-do with state "todo"; "gone" greys a box out; "new" means planned, not built yet. Put everything for one request in one call.',
+      + 'Mark a to-do with state "todo"; "gone" greys a box out; "new" means planned, not built yet. '
+      + 'When the things under one idea have a shape, draw one box with a diagram instead of a box each; double-clicking the box opens it: '
+      + 'a timeline for what happened in order (past relationships, jobs, launches, releases), a sequence for who sends what to whom in turn, a Venn for what belongs to which of 2 or 3 groups. '
+      + 'Put everything for one request in one call.',
     inputSchema: { type: 'object', properties: {
       map: MAP,
       note: { type: 'string', description: 'One line on what this change does, for the map\'s log.' },
@@ -133,6 +140,16 @@ const TOOLS = [
         notes: { type: 'string', description: 'What opens with the box: a short first line, then "- " bullets, one point each. Replaces the notes it had.' },
         state: { type: 'string', enum: STATES, description: 'todo = something to do; new = planned, not built; assumed-gone = the plan assumes it can go; gone = removed.' },
         under: { type: 'string', description: 'A box (id or name) this one hangs under: draws a line from it to this one.' },
+        diagram: { type: 'object', description: 'What the box opens into on a double click. Replaces the one it had; null takes it away.', required: ['kind', 'items'], properties: {
+          kind: { type: 'string', enum: KINDS, description: 'timeline: items in order, oldest first, each with when. sequence: items in order, each a step from → to. venn: items, each with the groups it is in.' },
+          title: { type: 'string', description: 'A heading for the diagram; the box name when left out.' },
+          items: { type: 'array', items: { type: 'object', required: ['label'], properties: {
+            label: { type: 'string', description: 'What or who; on a sequence, what is sent.' },
+            when: { type: 'string', description: 'Timeline: when, short ("2023", "Mar 2024", "2010-13").' },
+            note: { type: 'string', description: 'Timeline: one short line under it, optional.' },
+            from: { type: 'string', description: 'Sequence: who sends it.' },
+            to: { type: 'string', description: 'Sequence: who gets it.' },
+            in: { type: 'array', items: { type: 'string' }, description: 'Venn: the groups it is in, 1 to 3 names; [] for none.' } } } } } },
         area: { type: 'string', description: '"billing" on anything about money, so the CFO can see it.' } } } },
       lines: { type: 'array', description: 'Lines to draw between boxes, by id or name.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'A word or two on the line.' } } } },

@@ -128,6 +128,26 @@ button,input{font:inherit;color:inherit}
 .flowbad.ok{color:#2E8B57}
 .flowfix{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;padding:5px 10px;border:1.5px dashed var(--claude);border-radius:6px;background:#fff7f2;font-size:13px}
 .flowfix.solid{border-style:solid;border-color:#2E8B57;background:#f0f8f3}
+/* a diagram a box opens into (a timeline, a sequence, a Venn): the map zooms into the box and the parts pop in */
+.dgframe{position:absolute;border:1px solid var(--rule-2);border-radius:12px;background:rgba(0,0,0,.015);pointer-events:none;animation:dgin .3s ease-out both}
+.dgframe b{position:absolute;left:16px;top:12px;font:500 14px var(--plex)}
+.dgframe span{position:absolute;left:16px;top:32px;font-size:12px;color:var(--text-2)}
+.dg{position:absolute;animation:dgpop .4s cubic-bezier(.2,.9,.3,1.25) both}
+.dg.c{transform:translate(-50%,-50%);animation-name:dgpopc}
+.dg.ev{width:150px;text-align:center}
+.dg.ev .dgw{font:500 12px var(--plex);color:var(--text-2)}
+.dg.ev .dgt{font:500 14px/1.25 var(--plex);color:var(--text)}
+.dg.ev .dgn{margin-top:3px;font-size:12px;line-height:1.3;color:var(--text-2)}
+.dg.dot{width:14px;height:14px;box-sizing:border-box;border-radius:50%;background:#fff;border:2px solid var(--text)}
+.dg.chip{padding:3px 9px;border:1px solid var(--box-line);border-radius:999px;background:#fff;font-size:12.5px;white-space:nowrap}
+.dg.set{font:500 13.5px var(--plex);white-space:nowrap}
+.dg.say{font-size:13px;white-space:nowrap}
+.dgl{animation:dgfade .35s ease-out both}
+@keyframes dgpop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
+@keyframes dgpopc{from{opacity:0;transform:translate(-50%,-50%) scale(.3)}to{opacity:1;transform:translate(-50%,-50%)}}
+@keyframes dgin{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}
+@keyframes dgfade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion: reduce){.dg,.dgframe,.dgl{animation:none}}
 .flowfix i{font-style:normal;margin-left:6px;padding:0 5px;border-radius:999px;background:var(--claude);color:#fff;font-size:9px;line-height:14px;display:inline-block}
 .nope .ic{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-2);fill:none;stroke:currentColor;stroke-width:1.4}
 /* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
@@ -889,7 +909,7 @@ function setLevel(k){
 // the level showing now: the furthest ring out with a box showing
 const shownLevel = () => Math.max(0, ...scope().nodes.map((n) => fold.depth.get(n.id) || 0));
 function renderLevels(){
-  const el = $('levels'), max = flowBox() ? 0 : maxLevel();
+  const el = $('levels'), max = flowBox() || diagramBox() ? 0 : maxLevel();
   el.style.display = max ? '' : 'none'; if (!max) return;
   // + at the deepest level still unfolds whatever you folded by hand
   const now = Math.max(1, shownLevel()), hidden = [...fold.hides.values()].some((h) => h.length);
@@ -954,12 +974,95 @@ function drawFlow(fb){
   nodesEl.innerHTML = html;
 }
 
+// a diagram is what a box opens into on a double click, at view "diagram:<box id>": a timeline (what happened,
+// in order), a sequence (who sends what to whom, in turn) or a Venn (what belongs to which of 2 or 3 groups)
+const KIND_NAME = { timeline: 'Timeline', sequence: 'Sequence', venn: 'Venn' };
+const diagramBox = () => view.startsWith('diagram:') ? nodeById(view.slice(8)) || proposedBox(view.slice(8)) || null : null;
+let dgSize = { w: 0, h: 0 };
+const zoomOnto = (n, z) => { const r = canvas.getBoundingClientRect(); Object.assign(cam, { z, x: r.width / 2 - n.x * z, y: r.height / 2 - n.y * z }); place(); };
+// the map glides into the box, then the box opens into its diagram
+function openDiagram(id){
+  const n = nodeById(id) || proposedBox(id); if (!n?.diagram || locked(n)) return;
+  stage.style.transition = 'transform .28s ease-in';
+  zoomOnto(n, Math.min(2.5, cam.z * 2.4));
+  setTimeout(() => { stage.style.transition = ''; view = `diagram:${id}`; selected = null; expanded = null; lit = null; render(); fit(); }, 280);
+}
+// Back: the map comes back zoomed into the box and glides out to where it was
+function closeDiagram(){
+  const id = view.slice(8), up = S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === id));
+  view = up ? up.id : 'system'; selected = null; render(); fit();
+  const n = nodeById(id) || proposedBox(id); if (!n) return;
+  const to = { ...cam };
+  zoomOnto(n, Math.min(2.5, to.z * 2.4));
+  stage.getBoundingClientRect();
+  stage.style.transition = 'transform .3s ease-out'; Object.assign(cam, to); place();
+  setTimeout(() => { stage.style.transition = ''; }, 320);
+}
+function drawDiagram(db){
+  const d = db.diagram, pop = (i) => `animation-delay:${120 + i * 70}ms`;
+  let svg = '', html = '', w = 0, h = 0;
+  if (d.kind === 'timeline'){
+    // one dot per moment along a line, when above it, what below it
+    const X = (i) => 130 + i * 170, Y = 170, last = X(d.items.length - 1);
+    w = last + 130; h = Y + 130;
+    svg += `<path class="dgl" d="M${X(0) - 50} ${Y}H${last + 50}" stroke="#c9c6bd" stroke-width="2" fill="none"/>`;
+    d.items.forEach((m, i) => {
+      html += `<div class="dg dot" style="left:${X(i) - 7}px;top:${Y - 7}px;${pop(i)}"></div>
+        <div class="dg ev" style="left:${X(i) - 75}px;top:${Y - 34}px;${pop(i)}"><div class="dgw">${esc(m.when || '')}</div></div>
+        <div class="dg ev" style="left:${X(i) - 75}px;top:${Y + 18}px;${pop(i)}"><div class="dgt">${esc(m.label)}</div>${m.note ? `<div class="dgn">${esc(m.note)}</div>` : ''}</div>`;
+    });
+  } else if (d.kind === 'sequence'){
+    // everyone in it across the top, each step an arrow down the page from who sends it to who gets it
+    const lanes = [...new Set(d.items.flatMap((m) => m.from ? [m.from, m.to] : []))], X = (i) => 130 + i * 190, Y0 = 180, DY = 58;
+    const lx = Object.fromEntries(lanes.map((l, i) => [l, X(i)])), mid = (X(0) + X(Math.max(0, lanes.length - 1))) / 2;
+    w = X(Math.max(0, lanes.length - 1)) + 140; h = Y0 + d.items.length * DY + 20;
+    lanes.forEach((l, i) => {
+      html += `<div class="flowlane dg c" style="left:${lx[l]}px;top:110px;${pop(i)}">${esc(l)}</div>`;
+      svg += `<path class="dgl" d="M${lx[l]} 128V${h - 10}" stroke="#d6d3cb" stroke-width="1" stroke-dasharray="3 4" fill="none"/>`;
+    });
+    d.items.forEach((m, i) => {
+      const y = Y0 + i * DY, at = pop(lanes.length + i);
+      if (!m.from){ html += `<div class="flownote dg c" style="left:${mid}px;top:${y}px;${at}">${esc(m.label)}</div>`; return; }
+      const x1 = lx[m.from], x2 = lx[m.to], dir = x2 >= x1 ? 1 : -1;
+      svg += x1 === x2 ? `<path class="dgl" style="${at}" d="M${x1 + 4} ${y - 10}h34v20h-28" stroke="#6c6a64" stroke-width="1.5" fill="none" marker-end="url(#a-old)"/>`
+        : `<path class="dgl" style="${at}" d="M${x1 + dir * 4} ${y}H${x2 - dir * 6}" stroke="#6c6a64" stroke-width="1.5" fill="none" marker-end="url(#a-old)"/>`;
+      html += `<div class="dg say" style="left:${Math.min(x1, x2) + 14}px;top:${y - 24}px;${at}">${esc(m.label)}</div>`;
+    });
+  } else {
+    // one circle per group, overlapping; each item sits in the part for the groups it is in
+    const groups = [...new Set(d.items.flatMap((m) => m.in || []))].slice(0, 3), n = groups.length;
+    const cx = 330, cy = n === 3 ? 290 : 250, r = n === 3 ? 135 : 150;
+    const C = n <= 1 ? [[cx, cy]] : n === 2 ? [[cx - 95, cy], [cx + 95, cy]] : [[cx - 85, cy - 55], [cx + 85, cy - 55], [cx, cy + 85]];
+    const FILL = ['rgba(47,111,228,.10)', 'rgba(201,100,66,.10)', 'rgba(46,139,87,.10)'], LINE = ['#2F6FE4', '#C96442', '#2E8B57'];
+    C.forEach(([x, y], i) => {
+      svg += `<circle class="dgl" style="animation-delay:${i * 90}ms" cx="${x}" cy="${y}" r="${r}" fill="${FILL[i]}" stroke="${LINE[i]}" stroke-width="1.5"/>`;
+      if (groups[i]) html += `<div class="dg c set" style="left:${x}px;top:${i === 2 ? y + r + 18 : y - r - 18}px;color:${LINE[i]};${pop(i)}">${esc(groups[i])}</div>`;
+    });
+    const SPOT = n <= 1 ? { 0: [cx, cy], '': [cx + r + 110, cy] }
+      : n === 2 ? { 0: [cx - 170, cy], 1: [cx + 170, cy], '01': [cx, cy], '': [cx, cy + r + 50] }
+      : { 0: [cx - 150, cy - 95], 1: [cx + 150, cy - 95], 2: [cx, cy + 165], '01': [cx, cy - 115], '02': [cx - 95, cy + 50], '12': [cx + 95, cy + 50], '012': [cx, cy - 5], '': [cx + 300, cy + 150] };
+    const part = {};
+    for (const m of d.items) (part[groups.map((g, i) => (m.in || []).includes(g) ? i : '').join('')] ??= []).push(m);
+    let k = 0;
+    for (const [key, list] of Object.entries(part)){
+      const [x, y] = SPOT[key] || SPOT[''];
+      list.forEach((m, j) => { html += `<div class="dg c chip" style="left:${x}px;top:${y + (j - (list.length - 1) / 2) * 28}px;${pop(n + k++)}">${esc(m.label)}</div>`; });
+    }
+    w = 720; h = n === 3 ? 570 : n === 2 ? 500 : 440;
+  }
+  dgSize = { w, h };
+  html = `<div class="dgframe" style="left:30px;top:20px;width:${w - 30}px;height:${h - 20}px"><b>${esc(d.title || db.label)}</b><span>${KIND_NAME[d.kind]} · ${d.items.length}</span></div>${html}`;
+  edgesEl.innerHTML = defsHtml + svg;
+  nodesEl.innerHTML = html;
+}
+
 function fit(){
-  const fb = flowBox();
-  const { nodes } = scope(); if (!fb && !nodes.length) return;
+  const fb = flowBox(), db = diagramBox();
+  const { nodes } = scope(); if (!fb && !db && !nodes.length) return;
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
   let minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
   if (fb){ minX = 20; maxX = LANE_X(fb.flow.lanes.length - 1) + 180; minY = 10; maxY = STEP_Y0 + (fb.flow.steps.length + 2) * STEP_DY + 40; }
+  else if (db){ minX = 20; maxX = dgSize.w + 20; minY = 10; maxY = dgSize.h + 20; }
   // the lines and their words too: a curve between two boxes in one column, and its words, reach past the boxes
   else try { const b = edgesEl.getBBox(); if (b.width){ minX = Math.min(minX, b.x - 24); maxX = Math.max(maxX, b.x + b.width + 24); minY = Math.min(minY, b.y - 24); maxY = Math.max(maxY, b.y + b.height + 24); } } catch {}
   const r = canvas.getBoundingClientRect();
@@ -1042,7 +1145,8 @@ function curve(a, b, cx){
 function render(){
   if (!S) return;
   const fb = flowBox();
-  if (fb){ drawFlow(fb); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
+  const db = !fb && diagramBox();
+  if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
@@ -1096,7 +1200,8 @@ function render(){
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>` : ''}
+      ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
+        : n.diagram && !locked(n) ? `<span class="expand" data-dgx="${n.id}" title="Open ${esc(n.label)}: its ${n.diagram.kind} (double click)">${KIND_NAME[n.diagram.kind]} ›</span>` : ''}
       ${foldButton(n, byId)}
       </div>`;
     // the file only for the box you picked; the card has it too
@@ -1138,7 +1243,10 @@ function renderTop(){
   const where = `<span class="lbl">Folder</span><b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b>
     <span class="lbl">Name</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
   // while you type a new name, a redraw leaves the box alone
-  if (!$('renamei')) $('crumbs').innerHTML = fb
+  const db = diagramBox();
+  if (!$('renamei')) $('crumbs').innerHTML = db
+    ? `<button class="tbtn back" data-dback title="Back to the map (Esc)">‹ Back</button>${where} <span class="sep">›</span> <b>${esc(db.label)}</b>`
+    : fb
     ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button>${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
     : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
   $('ticket').innerHTML = '';
@@ -1313,7 +1421,7 @@ function renderSide(){
     })()}
     ${memOf(n.id)}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
-    ${n.inside || flowOf(n) ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}</div>` : ''}
+    ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">Open the ${n.diagram.kind} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}</div>
     ${n.fact ? `<div class="refs"><div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></div>` : ''}`}`;
   // a new message in the box's chat scrolls the card to the bottom
@@ -1640,7 +1748,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // the Expand pill opens the box here: the canvas captures the pointer, so a
   // click event would land on the canvas, not on the pill
   const ex = e.target.closest('.expand');
-  if (ex){ enter(ex.dataset.expand); return; }
+  if (ex){ if (ex.dataset.dgx) openDiagram(ex.dataset.dgx); else enter(ex.dataset.expand); return; }
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   const nd = e.target.closest('.node');
@@ -1677,16 +1785,31 @@ canvas.addEventListener('pointermove', (e) => {
 // a double click is two taps on the same box within 350ms: the first tap
 // redraws the box, so the browser's own dblclick never sees the same element
 let lastTap = { id: null, at: 0 };
+// a box that opens on a double click waits out the second click before its card opens, so the card
+// never lands on top of the box between the two clicks
+const DBL = 320;
+let tapTimer = null;
+const pick = (n) => {
+  clearTimeout(tapTimer);
+  const go = () => { selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); };
+  if (n.inside || n.diagram) tapTimer = setTimeout(go, DBL); else go();
+};
 canvas.addEventListener('pointerup', (e) => {
   if (drag){
     if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y });
     // a proposed box you click, not drag, opens its card
-    else if (drag.proposed){ selected = selected === drag.n.id ? null : drag.n.id; render(); if (selected) keepInView(selected); }
-    else {
-      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < 350;
+    else if (drag.proposed){
+      // a double click on a proposed box with a diagram shows the diagram before anyone presses Apply
+      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < DBL;
       lastTap = { id: n.id, at: Date.now() };
-      if (twice && n.inside && !locked(n)){ drag = null; enter(n.id); return; }
-      selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected);
+      if (twice && n.diagram){ clearTimeout(tapTimer); drag = null; openDiagram(n.id); return; }
+      pick(n);
+    }
+    else {
+      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < DBL;
+      lastTap = { id: n.id, at: Date.now() };
+      if (twice && (n.inside || n.diagram) && !locked(n)){ clearTimeout(tapTimer); drag = null; if (n.inside) enter(n.id); else openDiagram(n.id); return; }
+      pick(n);
     }
     drag = null;
   }
@@ -1702,7 +1825,7 @@ canvas.addEventListener('wheel', (e) => {
 
 function enter(id){ view = id; selected = null; render(); fit(); }
 // Esc steps back out of a box
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input')) enter('system'); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input')){ if (view.startsWith('diagram:')) closeDiagram(); else enter('system'); } });
 document.addEventListener('click', (e) => {
   const t = e.target;
   // the people menu closes on any click outside it
@@ -1723,6 +1846,8 @@ document.addEventListener('click', (e) => {
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.dataset.flow){ openFlow(t.dataset.flow); }
+  else if (t.dataset.diagram){ openDiagram(t.dataset.diagram); }
+  else if (t.closest('[data-dback]')){ closeDiagram(); }
   else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
@@ -1887,8 +2012,9 @@ function listen(){
     const next = JSON.parse(m.data);
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     // a box or flow you are inside that no longer exists sends you back to the system
-    const here = view.startsWith('flow:') ? view.slice(5) : view;
-    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))) view = 'system';
+    const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
+    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow) && (!dg || n.diagram))
+      && !(dg && proposedBox(here, next)?.diagram)) view = 'system';
     // the comment you just posted opens as a thread
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw

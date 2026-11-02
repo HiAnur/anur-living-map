@@ -340,7 +340,19 @@ function openMap({ project = '', name = '', home }) {
     (state.memory ??= []).push(item); return item;
   }
   // boxes, lines and calls are added or updated by id; removed boxes go
+  // what a box opens into on a double click: a timeline (items with when), a sequence (items from → to),
+  // or a Venn (items in 1 to 3 groups); null when there is nothing to draw
+  function diagramOf(d) {
+    if (!d || !['timeline', 'sequence', 'venn'].includes(d.kind)) return null;
+    const s = (t, n) => String(t ?? '').slice(0, n);
+    const items = (Array.isArray(d.items) ? d.items : []).slice(0, 40).filter((m) => m?.label).map((m) => ({ label: s(m.label, 80),
+      ...(m.when ? { when: s(m.when, 30) } : {}), ...(m.note ? { note: s(m.note, 120) } : {}),
+      ...(m.from && m.to ? { from: s(m.from, 40), to: s(m.to, 40) } : {}),
+      ...(Array.isArray(m.in) ? { in: m.in.map((g) => s(g, 40)).filter(Boolean).slice(0, 3) } : {}) }));
+    return items.length ? { kind: d.kind, ...(d.title ? { title: s(d.title, 80) } : {}), items } : null;
+  }
   function draw(p) {
+    for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
     const merge = (list, key, items = []) => {
       for (const it of items) {
         const k = key(it), had = list.find((x) => key(x) === k);
@@ -374,11 +386,13 @@ function openMap({ project = '', name = '', home }) {
       if (!had && !n.label) { dropped.push({ text: n.id, why: 'a new box needs a name' }); continue; }
       const box = Object.fromEntries(Object.entries(n).filter(([k]) => ['id', 'label', 'sub', 'desc', 'state', 'w'].includes(k)));
       if (box.state && !['new', 'todo', 'assumed-gone', 'gone'].includes(box.state)) delete box.state;
+      if ('diagram' in n) box.diagram = diagramOf(n.diagram);
       if (!had && sees !== 'all') box.area = sees;
       if (!had) box.by = 'Claude';
       plan.nodes.push(box);
-      ops.push(had ? `Change ${had.label}: ${Object.keys(box).filter((k) => k !== 'id' && box[k] !== had[k]).map((k) => `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`).join(', ')}`
-        : `Add the box ${box.label}${box.sub ? ` (${box.sub})` : ''}`);
+      const said = (k) => k === 'diagram' ? (box.diagram ? `a ${box.diagram.kind} of ${box.diagram.items.length}` : 'no diagram') : `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`;
+      ops.push(had ? `Change ${had.label}: ${Object.keys(box).filter((k) => k !== 'id' && box[k] !== had[k]).map(said).join(', ')}`
+        : `Add the box ${box.label}${box.sub ? ` (${box.sub})` : ''}${box.diagram ? ` opening into a ${box.diagram.kind} of ${box.diagram.items.length}` : ''}`);
     }
     const there = (id) => nodeOf(id) || plan.nodes.some((n) => n.id === id);
     const name = (id) => nodeOf(id)?.label || plan.nodes.find((n) => n.id === id)?.label || id;
