@@ -1414,14 +1414,14 @@ function renderSide(){
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow">${attached(n)}<button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
-  // three tabs: Information (what the box is and what is open on it), Decision history (what was answered) and Side
-  // Chat; ✳ Side Chat beside × opens the Side Chat tab, ready to type
+  // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
+  // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   // on Information the panel is a column, so Claude references can sit on its bottom edge
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
-    <div class="side-tabs">${tab('box', 'Information')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}${tab('chat', `Side Chat${asked ? ` · ${asked}` : ''}`)}</div>
+    <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
     ${(() => {
       // the box at a glance, read top to bottom: what was decided, green and bold (hovering it says who decided
