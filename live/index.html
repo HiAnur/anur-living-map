@@ -1260,7 +1260,7 @@ function renderSide(){
     const words = c.pickedId === 'other' ? c.picked : c.said && c.said !== c.picked ? c.said : '';
     return `<div class="d done">
       <div class="d-q">${c.ask || c.text}</div>
-      ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
+      ${c.plain || c.context ? `<div class="d-who">${c.from === 'Codex' ? 'Codex' : 'Claude'} asked ${c.for === ME ? 'you' : c.for}</div><div class="d-why">${c.plain || c.context}</div>` : ''}
       <div class="d-pick">${opts.map((o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.means ? `<i>${prose(o.means)}</i>` : ''}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`).join('')}</div>
       <div class="d-who">${c.by}, ${c.at}</div>
     </div>`;
