@@ -65,6 +65,11 @@ button,input{font:inherit;color:inherit}
 .xwrap[data-tip]{cursor:not-allowed}
 .xwrap[data-tip]:hover::after{content:attr(data-tip);position:absolute;right:0;bottom:calc(100% + 8px);width:max-content;max-width:280px;padding:7px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;color:var(--text);font:500 12px/1.35 var(--plex);white-space:normal;box-shadow:0 2px 10px rgba(0,0,0,.12);pointer-events:none;z-index:50}
 .xdone{font:500 12.5px var(--plex);color:var(--new);white-space:nowrap}
+/* Execute asks first, in a card above the button: Yes builds, No closes, Give me plan.md has Claude write it out */
+.xconf{position:absolute;right:0;bottom:calc(100% + 10px);width:270px;padding:12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.12);font:13px/1.4 var(--plex);z-index:40}
+.xconf b{display:block;font-weight:600;color:var(--text)}.xconf span{display:block;margin-top:2px;color:var(--text-2)}
+.xc-b{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.xmd{font:500 12.5px var(--plex);color:var(--new);text-decoration:none;white-space:nowrap}.xmd:hover{text-decoration:underline}
 #ticket b{color:var(--text);font-weight:500}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
@@ -1481,6 +1486,8 @@ function prChip(){
 
 // A plan's line, bottom right: Execute, which stays off while any question on the map is open and says whom it
 // waits on; only the map's admin can press it, and then the chat that drew the plan builds it on a branch.
+// Pressing it asks first (xAsk): Yes builds, No closes, Give me plan.md has that chat write the plan out instead.
+let xAsk = false;
 function planBar(){
   if (!S.prompt && !S.owner) return '';
   const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
@@ -1492,8 +1499,21 @@ function planBar(){
   const n = open.length, chief = S.people.find((p) => p.role === 'Admin')?.id || 'the admin';
   const tip = n ? `Not ready to execute yet: ${n === 1 ? 'a question is' : `${n} questions are`} still open. It turns on once ${waiting.join(' and ') || 'everyone'} answer${waiting.length === 1 ? 's' : ''}.`
     : admin ? '' : `Ready, but only ${chief} can execute.`;
-  return `<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}><button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>✳ Execute on Claude</button></span>`;
+  const ask = xAsk && !tip ? `<div class="xconf" role="dialog"><b>Build this plan now?</b><span>Claude Code builds it on a branch from main.</span>
+    <div class="xc-b"><button class="gb yes" data-xc="yes">Yes</button><button class="gb" data-xc="no">No</button><button class="gb" data-xc="plan">Give me plan.md</button></div></div>` : '';
+  const md = S.planmd ? `<a class="xmd" href="api/planmd" target="_blank" rel="noopener" title="${esc(S.planmd.by)} asked for it at ${S.planmd.at}">plan.md ›</a>` : '';
+  return `${md}<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}>${ask}<button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>✳ Execute on Claude</button></span>`;
 }
+document.addEventListener('click', (e) => {
+  const x = e.target.closest('[data-execute]'), c = e.target.closest('[data-xc]');
+  if (x && !x.disabled) xAsk = !xAsk;
+  else if (c){ xAsk = false;
+    if (c.dataset.xc === 'yes'){ act('execute'); toast('Sent to Claude Code: build the plan'); }
+    else if (c.dataset.xc === 'plan'){ act('planmd'); toast('Asked Claude to write plan.md'); } }
+  else if (xAsk && !e.target.closest('.xconf')) xAsk = false;
+  else return;
+  $('plan').innerHTML = planBar();
+});
 
 function renderTop(){
   const fb = flowBox();
@@ -2146,7 +2166,6 @@ document.addEventListener('click', (e) => {
   }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.closest('[data-prs]')){ prsOpen = true; render(); }
-  else if (t.closest('[data-execute]') && !t.closest('[data-execute]').disabled){ act('execute'); toast('Sent to Claude Code: build the plan'); }
   else if (t.closest('[data-call]')){
     const b = t.closest('[data-call]'), o = b.dataset.opt; b.classList.add('pressed');
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });

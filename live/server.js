@@ -713,6 +713,16 @@ function openMap({ project = '', name = '', home }) {
       tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
       return true;
     },
+    // Give me plan.md: instead of building, the same chat writes the plan out as plan.md at the repo's root,
+    // and the map links to it; Execute stays for when the admin is ready
+    planmd(a) {
+      const admin = state.people?.find((p) => p.id === a.by)?.role === 'Admin';
+      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((c) => c.status === 'open')) return false;
+      state.planmd = { by: a.by, at: stamp() };
+      const to = state.owner && waiters.some((w) => w.who === state.owner) ? state.owner : '*';
+      tell(`${a.by} asked for plan.md instead of Execute: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Execute when ready.`, to);
+      return true;
+    },
     // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
     // the way a plan draws them, without a new session in the map's list
     // Instructions and Memory: only Claude adds them (Apply on its change, or the map tools); people change their
@@ -740,6 +750,13 @@ function openMap({ project = '', name = '', home }) {
   // the map's API, at <map address>/api/...; false when the path is not one of them
   async function handle(req, res, p, who = null) {
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
+    // the plan.md Claude wrote for this map, read from the repo's root
+    if (p === '/api/planmd') {
+      const f = project && path.join(project, 'plan.md');
+      if (!f || !fs.existsSync(f)) res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Claude has not written plan.md yet. It appears here once it has.');
+      else res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(fs.readFileSync(f));
+      return true;
+    }
     // the map's versions, newest first, and one version's boxes, lines and questions
     if (p === '/api/history') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(history)); return true; }
     const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
