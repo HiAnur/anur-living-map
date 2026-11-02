@@ -29,7 +29,7 @@ The landing page for Living Map, with the plan-first story as an interactive dem
 
 ## Journey (`journey.html`)
 
-The YC demo, in 7 clicks, shown only with what the YC application claims today. You own a draft of the system map and drive it with Claude Code; Priyanka, the PM, reviews from her own laptop; Sam's Claude starts later from what the team agreed. Switching people looks like changing laptops, and Priyanka sees a product view of the same map.
+The story in 7 clicks, shown only with what the map does today. You own a draft of the system map and drive it with Claude Code; Priyanka, the PM, reviews from her own laptop; Sam's Claude starts later from what the team agreed. Switching people looks like changing laptops, and Priyanka sees a product view of the same map.
 
 0. Your screen: production snapshot 41, drawn from the repo. Nothing changed yet.
 1. You start a draft and ask Claude Code for a Pro plan with Stripe, and to remove the old renewal job. Claude draws its plan; the renewal job is dashed red because Claude assumed it could go. You ask Priyanka to review.
@@ -43,7 +43,7 @@ The YC demo, in 7 clicks, shown only with what the YC application claims today. 
 
 ## Plan first (`plan-first.html`)
 
-The YC demo. Two agents and a team, one record, before and after the code.
+Two agents and a team, one record, before and after the code.
 
 0. The prompt, in plan mode.
 1. Claude's plan is drawn on the team map in ink, no code yet; its guess (retire the renewal job) is dashed.
@@ -85,5 +85,4 @@ tool lines, Claude asked something 58 steps ago, and the map has the question on
 
 Claude Code picks these up in this repo.
 
-- `review-council`: the panel of subagent reviewers that must all approve a plan, and then the built screenshots, before the founder sees it. The panel is a thesis guardian (judged against the YC application), a Sr SDE, a Principal Engineer, a PM, a beautiful-UI reviewer, a keep-it-simple reviewer and an Anthropic "sherlock test". `plan-first.html` went through it.
 - `frontend-design`: Anthropic's frontend-design skill, copied unchanged from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design) under its Apache 2.0 license (`LICENSE.txt`). The UI reviewer judges against it.
