@@ -50,10 +50,12 @@ if curl -sf localhost:4323/api/maps >/dev/null; then
   fi
 else start_server; echo "server: started for $R"; fi
 
-# 2. this repo's map on the server's list (nothing changes when it is there); the map keeps what it was left with
+# 2. this repo's map on the server's list (nothing changes when it is there); the map keeps what it was left with.
+#    The server answers with the map's address, and that answer is the address used: the server names maps, not this script.
 if [ "$M" = "$(name_of "$(basename "$R")")" ]; then
   out=$(curl -s -X POST localhost:4323/api/projects -H 'content-type: application/json' --data "{\"folder\":\"$R\"}")
   case "$out" in *'"error"'*) echo "map: could not add $R: $out"; exit 1;; esac
+  named=$(printf '%s' "$out" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p'); [ -n "$named" ] && { M="$named"; U="http://localhost:4323/$M/"; }
   git -C "$R" check-ignore -q .living-map/ 2>/dev/null || echo "gitignore: add .living-map/ to $R/.gitignore (it holds the map's state)"
 fi
 curl -s -X POST "${U}api/act" -H 'content-type: application/json' --data '{"type":"open","by":"Claude"}' >/dev/null
