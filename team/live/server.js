@@ -63,7 +63,8 @@ function askClaude({ cwd, prompt, onText, onDone }) {
   proc.stdin.end(prompt);
 }
 
-const PORT = Number(process.argv[2] || process.env.PORT || 4322);
+// the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
+const PORT = Number(/^\d+$/.test(process.argv[2] || '') ? process.argv[2] : process.env.PORT || 4323);
 const DIR = import.meta.dirname;
 // --project <folder>: draw that project from its own files, and keep the map's
 // state beside it in <folder>/.living-map/; without it, the fixed demo in seed.json.
