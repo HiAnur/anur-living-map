@@ -7,7 +7,7 @@
 
 const BASE = (process.env.LIVING_MAP_URL || 'http://localhost:4323').replace(/\/$/, '');
 const STATES = ['new', 'todo', 'assumed-gone', 'gone'];
-const NOT_RUNNING = 'The Living Map is not running on this Mac. Open it with /living-map-2, then try again.';
+const NOT_RUNNING = 'The Living Map is not running on this Mac. Open it with /anur-living-map, then try again.';
 
 const mapName = (m) => { const s = String(m || '').trim(); if (s && !/^[a-z0-9-]+$/.test(s)) throw new Error(`"${s}" is not a map name; living_map_read lists them`); return s; };
 const api = (map, p) => `${BASE}/${map ? `${map}/` : ''}api/${p}`;

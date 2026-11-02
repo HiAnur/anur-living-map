@@ -184,7 +184,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // A new map from a prompt opens a new Claude Code session in the Claude app, in the map's folder, so it sits in
   // Recents like any other chat, with every tool, connector and permission the app gives it. The session starts
-  // with /living-map-2 map:<name> and the prompt, and draws. The pane follows it from its first second: the app
+  // with /anur-living-map map:<name> and the prompt, and draws. The pane follows it from its first second: the app
   // writes the chat's transcript into ~/.claude/projects/<the map's folder, - for every other character> as the chat
   // starts, so the server links the new file holding "map:<name>" itself, without waiting the half minute until
   // the skill's own link step (which then changes nothing).
@@ -194,7 +194,7 @@ function openMap({ project = '', name = '', home }) {
     state.title = state.renamed = (title || 'New map').replace(/^./, (c) => c.toUpperCase());
     state.starting = { prompt, by, at: Date.now() };
     save(); push();
-    const q = `/living-map-2 map:${name} ${prompt}`;
+    const q = `/anur-living-map map:${name} ${prompt}`;
     spawn('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(home)}`]).on('error', () => {});
     const chats = path.join(process.env.HOME || '', '.claude', 'projects', home.replace(/[^a-zA-Z0-9]/g, '-'));
     const since = state.starting.at - 2000; let tries = 0;
@@ -624,7 +624,7 @@ function openMap({ project = '', name = '', home }) {
       if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       pr.status = 'dropped'; pr.by = a.by; return true;
     },
-    // the Claude Code chat that opened this map with /living-map-2: its owner's Claude pane follows that chat
+    // the Claude Code chat that opened this map with /anur-living-map: its owner's Claude pane follows that chat
     link(a) {
       const session = String(a.session || ''), file = String(a.file || '');
       if (!/^[\w-]{8,80}$/.test(session) || !file.endsWith(`/${session}.jsonl`) || !file.includes('/.claude/projects/') || !fs.existsSync(file)) return false;

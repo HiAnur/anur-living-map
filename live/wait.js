@@ -1,4 +1,4 @@
-// The listener /living-map-2 starts in the background of a Claude Code chat:
+// The listener /anur-living-map starts in the background of a Claude Code chat:
 //
 //   node wait.js <port> <map> <session id>        map: "gtm" for /gtm/, "" for the project's own map
 //
@@ -26,7 +26,7 @@ for (;;) {
     if (!r.ok) await new Promise((ok) => setTimeout(ok, 2000));
   } catch {
     if (++down > 30) {
-      console.log(`The Living Map server at ${base}/ is not running, so the listener stopped. Open the map again with /living-map-2.`);
+      console.log(`The Living Map server at ${base}/ is not running, so the listener stopped. Open the map again with /anur-living-map.`);
       process.exit(0);
     }
     await new Promise((ok) => setTimeout(ok, 2000));

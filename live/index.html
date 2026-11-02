@@ -1787,7 +1787,7 @@ function chatList(){
   });
   return `<div class="hist"><div class="h" style="margin-top:4px">Your chats on this map</div>${rows.join('') || '<div class="d-wait">No chats yet.</div>'}</div>`;
 }
-/* Synced: when a Claude Code chat opened this map with /living-map-2 for you, the pane is that chat. The server
+/* Synced: when a Claude Code chat opened this map with /anur-living-map for you, the pane is that chat. The server
    sends it as "mirror": what you typed there, what Claude wrote back, what you wrote here (it reaches that chat
    through its listener) and the changes it proposed, Apply on each. Nobody else is sent your chat. */
 let MIRROR = null;
