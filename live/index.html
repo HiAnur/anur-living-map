@@ -344,6 +344,8 @@ body.deep #queue{top:108px}
 .row.ca{display:block;padding:9px 8px;margin:0 -8px}
 /* the box card: one decision block per call, the question as the headline */
 .d-sub{font-size:15.5px;font-weight:600;line-height:1.35;color:var(--text);margin:2px 0 8px}
+/* bold means decided: a line nobody has decided yet (a plan's guess, a box's plain second line) reads plain */
+.d-sub.guess{font-size:14px;font-weight:400}
 .d-sub::first-letter{text-transform:uppercase}
 .d{margin:10px 0;padding:12px 14px;border:1px solid var(--rule-2);border-radius:10px;background:#fff}
 .d.done{background:#fafaf7;border-color:var(--rule)}
@@ -1663,7 +1665,8 @@ function renderSide(){
         });
         flush(); return html ? `<div class="notes">${html}</div>` : ''; };
       const lines = String(n.desc && n.desc !== n.sub ? n.desc : '').split('\n').map((l) => l.trim()).filter(Boolean), more = infoMore.has(`n:${n.id}`);
-      const topHtml = top ? `<div class="d-sub"><span class="${tip ? 'i-ok' : ''}"${tip ? ` data-tip="${prose(tip)}"` : ''}>${top}</span></div>` : '';
+      const settled = Boolean(tip) && !calls.some((c) => c.status === 'open');
+      const topHtml = top ? `<div class="d-sub${settled ? '' : ' guess'}"><span class="${settled ? 'i-ok' : ''}"${settled ? ` data-tip="${prose(tip)}"` : ''}>${top}</span></div>` : '';
       const notesHtml = `${glance(lines.slice(0, 5), true)}${more ? glance(lines.slice(5), false) : ''}
         ${lines.length > 5 ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
       // a box the plan touches reads in two parts, what it is and then what the plan does to it (its warning
