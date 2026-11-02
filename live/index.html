@@ -120,7 +120,7 @@ button,input{font:inherit;color:inherit}
 .node .nt{min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .node.actor .n{justify-content:center;text-align:center}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
-.node .s{font:12px/1.3 var(--plex);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .s{font:12px/1.3 var(--plex);color:var(--text-2);overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .node.actor{width:110px;border-radius:999px;align-items:center}
 .node.ext{border-style:solid}
 .node.ghost{opacity:.5}
@@ -888,8 +888,21 @@ const twoLines = (n) => {
   return wraps.get(key);
 };
 document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
-// a box with a second line under its name is taller, and so is one whose name takes two lines
-const HT = (n) => ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0);
+// a second line too long for its box wraps, up to three lines, instead of being cut off with "…"
+const subLines = (n) => {
+  if (!n.sub) return 0;
+  const room = W(n) - 24, key = `s|${room}|${n.sub}`;
+  if (!wraps.has(key)){
+    ruler.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
+    let lines = 1, w = 0;
+    for (const word of String(n.sub).split(/\s+/)){ const ww = ruler.measureText(word).width, sp = w ? ruler.measureText(' ').width : 0;
+      if (w && w + sp + ww > room){ lines++; w = ww; } else w += sp + ww; }
+    wraps.set(key, Math.min(3, lines));
+  }
+  return wraps.get(key);
+};
+// boxes are as tall as their words need: taller for a name on two lines, and for each extra line of the second line
+const HT = (n) => ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16;
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
