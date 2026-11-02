@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map: a Pro plan, two agents, one record</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Colours follow the Living Map app's brand.css (claude.ai's light palette). */
+:root{
+  --canvas:#fafaf8; --dot:#dedcd6; --surface:#ffffff; --panel:#f3f3f0; --bubble:#f0efec;
+  --line:rgba(11,11,11,.1); --line-strong:rgba(11,11,11,.2);
+  --ink:#131313; --body:#383835; --muted:#6b6964; --faint:#8a8882;
+  --sys:#55534e;
+  --new:#2F6FE4; --new-text:#2558C4; --new-soft:#f1f5fe; --new-line:#cddbf8;
+  --ok:#2E8B57; --ok-text:#23704a; --ok-soft:#edf7f0; --ok-line:#c6e6d2;
+  --chg:#c08400; --chg-text:#8a5a00; --chg-soft:#fdf6e8; --chg-line:#f9dca4;
+  --rem:#d03b3b; --rem-text:#b02e2e; --rem-soft:#fcf1f1; --rem-line:#fad6d6;
+  --claude:#d97757;
+  --shadow:0 6px 20px rgba(16,24,40,.12); --shadow-lg:0 12px 32px rgba(16,24,40,.16);
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#e4e2dc}
+#app{transition:transform .45s cubic-bezier(.45,.05,.2,1), border-radius .45s, box-shadow .45s}
+body.dev #app{border-radius:16px;box-shadow:0 0 0 14px #1f1f22, 0 0 0 15px #3a3a3e, 0 40px 90px rgba(0,0,0,.28)}
+#devLabel{position:fixed;left:50%;bottom:7vh;transform:translateX(-50%);font:500 15px 'IBM Plex Sans',sans-serif;color:#3a3a3e;opacity:0;transition:opacity .3s;z-index:5;white-space:nowrap}
+body.dev #devLabel{opacity:1}
+body{font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;color:var(--body);-webkit-font-smoothing:antialiased}
+#app{position:absolute;inset:0;min-width:1100px;min-height:640px;background:var(--canvas);overflow:hidden;cursor:default}
+#app.instant *, #app.instant *::before, #app.instant *::after{transition:none !important;animation:none !important}
+.hide{display:none !important}
+
+/* top bar */
+#top{position:absolute;left:0;right:0;top:0;height:44px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 14px;z-index:20}
+.logo{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--ink);font-size:13.5px;letter-spacing:-.1px}
+.vsep{width:1px;height:18px;background:var(--line)}
+.crumbs{display:flex;align-items:center;gap:7px;color:var(--muted)}
+.crumbs .c{color:var(--muted);padding:3px 6px;border-radius:6px}
+.crumbs .c.cur{color:var(--ink);font-weight:500}
+.crumbs .sl{color:var(--faint)}
+.grow{flex:1}
+#clock{font-size:12px;color:var(--body);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-variant-numeric:tabular-nums;transition:background .3s}
+#clock.tick{background:#fff;box-shadow:0 0 0 3px var(--line)}
+.avs{display:flex;align-items:center;gap:6px}
+.av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;color:var(--ink);background:#e7e6e1;border:1.5px solid #fff;transition:box-shadow .3s, opacity .3s, transform .3s}
+.av.p{color:#fff;border-color:#fff}
+.av.live{box-shadow:0 0 0 2px #fff, 0 0 0 3.5px var(--ink)}
+.av.agent{background:#fff;border:1px solid var(--line)}
+.av.off{opacity:0;transform:scale(.6)}
+.av.cx{background:var(--ink);color:#fff;font-family:var(--mono);font-size:10px;border-color:var(--ink)}
+
+/* rail + Claude Code drawer */
+#rail{position:absolute;left:0;top:44px;bottom:0;width:56px;background:var(--surface);border-right:1px solid var(--line);z-index:14;display:flex;flex-direction:column;align-items:center;padding-top:12px}
+.railbtn{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line);position:relative;background:#fff}
+.railbtn .dotn{position:absolute;right:-3px;top:-3px;width:10px;height:10px;border-radius:50%;background:var(--claude);border:2px solid #fff;opacity:0;transition:opacity .2s}
+#app.unread .railbtn .dotn{opacity:1}
+#app.pulse .railbtn{animation:pulse 0.9s ease-out 2}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(217,119,87,.45)}100%{box-shadow:0 0 0 12px rgba(217,119,87,0)}}
+#drawer{position:absolute;left:0;top:44px;bottom:0;width:340px;background:var(--surface);border-right:1px solid var(--line);z-index:16;display:flex;flex-direction:column}
+.dh{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dh b{color:var(--ink);font-weight:600}
+.dh .m{color:var(--muted)}
+.chip{font-size:11px;color:var(--body);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1px 7px}
+#msgs{flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end}
+.bub{align-self:flex-end;max-width:88%;background:var(--bubble);border-radius:10px;padding:8px 11px;color:var(--ink)}
+.say{color:var(--ink)}
+.tools{display:flex;flex-direction:column;gap:3px;font-family:var(--mono);font-size:11.5px;color:#5b616b}
+.tools .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tools .t b{font-weight:500;color:var(--ink);margin-right:8px}
+.tools .t .ok{color:var(--ok-text)}
+.fromlm{border-left:2px solid var(--sys);padding:2px 0 2px 10px;color:var(--ink)}
+.fromlm small{display:block;color:var(--muted);font-size:11px}
+.anim{animation:rise .35s ease-out both}
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.composer{margin:0 12px 12px;border:1px solid var(--line-strong);border-radius:12px;padding:10px 12px 8px;min-height:84px;display:flex;flex-direction:column}
+#input{flex:1;color:var(--ink);min-height:36px}
+#input:empty::before{content:'Reply to Claude…';color:var(--faint)}
+.cfoot{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11.5px}
+.send{width:26px;height:26px;border-radius:7px;background:var(--sys);display:grid;place-items:center;opacity:.35;transition:opacity .2s}
+.composer.has .send{opacity:1}
+
+/* right panel */
+#side{position:absolute;right:0;top:44px;bottom:0;width:240px;background:var(--surface);border-left:1px solid var(--line);z-index:14;padding:14px 12px}
+.sh{font-size:12px;font-weight:600;color:var(--ink);margin:0 4px 8px}
+.row{display:flex;gap:9px;align-items:flex-start;padding:8px 6px;border-radius:8px;transition:background .3s}
+.row.flash{background:var(--panel)}
+.row b{display:block;font-weight:500;color:var(--ink);font-size:12.5px}
+.row span{display:block;color:var(--muted);font-size:11.5px}
+.row em{font-style:normal;font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-left:auto;align-self:flex-start}
+.ic{width:22px;height:22px;border-radius:6px;flex:none;display:grid;place-items:center;border:1px solid var(--line);background:#fff}
+.row .eye{margin-left:auto;color:var(--faint)}
+.row span.ic{display:grid;place-items:center}
+.row span.ic svg, .row span.ic span{display:block}
+.decs{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+.dec{padding:7px 6px;border-radius:8px}
+.dec b{display:block;color:var(--ink);font-weight:500;font-size:12.5px}
+.dec span{color:var(--muted);font-size:11.5px}
+.none{color:var(--faint);font-size:12px;padding:0 6px}
+
+/* map */
+#view{position:absolute;left:340px;top:44px;right:240px;bottom:0;overflow:hidden;background-color:var(--canvas);background-image:radial-gradient(var(--dot) 1px,transparent 1.3px);background-size:22px 22px}
+#world{position:absolute;left:0;top:0;width:1100px;height:600px;transform-origin:0 0}
+#world > svg{position:absolute;left:0;top:0;overflow:visible}
+.frame{fill:rgba(255,255,255,.55);stroke:var(--line-strong);stroke-dasharray:4 4;transition:opacity .4s}
+.ftitle{transition:opacity .4s}
+#app.clashz .frame, #app.clashz .ftitle{opacity:0}
+#world{transition:transform .75s cubic-bezier(.45,.05,.2,1), opacity .35s}
+#app.seqon #world{opacity:0}
+.node.prop .body{stroke:var(--rem);stroke-dasharray:6 4;fill:#fdf8f8}
+.node.prop .ico{stroke:var(--rem)} .node.prop .lbl, .node.prop .sub{opacity:.55}
+.node.prop .strike{stroke-dasharray:.02 .014;stroke-dashoffset:0;opacity:.7;stroke-width:2}
+.cxhalo{fill:none;stroke:var(--sys);stroke-opacity:.35;stroke-dasharray:4 4;opacity:0;transition:opacity .5s}
+.cxhalo.on{opacity:1}
+.ftitle{font-size:11.5px;fill:var(--muted)}
+.node .body{fill:#fff;stroke:var(--sys);stroke-width:1.25;stroke-dasharray:14 0;transition:stroke .5s, fill .5s, stroke-dasharray .9s ease, stroke-width .3s}
+.node .ico{fill:none;stroke:var(--sys);stroke-width:1.25;transition:stroke .5s}
+.node .icof{fill:var(--sys);transition:fill .5s}
+.node .lbl{font-size:14px;font-weight:600;fill:var(--ink)}
+.node .sub{font-size:11.5px;fill:var(--muted);transition:fill .5s}
+.node{transition:opacity .5s}
+.node.tour .body{stroke-width:2.2}
+.node.plan{opacity:0}
+.node.new{opacity:1}
+.node.new .body{stroke:var(--new);stroke-width:2;fill:var(--new-soft)}
+.node.new .ico{stroke:var(--new)} .node.new .icof{fill:var(--new)} .node.new .sub{fill:var(--new-text)}
+.node.chg .body{stroke:var(--chg);stroke-width:2;fill:var(--chg-soft)}
+.node.chg .ico{stroke:var(--chg)} .node.chg .icof{fill:var(--chg)} .node.chg .sub{fill:var(--chg-text)}
+.node.rem .body{stroke:var(--rem);stroke-width:2;fill:var(--rem-soft)}
+.node.rem .ico{stroke:var(--rem)} .node.rem .icof{fill:var(--rem)} .node.rem .sub{fill:var(--rem-text)}
+.node.assumed .body{stroke-dasharray:6 4}
+.node.dim{opacity:.18}
+#app.focus #n-customer, #app.focus #n-web, #app.focus #n-api, #app.focus #e1, #app.focus #e2{opacity:.62}
+.node.struck{opacity:.45}
+.edge path{fill:none;stroke:var(--faint);stroke-width:1.25;transition:stroke .5s, opacity .5s}
+.edge text{font-size:11px;fill:var(--muted);paint-order:stroke;stroke:var(--canvas);stroke-width:5px;stroke-linejoin:round}
+.edge.plan{opacity:0;transition:opacity .4s}
+.edge.new{opacity:1}
+.edge.new path{stroke:var(--new);stroke-width:1.75}
+.edge.new text{fill:var(--new-text)}
+.edge.dim{opacity:.18}
+.draw path{stroke-dasharray:1 1;stroke-dashoffset:1;animation:draw .6s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.strike{stroke:var(--rem);stroke-width:2.5;stroke-linecap:round;stroke-dasharray:1 1;stroke-dashoffset:1;transition:stroke-dashoffset .6s ease-out, opacity .4s}
+.strike.on{stroke-dashoffset:0}
+#infra{opacity:0;transition:opacity .5s}
+#app.deep #infra{opacity:1}
+#app.deep #n-renewal, #app.deep .sysonly, #app.deep #world > .wl, #app.deep #world > .pin, #app.deep #world > .wait, #app.deep #world > .thread{opacity:0 !important;transition:opacity .35s}
+.sysonly{transition:opacity .5s .2s}
+.hint{font-size:11px;fill:var(--ink);opacity:0;transition:opacity .2s}
+.hint.on{opacity:1}
+
+/* labels, pins and threads on the map (world coordinates) */
+.wl{position:absolute;font-size:11.5px;line-height:1.35;white-space:nowrap;opacity:0;transform:translateY(4px);transition:opacity .4s, transform .4s}
+.wl.on{opacity:1;transform:none}
+.wl.rem{color:var(--rem-text)} .wl.chg{color:var(--chg-text)} .wl.new{color:var(--new-text)}
+.wl .src{display:block;color:var(--muted);font-family:var(--mono);font-size:10.5px}
+.wl.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--ink);white-space:normal}
+.big{font-size:13.5px;font-weight:600}
+.wait{position:absolute;display:flex;gap:4px;opacity:0;transform:translateY(4px);transition:opacity .3s, transform .3s;pointer-events:none}
+.wait.on{opacity:1;transform:none}
+.wait span{height:18px;padding:0 8px;border-radius:999px;font:500 10.5px/16px 'IBM Plex Sans',sans-serif;letter-spacing:.02em;white-space:nowrap}
+.wait .who{color:#fff;border:1px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.wait .pend{background:#fff6d6;color:#7a5a00;border:1px solid #d9a400}
+.wait .held{background:var(--ok-soft);color:var(--ok-text);border:1px solid var(--ok-line)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 4px}
+.wchip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px 0 3px;border:1px solid var(--line-strong);border-radius:999px;font-size:12px;color:var(--ink);background:#fff}
+.wchip i{width:20px;height:20px;border-radius:50%;color:#fff;font:500 10px/20px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal}
+.wchip .c{width:16px;height:16px;border-radius:50%;background:#d9a400;color:#131313;font:500 10px/16px 'IBM Plex Sans',sans-serif;text-align:center}
+.pin{position:absolute;width:26px;height:26px;border-radius:50% 50% 50% 4px;background:#fff;border:1.5px solid var(--ink);display:grid;place-items:center;transform:scale(0);transform-origin:0 100%;transition:transform .35s cubic-bezier(.3,1.6,.5,1), width .3s, height .3s, border-radius .3s}
+.pin.on{transform:scale(1)}
+.pin.done{width:10px;height:10px;border-radius:50%;background:var(--ink);margin:21px 0 0 9px}
+.pin.done > *{display:none}
+.thread{position:absolute;width:296px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:11px 12px;opacity:0;transform:translateY(6px) scale(.98);transition:opacity .3s, transform .3s;pointer-events:none}
+.thread.on{opacity:1;transform:none}
+.th-h{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+.th-h b{color:var(--ink);font-weight:600}
+.th-q{color:var(--ink);font-size:13px}
+.th-src{color:var(--muted);font-size:11px;margin-top:3px}
+.th-btns{display:flex;gap:6px;margin-top:9px}
+.btn{font-size:12px;padding:3px 10px;border-radius:7px;border:1px solid var(--line-strong);color:var(--ink);background:#fff;transition:background .2s, color .2s}
+.btn.press{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.wide{display:block;text-align:center;margin-top:8px}
+.th-reply{margin-top:8px;border:1px solid var(--line);border-radius:7px;padding:6px 8px;min-height:30px;color:var(--ink);font-size:12.5px}
+.th-reply:empty::before{content:'Approve, or write another answer…';color:var(--faint)}
+.th-ans{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink)}
+.th-ans small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+
+/* sequence diagram (screen space inside the map view) */
+#seq{position:absolute;left:calc(50% - 402px);top:30px;width:804px;height:690px;background:#fff;border:1px solid var(--line-strong);border-radius:12px;opacity:0;pointer-events:none;transform-origin:0 0;transition:transform .55s cubic-bezier(.4,.1,.2,1), opacity .35s, left .45s cubic-bezier(.3,.7,.2,1)}
+#seq.on{opacity:1}
+.sq-h{position:absolute;left:20px;top:14px;right:20px;display:flex;justify-content:space-between;align-items:baseline}
+.sq-h b{color:var(--ink);font-weight:600;font-size:14px}
+.sq-h span{color:var(--muted);font-size:11.5px}
+#seq > svg{position:absolute;left:0;top:0}
+.ll{stroke:var(--line-strong);stroke-dasharray:3 4}
+.lh rect{fill:#fff;stroke:var(--sys);stroke-width:1.25}
+.lh text{font-size:12.5px;font-weight:500;fill:var(--ink)}
+.msg{opacity:0;transition:opacity .35s}
+.msg.on{opacity:1}
+.msg path{fill:none;stroke:var(--sys);stroke-width:1.25}
+.msg text{font-size:11.5px;fill:var(--body)}
+.msg.new path{stroke:var(--new);stroke-width:1.6} .msg.new text{fill:var(--new-text)}
+.msg.chg path{stroke:var(--chg);stroke-width:1.6} .msg.chg text{fill:var(--chg-text)}
+.msg.off{opacity:.25}
+.mark{position:absolute;font-size:13.5px;font-weight:600;opacity:0;transition:opacity .35s}
+.mark.on{opacity:1}
+
+/* insets: other people's own screens */
+#scrim{position:absolute;left:340px;top:44px;right:240px;bottom:0;background:rgba(247,248,250,.72);opacity:0;pointer-events:none;transition:opacity .35s;z-index:24}
+#scrim.on{opacity:1}
+.inset{position:absolute;left:calc(340px + (100% - 580px) / 2 - 250px);top:170px;width:500px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-lg);z-index:25;opacity:0;transform:translateY(14px);transition:opacity .35s, transform .5s cubic-bezier(.4,.1,.2,1), left .5s cubic-bezier(.4,.1,.2,1), top .5s cubic-bezier(.4,.1,.2,1);transform-origin:100% 100%;overflow:hidden}
+.inset.on{opacity:1;transform:none}
+.inset.corner{left:calc(100% - 764px);top:calc(100% - 330px);transform:scale(.66)}
+.wbar{display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);background:#fbfbfa;color:var(--muted);font-size:11.5px}
+.wbar i{width:9px;height:9px;border-radius:50%;background:#e2e1dc}
+.wbar span{margin-left:6px}
+.desk{height:220px;background:linear-gradient(160deg,#eef0f3,#e6e8ec);position:relative}
+.notif{position:absolute;right:14px;top:14px;width:330px;background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:11px 12px;display:flex;gap:10px}
+.notif b{color:var(--ink);display:block;font-size:12.5px}
+.notif p{margin:2px 0 8px;color:var(--body);font-size:12.5px}
+.notif small{color:var(--muted);font-size:11px}
+.pr{padding:14px 16px}
+.pr h3{margin:0;font-size:15px;color:var(--ink);font-weight:600}
+.pr .meta{color:var(--muted);font-size:12px;margin:3px 0 12px}
+.checks{border:1px solid var(--line);border-radius:8px}
+.ck{display:flex;gap:9px;align-items:flex-start;padding:9px 11px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink)}
+.ck:first-child{border-top:0}
+.ck small{display:block;color:var(--muted);font-size:11.5px}
+.ck .st{width:16px;flex:none;text-align:center;font-weight:600}
+.ok{color:var(--ok-text)} .bad{color:var(--rem-text)}
+.spin{display:inline-block;width:12px;height:12px;border:1.6px solid var(--line-strong);border-top-color:var(--ink);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.merge{margin-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted)}
+.term{padding:12px 14px;background:#fbfbfc;font-family:var(--mono);font-size:12px;color:#3a3f47;min-height:250px;display:flex;flex-direction:column;gap:7px}
+.term .you{color:var(--ink)}
+.term .call .k{color:var(--muted)}
+.term .say2{font-family:'IBM Plex Sans',sans-serif;font-size:12.5px;color:var(--ink)}
+
+/* cursors */
+#curs{position:absolute;inset:0;pointer-events:none;z-index:40}
+.cursor{position:absolute;left:0;top:0;transition:transform .75s cubic-bezier(.4,.1,.2,1), opacity .3s;opacity:0}
+.cursor.on{opacity:1}
+.cursor .nm{position:absolute;left:15px;top:17px;background:var(--ink);color:#fff;font-size:11px;font-weight:500;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.rip{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:rgba(19,19,19,.18);animation:rip .5s ease-out forwards;pointer-events:none;z-index:41}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
+
+
+
+
+
+/* v15: Priyanka's product view of the same map */
+#prodLens{opacity:0;transition:opacity .4s;pointer-events:none}
+#app.lensP #prodLens{opacity:1}
+#app.lensP #world > svg > .node, #app.lensP #edges, #app.lensP .frame, #app.lensP .ftitle:not(#prodLens .ftitle), #app.lensP #lAssume, #app.lensP #waitR, #app.lensP #lKeep{opacity:0 !important}
+#prodLens .node{opacity:1}
+.lensT{display:none;align-items:center;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;font-size:12px}
+.lensT span{padding:2px 10px;color:var(--muted)}
+.lensT span.on{background:var(--ink);color:#fff}
+#app.lensP .lensT{display:inline-flex}
+#app.lensP #life{display:none}
+.th-q .prod{display:none}
+#app.lensP .th-q .prod{display:inline} #app.lensP .th-q .eng{display:none}
+/* v14: whose screen it is */
+.povc{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);font-weight:500;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:2px 10px 2px 4px;white-space:nowrap}
+.povc i{width:18px;height:18px;border-radius:50%;color:#fff;font:600 9.5px/18px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal}
+#pnlYou,#pnlP,#pnlS{display:flex;flex-direction:column;height:100%}
+#app[data-pov="you"] #pnlP, #app[data-pov="you"] #pnlS, #app[data-pov="p"] #pnlYou, #app[data-pov="p"] #pnlS, #app[data-pov="s"] #pnlYou, #app[data-pov="s"] #pnlP{display:none !important}
+#povCard{position:absolute;inset:0;display:grid;place-items:center;background:rgba(247,248,250,.88);z-index:70;opacity:0;pointer-events:none;transition:opacity .3s}
+#povCard.on{opacity:1}
+#povCard .pc{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow-lg);padding:20px 28px;display:flex;gap:14px;align-items:center}
+#povCard .pc i{width:44px;height:44px;border-radius:50%;color:#fff;font:600 17px/44px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal}
+#povCard .pc b{display:block;font-size:18px;color:var(--ink);font-weight:600}
+#povCard .pc span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.rvb{padding:14px 16px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+.rvb .who{font-size:12px;color:var(--muted)}
+.chg{border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff}
+.chg b{display:block;font-size:13px;color:var(--ink);font-weight:600}
+.chg .t{font-size:11px;font-weight:500;margin-left:6px}
+.chg p{margin:3px 0 0;font-size:12px;color:var(--body)}
+.chg.n .t{color:var(--new-text)} .chg.c .t{color:var(--chg-text)} .chg.r .t{color:var(--rem-text)}
+.chg.r{border-style:dashed;border-color:var(--rem-line)}
+#rvStatus{font-size:12.5px;color:var(--muted);padding-top:4px}
+#rvStatus.ok{color:var(--ok-text);font-weight:500}
+/* v13: lifecycle bar, inspector, the dependency that breaks */
+.life{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--faint);white-space:nowrap}
+.life .st{transition:color .3s}
+.life .st.on{color:var(--ink);font-weight:500}
+.life .st.done{color:var(--muted)}
+.life .gt{color:#c9c7c0}
+.insp{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.insp h4{margin:0 4px 2px;font-size:15px;font-weight:600;color:var(--ink)}
+.insp .d{margin:0 4px 10px;font-size:12.5px;color:var(--body)}
+.kv{display:flex;gap:10px;padding:4px 4px;font-size:12px}
+.kv span{color:var(--muted);width:84px;flex:none}
+.kv b{font-weight:400;color:var(--ink)}
+.kv.new b{color:var(--new-text);border-left:2px solid var(--new);padding-left:6px}
+.edge text.dep{opacity:0;transition:opacity .3s;font-size:11.5px;fill:#3a3f47}
+.edge.hot path{stroke:#3a3f47 !important;stroke-width:2.5}
+.edge.hot text.dep{opacity:1}
+#app.dimrest .node:not(#n-db):not(#n-renewal), #app.dimrest .edge:not(#e4), #app.dimrest .wl.on:not(#lBreak):not(#lDb), #app.dimrest .frame, #app.dimrest .ftitle{opacity:.3 !important}
+.wl.brk{background:#3a3f47;color:#fff;border-radius:8px;padding:6px 10px;white-space:normal;width:300px}
+.wl.brk b{display:block;font-weight:600;font-size:12.5px}
+.wl.brk small{display:block;color:#d9dbe0;font-size:11px;margin-top:2px}
+.wl.brk.ok{background:var(--ok-soft);color:var(--ok-text);border:1px solid var(--ok-line)}
+.wl.dbl{font-size:11.5px;color:var(--chg-text);background:#fff;border:1px solid var(--chg-line);border-radius:6px;padding:3px 8px}
+.wl.rec{font-size:11.5px;color:var(--body);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 9px}
+/* v11: the draft chip, reviewers, a requirement tag, the owner's Accept, the design doc */
+.dchip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:11px;border:1px solid #3a3f47;font-size:12px;color:var(--ink);background:#fff;white-space:nowrap}
+.dchip.draft{border-style:dashed}
+.dchip.approved{border-style:dashed;background:var(--ok-soft);border-color:var(--ok);color:var(--ok-text)}
+.srcn{font-size:11.5px;color:var(--muted);white-space:nowrap}
+#newDraft{font-size:12px;padding:2px 10px}
+.rv{display:flex;gap:9px;align-items:center;padding:6px 6px}
+.rv i{width:22px;height:22px;border-radius:50%;color:#fff;font:600 10.5px/22px 'IBM Plex Sans',sans-serif;text-align:center;font-style:normal;flex:none}
+.rv b{display:block;font-weight:500;color:var(--ink);font-size:12.5px}
+.rv span{display:block;color:var(--muted);font-size:11px}
+.rv em{margin-left:auto;font-style:normal;font-size:11.5px;color:var(--muted);white-space:nowrap}
+.rv em.ok{color:var(--ok-text)}
+.wl.tagp{background:#fff;border:1px solid var(--line-strong);border-radius:10px;padding:1px 9px;font-size:11px;color:var(--body)}
+.wl.tagp.held{border-color:var(--ok-line);background:var(--ok-soft);color:var(--ok-text)}
+.th-acc{display:flex;gap:8px;align-items:center;margin-top:9px}
+.btn.dark{background:#3a3f47;color:#fff;border-color:#3a3f47}
+.btn.dark.press{background:#131313}
+.txtbtn{font-size:12px;color:var(--muted)}
+#recR{display:none;font-size:12px;color:var(--body)}
+.thread.col > *{display:none}
+.thread.col #recR{display:block}
+.thread.col{padding:7px 10px}
+.dfile{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+.dfile b{display:block;font-family:var(--mono);font-weight:500;font-size:11.5px;color:var(--ink)}
+.dfile small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.note{color:var(--muted);font-size:11.5px}
+.node.srow.struck .body, .node.srow.struck .lbl, .node.srow.struck .sub{opacity:.45}
+#nav{position:absolute;left:50%;top:7px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;z-index:50;background:#fff;border:1px solid var(--line);border-radius:999px;padding:3px 5px}
+#nav button{font:inherit;font-size:12px;border:0;background:var(--panel);border-radius:999px;padding:3px 11px;cursor:pointer;color:var(--ink)}
+#nav span{font-size:12px;color:var(--muted);min-width:44px;text-align:center}
+body.rec #nav{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="devLabel"></div>
+
+<script>
+/* ---------- the scene, built once; every step re-renders from this ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const LOGO = `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M5 17.5 C 7.5 9.5, 10 7, 12 7 S 16.5 9.5, 19 14" fill="none" stroke="#6b6964" stroke-width="2" stroke-linecap="round" stroke-dasharray="0.5 3.2"/><circle cx="5" cy="17.5" r="2.6" fill="#fff" stroke="#131313" stroke-width="1.8"/><circle cx="12" cy="7" r="2.6" fill="#fff" stroke="#131313" stroke-width="1.8"/><circle cx="19" cy="14" r="3.4" fill="#d97757"/></svg>`;
+const CLAUDE = (s = 14) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24"><g stroke="#d97757" stroke-width="2.6" stroke-linecap="round"><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></g></svg>`;
+const CODEX = `<span style="font-family:var(--mono);font-size:10px;font-weight:600">&gt;_</span>`;
+const EYE = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>`;
+// one colour per person, the way Figma colours each collaborator (same colours as live/)
+const PCOL = { You: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', Sam: '#B45309' };
+const ARROW = (c = '#131313') => `<svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l16 9.5-7 1.6 4.2 7.4-3 1.6-4.2-7.5L5 19.5z" fill="${c}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+
+function shape(n){
+  const {x, y, w, h} = n; let s = '';
+  if (n.kind === 'person'){
+    const cx = x + w / 2;
+    s = `<circle class="body" cx="${cx}" cy="${y + 16}" r="11"/>
+      <path class="ico" d="M${cx} ${y + 27}V${y + 58}M${cx - 19} ${y + 38}H${cx + 19}M${cx} ${y + 58}L${cx - 14} ${y + 82}M${cx} ${y + 58}L${cx + 14} ${y + 82}" style="stroke-width:1.6"/>
+      <text class="lbl" x="${cx}" y="${y + 104}" text-anchor="middle">${n.label}</text>`;
+  } else if (n.kind === 'browser'){
+    s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
+      <path class="ico" d="M${x} ${y + 18}H${x + w}"/>
+      ${[10, 18, 26].map(d => `<circle class="icof" cx="${x + d}" cy="${y + 9}" r="2.4"/>`).join('')}
+      <text class="lbl" x="${x + w / 2}" y="${y + 48}" text-anchor="middle">${n.label}</text>
+      <text class="sub" x="${x + w / 2}" y="${y + 66}" text-anchor="middle">${n.sub}</text>`;
+  } else if (n.kind === 'server'){
+    s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
+      ${[0, 1, 2].map(i => `<rect class="ico" x="${x + 14}" y="${y + 22 + i * 14}" width="24" height="9" rx="2"/><circle class="icof" cx="${x + 33}" cy="${y + 26.5 + i * 14}" r="1.5"/>`).join('')}
+      <text class="lbl" x="${x + 52}" y="${y + 40}">${n.label}</text>
+      <text class="sub" x="${x + 52}" y="${y + 58}">${n.sub}</text>`;
+  } else if (n.kind === 'db'){
+    const r = w / 2, e = 11;
+    s = `<path class="body" d="M${x} ${y + e}A${r} ${e} 0 0 1 ${x + w} ${y + e}V${y + h - e}A${r} ${e} 0 0 1 ${x} ${y + h - e}Z"/>
+      <path class="ico" d="M${x} ${y + e}A${r} ${e} 0 0 0 ${x + w} ${y + e}"/>
+      <text class="lbl" x="${x + w / 2}" y="${y + 52}" text-anchor="middle">${n.label}</text>
+      <text class="sub" x="${x + w / 2}" y="${y + 70}" text-anchor="middle">${n.sub}</text>`;
+  } else if (n.kind === 'cloud'){
+    const k = w / 170;
+    s = `<path class="body" transform="translate(${x} ${y}) scale(${k})" d="M38 94H134A30 30 0 0 0 140 35A44 44 0 0 0 62 24A32 32 0 0 0 30 54A20 20 0 0 0 38 94Z"/>
+      <text class="lbl" x="${x + w / 2 + 4}" y="${y + 62}" text-anchor="middle">${n.label}</text>
+      <text class="sub" x="${x + w / 2 + 4}" y="${y + 79}" text-anchor="middle">${n.sub}</text>`;
+  } else if (n.kind === 'plain'){
+    s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/>
+      <text class="lbl" x="${x + 16}" y="${y + 38}">${n.label}</text>
+      <text class="sub" x="${x + 16}" y="${y + 58}">${n.sub}</text>`;
+  } else if (n.kind === 'job'){
+    const cx = x + w - 18, cy = y + 18;
+    s = `<rect class="body" x="${x}" y="${y}" width="${w}" height="${h}" rx="5"/>
+      <circle class="ico" cx="${cx}" cy="${cy}" r="8.5"/><path class="ico" d="M${cx} ${cy - 5}V${cy}L${cx + 3.5} ${cy + 2.5}"/>
+      <text class="lbl" x="${x + 14}" y="${y + 40}">${n.label}</text>
+      <text class="sub" x="${x + 14}" y="${y + 58}">${n.sub}</text>`;
+  }
+  return `<g class="node ${n.cls || ''} ${n.id === 'renewal' ? '' : 'sysonly'}" id="n-${n.id}">${s}</g>`;
+}
+
+const NODES = [
+  {id:'customer', kind:'person',  x:40,  y:100, w:70,  h:110, label:'Customer'},
+  {id:'web',      kind:'browser', x:160, y:110, w:150, h:86,  label:'Web app', sub:'app.acme.com'},
+  {id:'api',      kind:'server',  x:360, y:110, w:150, h:86,  label:'Core API', sub:'services/api'},
+  {id:'billing',  kind:'server',  x:570, y:110, w:160, h:86,  label:'Billing', sub:'New: Pro plan', cls:'plan'},
+  {id:'provider', kind:'cloud',   x:830, y:98,  w:170, h:110, label:'Stripe', sub:'Payments, external'},
+  {id:'db',       kind:'db',      x:360, y:330, w:150, h:100, label:'Users DB', sub:'Postgres'},
+  {id:'renewal',  kind:'job',     x:120, y:338, w:190, h:86,  label:'Renewal job', sub:'Bills annual customers nightly'},
+];
+const EDGES = [
+  {id:'e1', d:'M110 153H160'},
+  {id:'e2', d:'M310 153H360'},
+  {id:'e3', d:'M435 196V330'},
+  {id:'e4', d:'M310 381H360', dep:1},
+  {id:'p1', d:'M510 153H570', plan:1},
+  {id:'p2', d:'M730 138H838', plan:1},
+  {id:'p3', d:'M838 172H730', plan:1},
+  {id:'p4', d:'M650 196V366Q650 381 635 381H510', plan:1},
+];
+
+/* the renewal job's own infrastructure, drawn inside its box and revealed by zooming in */
+const IK = 190 / 840, IX = 120, IY = 338;
+function infra(){
+  const sched = [
+    ['renewal-annual', '02:00 nightly, runs jobs/renewal.ts'],
+    ['invoice-emails', 'monthly'],
+    ['trial-reminder', 'daily'],
+    ['failed-payment-retries', 'daily'],
+  ];
+  const rows = sched.map(([n, s], i) => {
+    const y = 96 + i * 66;
+    return `<g class="node srow" id="s-${i}"><rect class="body" x="48" y="${y}" width="420" height="52" rx="6"/>
+      <circle class="ico" cx="74" cy="${y + 26}" r="9"/><path class="ico" d="M74 ${y + 20}V${y + 26}L78 ${y + 29}"/>
+      <text class="lbl" x="96" y="${y + 23}" style="font-size:13.5px">${n}</text><text class="sub" x="96" y="${y + 40}">${s}</text>
+      <line class="strike" pathLength="1" x1="54" y1="${y + 26}" x2="462" y2="${y + 26}"/></g>`;
+  }).join('');
+  return `<g id="infra" transform="translate(${IX} ${IY}) scale(${IK})">
+    <rect x="0" y="0" width="840" height="478" rx="14" fill="#fff" stroke="rgba(11,11,11,.2)"/>
+    <text x="24" y="34" style="font-size:15px;font-weight:600;fill:#131313">Renewal job, infrastructure</text>
+    <text x="24" y="54" style="font-size:12px;fill:#6b6964;font-family:var(--mono)">infra/scheduler.tf</text>
+    <rect x="30" y="74" width="456" height="290" rx="10" fill="#fafaf8" stroke="rgba(11,11,11,.12)"/>
+    <text x="48" y="92" style="font-size:11.5px;fill:#6b6964" dy="-4">Scheduler (cron)</text>
+    ${rows}
+    <g class="node" id="i-worker"><rect class="body" x="590" y="96" width="210" height="80" rx="6"/>
+      ${[0, 1, 2].map(i => `<rect class="ico" x="604" y="${108 + i * 14}" width="24" height="9" rx="2"/>`).join('')}
+      <text class="lbl" x="642" y="128">Job worker</text><text class="sub" x="642" y="146">container</text></g>
+    <g class="node" id="i-db"><path class="body" d="M590 268A105 11 0 0 1 800 268V340A105 11 0 0 1 590 340Z"/><path class="ico" d="M590 268A105 11 0 0 0 800 268"/>
+      <text class="lbl" x="695" y="306" text-anchor="middle">Users DB</text><text class="sub" x="695" y="324" text-anchor="middle">annual customers</text></g>
+    <g class="edge"><path d="M468 122H590"/><path d="M695 176V257"/></g>
+    <g id="clashNote" style="opacity:0;transition:opacity .4s">
+      <text x="30" y="398" style="font-size:15px;font-weight:600;fill:#b02e2e">Codex’s code removes what Priyanka decided.</text>
+      <text x="30" y="420" style="font-size:11.5px;fill:#6b6964">#219 deletes renewal-annual. It isn’t in Codex’s plan:</text>
+      <text x="30" y="436" style="font-size:11.5px;fill:#6b6964">Codex planned from ACME-212’s title, before her 10:02 decision.</text>
+    </g>
+  </g>`;
+}
+
+function edgesSvg(){
+  return EDGES.map(e => `<g class="edge ${e.plan ? 'plan' : ''}" id="${e.id}"><path d="${e.d}" pathLength="1"${e.plan ? '' : ' marker-end="url(#ah)"'}/>${e.t ? `<text x="${e.tx}" y="${e.ty}" text-anchor="middle">${e.t}</text>` : ''}${e.dep ? '<text class="dep" id="depT" x="335" y="320" text-anchor="middle">reads <tspan id="depC">users.billing_cycle</tspan></text>' : ''}</g>`).join('');
+}
+
+const SEQ = {
+  cols: [['Customer', 70], ['Web app', 230], ['Billing', 390], ['Stripe', 550], ['Renewal job', 720]],
+};
+function seqSvg(){
+  const head = SEQ.cols.map(([n, x]) => `<g class="lh"><rect x="${x - 58}" y="58" width="116" height="32" rx="6"/><text x="${x}" y="79" text-anchor="middle">${n}</text></g><line class="ll" x1="${x}" y1="90" x2="${x}" y2="660"/>`).join('');
+  const X = Object.fromEntries(SEQ.cols);
+  const m = (id, a, b, y, t, cls = '') => {
+    const x1 = X[a], x2 = X[b], dir = x2 > x1 ? 1 : -1;
+    return `<g class="msg ${cls}" id="${id}"><path d="M${x1 + dir * 4} ${y}H${x2 - dir * 4}" marker-end="url(#ah-${cls.includes('new') ? 'new' : cls.includes('chg') ? 'chg' : 'sys'})"/><text x="${(x1 + x2) / 2}" y="${y - 7}" text-anchor="middle">${t}</text></g>`;
+  };
+  return `<svg width="804" height="690"><defs>${['sys', 'new', 'chg'].map(k => `<marker id="ah-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${k === 'new' ? '#2F6FE4' : k === 'chg' ? '#c08400' : '#55534e'}"/></marker>`).join('')}</defs>
+    ${head}
+    ${m('m1', 'Customer', 'Web app', 140, 'Upgrade to Pro')}
+    ${m('m2', 'Web app', 'Billing', 190, 'Start checkout', 'new')}
+    ${m('m3', 'Billing', 'Stripe', 240, 'Create subscription', 'new')}
+    ${m('m4', 'Stripe', 'Billing', 300, 'Payment confirmed (webhook)', 'new')}
+    <g class="msg new" id="m5"><rect x="${X.Billing - 70}" y="318" width="140" height="26" rx="5" fill="#f1f5fe" stroke="#2F6FE4"/><text x="${X.Billing}" y="335" text-anchor="middle">Verify sender, ignore repeats</text></g>
+    ${m('m6', 'Stripe', 'Customer', 410, 'Bills Pro monthly', 'new')}
+    ${m('m7', 'Renewal job', 'Customer', 470, 'Bills the annual renewal', 'chg')}
+    <g class="msg new" id="m8"><rect x="${X['Renewal job'] - 92}" y="430" width="184" height="26" rx="5" fill="#f1f5fe" stroke="#2F6FE4"/><text x="${X['Renewal job']}" y="447" text-anchor="middle">Skip anyone Stripe bills</text></g>
+  </svg>`;
+}
+
+function build(){
+  const sysSvg = `<svg width="1100" height="600"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#8a8882"/></marker><marker id="ahn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2F6FE4"/></marker></defs>
+    <g class="sysonly"><rect class="frame" x="100" y="62" width="660" height="404" rx="14"/><text class="ftitle" x="116" y="84">acme-app</text></g>
+    <g id="edges" class="sysonly">${edgesSvg()}</g>
+    ${NODES.map(shape).join('')}
+    <rect class="cxhalo" id="cxHalo" x="562" y="102" width="176" height="102" rx="8"/><text class="cxhalo" id="cxHaloT" x="738" y="226" text-anchor="end" style="font-size:10.5px;fill:#6b6964;stroke:none">Codex for Sam, planning</text>
+    <line class="strike" id="rstrike" pathLength="1" x1="110" y1="381" x2="320" y2="381"/>
+    <text class="hint" id="hintR" x="215" y="332" text-anchor="middle">Double-click to open ›</text>
+    <text class="hint" id="hintP" x="784" y="208" text-anchor="middle">Open flow ›</text>
+    <g id="prodLens">
+      ${shape({id: 'lc', kind: 'person', x: 70, y: 150, w: 90, h: 110, label: 'Customers'})}
+      <text class="ftitle" x="115" y="278" text-anchor="middle" style="font-size:11.5px">4,120 active, 312 on annual plans</text>
+      ${shape({id: 'lp', kind: 'plain', x: 300, y: 110, w: 230, h: 86, label: 'Pro plan', sub: 'New: billed monthly by Stripe', cls: 'new'})}
+      ${shape({id: 'lr', kind: 'job', x: 300, y: 338, w: 230, h: 86, label: 'Annual renewals', sub: 'Renews annual customers every night', cls: 'rem assumed'})}
+      <g class="edge"><path d="M165 190H300" marker-end="url(#ah)"/><text x="232" y="182" text-anchor="middle">upgrade</text><path d="M115 292V366Q115 381 130 381H300" marker-end="url(#ah)"/><text x="210" y="372" text-anchor="middle">renew yearly</text></g>
+      <text class="ftitle" x="300" y="440" style="font-size:11.5px;fill:#b02e2e">Claude wants to remove this</text>
+    </g>
+    ${infra()}
+  </svg>`;
+  const wl = (id, x, y, html, cls = '') => `<div class="wl ${cls}" id="${id}" style="left:${x}px;top:${y}px">${html}</div>`;
+  return `
+  <header id="top">
+    <div class="logo">${LOGO}Living Map</div><div class="vsep"></div>
+    <span class="povc" id="povChip"><i id="povDot" style="background:${PCOL.You}">Y</i><span id="povName">Your screen</span></span>
+    <div class="crumbs"><span class="c">acme-app</span></div>
+    <div class="life" id="life"><span class="st on" id="st0">Snapshot 41 (from repo)</span><span class="gt">›</span><span class="st" id="st1">Draft</span><span class="gt">›</span><span class="st" id="st2">Review</span><span class="gt">›</span><span class="st" id="st3">Build</span><span class="gt">›</span><span class="st" id="st4">Check</span><span class="gt">›</span><span class="st" id="st5">Released</span></div>
+    <span class="btn" id="newDraft">New draft</span>
+    <span class="lensT"><span class="on">Product view</span><span>Engineering view</span></span>
+    <div class="grow"></div>
+    <div id="clock">Oct 31, 09:58</div>
+    <div class="avs">
+      <div class="av p live" id="avY" style="background:${PCOL.You}" title="You">Y</div><div class="av p" id="avP" style="background:${PCOL.Priyanka}" title="Priyanka">P</div><div class="av p" id="avS" style="background:${PCOL.Sam}" title="Sam">S</div>
+      <div class="vsep" style="margin:0 2px"></div>
+      <div class="av agent" id="avCl" title="Claude Code">${CLAUDE(13)}</div>
+    </div>
+  </header>
+  <main id="view">
+    <div id="world">${sysSvg}
+      ${wl('lAssume', 120, 430, 'Claude assumed: remove it', 'rem')}
+      ${wl('lKeep', 120, 430, 'Remove → Keep for annual customers', 'chg')}
+      ${wl('lDb', 360, 436, 'Planned: + plan column<br><b style="font-weight:600">Built: billing_cycle → plan</b>', 'dbl')}
+      ${wl('lBreak', 30, 460, '<b>✕ Would renew 0 of 312 annual customers</b><small>reads users.billing_cycle ← jobs/renewal.ts:18 (raw SQL, no integration test). Inferred from code, not run.</small>', 'brk')}
+      ${wl('lBuilt', 570, 66, '<span class="big" style="color:var(--ok-text)">Built as agreed ✓</span>', 'new')}
+      ${wl('lRec', 120, 456, 'Kept for annual customers (Priyanka, Oct 31). Checked at build ✓', 'rec')}
+      <div class="wait" id="waitR" style="left:128px;top:328px"><span class="who" style="background:${PCOL.Priyanka}">Priyanka</span><span class="pend">Waiting</span></div>
+      <div class="thread" id="thR" style="left:340px;top:490px">
+        <div class="th-h">${CLAUDE(12)}<b>Claude Code</b><span>asks Priyanka, owner of ACME-212</span></div>
+        <div class="th-q"><span class="eng">Remove the renewal job? 312 annual customers renew through it.</span><span class="prod">Claude assumed annual renewals can stop. 312 customers renew this way. Keep or remove?</span></div>
+        <div class="th-reply" id="replyR"></div>
+        <div class="th-btns" id="btnsP"><span class="btn dark" id="aprR">Approve</span></div>
+        <div class="th-ans hide" id="ansP">Priyanka approved with this change, 10:02</div>
+        <div class="th-acc hide" id="accR"><span class="btn dark" id="acceptR">Accept change</span></div>
+        <div id="recR">Priyanka decided 10:02: keep for annual customers. Accepted by you.</div>
+      </div>
+    </div>
+  </main>
+  <aside id="drawer">
+    <div id="pnlYou">
+      <div class="dh">${CLAUDE(15)}<b>Claude Code</b><span class="m">acme-app</span><span class="grow"></span><span class="chip" id="modeChip">plan mode</span></div>
+      <div id="msgs"></div>
+      <div class="composer" id="composer"><div id="input"></div><div class="cfoot"><span>Opus 5.5</span><span class="send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div></div>
+    </div>
+    <div id="pnlP">
+      <div class="dh">${LOGO}<b>Review</b><span class="m">Pro plan, ACME-212</span></div>
+      <div class="rvb">
+        <div class="who">Harshit asked for your review, 09:59.</div>
+        <div class="chg n"><b>Pro plan<span class="t">New</span></b><p>Billed monthly by Stripe. Each customer is charged once.</p></div>
+        <div class="chg r"><b>Annual renewals<span class="t">Claude wants to remove</span></b><p>312 customers renew this way. A question for you on the map.</p></div>
+        <div id="rvStatus">Not reviewed yet</div>
+      </div>
+    </div>
+    <div id="pnlS">
+      <div class="dh">${CLAUDE(15)}<b>Claude Code</b><span class="m">Sam, acme-app</span></div>
+      <div id="msgsS" style="flex:1;overflow:hidden;padding:14px 16px;display:flex;flex-direction:column;gap:10px;justify-content:flex-end"></div>
+      <div class="composer"><div style="flex:1;color:var(--faint)">Reply to Claude…</div><div class="cfoot"><span>Opus 5.5</span><span class="send"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6"><path d="M12 19V5M5 12l7-7 7 7"/></svg></span></div></div>
+    </div>
+  </aside>
+  <aside id="side">
+    <div class="sh">On this map</div>
+    <div class="none" id="emptyMap">Production only. Start a draft to plan a change.</div>
+    <div class="row hide" id="rCl"><span class="ic">${CLAUDE(12)}</span><div><b>Claude Code for you</b><span id="rClS">ACME-212, your draft</span></div><span class="eye">${EYE}</span></div>
+    <div class="row hide" id="rSam"><span class="ic" style="background:${PCOL.Sam};color:#fff;font-size:10px;font-weight:600">S</span><div><b>Sam's draft</b><span id="rSamS">from snapshot 42</span></div></div>
+    <div class="decs hide" id="reviewers"><div class="sh">Reviewers</div>
+      <div class="rv" id="rvP"><i style="background:${PCOL.Priyanka}">P</i><div><b>Priyanka</b><span>owner of ACME-212</span></div><em>Requested</em></div>
+    </div>
+    <div class="decs hide" id="reqBtn"><span class="btn" id="reqReview">Request review: Priyanka</span></div>
+  </aside>
+  <div id="scrim"></div>
+  <div id="povCard"><div class="pc"><i id="pcDot">P</i><div><b id="pcName">Priyanka’s screen</b><span id="pcSub">Oct 31, 10:02</span></div></div></div>
+  <div id="curs">
+    <div class="cursor" id="cY">${ARROW(PCOL.You)}<span class="nm" style="background:${PCOL.You}">You</span></div>
+    <div class="cursor" id="cP">${ARROW(PCOL.Priyanka)}<span class="nm" style="background:${PCOL.Priyanka}">Priyanka</span></div>
+  </div>
+  <div id="nav"><button id="back">Back</button><span id="count"></span><button id="next">Next</button></div>`;
+}
+
+/* ---------- helpers ---------- */
+const app = document.getElementById('app');
+const $ = id => document.getElementById(id);
+let I = false;                 // instant: rendering a step's end state without motion
+let timers = [], token = 0, step = 0;
+const VIEW = {x: 340, y: 44, w: 860, h: 856};
+
+// the two side panels are fixed; the whiteboard takes whatever is left
+function fitApp(){
+  VIEW.w = app.clientWidth - 340 - 240; VIEW.h = app.clientHeight - 44;
+  if (!$('world')) return;
+  app.classList.add('instant'); cam(camState.x, camState.y, camState.w, camState.h, camState.max); void app.offsetWidth; app.classList.remove('instant');
+}
+function pt(el, fx = .5, fy = .5){
+  const r = (typeof el === 'string' ? $(el) : el).getBoundingClientRect(), a = app.getBoundingClientRect(), k = 1;
+  return {x: (r.left - a.left + r.width * fx) / k, y: (r.top - a.top + r.height * fy) / k};
+}
+let camState = {x: 40, y: 50, w: 1080, h: 430};
+function cam(x, y, w, h, max = Infinity){
+  camState = {x, y, w, h, max};
+  const left = 0;
+  const vw = VIEW.w - left - 60, vh = VIEW.h - 80;
+  const z = Math.min(vw / w, vh / h, max);
+  const tx = left + 30 + (vw - w * z) / 2 - x * z, ty = 40 + (vh - h * z) / 2 - y * z;
+  $('world').style.transform = `translate(${tx}px, ${ty}px) scale(${z})`;
+}
+const SYSCAM = [30, 56, 980, 680, 1.3];
+const on = (id, c = 'on') => $(id).classList.add(c);
+const off = (id, c = 'on') => $(id).classList.remove(c);
+function drawer(open){ /* Claude Code stays docked on the left */ }
+function clock(t){ $('clock').textContent = t; if (!I){ on('clock', 'tick'); later(500, () => off('clock', 'tick')); } }
+function crumbs(sub){ $('crSys').classList.toggle('cur', !sub); $('crSl').classList.toggle('hide', !sub); $('crSub').classList.toggle('hide', !sub); $('crSub').textContent = sub || ''; }
+function later(ms, fn){ if (I) fn(); else timers.push(setTimeout(fn, ms)); }
+
+function curTo(id, p, show = true){
+  const c = $(id); c.classList.toggle('on', show);
+  c.style.transform = `translate(${p.x - 4}px, ${p.y - 3}px)`;
+}
+function tap(id){
+  if (I) return;
+  const m = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec($(id).style.transform);
+  const r = document.createElement('div'); r.className = 'rip';
+  r.style.left = (+m[1] + 4) + 'px'; r.style.top = (+m[2] + 3) + 'px';
+  $('curs').appendChild(r); setTimeout(() => r.remove(), 520);
+}
+function typeInto(el, text, cps = 34, done){
+  el = typeof el === 'string' ? $(el) : el;
+  if (I){ el.textContent = text; done && done(); return 0; }
+  for (let i = 1; i <= text.length; i++) later(i * 1000 / cps, () => { el.textContent = text.slice(0, i); if (el.id === 'input') $('composer').classList.add('has'); });
+  if (done) later(text.length * 1000 / cps + 60, done);
+  return text.length * 1000 / cps;
+}
+function msg(html, cls){
+  const d = document.createElement('div'); d.className = cls + (I ? '' : ' anim'); d.innerHTML = html;
+  $('msgs').appendChild(d); return d;
+}
+function send(){ msg($('input').textContent, 'bub'); $('input').textContent = ''; $('composer').classList.remove('has'); }
+function tools(rows){ const g = msg('', 'tools'); rows.forEach(([v, p, x], i) => later(i * 260, () => { const t = document.createElement('div'); t.className = 't' + (I ? '' : ' anim'); t.innerHTML = `<b>${v}</b>${p}${x ? ` <span class="${x.startsWith('✓') ? 'ok' : ''}">${x}</span>` : ''}`; g.appendChild(t); })); return rows.length * 260; }
+function draw(id){ const e = $(id); e.classList.add('new'); if (!I){ e.classList.add('draw'); later(650, () => { e.classList.remove('draw'); }); } e.querySelector('path').setAttribute('marker-end', 'url(#ahn)'); }
+function decision(b, s){ $('noDec')?.remove(); const d = document.createElement('div'); d.className = 'dec' + (I ? '' : ' anim'); d.innerHTML = `<b>${b}</b><span>${s}</span>`; $('decs').appendChild(d); }
+function waiting(who){
+  $('waiting').innerHTML = who ? `<span class="wchip"><i style="background:${PCOL[who]}">${who[0]}</i>${who}<span class="c">1</span></span>` : '<span class="none">Nobody</span>';
+}
+function flash(id){ if (I) return; on(id, 'flash'); later(900, () => off(id, 'flash')); }
+function inset(id, show){ $(id).classList.toggle('on', show); $('scrim').classList.toggle('on', show); }
+function seqFrom(el){
+  // the sequence diagram unfolds out of the arrow that was clicked
+  const s = $('seq'), a = pt(el), v = {x: VIEW.x, y: VIEW.y};
+  const left = parseFloat(getComputedStyle(s).left), top = 30;
+  s.style.transition = 'none';
+  s.style.transform = `translate(${a.x - v.x - left - 40}px, ${a.y - v.y - top - 10}px) scale(.1)`;
+  void s.offsetWidth; s.style.transition = '';
+  s.classList.add('on'); s.style.transform = 'none';
+}
+
+const DOC = `<svg width="16" height="18" viewBox="0 0 16 18" fill="none" stroke="#55534e" stroke-width="1.3" style="flex:none;margin-top:1px"><path d="M2 1.5h8l4 4V16.5H2z"/><path d="M10 1.5v4h4M5 9h6M5 12h6"/></svg>`;
+const POV = { you: ['You', 'Your screen'], p: ['Priyanka', 'Priyanka’s screen'], s: ['Sam', 'Sam’s screen'] };
+function povState(who){
+  app.dataset.pov = who; app.classList.toggle('lensP', who === 'p');
+  const rb = $('rCl').querySelector('b'); if (rb){ rb.textContent = who === 'p' ? 'Harshit’s draft' : 'Claude Code for you'; if (who === 'p') $('rClS').textContent = 'Pro plan, ACME-212'; else if ($('rClS').textContent === 'Pro plan, ACME-212') $('rClS').textContent = 'ACME-212, your draft'; }
+  const [name, label] = POV[who];
+  $('povDot').style.background = PCOL[name]; $('povDot').textContent = name[0]; $('povName').textContent = label;
+  ['avY', 'avP', 'avS'].forEach(a => off(a, 'live')); on({ you: 'avY', p: 'avP', s: 'avS' }[who], 'live');
+}
+const LAPTOP = { you: 'Your laptop', p: 'Priyanka’s laptop', s: 'Sam’s laptop' };
+function pov(who, sub){
+  if (I || !sub){ povState(who); return; }
+  // your laptop shrinks and slides away; theirs slides in and opens
+  const lab = document.getElementById('devLabel'), from = app.dataset.pov || 'you', k = app.dataset.k || '';
+  const T = (tr, anim = true) => { app.style.transition = anim ? '' : 'none'; app.style.transform = tr; };
+  lab.textContent = LAPTOP[from]; document.body.classList.add('dev'); T('scale(.6)');
+  later(500, () => T('translateX(-125vw) scale(.6)'));
+  later(950, () => { T('translateX(125vw) scale(.6)', false); povState(who); lab.textContent = LAPTOP[who] + ', ' + sub; void app.offsetWidth; });
+  later(1000, () => T('translateX(0) scale(.6)'));
+  later(1550, () => { document.body.classList.remove('dev'); T(''); });
+}
+function msgS(html, cls){ const d = document.createElement('div'); d.className = cls + (I ? '' : ' anim'); d.innerHTML = html; $('msgsS').appendChild(d); }
+function stage(i, first){
+  for (let k = 0; k <= 5; k++){ const e = $('st' + k); e.classList.toggle('on', k === i); e.classList.toggle('done', k < i); }
+  if (first) $('st0').textContent = first;
+  $('newDraft').classList.toggle('hide', i !== 0);
+}
+function approve(id){ const e = $(id).querySelector('em'); e.textContent = '✓ Approved'; e.classList.add('ok'); flash(id); }
+
+/* ---------- the journey: each step is one person's action and what it changes ---------- */
+const STEPS = [
+  // 0. Your screen: snapshot 41, the system as the repo has it today. Nothing changed yet.
+  () => { pov('you'); cam(...SYSCAM); },
+  // 1. Your screen: a draft of snapshot 41; Claude proposes; you ask Priyanka to review
+  () => {
+    later(400, () => curTo('cY', pt('newDraft')));
+    later(1000, () => { tap('cY'); stage(1); $('emptyMap').textContent = 'Your draft from snapshot 41.'; });
+    later(1500, () => curTo('cY', pt('input', .25, .5)));
+    later(2000, () => { tap('cY'); curTo('cY', pt('input', .25, .5), false); });
+    later(2200, () => typeInto('input', 'Plan ACME-212: add a Pro plan with Stripe, and remove the old renewal job.', 46));
+    later(4000, () => { clock('Oct 31, 09:59'); send(); });
+    later(4300, () => tools([['Read', '6 files'], ['Query', 'customers (read-only copy)', '312 annual']]));
+    later(4900, () => msg('Drawing the plan on Living Map. No code yet.', 'say'));
+    later(5300, () => { on('n-billing', 'new'); app.classList.add('focus'); $('emptyMap').classList.add('hide'); $('rCl').classList.remove('hide'); });
+    ['p1', 'p2', 'p3', 'p4'].forEach((e, i) => later(5500 + i * 180, () => draw(e)));
+    later(6300, () => { on('n-db', 'chg'); $('n-db').querySelector('.sub').textContent = '+ plan column'; });
+    later(6900, () => { on('n-renewal', 'rem'); on('n-renewal', 'assumed'); on('lAssume'); });
+    later(7600, () => { $('reqBtn').classList.remove('hide'); curTo('cY', pt('reqReview')); });
+    later(8300, () => { tap('cY'); on('reqReview', 'press'); stage(2); $('reviewers').classList.remove('hide'); $('reqBtn').classList.add('hide'); on('waitR'); curTo('cY', {x: 1000, y: 860}, false); });
+  },
+  // 2. Priyanka's screen: she opens your draft, suggests a change and approves with it
+  () => {
+    clock('Oct 31, 10:02'); pov('p', '10:02');
+    later(1800, () => { off('waitR'); on('thR'); curTo('cP', {x: 900, y: 780}, false); });
+    // the answer box is open on the card already: she types her own answer straight in, then approves
+    later(2400, () => { curTo('cP', pt('replyR', 1.06, 1.3)); typeInto('replyR', 'Keep it for annual customers; new customers bill through Stripe.', 46); });
+    later(4500, () => curTo('cP', pt('aprR')));
+    later(5200, () => { tap('cP'); on('aprR', 'press'); });
+    later(5500, () => { $('btnsP').classList.add('hide'); $('ansP').classList.remove('hide'); $('rvStatus').textContent = '✓ Approved with 1 suggested change'; on('rvStatus', 'ok');
+      const e = $('rvP').querySelector('em'); e.textContent = '✓ Approved, 1 change'; e.classList.add('ok'); curTo('cP', {x: 900, y: 860}, false); });
+  },
+  // 3. Your screen: you accept her change; Claude hears it and builds
+  () => {
+    clock('Oct 31, 10:15'); pov('you', '10:15');
+    later(1800, () => { $('accR').classList.remove('hide'); curTo('cY', pt('acceptR')); });
+    later(2500, () => { tap('cY'); on('acceptR', 'press'); });
+    later(2800, () => { off('n-renewal', 'assumed'); off('n-renewal', 'rem'); on('n-renewal', 'chg'); off('lAssume'); on('lKeep'); on('thR', 'col'); curTo('cY', {x: 1000, y: 860}, false);
+      msg('<small>From Living Map</small>Priyanka approved, with a change: keep the renewal job for annual customers. Accepted by you.', 'fromlm'); });
+    later(3500, () => msg('Updated the plan. Building it.', 'say'));
+    later(3900, () => { stage(3); off('thR'); $('modeChip').classList.add('hide'); tools([['Write', 'services/billing/index.ts', '+128'], ['Write', 'migrations/007_plan.sql', 'users.billing_cycle → users.plan'], ['Bash', 'npm test', '✓ 14 passed'], ['Bash', 'gh pr create', '#212']]); });
+  },
+  // 4. Check: the map catches what the build changed
+  () => {
+    clock('Oct 31, 10:40'); stage(4);
+    later(400, () => on('lDb'));
+    later(1400, () => { app.classList.add('dimrest'); on('e4', 'hot'); $('depC').textContent = 'users.billing_cycle (removed)'; });
+    later(2300, () => on('lBreak'));
+  },
+  // 5. Back to Claude: fixed; released as snapshot 42
+  () => {
+    later(200, () => msg('<small>From Living Map</small>Your migration breaks the Renewal job Priyanka kept: it still reads users.billing_cycle.', 'fromlm'));
+    later(900, () => tools([['Edit', 'migrations/007_plan.sql', 'backfills users.plan'], ['Edit', 'jobs/renewal.ts', 'reads users.plan'], ['Bash', 'npm test', '✓ 15 passed']]));
+    later(2000, () => { $('depC').textContent = 'users.plan ✓'; $('lBreak').innerHTML = '<b>✓ Reads users.plan; 312 annual customers renew</b>'; on('lBreak', 'ok'); });
+    later(3000, () => { app.classList.remove('dimrest'); off('e4', 'hot'); off('lBreak'); off('lDb'); clock('Oct 31, 15:30'); stage(5); });
+    later(3600, () => { app.classList.remove('focus'); off('n-billing', 'plan'); off('n-billing', 'new'); off('n-db', 'chg'); off('n-renewal', 'chg'); off('lKeep');
+      EDGES.filter(e => e.plan).forEach(e => { off(e.id, 'new'); off(e.id, 'plan'); $(e.id).querySelector('path').setAttribute('marker-end', 'url(#ah)'); });
+      $('n-billing').querySelector('.sub').textContent = 'services/billing'; $('n-db').querySelector('.sub').textContent = 'Postgres'; $('rClS').textContent = '#212 merged'; });
+    later(4200, () => { stage(0, 'Snapshot 42 (from repo, #212 merged)'); $('newDraft').classList.add('hide'); on('lRec'); });
+  },
+  // 6. Sam's screen, a week later: his Claude starts from what the team agreed
+  () => {
+    clock('Nov 6, 11:20'); pov('s', 'Nov 6');
+    later(1700, () => { stage(1, 'Snapshot 42 (from repo)'); $('newDraft').classList.add('hide'); $('rCl').classList.add('hide'); $('reviewers').classList.add('hide'); $('rSam').classList.remove('hide'); $('rSamS').textContent = 'ACME-230, from snapshot 42'; flash('rSam'); });
+    later(2000, () => msgS('Clean up the old billing jobs.', 'bub'));
+    later(2800, () => msgS('<small>From Living Map, snapshot 42</small>Renewal job: kept for annual customers (Priyanka, Oct 31). Checked at build.', 'fromlm'));
+    later(3800, () => msgS('I’ll leave the renewal job and remove only the jobs Stripe now handles.', 'say'));
+  },
+];
+const LAST = STEPS.length - 1;
+
+/* ---------- stepping ---------- */
+function render(t, animate){
+  token++; timers.forEach(clearTimeout); timers = [];
+  app.innerHTML = HTML; app.dataset.pov = 'you'; app.classList.remove('lensP'); app.style.transform = ''; document.body.classList.remove('dev'); app.classList.remove('dopen', 'deep', 'unread', 'pulse', 'seqon', 'clashz', 'focus');
+  app.classList.add('instant');
+  camState = {x: SYSCAM[0], y: SYSCAM[1], w: SYSCAM[2], h: SYSCAM[3], max: SYSCAM[4]};
+  I = true; const upto = animate ? t - 1 : t;
+  for (let s = 0; s <= upto; s++) STEPS[s]();
+  ['cY', 'cP'].forEach(c => $(c).classList.remove('on'));
+  if (!animate) settleStatic(t);
+  void app.offsetWidth; app.classList.remove('instant');
+  I = false; step = t;
+  $('count').textContent = `${t} / ${LAST}`;
+  bindNav();
+  if (animate) STEPS[t]();
+}
+// end states that should read on their own (a still of each step)
+function settleStatic(t){
+}
+function bindNav(){
+  $('next').onclick = e => { e.stopPropagation(); next(); };
+  $('back').onclick = e => { e.stopPropagation(); if (step > 0) render(step - 1, false); };
+}
+const next = () => step >= LAST ? render(0, false) : render(step + 1, true);
+document.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'Backspace'){ e.preventDefault(); if (step > 0) render(step - 1, false); }
+});
+app.addEventListener('click', e => { if (!e.target.closest('#nav')) next(); });
+addEventListener('resize', fitApp);
+
+const HTML = build();
+if (/rec/.test(location.search)) document.body.classList.add('rec');
+fitApp();
+document.fonts.ready.then(() => { const h = location.hash.slice(1), t = Math.min(LAST, parseInt(h, 10) || 0); render(t, /a$/.test(h) && t > 0); });
+</script>
+</body>
+</html>

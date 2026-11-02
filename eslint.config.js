@@ -19,6 +19,7 @@ export default defineConfig([
     "data/**",
     "lm/**",
     ".claude/**",
+    "team/**",
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,

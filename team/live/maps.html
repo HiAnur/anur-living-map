@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · maps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --claude:#C96442; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
+#top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
+main{max-width:640px;margin:48px auto;padding:0 16px}
+h1{font-size:18px;font-weight:500;margin-bottom:16px}
+a.map{display:flex;align-items:baseline;gap:12px;padding:14px 16px;margin-bottom:10px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none}
+a.map:hover{border-color:var(--text)}
+.t{font-weight:500}
+.addr{color:var(--text-2);font-size:12.5px}
+.n{margin-left:auto;color:var(--text-2);font-size:12.5px;white-space:nowrap}
+.n b{color:var(--claude);font-weight:500}
+.none{color:var(--text-2)}
+/* a new map from a prompt, in a box like Claude's: Claude Code starts it on a blank canvas */
+#new{display:flex;align-items:flex-end;gap:8px;margin-bottom:28px;padding:12px 10px 10px 14px;background:#fff;border:1px solid var(--rule-2);border-radius:18px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
+#new:focus-within{border-color:rgba(0,0,0,.3)}
+#new textarea{flex:1;min-height:44px;max-height:200px;border:0;outline:none;resize:none;background:none;font:14px/1.5 var(--plex);color:var(--text)}
+#new button{flex:none;width:32px;height:32px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+#new button:disabled{opacity:.5;cursor:default}
+#new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
+/* the list sorts by time (last changed first) or by name; this browser remembers the choice */
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.head h1{margin:0}
+.sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
+.sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
+.sort button:hover{color:var(--text)}
+.sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
+/* a map made here can be deleted from the list, after a second click that says so */
+.row{position:relative;margin-bottom:10px}
+.row a.map{margin-bottom:0}
+.row.can a.map{padding-right:48px}
+.del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
+.del:hover{background:#f0eee8;color:#B42318}
+.ask{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 16px;background:#fff;border:1px solid #B42318;border-radius:10px}
+.ask span{flex:1}
+.ask button{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font:13px var(--plex);color:var(--text);cursor:pointer}
+.ask button.yes{background:#B42318;border-color:#B42318;color:#fff}
+.ask button:disabled{opacity:.5;cursor:default}
+</style>
+</head>
+<body>
+<div id="top">Living Map</div>
+<main>
+  <h1>Start a new map</h1>
+  <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
+    <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
+  <div id="err" hidden></div>
+  <div class="head"><h1>Or pick a map you have</h1>
+    <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
+  <div id="list" class="none">Loading…</div>
+</main>
+<script>
+// every map this server holds; a click opens it, with ?as= carried along
+const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+// a new map: Claude Code starts drawing it on a blank canvas, and the map opens with its chat beside it
+const form = document.getElementById('new'), box = form.querySelector('textarea'), go = form.querySelector('button'), err = document.getElementById('err');
+box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); form.requestSubmit(); } });
+form.addEventListener('submit', (e) => {
+  e.preventDefault(); const prompt = box.value.trim(); if (!prompt || go.disabled) return;
+  go.disabled = true; err.hidden = true;
+  fetch('/api/newmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt }) })
+    .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not start.'); location.href = `${d.href}?chat=1`; })
+    .catch((x) => { err.textContent = x.message; err.hidden = false; go.disabled = false; });
+});
+let maps = null, sortBy = 'time';
+try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
+const titleOf = (m) => m.title || m.name;
+function list(){
+  const el = document.getElementById('list');
+  document.querySelectorAll('.sort button').forEach((b) => b.classList.toggle('on', b.dataset.sort === sortBy));
+  if (!maps) return;
+  if (!maps.length) { el.textContent = 'No maps yet.'; return; }
+  el.className = '';
+  const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
+    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
+  el.innerHTML = sorted.map((m) => asking === m.name
+    ? `<div class="row ask"><span>Delete <b>${esc(titleOf(m))}</b> for everyone?</span>
+      <button type="button" data-cancel>Cancel</button><button type="button" class="yes" data-delete="${esc(m.name)}">Delete</button></div>`
+    : `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}">
+    <span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span>
+    <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>${m.deletable
+      ? `<button type="button" class="del" data-ask="${esc(m.name)}" title="Delete this map" aria-label="Delete ${esc(titleOf(m))}">✕</button>` : ''}</div>`).join('');
+}
+// ✕ asks first; only Delete removes the map, for everyone
+let asking = null;
+document.getElementById('list').addEventListener('click', (e) => {
+  const t = e.target;
+  if (t.closest('[data-ask]')) { asking = t.closest('[data-ask]').dataset.ask; list(); }
+  else if (t.closest('[data-cancel]')) { asking = null; list(); }
+  else if (t.closest('[data-delete]')) {
+    const b = t.closest('[data-delete]'), name = b.dataset.delete; b.disabled = true;
+    fetch('/api/maps/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be deleted.'); maps = maps.filter((m) => m.name !== name); asking = null; list(); })
+      .catch((x) => { b.disabled = false; b.closest('.ask').querySelector('span').textContent = x.message; });
+  }
+});
+document.querySelector('.sort').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sort]'); if (!b) return;
+  sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}
+  list();
+});
+list();
+fetch('api/maps').then((r) => r.json()).then((m) => { maps = m; list(); });
+</script>
+</body>
+</html>

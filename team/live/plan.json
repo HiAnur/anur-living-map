@@ -1,0 +1,264 @@
+{
+  "type": "plan",
+  "by": "Claude",
+  "note": "ACME-212: a new Billing service in front of the payment provider, a plan column on users, the renewal job assumed retired",
+  "nodes": [
+    {
+      "id": "billing",
+      "label": "Billing",
+      "x": 540,
+      "y": 150,
+      "w": 180,
+      "state": "new",
+      "sub": "Pro plan",
+      "file": "services/billing/",
+      "by": "Claude",
+      "desc": "Takes the upgrade from the web app, hands the charge to the payment provider and hears back when it is paid. Not built yet: this is the plan.",
+      "inside": {
+        "nodes": [
+          {
+            "id": "web2",
+            "label": "Web app",
+            "x": 110,
+            "y": 190,
+            "ghost": true,
+            "area": "billing"
+          },
+          {
+            "id": "lb",
+            "label": "Load balancer",
+            "x": 360,
+            "y": 190,
+            "file": "infra/lb.tf",
+            "area": "billing"
+          },
+          {
+            "id": "svc",
+            "label": "Billing service",
+            "x": 420,
+            "y": 305,
+            "w": 200,
+            "state": "new",
+            "sub": "Checkout · Payment confirmed",
+            "file": "services/billing/routes/",
+            "by": "Claude",
+            "desc": "Two routes: Checkout starts the upgrade; Payment confirmed is what the provider calls back.",
+            "area": "billing",
+            "flow": {
+              "title": "Payment confirmed",
+              "sub": "Drawn from the plan, not run",
+              "lanes": [
+                {
+                  "id": "customer",
+                  "label": "Customer"
+                },
+                {
+                  "id": "provider",
+                  "label": "Provider"
+                },
+                {
+                  "id": "billing",
+                  "label": "Billing",
+                  "state": "new"
+                },
+                {
+                  "id": "renewal",
+                  "label": "Renewal job"
+                }
+              ],
+              "steps": [
+                {
+                  "from": "customer",
+                  "to": "provider",
+                  "label": "Upgrades to Pro"
+                },
+                {
+                  "from": "provider",
+                  "to": "billing",
+                  "label": "Payment confirmed"
+                },
+                {
+                  "note": "billing",
+                  "label": "Verify sender, ignore repeats"
+                },
+                {
+                  "from": "provider",
+                  "to": "customer",
+                  "label": "Bills Pro",
+                  "dashed": true
+                },
+                {
+                  "from": "renewal",
+                  "to": "customer",
+                  "label": "Bills the annual renewal too",
+                  "dashed": true,
+                  "goneWhen": "b"
+                }
+              ],
+              "problem": {
+                "label": "Charged twice",
+                "fixedBy": "b",
+                "fixed": "Billed once"
+              },
+              "fix": {
+                "lane": "renewal",
+                "label": "Skip anyone the provider bills",
+                "call": "b"
+              }
+            }
+          },
+          {
+            "id": "db2",
+            "label": "Users DB",
+            "icon": "db",
+            "x": 110,
+            "y": 305,
+            "ghost": true,
+            "area": "billing"
+          },
+          {
+            "id": "ren2",
+            "label": "Renewal job",
+            "x": 420,
+            "y": 425,
+            "w": 200,
+            "file": "jobs/renewal.ts",
+            "desc": "Runs nightly. Bills annual plans that are due.",
+            "area": "billing"
+          }
+        ],
+        "edges": [
+          {
+            "from": "web2",
+            "to": "lb"
+          },
+          {
+            "from": "lb",
+            "to": "svc",
+            "state": "new"
+          },
+          {
+            "from": "svc",
+            "to": "db2",
+            "state": "new"
+          }
+        ]
+      },
+      "area": "billing"
+    },
+    {
+      "id": "db",
+      "state": "todo",
+      "file": "migrations/007_plan.sql",
+      "by": "Claude",
+      "desc": "Postgres. The plan adds a plan column on users: free, annual, pro."
+    },
+    {
+      "id": "renewal",
+      "state": "assumed-gone",
+      "sub": "Assumed: can go",
+      "file": "jobs/renewal.ts:18",
+      "by": "Claude",
+      "fact": {
+        "text": "312 annual customers renew through this job",
+        "from": "Claude, from data/customers.csv (read-only copy)"
+      },
+      "area": "billing"
+    }
+  ],
+  "edges": [
+    {
+      "from": "web",
+      "to": "billing",
+      "state": "new",
+      "label": "Upgrade"
+    },
+    {
+      "from": "billing",
+      "to": "provider",
+      "state": "new"
+    },
+    {
+      "from": "provider",
+      "to": "billing",
+      "state": "new",
+      "label": "Payment confirmed"
+    },
+    {
+      "from": "billing",
+      "to": "db",
+      "state": "new",
+      "label": "+ plan column"
+    },
+    {
+      "from": "renewal",
+      "to": "provider",
+      "state": "assumed-gone"
+    }
+  ],
+  "calls": [
+    {
+      "id": "a",
+      "node": "renewal",
+      "for": "Priyanka",
+      "from": "Claude",
+      "ticket": "ACME-212",
+      "kind": "Product call",
+      "text": "Can we retire the renewal job?",
+      "status": "open",
+      "dispute": {
+        "node": "renewal",
+        "state": "todo",
+        "sub": "Keep for annual",
+        "edge": "renewal>provider",
+        "edgeState": "",
+        "says": "Annual customers keep renewing through our job; new and upgraded customers bill through the provider.",
+        "chat": "Updated the plan: the renewal job stays for annual customers."
+      },
+      "confirm": {
+        "node": "renewal",
+        "state": "gone",
+        "sub": "Retired",
+        "says": "Fine to retire it."
+      },
+      "context": "Pro will bill through the payment provider. The ticket says retire our renewal job, but annual customers still renew only through it.",
+      "needs": "Confirm to retire it, or Dispute to keep it",
+      "assume": "The renewal job can be retired.",
+      "short": "Annual customers still renew only through it.",
+      "ask": "Retire the renewal job?",
+      "plain": "Pro bills through the payment provider. Annual customers still renew only through our job.",
+      "yes": "The job is deleted. Annual customers stop renewing.",
+      "no": "The job stays for annual customers."
+    },
+    {
+      "id": "b",
+      "node": "billing",
+      "for": "Duy",
+      "from": "Claude",
+      "ticket": "ACME-212",
+      "kind": "Engineering call, follows Priyanka's policy",
+      "text": "Should the renewal job skip anyone the provider bills?",
+      "status": "open",
+      "confirm": {
+        "node": "renewal",
+        "sub": "Keep for annual, skip provider-billed",
+        "says": "Confirmed.",
+        "chat": "Duy confirmed: the renewal job skips anyone the provider bills. Added to the plan."
+      },
+      "dispute": {
+        "says": "Not like that."
+      },
+      "context": "An annual customer who upgrades to Pro would be billed twice: by the provider and by our renewal job.",
+      "needs": "Confirm the fix, or Dispute it",
+      "assume": "The renewal job will skip anyone the provider bills.",
+      "short": "Otherwise an annual customer who upgrades is billed twice.",
+      "ask": "Skip Pro customers in renewals?",
+      "plain": "An annual customer who upgrades to Pro would be billed by the provider and by our job.",
+      "yes": "Renewals skip anyone on Pro, so no one is billed twice.",
+      "no": "Claude asks you how to handle it."
+    }
+  ],
+  "answers": {
+    "billing": "Billing is the new service in the plan: Checkout starts an upgrade, the provider charges the card and calls Payment confirmed. The route must verify the sender and ignore repeats, or anyone could mark themselves paid."
+  }
+}
