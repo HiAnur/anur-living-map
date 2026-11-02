@@ -88,13 +88,14 @@ your chat ◄──answers, picks, ticks───────┤◄────�
 
 ## Project layout
 
-| Path            | What it holds                                                         |
-| --------------- | --------------------------------------------------------------------- |
-| `ledger/`       | the map of your chat: following the transcript, the store, side chats |
-| `server/`       | routes, the token, the one-click update, the model providers          |
-| `web/map/`      | the map's page                                                        |
-| `web/brand.css` | every colour and font, by role: restyle the app in one place          |
-| `skill/`        | the `living-map` skill, its installer, starter, hook and listener     |
+| Path            | What it holds                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ledger/`       | the map of your chat: following the transcript, the store, side chats                                                           |
+| `server/`       | routes, the token, the one-click update, the model providers                                                                    |
+| `web/map/`      | the map's page                                                                                                                  |
+| `web/brand.css` | every colour and font, by role: restyle the app in one place                                                                    |
+| `skill/`        | the `living-map` skill, its installer, starter, hook and listener                                                               |
+| `team/`         | the team's shared map of a codebase (Anur Living Map): its server, login service, landing page and story boards; its own README |
 
 ## Contributing
 
