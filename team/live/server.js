@@ -81,11 +81,12 @@ function openMap({ project = '', name = '', home }) {
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
   const SAVES = path.join(home, 'saves');
+  // a team map locks nothing: everyone on it sees the whole map; only the story keeps its cast's areas
+  const team = () => demo().people.map((p) => ({ ...p, sees: 'all' }));
   const seed = () => {
     if (!project && !name) return demo();
-    const { people } = demo();
     const drawn = project ? readProject(project) : { title: name, desc: '', nodes: [], edges: [] };
-    return { ...drawn, ticket: '', prompt: '', people, calls: [], prs: [], answers: { '*': 'I drew what I know on the map. Click a box for its files, or ask me about one.' } };
+    return { ...drawn, ticket: '', prompt: '', people: team(), calls: [], prs: [], answers: { '*': 'I drew what I know on the map. Click a box for its files, or ask me about one.' } };
   };
 
   const fresh = () => ({ ...seed(), log: [], threads: {}, comments: [] });
@@ -116,6 +117,7 @@ function openMap({ project = '', name = '', home }) {
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
+  if (project || name) state.people = team(); // a map stored with an older lock loses it too
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
