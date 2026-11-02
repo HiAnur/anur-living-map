@@ -245,6 +245,12 @@ body.deep #queue{top:108px}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column}
 #side .refs{margin-top:auto;padding-bottom:4px}
+/* Claude references fold away like Claude's own "Context ▾": closed at first, a click on the heading opens them */
+#side details.refs > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
+#side details.refs > summary::-webkit-details-marker{display:none}
+#side details.refs > summary::after{content:'';border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;transition:transform .15s}
+#side details.refs[open] > summary::after{transform:rotate(180deg)}
+#side details.refs > summary:hover{color:var(--text-2)}
 /* the Side Chat tab: the card stays still, one scrollbar only, on the messages, the newest at the bottom, the input under them */
 #side.on.sc{display:flex;flex-direction:column;overflow:hidden}
 #side.sc .sc-sec{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
@@ -1527,6 +1533,9 @@ function renderQueue(){
   q.innerHTML = `<div class="ct">Need clarify <span class="ca-n">${open.length}</span></div>${open.map((c) => callRow(c, true)).join('')}`;
 }
 
+// sections a person opened stay open when the card redraws (it redraws on every change to the map)
+const openSecs = new Set();
+document.addEventListener('toggle', (e) => { const k = e.target?.dataset?.openKey; if (k) e.target.open ? openSecs.add(k) : openSecs.delete(k); }, true);
 function renderSide(){
   const el = $('side');
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
@@ -1638,7 +1647,7 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">Open the ${n.diagram.kind} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}</div>
-    ${n.fact ? `<div class="refs"><div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></div>` : ''}`}`;
+    ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}`}`;
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
