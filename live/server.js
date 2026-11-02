@@ -292,6 +292,11 @@ function openMap({ project = '', name = '', home }) {
     const person = state.people?.find((p) => p.id === by), sees = seesOf(by);
     const nodes = allNodes().filter((x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((x) => x.id));
     const label = (id) => nodeOf(id)?.label || id;
+    // a reply of Claude's that offered a change says so, and what became of it, so Claude never offers it again
+    const offer = (m) => { const p = m.proposal; if (!p?.ops?.length) return '';
+      const what = p.status === 'applied' ? `applied by ${p.by}, so it is on the map now` : p.status === 'pending' ? 'still waiting for Apply'
+        : p.replaced ? 'replaced by a later offer' : 'not applied';
+      return ` [This reply offered a change to the map: ${p.ops.join('; ')}. It was ${what}.]`; };
     const box = (x) => [`- ${x.label} [id: ${x.id}]${x.sub ? ` (${x.sub})` : ''}${x.state ? ` [${x.state}]` : ''}${x.file ? ` in ${x.file}` : ''}`,
       x.desc && `  ${x.desc}`, x.fact && `  Found: ${x.fact.text} (${x.fact.from})`,
       x.decided && `  Decided by ${x.decided.who} at ${x.decided.at}: ${x.decided.what}`].filter(Boolean).join('\n');
@@ -314,6 +319,8 @@ function openMap({ project = '', name = '', home }) {
       '```map', '{"nodes": [{"id": "when", "label": "When", "sub": "every week in November", "desc": "what it is, in one short line\\n- one point a bullet\\n- another", "state": "new"}],',
       ' "edges": [{"from": "test", "to": "when", "label": "optional"}], "remove": ["an-id"]}', '```',
       'A new box needs a new lowercase id and a label; giving an existing box id changes that box. Leave out x and y.',
+      'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',
+      'never added again under another name. A new block replaces any of your offers still waiting for Apply, so put the whole change in it.',
       'A box\'s desc is read at a glance: a short first line, then "- " bullets, one point each, never a paragraph.',
       'When the person asks you to remember something, or to make something a rule for you, add to the block',
       '"memory": [{"kind": "instruction" for a rule you must follow or "memory" for something to keep in mind, "box": "a box id, or null for the whole map", "text": "one short line"}].',
@@ -325,7 +332,7 @@ function openMap({ project = '', name = '', home }) {
       '', `## Every box${sees === 'all' ? '' : ` ${by} can see (their access covers ${sees})`}`, ...nodes.map(box),
       lines.length ? ['', '## Lines between boxes', ...lines] : [],
       calls.length ? ['', '## Questions on the map', ...calls] : [],
-      before.length ? ['', `## Earlier in this ${side ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !side ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
+      before.length ? ['', `## Earlier in this ${side ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !side ? ` (about ${label(m.about)})` : ''}: ${m.text}${offer(m)}`)] : [],
       '', '## The question', q,
     ].flat().join('\n');
   }
@@ -534,7 +541,10 @@ function openMap({ project = '', name = '', home }) {
         onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
           clearTimeout(soon); delete msg.thinking; msg.text = withoutBlock(text); msg.at = stamp();
-          const pr = proposal(text, a.by); if (pr) msg.proposal = pr;
+          // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
+          const pr = proposal(text, a.by);
+          if (pr?.status === 'pending') for (const x of t) if (x !== msg && x.proposal?.status === 'pending') Object.assign(x.proposal, { status: 'dropped', replaced: true });
+          if (pr) msg.proposal = pr;
           save(); push();
         } });
       return true;

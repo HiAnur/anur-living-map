@@ -1488,7 +1488,7 @@ const proposalOf = (id) => {
 const change = (m, key, i) => {
   const p = m.proposal; if (!p) return '';
   // once applied or set aside it is one quiet line; hovering it lists the changes
-  if (p.status !== 'pending') return `<div class="prop ${p.status} mini" title="${prose(p.ops.join('\n'))}">${p.status === 'applied' ? `✓ Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : 'Not applied'}<span>${prose(p.ops[0] || '')}${p.ops.length > 1 ? ` +${p.ops.length - 1}` : ''}</span></div>`;
+  if (p.status !== 'pending') return `<div class="prop ${p.status} mini" title="${prose(p.ops.join('\n'))}">${p.status === 'applied' ? `✓ Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : p.replaced ? 'Replaced by a newer one' : 'Not applied'}<span>${prose((p.ops[0] || '').replace(/\s+/g, ' '))}${p.ops.length > 1 ? ` +${p.ops.length - 1}` : ''}</span></div>`;
   const head = p.status === 'pending' ? 'Change to the map' : p.status === 'applied' ? `Applied by ${p.by}${p.at ? `, ${p.at}` : ''}` : 'Not applied';
   return `<div class="prop ${p.status}"><div class="ph">${head}</div>
     ${p.ops.length ? `<ul>${p.ops.map((o) => `<li>${prose(o)}</li>`).join('')}</ul>` : ''}
