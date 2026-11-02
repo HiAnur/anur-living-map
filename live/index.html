@@ -193,6 +193,11 @@ button,input{font:inherit;color:inherit}
 /* cards over the map */
 .panel{position:fixed;background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08);z-index:15;font-size:13.5px}
 #queue{left:16px;top:60px;width:360px;padding:12px 14px}
+/* Back, inside a box, a flow or a diagram: top left, above your answers, which move down to make room */
+#backb{left:16px;top:60px;display:none;padding:8px 14px;font:500 13.5px var(--plex);color:var(--text);cursor:pointer}
+#backb.on{display:block}
+#backb:hover{border-color:var(--text-2)}
+body.deep #queue{top:108px}
 #side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column;overflow:hidden}
@@ -688,6 +693,7 @@ body.rec #foot,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
   <button class="tbtn share" id="shareb">Share</button>
 </div>
 <div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><div id="pins"></div><div id="curs"></div></div></div>
+<button class="panel" id="backb" title="Esc"></button>
 <div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
 <div class="panel" id="prs"></div>
@@ -1264,10 +1270,17 @@ function renderTop(){
   // while you type a new name, a redraw leaves the box alone
   const db = diagramBox();
   if (!$('renamei')) $('crumbs').innerHTML = db
-    ? `<button class="tbtn back" data-dback title="Back to the map (Esc)">‹ Back</button>${where} <span class="sep">›</span> <b>${esc(db.label)}</b>`
+    ? `${where} <span class="sep">›</span> <b>${esc(db.label)}</b>`
     : fb
-    ? `<button class="tbtn back" data-enter="${inside.id}" title="Back to ${inside.label}">‹ Back</button>${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
-    : `${inside ? `<button class="tbtn back" data-v="system" title="Back to the whole map (Esc)">‹ Back</button>` : ''}${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
+    ? `${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
+    : `${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
+  // inside a box, a flow or a diagram, Back sits at the top left above your answers, where the eye starts
+  const up = db && S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === db.id)), back = $('backb'), deep = Boolean(db || fb || inside);
+  back.classList.toggle('on', deep); document.body.classList.toggle('deep', deep);
+  for (const k of ['dback', 'enter', 'v']) delete back.dataset[k];
+  if (db){ back.dataset.dback = ''; back.textContent = `‹ Back to ${up ? up.label : 'the map'}`; }
+  else if (fb){ back.dataset.enter = inside.id; back.textContent = `‹ Back to ${inside.label}`; }
+  else if (inside){ back.dataset.v = 'system'; back.textContent = '‹ Back to the map'; }
   $('ticket').innerHTML = '';
   document.title = `Living Map · ${S.title}`;
   renderSave();
