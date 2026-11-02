@@ -98,6 +98,8 @@ button,input{font:inherit;color:inherit}
 #edges > path.old{stroke:var(--line);stroke-width:1.2}
 /* what the plan builds is alive: its lines flow toward where they go, its boxes breathe */
 #edges > path.new{stroke:var(--new);stroke-dasharray:7 5;animation:flow .9s linear infinite}
+/* a plan whose questions are all answered stops moving: still blue and dashed, because nothing is built yet */
+#edges > path.new.still,.node.new.still{animation:none}
 @keyframes flow{to{stroke-dashoffset:-12}}
 @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(47,111,228,0)}50%{box-shadow:0 0 0 7px rgba(47,111,228,.22)}}
 /* the motion is the message here (this is being built), so it plays even with Reduce motion on */
@@ -913,6 +915,8 @@ const anyFocus = () => !decisionMap() && scope().nodes.some(focused);
 // a map of decisions rather than of a repo's code (GTM at /gtm/): nothing is built there, so a box's colour
 // says whether it still needs an answer (amber), has been answered (green), or is information (plain)
 const decisionMap = () => !!S && !S.project && !!location.pathname.split('/')[1];
+// a plan is settled once it exists and nothing on the map waits on anyone
+const settledPlan = () => Boolean(S && (S.prompt || S.owner)) && !S.calls.some((c) => c.status === 'open');
 // a box the plan takes away is only Claude's guess until someone answers for it and nothing on it is still open
 const guessGone = (n) => n.state === 'assumed-gone' && !(n.decided && !S.calls.some((c) => c.node === n.id && c.status === 'open'));
 const boxDecision = (n) => S.calls.some((c) => c.node === n.id && c.status === 'open') ? 'ask'
@@ -1370,6 +1374,9 @@ function render(){
     // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
     const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
     const k = k0;
+    // motion means "still open": once nothing on the map waits on anyone, the plan's own new lines hold still
+    // (blue and dashed, not built yet); a change Claude proposes keeps moving until someone applies it
+    const still = k === 'new' && !e.proposed && settledPlan();
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
     if (cross?.links.has(`${e.from}>${e.to}`)){
@@ -1381,7 +1388,7 @@ function render(){
     }
     const pts = routePts(a, b, dup, nodes, ports.get(`${e.from}>${e.to}`));
     lines.push({ id: `${e.from}>${e.to}`, pts });
-    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="${endOf(k)}"/>`;
+    svg += `<path class="${k} ${quiet ? 'faint' : ''} ${still ? 'still' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="${endOf(k)}"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
@@ -1411,7 +1418,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}

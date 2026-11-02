@@ -702,13 +702,15 @@ function openMap({ project = '', name = '', home }) {
       tell(`${a.by} ${had ? 'updated' : 'opened'} pull request ${id}${pr.title ? `: ${pr.title}` : ''} (${pr.status})`);
       return true;
     },
-    // Execute: the map's admin says go once nothing on the plan waits on anyone; the chat that drew the plan builds it
+    // Execute: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
+    // it when it is listening; when that chat has gone quiet, the chat listening on this map now builds it instead,
+    // so pressing Execute never lands in an empty inbox
     execute(a) {
       const admin = state.people?.find((p) => p.id === a.by)?.role === 'Admin';
       if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((c) => c.status === 'open')) return false;
       state.executed = { by: a.by, at: stamp() };
-      const pr = state.prs?.find((p) => p.id === state.pr);
-      tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, state.owner || '*');
+      const pr = state.prs?.find((p) => p.id === state.pr), to = state.owner && waiters.some((w) => w.who === state.owner) ? state.owner : '*';
+      tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
       return true;
     },
     // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
