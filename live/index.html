@@ -161,6 +161,13 @@ button,input{font:inherit;color:inherit}
 /* a box with something inside: an Expand pill on its bottom edge; a double click does the same */
 .node .expand{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);height:18px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 10.5px/16px var(--plex);white-space:nowrap;cursor:pointer}
 .node .expand:hover{color:var(--text);border-color:var(--text-2)}
+/* a box's diagram pill (Timeline, Sequence, Venn) sits at its bottom right, clear of a line leaving the bottom */
+.node .expand.dgp{left:auto;right:8px;transform:none}
+/* each kind its own colour, none of them a box state's (blue new, amber to-do, red gone, purple assumed) */
+.node .expand.dgp.dg-timeline{color:#0F766E;border-color:rgba(15,118,110,.5)}
+.node .expand.dgp.dg-sequence{color:#BE185D;border-color:rgba(190,24,93,.5)}
+.node .expand.dgp.dg-venn{color:#4D7C0F;border-color:rgba(77,124,15,.5)}
+.node .expand.dgp:hover{border-color:currentColor}
 /* fold and unfold: a small round button on the side a box's lines leave from; − on hover, and a folded box
    keeps it showing, dark, with how many boxes it hides */
 .node .fold{position:absolute;z-index:2;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 11px/16px var(--plex);text-align:center;cursor:pointer;opacity:0;transition:opacity .15s}
@@ -1207,7 +1214,7 @@ function render(){
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
-        : n.diagram && !locked(n) ? `<span class="expand" data-dgx="${n.id}" title="Open ${esc(n.label)}: its ${n.diagram.kind} (double click)">${KIND_NAME[n.diagram.kind]} ›</span>` : ''}
+        : n.diagram && !locked(n) ? `<span class="expand dgp dg-${KIND_NAME[n.diagram.kind] ? n.diagram.kind : ''}" data-dgx="${n.id}" title="Open ${esc(n.label)}: its ${n.diagram.kind} (double click)">${KIND_NAME[n.diagram.kind]} ›</span>` : ''}
       ${foldButton(n, byId)}
       </div>`;
     // the file only for the box you picked; the card has it too
