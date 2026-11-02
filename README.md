@@ -1,11 +1,22 @@
 <p align="center"><img src="docs/logo.svg" alt="Living Map" width="260"></p>
 
-<p align="center"><b>See where your Claude Code chat stands, at a glance.</b><br>
-Living Map draws your chat as a mind map while you work: what waits on you, what is still open, what was decided. You answer Claude right on the map.</p>
+<p align="center"><b>The map your engineers decide on and your AI agents build from.</b><br>
+Claude Code plans a feature on your real system before any code. The team confirms or disputes each call in a click. The agent builds from what was agreed.</p>
 
-https://github.com/user-attachments/assets/73b3762c-e3b1-4c2b-9492-965592b0af54
+<p align="center"><a href="https://heyanur.ai/living-map"><img src="docs/team-map.png" alt="Claude's plan drawn on the system; the renewal job dashed because Claude assumed it can go; a card asking you to keep the job or let it go" width="900"></a><br>
+<a href="https://heyanur.ai/living-map">Try it: Claude plans, you decide.</a></p>
+
+Two maps live in this repo:
+
+- **The team map** (`team/`): the shared map of a codebase, drawn from the repo's own files. Claude Code plans on it, people answer on it, and every AI agent after reads what was decided. `node team/live/server.js 4323 --project <repo>`, then `http://localhost:4323/<repo folder name>/`; the MCP tools, sign-in and the list of maps are in [its README](team/README.md).
+- **The chat map** (the rest of this repo): one Claude Code chat as a mind map beside it, so you see where the chat stands. `/living-map` in any chat. The rest of this page is about it.
 
 ---
+
+## The chat map
+
+<p align="center"><b>See where your Claude Code chat stands, at a glance.</b><br>
+Living Map draws your chat as a mind map while you work: what waits on you, what is still open, what was decided. You answer Claude right on the map.</p>
 
 When a project gets too big for your head, you draw a mind map. When a Claude chat does, you scroll, and coming back to it means asking Claude "where were we?" and waiting while it digs through everything. Living Map is that answer, already sitting beside the chat. It is a view for you, not memory for Claude: it reads your chat as it grows and keeps it as one mind map in a page beside it:
 
