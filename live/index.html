@@ -1258,12 +1258,14 @@ function renderSide(){
     const opts = c.options?.length ? c.options.map((o) => ({ label: o.label, means: o.means, on: c.pickedId === o.id }))
       : [{ label: 'Yes', means: c.yes, on: c.status === 'confirmed' }, { label: 'No', means: c.no, on: c.status === 'disputed' }];
     if (c.pickedId === 'other') opts.push({ label: 'Other', on: true });
-    const words = c.pickedId === 'other' ? c.picked : c.said && c.said !== c.picked ? c.said : '';
+    const words = c.pickedId === 'other' ? c.picked : c.said && c.said !== c.picked ? c.said : '', more = histOpen.has(c.id);
+    // short: only the green pick; More: who asked and why, then every choice with the pick still green
+    const po = (o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.means && (more || !o.on) ? `<i>${prose(o.means)}</i>` : ''}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`;
     return `<div class="d done">
       <div class="d-q">${c.ask || c.text}</div>
-      ${c.plain || c.context ? `<div class="d-who">${c.from === 'Codex' ? 'Codex' : 'Claude'} asked ${c.for === ME ? 'you' : c.for}</div><div class="d-why">${c.plain || c.context}</div>` : ''}
-      <div class="d-pick">${opts.map((o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.means ? `<i>${prose(o.means)}</i>` : ''}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`).join('')}</div>
-      <div class="d-who">${c.by}, ${c.at}</div>
+      ${more && (c.plain || c.context) ? `<div class="d-who">${c.from === 'Codex' ? 'Codex' : 'Claude'} asked ${c.for === ME ? 'you' : c.for}</div><div class="d-why">${c.plain || c.context}</div>` : ''}
+      <div class="d-pick">${(more ? opts : opts.filter((o) => o.on)).map(po).join('')}</div>
+      <div class="d-who">${c.by}, ${c.at}<span class="d-more" data-hist-more="${c.id}">${more ? 'Less' : 'More'}</span></div>
     </div>`;
   };
   const answered = calls.filter((c) => c.status !== 'open').reverse();
