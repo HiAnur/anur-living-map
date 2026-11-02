@@ -1923,9 +1923,13 @@ function renderDecs(){
   if (!open) return;
   const when = (t) => { const d = new Date(t); return `${d.toDateString() === new Date().toDateString() ? '' : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, `}${d.toTimeString().slice(0, 5)}`; };
   const logged = (S.log || []).filter((l) => ['confirmed', 'disputed', 'answered'].includes(l.action))
-    .map((l) => ({ ...l, c: l.call ? S.calls.find((c) => c.id === l.call) : null })).reverse();
+    .map((l) => ({ ...l, c: l.call ? S.calls.find((c) => c.id === l.call) : null })).reverse()
+    // one row per question, with the answer it holds now: an answer undone by going back in History, or changed
+    // since, stays in the log but not here
+    .filter((l) => !l.c || (l.c.status === l.action && (l.action !== 'answered' || l.picked === l.c.picked)))
+    .filter((l, i, rows) => !l.c || rows.findIndex((r) => r.c === l.c) === i);
   // an answer the log never held (an older map) still counts, after the logged ones
-  const older = S.calls.filter((c) => c.status !== 'open' && !logged.some((l) => l.c === c)).reverse().map((c) => ({ action: c.status, who: c.by, c, node: c.node }));
+  const older = S.calls.filter((c) => ['confirmed', 'disputed', 'answered'].includes(c.status) && !logged.some((l) => l.c === c)).reverse().map((c) => ({ action: c.status, who: c.by, c, node: c.node }));
   const all = [...logged, ...older].filter((r) => canSee(nodeById(r.node || r.c?.node) || {}));
   const at = (r) => r.at ? when(r.at) : r.c?.at || '';
   // the answer, read as a reply: who answered first, as @Name, then the answer, then their words if they added any
