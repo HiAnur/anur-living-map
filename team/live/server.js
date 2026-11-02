@@ -847,11 +847,13 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 
 const main = openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 // every code folder this server draws, by folder name: the one it started with, then each added since
-const projects = new Map(PROJECT ? [[path.basename(PROJECT), main]] : []);
-const folders = new Map(PROJECT ? [[path.basename(PROJECT), PROJECT]] : []);
+// a map's address is its folder's name in lowercase letters, digits and dashes (AnurWebApp -> /anurwebapp/)
+const mapName = (folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+const projects = new Map(PROJECT ? [[mapName(PROJECT), main]] : []);
+const folders = new Map(PROJECT ? [[mapName(PROJECT), PROJECT]] : []);
 const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
 const addProject = (folder) => {
-  const name = path.basename(folder);
+  const name = mapName(folder);
   if (folders.has(name)) return folders.get(name) === folder;
   if (!/^[a-z0-9-]+$/.test(name) || !fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()) return false;
   projects.set(name, openMap({ project: folder, home: path.join(folder, '.living-map') }));
@@ -931,7 +933,7 @@ http.createServer(async (req, res) => {
     const prompt = String(a.prompt || '').trim().slice(0, 4000);
     if (!prompt) return json(400, { error: 'Say what the map is about.' });
     const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
-    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === path.basename(PROJECT));
+    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
     let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
     mapCalled(name).build({ prompt, by: who });
     return json(200, { name, href: `/${name}/` });
@@ -962,7 +964,7 @@ http.createServer(async (req, res) => {
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
   if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
-    const folder = a.folder ? path.resolve(String(a.folder)) : '', name = path.basename(folder);
+    const folder = a.folder ? path.resolve(String(a.folder)) : '', name = mapName(folder);
     if (!folder || !addProject(folder)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
     if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
     return json(200, { name, href: `/${name}/` });

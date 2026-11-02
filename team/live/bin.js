@@ -22,7 +22,8 @@ if (args[0] === 'mcp') {
   const flag = (name) => { const i = args.indexOf(name); return i < 0 ? '' : args[i + 1] || 'true'; };
   const port = Number(flag('--port') || process.env.LIVING_MAP_PORT || 4323);
   const folder = path.resolve(args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--port') || process.cwd());
-  const name = path.basename(folder);
+  // the map's address is the folder's name in lowercase letters, digits and dashes, as the server names it
+  const name = path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
   const base = `http://localhost:${port}`;
   const log = path.join(os.homedir(), '.living-map-2', `server-${port}.log`);
 
