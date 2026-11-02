@@ -618,8 +618,11 @@ function later(){
   });
 }
 
+// the keys step the story only while the demo is on screen; elsewhere Space scrolls
+const onScreen = () => { const r = $('bar').getBoundingClientRect(); return r.bottom > 0 && r.top < window.innerHeight; };
 document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (!onScreen()) return;
   if ((e.key === 'ArrowRight' || e.key === ' ') && !nextb.hidden && document.activeElement !== nextb) { e.preventDefault(); nextb.click(); }
 });
 
