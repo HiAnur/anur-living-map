@@ -1191,7 +1191,8 @@ function render(){
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
-  let svg = '';
+  // the lines' words go in after every line, so no other line runs across them
+  let svg = '', words = '';
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
   for (const e of edges){
@@ -1204,7 +1205,7 @@ function render(){
     if (cross?.links.has(`${e.from}>${e.to}`)){
       const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
       svg += `<path class="${kc} ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-${kc === 'cross' ? 'old' : k})"/>`;
-      if (e.label) svg += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${kc}" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      if (e.label) words += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${kc}" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
       continue;
     }
     svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
@@ -1219,10 +1220,10 @@ function render(){
       const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
       const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
       const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
-      svg += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      words += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
     }
   }
-  edgesEl.innerHTML = defsHtml + svg;
+  edgesEl.innerHTML = defsHtml + svg + words;
   // the gap is as wide as the words, measured, plus a little air
   for (const r of edgesEl.querySelectorAll('rect.gap')){
     const t = r.nextElementSibling, w = t.getComputedTextLength() + 8;

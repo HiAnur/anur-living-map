@@ -322,6 +322,7 @@ function openMap({ project = '', name = '', home }) {
       'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',
       'never added again under another name. A new block replaces any of your offers still waiting for Apply, so put the whole change in it.',
       'A box\'s desc is read at a glance: a short first line, then "- " bullets, one point each, never a paragraph.',
+      'Every box a change affects gets an edge from the change to it, its label saying what happens to that box in a few plain words ("Sends the link").',
       'When the person asks you to remember something, or to make something a rule for you, add to the block',
       '"memory": [{"kind": "instruction" for a rule you must follow or "memory" for something to keep in mind, "box": "a box id, or null for the whole map", "text": "one short line"}].',
       'Use ids exactly as listed below. Without a request for a change, write no block.',
