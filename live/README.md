@@ -1,9 +1,10 @@
-# Living Map, live demo
+# Anur Living Map, the server
 
-The plan-first story as shared, live state: a small server holds where the story is, every open window draws the same map, and a click in one window (Priyanka's Dispute, Duy's Approve) moves them all. What people decide is written to `outbox.md`, which a Claude Code chat can read back.
+One small server holds the map; every open window draws the same one, and a click in one window (a Dispute, an Approve) moves them all. With `--project <repo>` the map is drawn from that repo's own files; without it, it plays the plan-first story from `seed.json`. What people decide is written to `outbox.md`, which a Claude Code chat can read back.
 
 ```bash
-node server.js            # http://localhost:4322
+node server.js 4323 --project <repo>    # http://localhost:4323/<repo folder name>/
+node server.js                          # the plan-first story, http://localhost:4322
 ```
 
 - Open `http://localhost:4322` as yourself, and `http://localhost:4322/?as=Priyanka` in a second window as her.
@@ -17,4 +18,4 @@ node server.js            # http://localhost:4322
 - The faces at the top right are who has this map open right now; the menu under them says who is here and who is not.
 - Any Claude Code chat on this Mac, in any folder, can read and change a map with two tools from `mcp.js`: `living_map_read` and `living_map_change` (boxes, lines, to-dos and questions for a teammate, many in one call, boxes named by id or by name). Registered once with `claude mcp add --scope user living-map -- node <path>/mcp.js`; `LIVING_MAP_URL` points it at another server.
 
-Demo only: the system map is a seed, not read from code; Codex and the merge check are staged.
+Without `--project`, the map is the plan-first story from `seed.json`; Codex and the merge check in that story are staged.
