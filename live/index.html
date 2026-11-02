@@ -217,6 +217,10 @@ button,input{font:inherit;color:inherit}
 /* a call on the box answered: the same pill, green */
 .node .mk.q.ok{background:#1E8A4A}
 .file{position:absolute;font:11.5px var(--mono);color:var(--text-3);white-space:nowrap;pointer-events:none}
+/* a warning under a box, one short line: what breaks if the plan's guess about it is wrong; the why is on the box's card */
+.warn{position:absolute;font:500 12px/1.35 var(--plex);color:var(--gone);white-space:nowrap;pointer-events:none}
+.d-warn{margin:10px 0;padding:8px 10px;border:1px solid rgba(210,59,50,.4);border-radius:8px;background:#fdf2f1;font:13px/1.4 var(--plex);color:var(--text)}
+.d-warn b{display:block;font-weight:500;color:var(--gone)}.d-warn span{display:block;margin-top:2px;color:var(--text-2)}
 .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
 
@@ -1380,8 +1384,11 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       </div>`;
+    // a warning sits under the box: `warn` is what breaks, `why` the comment under it
+    const warn = n.warn && !locked(n);
+    if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 6}px">⚠ ${n.warn}</div>`;
     // the file only for the box you picked; the card has it too
-    if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + 5}px">${n.file}</div>`;
+    if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
   renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
@@ -1602,6 +1609,7 @@ function renderSide(){
         ${more ? glance(lines.slice(5), false) : ''}
         ${lines.length > 5 ? `<div class="d-morel nt-more"><span class="d-more" data-more="n:${n.id}">${more ? 'Less' : 'More about this box'}</span></div>` : ''}`;
     })()}
+    ${n.warn ? `<div class="d-warn"><b>⚠ ${prose(n.warn)}</b>${n.why ? `<span>${prose(n.why)}</span>` : ''}</div>` : ''}
     ${memOf(n.id)}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">Open the ${n.diagram.kind} ›</button>` : ''}</div>` : ''}
