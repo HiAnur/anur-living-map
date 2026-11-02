@@ -194,13 +194,11 @@ button,input{font:inherit;color:inherit}
 /* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
 .node.new{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
 .node.new .n{color:var(--new)}
-/* a box the plan deletes is never struck through: a red dashed border with a red ✕ on its top left corner;
-   a "To be removed" tag once someone has answered for it; the name stays readable, just faded */
+/* a box the plan deletes says it once: a red dashed border, its name faded, its second line saying when it
+   goes. No badge or tag on top of that, never struck through, so the box keeps room for what is still news */
 .node.assumed-gone{border:1.5px dashed var(--gone);background:transparent}
-.node.assumed-gone::before{content:'✕';position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--gone);color:#fff;font:600 9px/16px var(--plex);text-align:center;box-shadow:0 0 0 1.5px var(--canvas)}
 .node.assumed-gone .n{color:var(--text-3)}
 .node.gone{border:1px solid var(--rule);opacity:.45}
-.node .goes{position:absolute;left:8px;bottom:-7px;height:14px;padding:0 6px;border-radius:999px;background:var(--gone);color:#fff;font:500 8.5px/14px var(--plex);letter-spacing:.02em;white-space:nowrap;box-shadow:0 0 0 1.5px #fff}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
 /* a box with something inside: an Expand pill on its bottom edge; a double click does the same */
 .node .expand{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);height:18px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 10.5px/16px var(--plex);white-space:nowrap;cursor:pointer}
@@ -1417,7 +1415,6 @@ function render(){
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${going && !guessGone(n) ? `<span class="goes">${n.state === 'gone' ? 'Removed' : 'To be removed'}</span>` : ''}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
@@ -1425,8 +1422,9 @@ function render(){
       ${foldButton(n, byId)}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
-    // bottom edge: `warn` is what breaks, `why` the comment under it
-    const warn = n.warn && !locked(n);
+    // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
+    // once it is answered the warning stays on the box's card and in its steps, and the map stays clear
+    const warn = n.warn && !locked(n) && open.length;
     if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (n.inside || n.diagram ? 14 : 6)}px;width:${W(n)}px">⚠ ${n.warn}</div>`;
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
