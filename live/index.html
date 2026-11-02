@@ -102,11 +102,11 @@ button,input{font:inherit;color:inherit}
 @keyframes flow{to{stroke-dashoffset:-12}}
 @keyframes breathe{0%,100%{box-shadow:0 0 0 0 rgba(47,111,228,0)}50%{box-shadow:0 0 0 7px rgba(47,111,228,.22)}}
 /* the motion is the message here (this is being built), so it plays even with Reduce motion on */
-/* a line the plan cuts is a black dashed cut line, ending in ✂ instead of an arrow */
-#edges > path.assumed-gone{stroke:var(--text);stroke-dasharray:5 4}
+/* a line the plan stops is red and dashed, its words red too, ending in ✕ instead of an arrow */
+#edges > path.assumed-gone{stroke:var(--gone);stroke-dasharray:5 4}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 #edges text.new{fill:var(--new)}
-#edges text.assumed-gone{fill:var(--text)}
+#edges text.assumed-gone{fill:var(--gone)}
 .node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
 .node:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 /* the plan touches two boxes: they carry their sentence in full ink, the rest steps back until you look at it */
@@ -195,13 +195,13 @@ button,input{font:inherit;color:inherit}
 /* blue = the plan builds it; a box that exists stays as it is, and the flowing line into it says what changes */
 .node.new{border:1.5px solid var(--new);background:var(--new-tint);animation:breathe 2s ease-in-out infinite}
 .node.new .n{color:var(--new)}
-/* a box the plan takes away is cut out, never struck through: a black dashed cut line with ✂ on its top
-   edge; a "To be removed" tag once someone has answered for it; the name stays readable, just faded */
-.node.assumed-gone{border:1.5px dashed var(--text);background:transparent}
-.node.assumed-gone::before{content:'✂';position:absolute;left:10px;top:-10px;padding:0 3px;background:var(--canvas);color:var(--text);font-size:13px;line-height:18px}
+/* a box the plan deletes is never struck through: a red dashed border with a red ✕ on its top left corner;
+   a "To be removed" tag once someone has answered for it; the name stays readable, just faded */
+.node.assumed-gone{border:1.5px dashed var(--gone);background:transparent}
+.node.assumed-gone::before{content:'✕';position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--gone);color:#fff;font:600 9px/16px var(--plex);text-align:center;box-shadow:0 0 0 1.5px var(--canvas)}
 .node.assumed-gone .n{color:var(--text-3)}
 .node.gone{border:1px solid var(--rule);opacity:.45}
-.node .goes{position:absolute;left:8px;bottom:-7px;height:14px;padding:0 6px;border-radius:999px;background:var(--text);color:#fff;font:500 8.5px/14px var(--plex);letter-spacing:.02em;white-space:nowrap;box-shadow:0 0 0 1.5px #fff}
+.node .goes{position:absolute;left:8px;bottom:-7px;height:14px;padding:0 6px;border-radius:999px;background:var(--gone);color:#fff;font:500 8.5px/14px var(--plex);letter-spacing:.02em;white-space:nowrap;box-shadow:0 0 0 1.5px #fff}
 .node .mk{position:absolute;left:-8px;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--assume);color:#fff;font:500 10px/16px var(--plex);text-align:center}
 /* a box with something inside: an Expand pill on its bottom edge; a double click does the same */
 .node .expand{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);height:18px;padding:0 8px;border-radius:999px;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 10.5px/16px var(--plex);white-space:nowrap;cursor:pointer}
@@ -515,7 +515,7 @@ a{color:inherit;text-decoration:none}
 #legend i{display:block;width:22px;height:2px;font-style:normal}
 #legend i.n{background:repeating-linear-gradient(90deg,var(--new) 0 6px,transparent 6px 10px);background-size:20px 2px;animation:flowx .9s linear infinite}
 @keyframes flowx{to{background-position:20px 0}}
-#legend i.gone{background:repeating-linear-gradient(90deg,var(--text) 0 5px,transparent 5px 9px)}
+#legend i.gone{background:repeating-linear-gradient(90deg,var(--gone) 0 5px,transparent 5px 9px)}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
 /* on a map of decisions: amber waits on an answer, green is answered, plain is information; its own legend */
 .node.ask{border:1.5px solid var(--todo);background:#fffaeb}
@@ -767,7 +767,7 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <i class="tdiv"></i>
   <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg></span>
 </div>
-<div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✂ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
+<div id="legend" tabindex="0">Legend<div class="lc"><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
 <div class="panel" id="chat"></div>
@@ -1232,9 +1232,9 @@ const ICON = {
 };
 
 /* arrowheads, one per line colour */
-const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#141413' };
+const COL = { old: '#9b988f', new: '#2F6FE4', 'assumed-gone': '#D23B32' };
 const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" fill="${c}"/></marker>`).join('')}`
-  + `<marker id="x-gone" viewBox="0 0 16 16" refX="8" refY="8" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16"><circle cx="8" cy="8" r="8" fill="#fbfaf7"/><text x="8" y="8.5" text-anchor="middle" dominant-baseline="central" font-size="13" fill="#141413">✂</text></marker></defs>`;
+  + `<marker id="x-gone" viewBox="0 0 16 16" refX="8" refY="8" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16"><circle cx="8" cy="8" r="7" fill="#fbfaf7"/><path d="M4.5 4.5L11.5 11.5M11.5 4.5L4.5 11.5" stroke="#D23B32" stroke-width="2" stroke-linecap="round"/></marker></defs>`;
 const endOf = (k) => k === 'assumed-gone' ? 'url(#x-gone)' : `url(#a-${k})`;
 
 // out of one box, into the next: straight when they line up, one elbow otherwise
