@@ -83,10 +83,10 @@ export function readProject(root) {
   return { title: pkg.name || path.basename(root), desc: pkg.description || '', project: root, nodes, edges };
 }
 
-// The grid every box sits on: a 180-wide box keeps about 110 clear to its
-// neighbour and 90 above and below, so lines, arrows and labels run between
-// boxes instead of squeezing past them.
-export const COL = 290, ROW = 140;
+// The grid every box sits on: a 180-wide box keeps about 160 clear to its
+// neighbour and 150 above and below, so lines, arrows and labels run between
+// boxes with room to spare; the canvas is wide, so nothing is crammed.
+export const COL = 340, ROW = 200;
 
 // A grid where every line can run straight: the longest chain from the customer
 // is the top row; each other box goes next to what it talks to (a database
@@ -253,10 +253,10 @@ export function tidy(nodes, edges = []) {
 // other line is a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs.
 // Only the boxes in `shown` (all, without it) take room; what is folded away under a showing box lines up
 // beside it, ready for when it unfolds. False, and nothing moves, when no single box reaches them all.
-// Room: a box per 100px down (a two-line name stands 67px tall, so 33px stays clear, and a line's words fit
-// between two boxes); across, 150px between a column's widest box and the next, or more when the words on the
-// lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
-const SLOT = 100, GAP = 150, CHAR = 6.8;
+// Room: a box per 150px down (100px clear between two boxes, 83px under a two-line name, so a line's words
+// sit between them with air); across, 200px between a column's widest box and the next, or more when the
+// words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
+const SLOT = 150, GAP = 200, CHAR = 6.8;
 export function tidyTree(nodes, edges, shown = null) {
   const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
