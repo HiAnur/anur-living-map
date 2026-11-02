@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Living Map</title>
+<meta name="description" content="The map your engineers decide on and your AI agents build from. The agent's plan lands on the map before any code; your team confirms or disputes it in one click; the agent builds from what you agreed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  /* the page wears Anur's own face: true black, bone text, one indigo */
+  --bone:#edefe9; --mist:#b4b7b1; --dust:#7d8079; --nebula:#8a88f2; --rule-d:rgba(237,239,233,.12);
+  --sans:"Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --serif:"Fraunces", "Iowan Old Style", Georgia, serif;
+  --mono:"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  /* the map: a planning drawing on paper. Hue says what changes, dash says how sure */
+  --canvas:#fbfaf7; --box:#fff; --box-line:#d6d3cb; --line:#b9b6ae; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
+  --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.18);
+  --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --chg:#D9A400; --gone:#D23B32; --claude:#C96442; --good:#2a8a4f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#000;color:var(--bone);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:rgba(138,136,242,.35)}
+:focus-visible{outline:2px solid var(--nebula);outline-offset:3px;border-radius:4px}
+a{color:inherit}
+button{font:inherit;cursor:pointer}
+.shell{max-width:1160px;margin:0 auto;padding:0 24px}
+
+/* top */
+header{display:flex;align-items:center;gap:10px;padding:22px 0 0}
+header .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:500;letter-spacing:-.01em}
+header .brand i{width:22px;height:22px;border-radius:6px;background:var(--bone);display:grid;place-items:center}
+header .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#000;transform:rotate(45deg)}
+header .brand span{color:var(--mist);font-weight:400}
+header nav{margin-left:auto;display:flex;gap:4px}
+header nav a{color:var(--mist);text-decoration:none;font-size:14px;padding:10px 12px;border-radius:8px}
+header nav a:hover{color:var(--bone);background:rgba(237,239,233,.06)}
+
+/* hero: the headline, then the map. No paragraph between them */
+.hero{padding:64px 0 28px;display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap}
+h1{font:500 clamp(32px,4.6vw,52px)/1.08 var(--serif);letter-spacing:-.02em;text-wrap:balance;max-width:760px}
+.try{font-size:15px;color:var(--mist);white-space:nowrap;padding-bottom:6px}
+.try b{color:var(--bone);font-weight:500}
+
+/* the demo: the one lit thing on the page */
+#demo{position:relative;display:flex;height:660px;border-radius:14px;overflow:hidden;background:var(--canvas);color:var(--text);
+  box-shadow:0 0 0 1px rgba(237,239,233,.14),0 50px 140px -40px rgba(138,136,242,.4)}
+#demo *{font-variant-numeric:tabular-nums}
+
+/* the chat: the Claude Code pane beside the map */
+#chat{width:300px;flex:none;display:flex;flex-direction:column;background:#f4f3ed;border-right:1px solid #e3e1d8;font:13.5px/1.5 var(--sans);color:var(--text)}
+.chead{height:40px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid #e3e1d8;font-size:12.5px;color:#5c5a54}
+.chead .who{font-weight:500;color:var(--text)}
+.chead .br{color:#86837b;font:12px var(--mono)}
+#msgs{flex:1;overflow:hidden;padding:18px 16px 0;display:flex;flex-direction:column;gap:12px}
+.bubble{align-self:flex-end;max-width:92%;background:#e8e6de;border-radius:14px;padding:8px 12px;animation:fadein .3s ease-out}
+.msg{animation:fadein .3s ease-out}
+.src{display:flex;align-items:center;gap:6px;font:500 11px var(--sans);color:#6f6c64;margin-bottom:4px}
+.src i{width:6px;height:6px;border-radius:1.5px;background:var(--claude);transform:rotate(45deg)}
+.src i.map{background:#141413;border-radius:50%;transform:none}
+.msg p{text-wrap:pretty}
+.msg p + p{margin-top:6px}
+.msg .quiet{color:#6f6c64}
+.tools{margin-top:6px;display:flex;flex-direction:column;gap:3px;border-left:1px solid #d9d6cc;padding:2px 0 2px 10px}
+.tool{font-size:12.5px;display:flex;gap:8px;align-items:baseline}
+.tool .v{color:#4d4b45;font-weight:500;min-width:36px}
+.tool .p{font:12px var(--mono);color:#6f6c64}
+.tool .p s{text-decoration-color:rgba(210,59,50,.7)}
+.tool .x{font:11.5px var(--mono);color:#3f8f5f}
+.composer{flex:none;margin:12px 14px 14px;background:#fff;border:1px solid #dcd9d0;border-radius:14px;padding:10px 12px 8px}
+.field{min-height:21px}
+.ph{color:#8a877f}
+.crow{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:11.5px;color:#8a877f}
+.working{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8a877f}
+.spin{width:11px;height:11px;border:1.5px solid #dcd9d0;border-top-color:#141413;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+
+/* the map pane */
+#map{flex:1;min-width:0;display:flex;flex-direction:column;font-family:var(--sans)}
+#top{height:40px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--rule);font-size:13px;white-space:nowrap;overflow:hidden}
+#top b{font-weight:500}
+#status{color:var(--text-2);overflow:hidden;text-overflow:ellipsis}
+#status.wait{color:var(--text)}
+#status.wait::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--chg);margin-right:7px;vertical-align:1px}
+.faces{margin-left:auto;display:flex;flex:none}
+.face{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--sans);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-5px}
+.face.cl{background:var(--claude)}
+.face.off{opacity:.35}
+#canvas{flex:1;position:relative;overflow:hidden;background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#stage{position:absolute;left:0;top:0;width:960px;height:600px;transform-origin:0 0}
+.edges{position:absolute;left:0;top:0;width:960px;height:600px;overflow:visible}
+.edges path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .4s ease-out,stroke-dasharray .4s ease-out,opacity .3s ease-out}
+.edges .old{stroke:var(--line);stroke-width:1}
+.edges .new{stroke:var(--new)}
+.edges .gone{stroke:var(--gone);stroke-dasharray:5 4}
+.edges .bound{fill:rgba(0,0,0,.015);stroke:var(--rule);stroke-width:1}
+.edges .off{opacity:0}
+.blabel{position:absolute;font-size:12px;color:var(--text-3)}
+
+/* a box: grey as it runs today; ink once a plan proposes a change; dashed while an agent only assumed it */
+.node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;
+  background:var(--box);border:1px solid var(--box-line);border-radius:6px;transition:background .4s ease-out,border-color .4s ease-out,opacity .35s ease-out}
+.node::after{content:'';position:absolute;inset:-1px;border-radius:6px;border:1.5px dashed transparent;pointer-events:none;transition:border-color .4s ease-out}
+.node .n{font:500 13.5px/1.25 var(--sans);color:var(--text-2);white-space:nowrap}
+.node .s{font:12px/1.3 var(--sans);color:var(--text-2);white-space:nowrap;height:0;opacity:0;overflow:hidden;transition:opacity .3s ease-out,height .3s var(--ease)}
+.node .s.on{height:16px;opacity:1}
+.node.actor{width:110px;border-radius:999px;align-items:center}
+.node.ink .n{color:var(--text)}
+.node.new{border:1.5px solid var(--new);background:var(--new-tint)}
+.node.chg::before{content:'';position:absolute;top:-5px;right:-5px;width:10px;height:10px;border-radius:50%;background:var(--chg);box-shadow:0 0 0 3px var(--canvas)}
+.node.gone{border-color:transparent;background:none}
+.node.gone::after{border-color:var(--gone)}
+.node.gone .n{text-decoration:line-through;text-decoration-color:rgba(210,59,50,.7)}
+.node.kept{border:1.5px solid #141413}
+.node.settled{border:1px solid var(--box-line);background:var(--box);transition:border-color 1s ease-out,background 1s ease-out}
+.node.settled .n{color:var(--text-2)}
+.node.settled.kept{border:1px solid #141413}
+.lab{position:absolute;font:12px var(--sans);color:var(--text-2);white-space:nowrap;opacity:0;transition:opacity .35s ease-out}
+.lab.on{opacity:1}
+.lab.red{color:var(--gone)}
+.lab.blue{color:#2a5bbf;background:#eef3fd;border:1px solid rgba(47,111,228,.5);border-radius:6px;padding:3px 9px;transform:translate(-50%,-50%)}
+.lab.ok{color:var(--good);background:#eaf5ee;border:1px solid rgba(42,138,79,.45);border-radius:6px;padding:3px 9px;transform:translate(-50%,-50%)}
+.pin{position:absolute;width:24px;height:24px;transform:translate(-50%,-50%) scale(0);border-radius:50%;background:#141413;color:#fff;
+  display:grid;place-items:center;font:500 11px/1 var(--sans);transition:transform .3s var(--ease)}
+.pin.on{transform:translate(-50%,-50%) scale(1)}
+
+/* the strip: what waits on you, on top of the map and not scaled with it */
+#strip{position:absolute;left:16px;top:16px;width:min(360px,calc(100% - 32px));z-index:6;display:flex;flex-direction:column;gap:8px}
+.card{background:#fff;border:1px solid var(--rule);border-radius:10px;padding:12px 14px;box-shadow:0 8px 30px -14px rgba(0,0,0,.25);animation:drop .3s ease-out}
+.card.ask{animation:drop .3s ease-out,ring 1.6s ease-out .3s 2}
+@keyframes drop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+@keyframes ring{0%{box-shadow:0 0 0 0 rgba(217,164,0,.55),0 8px 30px -14px rgba(0,0,0,.25)}100%{box-shadow:0 0 0 14px rgba(217,164,0,0),0 8px 30px -14px rgba(0,0,0,.25)}}
+.card .ct{font:500 13.5px/1.4 var(--sans);color:var(--text);text-wrap:balance}
+.card .cf{font:13px/1.45 var(--sans);color:var(--text);margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);text-wrap:pretty}
+.card .cf .from{display:block;font:12px var(--mono);color:var(--text-3);margin-top:3px}
+.btns{display:flex;gap:6px;margin-top:10px}
+.gb{height:36px;padding:0 14px;display:inline-flex;align-items:center;border:1px solid var(--rule-2);border-radius:7px;font:500 13px var(--sans);color:var(--text);background:#fff;transition:background .15s,border-color .15s}
+.gb:hover{background:#f3f2ee;border-color:#141413}
+.gb.main{background:#141413;color:#fff;border-color:#141413}
+.gb.main:hover{background:#2a2a28}
+.card .done{font:12.5px var(--sans);color:var(--text-2);margin-top:8px}
+.card .done b{color:var(--text);font-weight:500}
+#legend{position:absolute;left:16px;bottom:14px;z-index:4;display:flex;gap:16px;font:12px var(--sans);color:var(--text-2);white-space:nowrap}
+#legend i{display:inline-block;width:22px;height:0;border-top:1.5px solid var(--text-2);vertical-align:middle;margin-right:6px}
+#legend i.n{border-top-color:var(--new)}
+#legend i.d{border-top-style:dashed;border-top-color:var(--gone)}
+#legend i.dot{width:8px;height:8px;border:0;border-radius:50%;background:var(--chg);margin-right:9px}
+
+/* under the demo: where the story stands, and the one button */
+#bar{display:flex;align-items:center;gap:16px;margin-top:14px;min-height:44px}
+#cap{font-size:17px;color:var(--bone);text-wrap:pretty}
+#cap b{font-weight:500}
+#cap .q{color:var(--mist)}
+#count{font:12.5px var(--mono);color:var(--dust);flex:none}
+#next{margin-left:auto;flex:none;height:44px;padding:0 18px;border-radius:9px;border:0;background:var(--bone);color:#000;font:500 14px var(--sans)}
+#next:hover{background:#fff}
+#next.quiet{background:transparent;color:var(--mist);border:1px solid var(--rule-d)}
+#next.quiet:hover{color:var(--bone);border-color:var(--mist)}
+#next[hidden]{display:none}
+
+/* below: three drawings, the outage as a drawing, the install */
+.shell > section{padding:80px 0 0}
+h2{font:500 clamp(24px,3vw,32px)/1.15 var(--serif);letter-spacing:-.015em;text-wrap:balance}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:28px}
+.tile{display:block}
+.tile svg{display:block;width:100%;height:auto;border-radius:12px;background:var(--canvas)}
+.tile h3{margin-top:12px;font:500 16px/1.3 var(--sans);letter-spacing:-.01em}
+.tile h3 span{display:block;font-weight:400;color:var(--mist);margin-top:2px}
+/* the drawings share the map's own vocabulary */
+.tile text{font-family:var(--sans);font-size:12.5px;fill:#6c6a64}
+.tile .ink{fill:#141413;font-weight:500}
+.tile .box{fill:#fff;stroke:#d6d3cb}
+.tile .new{fill:rgba(47,111,228,.07);stroke:#2F6FE4;stroke-width:1.5}
+.tile .gone{fill:none;stroke:#D23B32;stroke-width:1.5;stroke-dasharray:5 4}
+.tile .kept{fill:#fff;stroke:#141413;stroke-width:1.5}
+.tile .ln{fill:none;stroke:#b9b6ae}
+.tile .lnew{fill:none;stroke:#2F6FE4;stroke-width:1.5}
+.tile .lgone{fill:none;stroke:#D23B32;stroke-width:1.5;stroke-dasharray:5 4}
+.tile .red{fill:#D23B32}
+.tile .blue{fill:#2a5bbf}
+.tile .mono{font-family:var(--mono);font-size:11.5px;fill:#8e8b84}
+.tile .btn{fill:#fff;stroke:rgba(0,0,0,.18)}
+.tile .btnm{fill:#141413}
+.tile .btnt{fill:#141413;font-weight:500}
+.tile .btntm{fill:#fff;font-weight:500}
+.tile .pinc{fill:#141413}
+.tile .pint{fill:#fff;font-weight:500;font-size:11px}
+.tile .card{fill:#fff;stroke:rgba(0,0,0,.1)}
+.tile .bubble{fill:#e8e6de}
+.tile .claude{fill:#C96442}
+
+.why h2{max-width:720px}
+.why p{margin-top:14px;color:var(--mist);text-wrap:pretty;max-width:520px}
+.why .strip{margin-top:28px}
+.strip{display:flex;align-items:center;gap:0}
+.strip .st{flex:1;border:1px solid var(--rule-d);border-radius:10px;padding:16px 18px;min-height:84px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.strip .st b{font-weight:500;font-size:15px;letter-spacing:-.01em}
+.strip .st span{font-size:13px;color:var(--mist)}
+.strip .st.bad{border-color:rgba(210,59,50,.6)}
+.strip .st.bad b{color:#f06a62}
+.strip .ar{flex:none;width:28px;height:0;border-top:1px solid var(--dust);position:relative}
+.strip .ar::after{content:'';position:absolute;right:-1px;top:-4px;width:7px;height:7px;border-top:1px solid var(--dust);border-right:1px solid var(--dust);transform:rotate(45deg)}
+.strip .st .ok{color:var(--mist)}
+
+.get{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.get > div{min-width:0}
+.get p{margin-top:14px;color:var(--mist);text-wrap:pretty;max-width:440px}
+.get p a{color:var(--bone)}
+pre{background:#0d0d0d;border:1px solid var(--rule-d);border-radius:10px;padding:16px 18px;font:13px/1.7 var(--mono);color:var(--bone);overflow-x:auto}
+pre .c{color:var(--dust)}
+.links{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.links a{display:inline-flex;align-items:center;height:44px;padding:0 18px;border-radius:9px;text-decoration:none;font-size:14px;font-weight:500;border:1px solid var(--rule-d);color:var(--bone)}
+.links a.main{background:var(--bone);color:#000;border-color:var(--bone)}
+.links a:hover{border-color:var(--mist)}
+.links a.main:hover{background:#fff}
+footer{margin-top:88px;padding:26px 0 36px;border-top:1px solid var(--rule-d);display:flex;flex-wrap:wrap;gap:8px 24px;font-size:13.5px;color:var(--dust)}
+footer a{color:var(--dust);text-decoration:none}
+footer a:hover{color:var(--mist)}
+
+@media (max-width:900px){
+  .tiles{grid-template-columns:1fr}
+  .get{grid-template-columns:1fr;gap:28px}
+  .strip{flex-direction:column;align-items:stretch}
+  .strip .ar{width:0;height:24px;border-top:0;border-left:1px solid var(--dust);margin-left:24px}
+  .strip .ar::after{right:auto;left:-4px;top:auto;bottom:-1px;transform:rotate(135deg)}
+  #demo{flex-direction:column;height:auto}
+  #chat{width:auto;border-right:0;border-bottom:1px solid #e3e1d8;max-height:230px}
+  #msgs{padding-top:12px}
+  #map{flex:none;height:var(--maph,520px)}
+  #canvas{overflow:auto}
+  #bar{flex-wrap:wrap}
+  #next{margin-left:0;width:100%}
+}
+@media (max-width:600px){
+  .hero{padding-top:48px}
+  .try{white-space:normal}
+  .composer{display:none}
+  #chat{max-height:200px}
+  #legend{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <a class="brand" href="#"><i></i>Anur <span>Living Map</span></a>
+  <nav><a href="#how">How</a><a href="#why">Why</a><a href="#get">Get it</a></nav>
+</header>
+
+<div class="hero">
+  <h1>The map your engineers decide on and your AI agents build from.</h1>
+  <div class="try"><b>Try it:</b> Claude plans, you decide.</div>
+</div>
+
+<div id="demo">
+  <section id="chat" aria-label="Claude Code">
+    <div class="chead"><span class="who" id="cwho">You</span><span>acme-app</span><span class="br" id="cbr">⎇ pro-plan</span></div>
+    <div id="msgs"></div>
+    <div class="composer"><div class="field"><span class="ph" id="cph">Reply to Claude…</span></div><div class="crow"><span>Claude Code · plan mode</span><span>↑</span></div></div>
+  </section>
+  <section id="map" aria-label="Living Map">
+    <div id="top"><b>Living Map</b><span id="status">acme-app as it runs today, drawn from the repo</span>
+      <div class="faces" id="faces"><span class="face" title="You">Y</span><span class="face off" title="Priyanka">P</span><span class="face off" title="Sam">S</span><span class="face cl off" title="Claude">✳</span></div></div>
+    <div id="canvas">
+      <div id="sizer"></div>
+      <div id="stage">
+        <svg class="edges" id="edges" viewBox="0 0 960 600">
+          <path class="bound" d="M174 90H816Q830 90 830 104V516Q830 530 816 530H174Q160 530 160 516V104Q160 90 174 90Z"/>
+        </svg>
+        <div class="blabel" style="left:176px;top:100px">acme-app, production</div>
+        <div id="nodes"></div>
+        <div id="labs"></div>
+      </div>
+      <div id="strip"></div>
+      <div id="legend"><span><i></i>From the repo</span><span><i class="n"></i>Not built yet</span><span><i class="dot"></i>Something to do</span><span><i class="d"></i>An agent assumed it</span></div>
+    </div>
+  </section>
+</div>
+<div id="bar"><span id="count">1 of 5</span><span id="cap" aria-live="polite"></span><button id="next"></button></div>
+
+<section id="how">
+  <h2>Three things the map does that a chat can’t.</h2>
+  <div class="tiles">
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="A plan drawn on the system: two boxes in blue for new parts, one dashed red box the agent assumed could go">
+        <path class="ln" d="M110 70H150"/><path class="ln" d="M180 95V125"/><path class="lnew" d="M210 70H250"/><path class="lnew" d="M280 95V125"/>
+        <path class="lgone" d="M180 175H100Q92 175 92 167V95"/>
+        <rect class="box" x="40" y="45" width="70" height="50" rx="6"/><text x="52" y="74" class="ink">Web app</text>
+        <rect class="box" x="150" y="45" width="60" height="50" rx="6"/><text x="162" y="74" class="ink">Core</text>
+        <rect class="new" x="250" y="45" width="70" height="50" rx="6"/><text x="262" y="68" class="ink">Billing</text><text x="262" y="84">New</text>
+        <rect class="box" x="140" y="125" width="80" height="50" rx="6"/><text x="152" y="154" class="ink">Users DB</text>
+        <rect class="box" x="250" y="125" width="70" height="50" rx="6"/><text x="262" y="154" class="ink">Stripe</text>
+        <rect class="gone" x="40" y="160" width="140" height="40" rx="6"/><text x="52" y="184" class="ink" style="text-decoration:line-through">Renewal job</text>
+        <text x="190" y="206" class="red">assumed it can go</text>
+      </svg>
+      <h3>Before the code<span>The agent’s plan, drawn on your system.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="A card asks you to keep or let go of the renewal job; your answer appears in the agent's chat with your name and the date">
+        <rect class="card" x="30" y="24" width="300" height="104" rx="10"/>
+        <text x="46" y="50" class="ink">Claude assumed the renewal job can go.</text>
+        <text x="46" y="70">312 annual plans renew through it.</text>
+        <rect class="btnm" x="46" y="86" width="104" height="30" rx="6"/><text x="62" y="105" class="btntm">Keep the job</text>
+        <rect class="btn" x="158" y="86" width="78" height="30" rx="6"/><text x="174" y="105" class="btnt">Let it go</text>
+        <path class="ln" d="M98 128V150"/>
+        <circle class="claude" cx="36" cy="172" r="3"/><text x="46" y="176">Claude</text>
+        <text x="46" y="196" class="ink">From your map: keep the job.</text><text x="46" y="212" class="mono">You, Nov 2</text>
+      </svg>
+      <h3>Your call, on the record<span>One click. The agent hears it at once.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="A week later Sam's Claude reads your decision on the map before it plans">
+        <rect class="bubble" x="150" y="28" width="180" height="30" rx="10"/><text x="162" y="47" class="ink">Move renewals to Stripe.</text>
+        <circle class="pinc" cx="134" cy="43" r="11"/><text x="130" y="47" class="pint">S</text>
+        <path class="ln" d="M240 58V96"/>
+        <rect class="kept" x="110" y="96" width="150" height="50" rx="6"/><text x="124" y="118" class="ink">Renewal job</text><text x="124" y="136">keep for annual plans</text>
+        <circle class="pinc" cx="260" cy="96" r="11"/><text x="256" y="100" class="pint">Y</text>
+        <text x="110" y="172" class="mono">decided by You, Nov 2</text>
+        <circle class="claude" cx="116" cy="196" r="3"/><text x="126" y="200" class="ink">Sam’s Claude: I’ll leave it alone.</text>
+      </svg>
+      <h3>Every agent after reads it<span>The next session starts from what you agreed.</span></h3>
+    </div>
+  </div>
+</section>
+
+<section id="why" class="why">
+  <div>
+    <h2>You can outsource the thinking. You can’t outsource the understanding.</h2>
+    <p>September. One of our own AI agents. Nobody had seen what it assumed.</p>
+  </div>
+  <div class="strip" role="img" aria-label="An AI agent's pull request named simplify networking passed review, removed the overlay network, and took the system down for five hours">
+    <div class="st"><b>PR “simplify networking”</b><span>by an AI agent</span></div><i class="ar"></i>
+    <div class="st"><b>Review passed</b><span class="ok">and merged</span></div><i class="ar"></i>
+    <div class="st bad"><b>Overlay network removed</b><span>nobody saw it</span></div><i class="ar"></i>
+    <div class="st bad"><b>5 hours down</b><span>&nbsp;</span></div>
+  </div>
+</section>
+
+<section id="get" class="get">
+  <div>
+    <h2>Open source. Runs on your Mac, beside Claude Code.</h2>
+    <p>The shared team map is with our first teams now. <a href="mailto:duy@heyanur.ai">duy@heyanur.ai</a></p>
+    <div class="links"><a class="main" href="https://github.com/HiAnur/anur-living-map">GitHub</a><a href="mailto:duy@heyanur.ai">Talk to us</a></div>
+  </div>
+<pre><span class="c"># Node 22+ and Claude Code signed in</span>
+git clone https://github.com/HiAnur/anur-living-map.git ~/anur-living-map
+node ~/anur-living-map/live/server.js 4323 --project ~/code/your-repo
+claude mcp add --scope user living-map -- node ~/anur-living-map/live/mcp.js
+<span class="c"># then open http://localhost:4323/your-repo/</span></pre>
+</section>
+
+<footer><span>© 2026 Anur</span><a href="https://heyanur.ai">heyanur.ai</a><a href="https://github.com/HiAnur/anur-living-map">github.com/HiAnur/anur-living-map</a><span>MIT license</span></footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const W = 960, H = 600;
+const stage = $('stage'), sizer = $('sizer'), canvas = $('canvas'), mapEl = $('map'), msgs = $('msgs'), strip = $('strip'), edges = $('edges');
+const status = $('status'), cap = $('cap'), count = $('count'), nextb = $('next'), faces = $('faces');
+
+/* ---------- the system as it runs today ---------- */
+const N = {
+  customer:{x:85, y:190, l:'Customer', cls:'actor'},
+  web:     {x:245,y:190, l:'Web app'},
+  core:    {x:435,y:190, l:'Core API'},
+  billing: {x:670,y:190, l:'Billing', w:180},
+  email:   {x:245,y:340, l:'Email service'},
+  db:      {x:480,y:340, l:'Users DB'},
+  stripe:  {x:735,y:340, l:'Stripe', w:150},
+  renewal: {x:480,y:470, l:'Nightly renewal job', w:200},
+};
+const E = {
+  cw:{d:'M140 190H173'}, wc:{d:'M315 190H363'}, cd:{d:'M470 215V313'},
+  ce:{d:'M385 215V332Q385 340 377 340H317'},
+  re:{d:'M380 470H253Q245 470 245 462V367'},
+  rp:{d:'M580 470H727Q735 470 735 462V367'},
+  rd:{d:'M480 445V367'},
+  wb:{d:'M505 190H578', k:'new'}, bp:{d:'M668 215V313', k:'new'}, pb:{d:'M688 315V217', k:'new'},
+  bd:{d:'M620 215V332Q620 340 612 340H552', k:'new'},
+};
+for (const [id, n] of Object.entries(N)) {
+  const el = document.createElement('div');
+  el.className = 'node' + (n.cls ? ' ' + n.cls : ''); el.id = 'n-' + id;
+  el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; if (n.w) el.style.width = n.w + 'px';
+  el.innerHTML = `<span class="n">${n.l}</span><span class="s" id="s-${id}"></span>`;
+  $('nodes').appendChild(el);
+}
+for (const [id, e] of Object.entries(E)) {
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  p.setAttribute('d', e.d); p.id = 'e-' + id; p.setAttribute('class', e.k ? 'new off' : 'old');
+  edges.appendChild(p);
+}
+const LABS = {
+  assume:{x:480,y:515,t:'Claude assumed: nothing else needs it',cls:'red'},
+  agreed:{x:480,y:515,t:'Agreed: keep for annual plans. You, Nov 2',cls:''},
+  check: {x:670,y:250,t:'Checked #212 against the plan: matches',cls:'ok'},
+  block: {x:480,y:524,t:'#212 removes it. 312 customers renew through it. Blocked.',cls:'blue'},
+  sam:   {x:480,y:515,t:'Read by Sam’s Claude, Nov 9: kept',cls:''},
+};
+for (const [id, l] of Object.entries(LABS)) {
+  const el = document.createElement('div');
+  el.className = 'lab ' + l.cls; el.id = 'l-' + id; el.textContent = l.t;
+  el.style.left = l.x + 'px'; el.style.top = l.y + 'px';
+  if (!l.cls || l.cls === 'red') el.style.transform = 'translate(-50%,-50%)';
+  $('labs').appendChild(el);
+}
+const pin = document.createElement('div'); pin.className = 'pin'; pin.id = 'pin'; pin.textContent = 'Y';
+pin.style.left = '590px'; pin.style.top = '452px'; $('labs').appendChild(pin);
+
+/* ---------- helpers ---------- */
+const node = id => $('n-' + id), sub = id => $('s-' + id), edge = id => $('e-' + id), lab = id => $('l-' + id);
+function setSub(id, t){ const s = sub(id); s.textContent = t; s.classList.toggle('on', !!t); }
+function show(el, on=true){ el.classList.toggle('on', on); }
+function bubble(t){ const b = document.createElement('div'); b.className = 'bubble'; b.textContent = t; msgs.appendChild(b); trim(); }
+function claude(html, from='Claude'){
+  const m = document.createElement('div'); m.className = 'msg';
+  m.innerHTML = `<div class="src"><i class="${from === 'Claude' ? '' : 'map'}"></i>${from}</div>${html}`;
+  msgs.appendChild(m); trim(); return m;
+}
+function working(t){ const m = document.createElement('div'); m.className = 'msg working'; m.innerHTML = `<span class="spin"></span>${t}`; msgs.appendChild(m); trim(); return m; }
+function trim(){ while (msgs.scrollHeight > msgs.clientHeight && msgs.children.length > 1) msgs.firstElementChild.remove(); }
+function card(html, ask=false){ const c = document.createElement('div'); c.className = 'card' + (ask ? ' ask' : ''); c.innerHTML = html; strip.appendChild(c); return c; }
+function who(name, on){ for (const f of faces.children) if (f.title === name) f.classList.toggle('off', !on); }
+function setStatus(t, wait=false){ status.textContent = t; status.classList.toggle('wait', wait); }
+function tools(rows){ return '<div class="tools">' + rows.map(r => `<div class="tool"><span class="v">${r[0]}</span><span class="p">${r[1]}</span>${r[2] ? `<span class="x">${r[2]}</span>` : ''}</div>`).join('') + '</div>'; }
+let timers = [];
+function after(ms, fn){ timers.push(setTimeout(fn, ms)); }
+function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+
+/* ---------- the story ---------- */
+let step = 0, choice = null, idle = null;
+const PROMPT = 'Add a Pro plan billed through Stripe, and retire the nightly renewal job.';
+
+function reset(){
+  clearTimers(); clearTimeout(idle);
+  msgs.innerHTML = ''; strip.innerHTML = '';
+  for (const id in N) { node(id).className = 'node' + (N[id].cls ? ' ' + N[id].cls : ''); setSub(id, ''); }
+  for (const id in E) edge(id).setAttribute('class', E[id].k ? 'new off' : 'old');
+  for (const id in LABS) { show(lab(id), false); lab(id).textContent = LABS[id].t; }
+  show(pin, false);
+  nextb.onclick = () => go(1);
+  who('Priyanka', false); who('Sam', false); who('Claude', false); who('You', true);
+  $('cwho').textContent = 'You'; $('cbr').textContent = '⎇ pro-plan';
+  step = 0; choice = null;
+  bubble(PROMPT);
+  setStatus('acme-app as it runs today, drawn from the repo');
+  bar('You asked for a feature. <span class="q">Nothing is built yet.</span>', 'Let Claude plan ›');
+  // Claude plans by itself if you only watch
+  idle = setTimeout(() => { if (step === 0) go(1); }, 3500);
+}
+
+function bar(text, button, quiet=false){
+  cap.innerHTML = text; count.textContent = (step + 1) + ' of 5';
+  nextb.hidden = !button; nextb.textContent = button || ''; nextb.classList.toggle('quiet', quiet);
+}
+
+function go(to){
+  clearTimers(); clearTimeout(idle);
+  if (to === 1) plan();
+  else if (to === 2) build();
+  else if (to === 3) later();
+}
+
+/* 1: Claude's plan lands on the map, no code; the renewal job is a guess */
+function plan(){
+  step = 1; who('Claude', true);
+  bar('Claude plans on your system. <span class="q">No code yet.</span>', null);
+  const w = working('Claude is planning…');
+  setStatus('Claude is planning: no code yet');
+  after(900, () => {
+    w.remove();
+    claude(`<p>Here's my plan, on the map:</p>` + tools([
+      ['Add', 'Billing: Pro via Stripe'],
+      ['Change', 'Users DB: plan column'],
+      ['Retire', '<s>jobs/renew.ts</s>'],
+    ]) + `<p class="quiet">I'm assuming nothing else needs the renewal job once Stripe bills Pro.</p>`);
+    node('billing').classList.add('ink', 'new'); setSub('billing', 'New: Pro via Stripe');
+    node('db').classList.add('ink', 'chg'); setSub('db', '+ plan column');
+    for (const id of ['wb', 'bp', 'pb', 'bd']) edge(id).setAttribute('class', 'new');
+  });
+  after(1700, () => {
+    node('renewal').classList.add('ink', 'gone');
+    for (const id of ['re', 'rp', 'rd']) edge(id).setAttribute('class', 'gone');
+    show(lab('assume'));
+    bar('Dashed: <span class="q">Claude assumed it. Nobody said yes.</span>', null);
+  });
+  after(2500, () => {
+    setStatus('Waiting on you: 1 call', true);
+    const c = card(`<div class="ct">Claude assumed the nightly renewal job can go.</div>
+      <div class="cf">312 customers on annual plans renew through it.<span class="from">from the repo: jobs/renew.ts, data/plans.csv</span></div>
+      <div class="btns"><button class="gb main" id="keep">Keep the job</button><button class="gb" id="drop">Let it go</button></div>`, true);
+    $('keep').onclick = () => decide(c, 'keep');
+    $('drop').onclick = () => decide(c, 'drop');
+    bar('<b>Your call.</b>', null);
+  });
+}
+
+/* 2: you decide on the map; Claude hears it in its chat and builds from it */
+function decide(c, what){
+  choice = what; step = 2;
+  c.classList.remove('ask');
+  c.querySelector('.btns').remove();
+  c.insertAdjacentHTML('beforeend', `<div class="done"><b>${what === 'keep' ? 'Keep the job' : 'Let it go'}</b> · You, just now</div>`);
+  show(lab('assume'), false); show(pin);
+  if (what === 'keep') {
+    node('renewal').classList.remove('gone'); node('renewal').classList.add('kept');
+    for (const id of ['re', 'rp', 'rd']) edge(id).setAttribute('class', 'old');
+    show(lab('agreed'));
+    setStatus('Decided: keep the renewal job for annual plans');
+    claude(`<p>From your map: <b>keep the renewal job</b>, annual plans renew through it. Updating the plan: Stripe bills Pro, the job keeps renewing annual plans.</p>`, 'Living Map');
+    bar('Claude heard you. <span class="q">Nothing built on the guess.</span>', 'Build it ›');
+  } else {
+    setStatus('Decided: retire the renewal job');
+    claude(`<p>From your map: <b>retire the renewal job</b>. Building.</p>`, 'Living Map');
+    bar('Claude builds from your call. <span class="q">The map checks the code.</span>', 'Build it ›');
+  }
+  nextb.onclick = () => go(2);
+}
+
+/* 3: Claude builds; the map checks the pull request against the plan */
+function build(){
+  step = 3;
+  nextb.hidden = true;
+  const w = working('Claude is building…');
+  setStatus('Claude is building from the plan');
+  after(1200, () => {
+    w.remove();
+    if (choice === 'keep') {
+      claude(`<p>Built and tested.</p>` + tools([['Edit', 'services/billing/pro.ts', '+184'], ['Edit', 'db/migrations/012_plan.sql', '+9'], ['Keep', 'jobs/renew.ts'], ['Open', 'PR #212', 'tests pass']]));
+      show(lab('check'));
+      ['billing', 'db'].forEach(id => node(id).classList.add('settled'));
+      setStatus('#212 matches the plan: Pro via Stripe, the renewal job kept');
+      bar('Built. <span class="q">Checked against the plan: matches.</span>', 'A week later ›');
+      nextb.onclick = () => go(3);
+    } else {
+      claude(`<p>Built and tested.</p>` + tools([['Edit', 'services/billing/pro.ts', '+184'], ['Edit', 'db/migrations/012_plan.sql', '+9'], ['Delete', '<s>jobs/renew.ts</s>', '−212'], ['Open', 'PR #212', 'tests pass']]));
+      after(900, () => {
+        show(lab('block'));
+        setStatus('Waiting on you: #212 is blocked', true);
+        strip.innerHTML = '';
+        const c = card(`<div class="ct">#212 deletes the job 312 annual customers renew through.</div>
+          <div class="cf">Tests pass: nothing in them renews an annual plan. The merge waits for the team.<span class="from">PR #212, jobs/renew.ts, data/plans.csv</span></div>
+          <div class="btns"><button class="gb main" id="keep2">Keep the job after all</button><button class="gb" id="drop2">Retire it anyway</button></div>`, true);
+        bar('Review would pass this. <b>The map blocks it.</b>', null);
+        $('keep2').onclick = () => {
+          c.classList.remove('ask');
+          c.querySelector('.btns').remove();
+          c.insertAdjacentHTML('beforeend', `<div class="done"><b>Keep the job after all</b> · You, just now</div>`);
+          choice = 'keep';
+          show(lab('block'), false);
+          node('renewal').classList.remove('gone'); node('renewal').classList.add('kept');
+          for (const id of ['re', 'rp', 'rd']) edge(id).setAttribute('class', 'old');
+          show(lab('agreed'));
+          claude(`<p>From your map: <b>keep the renewal job</b>. Restoring jobs/renew.ts and updating #212.</p>`, 'Living Map');
+          after(900, () => {
+            claude(tools([['Restore', 'jobs/renew.ts'], ['Update', 'PR #212', 'tests pass']]));
+            show(lab('check')); ['billing', 'db'].forEach(id => node(id).classList.add('settled'));
+            setStatus('#212 matches the plan: Pro via Stripe, the renewal job kept');
+            bar('Restored. <span class="q">Checked again: matches.</span>', 'A week later ›');
+            nextb.onclick = () => go(3);
+          });
+        };
+        $('drop2').onclick = () => {
+          c.classList.remove('ask');
+          c.querySelector('.btns').remove();
+          c.insertAdjacentHTML('beforeend', `<div class="done"><b>Retire it anyway</b> · You, just now</div>`);
+          show(lab('block'), false);
+          lab('agreed').textContent = 'Decided: retire. You, Nov 2';
+          show(lab('agreed'));
+          claude(`<p>From your map: <b>retire the job anyway</b>. Merging #212.</p>`, 'Living Map');
+          setStatus('#212 merged: the renewal job retired, on your call');
+          bar('Merged, on your call. <span class="q">Your name and the date are on it.</span>', 'A week later ›');
+          nextb.onclick = () => go(3);
+        };
+      });
+    }
+  });
+}
+
+/* 4: a week later, a teammate's agent starts from what the team agreed */
+function later(){
+  step = 4;
+  nextb.hidden = true;
+  who('You', false); who('Sam', true);
+  $('cwho').textContent = 'Sam'; $('cbr').textContent = '⎇ stripe-renewals';
+  msgs.innerHTML = ''; strip.innerHTML = '';
+  show(lab('check'), false); show(lab('agreed'), false);
+  // shipped last week: the plan's ink has settled into the system
+  for (const id of ['billing', 'db']) { node(id).classList.remove('ink', 'new', 'chg', 'settled'); setSub(id, ''); }
+  for (const id of ['wb', 'bp', 'pb', 'bd']) edge(id).setAttribute('class', 'old');
+  bubble('Move all renewals to Stripe billing.');
+  setStatus('Sam’s laptop, Nov 9. Claude reads the map before it plans');
+  const w = working('Claude is reading the map…');
+  after(1100, () => {
+    w.remove();
+    if (choice === 'keep') {
+      claude(`<p>The map says the nightly renewal job stays: <b>annual plans renew through it</b>, decided by You on Nov 2. I'll leave it alone and move monthly renewals to Stripe.</p>` + tools([['Keep', 'jobs/renew.ts'], ['Add', 'Billing: monthly renewals via Stripe']]));
+      show(lab('sam')); node('renewal').classList.add('kept');
+      setStatus('Sam’s Claude planned from your decision: the renewal job stays');
+      bar('A week later, Sam’s Claude read your call first. <span class="q">Nobody asked you.</span>', 'Start over', true);
+    } else {
+      claude(`<p>The map says the nightly renewal job was retired on Nov 2, by You, with 312 annual plans on it. Before I move renewals to Stripe: <b>are those 312 renewing anywhere today?</b></p>`);
+      lab('sam').textContent = 'Read by Sam’s Claude, Nov 9: retired by You, 312 plans open'; show(lab('sam'));
+      setStatus('Sam’s Claude read your decision and asked before building');
+      bar('A week later, Sam’s Claude read your call first, <span class="q">and asked what it left open.</span>', 'Start over', true);
+    }
+    nextb.onclick = reset;
+  });
+}
+
+// the keys step the story only while the demo is on screen; elsewhere Space scrolls
+const onScreen = () => { const r = $('bar').getBoundingClientRect(); return r.bottom > 0 && r.top < window.innerHeight; };
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input,textarea')) return;
+  if (!onScreen()) return;
+  if ((e.key === 'ArrowRight' || e.key === ' ') && !nextb.hidden && document.activeElement !== nextb) { e.preventDefault(); nextb.click(); }
+});
+
+/* the drawing scales to the pane; the strip and the legend do not */
+function fit(){
+  const narrow = window.matchMedia('(max-width:900px)').matches;
+  const pw = canvas.clientWidth;
+  if (narrow) {
+    const s = Math.max(pw / W, .58);
+    mapEl.style.setProperty('--maph', Math.round(H * s + 40) + 'px');
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = '0px'; stage.style.top = '0px';
+    sizer.style.width = Math.round(W * s) + 'px'; sizer.style.height = Math.round(H * s) + 'px';
+    strip.style.width = 'calc(100% - 32px)';
+  } else {
+    const ph = canvas.clientHeight;
+    const s = Math.min(pw / W, ph / H);
+    stage.style.transform = `scale(${s})`;
+    stage.style.left = Math.round((pw - W * s) / 2) + 'px';
+    stage.style.top = Math.round((ph - H * s) / 2) + 'px';
+    strip.style.width = '';
+    sizer.style.width = sizer.style.height = '';
+  }
+}
+window.addEventListener('resize', fit);
+fit(); requestAnimationFrame(fit);
+reset();
+</script>
+</body>
+</html>
