@@ -287,8 +287,8 @@ function openMap({ project = '', name = '', home }) {
 
   // what Claude reads to answer on a box: who asks, the box, the map as far as the asker can see it, the thread so far
   const seesOf = (by) => state.people?.find((p) => p.id === by)?.sees || 'all';
-  // main: the person's main chat as it is now, when the question comes from a box chat beside it
-  function askPrompt(by, n, q, before, main = null) {
+  // side: the question comes from the box's side chat, which reads the map and the box, never anyone's own chat
+  function askPrompt(by, n, q, before, side = false) {
     const person = state.people?.find((p) => p.id === by), sees = seesOf(by);
     const nodes = allNodes().filter((x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((x) => x.id));
     const label = (id) => nodeOf(id)?.label || id;
@@ -305,7 +305,7 @@ function openMap({ project = '', name = '', home }) {
         : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));
     return [
       `You answer a question asked on Living Map, a map a team and its coding agents plan on together. This map is "${state.title}"${state.prompt ? `, drawn for "${state.prompt}"` : ''}.`,
-      main ? `${by}${person?.role ? ` (${person.role})` : ''} asked in the side chat on the box "${n.label}", where they brainstorm and refine that box without filling their main chat. You see their main chat for context; it does not see this one.`
+      side ? `${by}${person?.role ? ` (${person.role})` : ''} asked in the side chat on the box "${n.label}", where they brainstorm and refine that box from what is on the map.`
         : `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
       'Lead with the answer, in plain words and at most about 120 words: no headings, no tables, no file paths unless asked.',
       project ? 'Read the project files in your working folder when the question needs them.' : 'Answer from the map below.',
@@ -325,8 +325,7 @@ function openMap({ project = '', name = '', home }) {
       '', `## Every box${sees === 'all' ? '' : ` ${by} can see (their access covers ${sees})`}`, ...nodes.map(box),
       lines.length ? ['', '## Lines between boxes', ...lines] : [],
       calls.length ? ['', '## Questions on the map', ...calls] : [],
-      main?.length ? ['', `## ${by}'s main chat so far`, ...main.map((m) => `${m.who}${m.about ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
-      before.length ? ['', `## Earlier in this ${main ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !main ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
+      before.length ? ['', `## Earlier in this ${side ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !side ? ` (about ${label(m.about)})` : ''}: ${m.text}`)] : [],
       '', '## The question', q,
     ].flat().join('\n');
   }
@@ -500,7 +499,6 @@ function openMap({ project = '', name = '', home }) {
       const side = Boolean(a.side && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
       const t = (state.threads[key] ??= []), q = String(a.text).slice(0, 400);
       const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
-      const main = side ? (state.threads[`@${a.by}`] || []).filter((m) => !m.staged && !m.thinking).slice(-30) : null;
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
       state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: a.text });
       // the scripted demo answers from its seed; a project's map or a named one asks Claude
@@ -518,7 +516,7 @@ function openMap({ project = '', name = '', home }) {
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
-      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, main),
+      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side),
         onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
           clearTimeout(soon); delete msg.thinking; msg.text = withoutBlock(text); msg.at = stamp();

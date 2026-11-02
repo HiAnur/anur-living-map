@@ -277,10 +277,6 @@ button,input{font:inherit;color:inherit}
 .d-prop{margin:-2px 0 10px;font-size:12.5px;color:var(--new)}
 .d-said{margin-top:8px;font-size:13px;color:var(--text)}
 /* an answered question in History: the answer under it, More for the rest */
-.d-pick{display:flex;flex-direction:column;gap:5px;margin:6px 0 6px}
-.d-po{padding:7px 10px;border:1px solid var(--rule);border-radius:8px;font-size:13.5px;color:var(--text-3)}
-.d-po.on{border-color:rgba(46,139,87,.55);background:#e8f4ec;color:#145c3a;font-weight:600}
-.d-po span{display:block;margin-top:2px;font-weight:400;color:var(--text)}
 .d-ans{font-size:13.5px;margin:-2px 0 4px}.d-ans b{font-weight:600}.d-ans span{color:var(--text-2)}
 .d-more{margin-left:10px;color:var(--new);font-weight:500;cursor:pointer}
 .d-morel{margin-top:8px;font-size:12.5px}.d-morel .d-more{margin-left:0}
@@ -1250,17 +1246,22 @@ function renderSide(){
       <div class="d-morel"><span class="d-more" data-more="c:${c.id}">${more ? 'Less' : 'More'}</span></div>
     </div>`;
   };
-  // an answered question in History: the question, then the answers there were, the picked one green with what the
-  // person wrote; an own answer is one more choice, Other, picked, with their words
+  // an answered question in History, short: the question and what was decided; More opens why it was asked,
+  // the answers there were to pick from, and what the person said
   const decided = (c) => {
-    const opts = c.options?.length ? c.options.map((o) => ({ label: o.label, on: c.pickedId === o.id }))
-      : [{ label: 'Yes', on: c.status === 'confirmed' }, { label: 'No', on: c.status === 'disputed' }];
-    if (c.pickedId === 'other') opts.push({ label: 'Other', on: true });
-    const words = c.pickedId === 'other' ? c.picked : c.said && c.said !== c.picked ? c.said : '';
+    const agent = c.from === 'Codex' ? 'Codex' : 'Claude', opts = c.options || [], more = histOpen.has(c.id);
+    const meant = c.status === 'confirmed' ? c.yes : c.status === 'disputed' ? c.no : c.pickedId === 'other' ? `“${prose(c.picked)}”` : '';
     return `<div class="d done">
       <div class="d-q">${c.ask || c.text}</div>
-      <div class="d-pick">${opts.map((o) => `<div class="d-po ${o.on ? 'on' : ''}">${o.on ? '✓ ' : ''}${prose(o.label)}${o.on && words ? `<span>“${prose(words)}”</span>` : ''}</div>`).join('')}</div>
-      <div class="d-who">${c.by}, ${c.at}</div>
+      <div class="d-ans"><b>${ans(c)}</b>${meant ? `<span> · ${meant}</span>` : ''}</div>
+      <div class="d-who">${c.by}, ${c.at}<span class="d-more" data-hist-more="${c.id}">${more ? 'Less' : 'More'}</span></div>
+      ${more ? `<div class="d-x">
+        <div class="d-who">${agent} asked ${c.for === ME ? 'you' : c.for}</div>
+        ${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}
+        ${opts.length ? `<div class="d-opts">${opts.map((o) => `<div class="d-opt ${c.pickedId === o.id ? 'picked' : ''}"><b>${o.label}</b>${o.means ? `<span>${o.means}</span>` : ''}</div>`).join('')}</div>`
+          : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
+        ${c.said && c.pickedId !== 'other' ? `<div class="d-said">“${prose(c.said)}”</div>` : ''}
+      </div>` : ''}
     </div>`;
   };
   const answered = calls.filter((c) => c.status !== 'open').reverse();
@@ -1475,15 +1476,14 @@ function renderMem(){
     ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map. Ask Claude to make something a rule.')}
     ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date. Ask Claude to remember something.')}`;
 }
-// what a Side Chat reads before each answer, shown as chips in its input box: the whole map, this box, and your earlier
-// chat on the map when there is one; hovering a chip says what is in it
+// what a Side Chat reads before each answer, shown as chips in its input box: the whole map and this box; hovering a
+// chip says what is in it
 const attached = (n) => {
-  const rules = (S.memory || []).filter((m) => m.box === n.id), main = (S.threads?.[`@${ME}`] || []).filter((m) => !m.staged && !m.thinking);
+  const rules = (S.memory || []).filter((m) => m.box === n.id);
   const seen = S.nodes.filter(canSee).length, done = S.calls.filter((c) => c.status !== 'open').length;
   const chip = (icon, label, title) => `<span class="att-c" title="${prose(title)}">${icon}${prose(label)}</span>`;
   return `<div class="att-row">${chip('▦', `${S.title} · ${seen} boxes`, `The whole map: ${seen} boxes and their notes, the lines between them, ${done} answered questions, its Instructions and Memory`)}${
-    chip('▢', `${n.label}${rules.length ? ` · ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}` : ''}`, `This box: its notes, what Claude found${rules.length ? `, and ${rules.length === 1 ? 'its rule' : 'its rules'}: ${rules.map((m) => m.text).join('; ')}` : ''}`)}${
-    main.length ? chip('✳', `Your map chat · ${main.length}`, `Your earlier chat on this map, last at ${main.at(-1).at}`) : ''}</div>`;
+    chip('▢', `${n.label}${rules.length ? ` · ${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}` : ''}`, `This box: its notes, what Claude found${rules.length ? `, and ${rules.length === 1 ? 'its rule' : 'its rules'}: ${rules.map((m) => m.text).join('; ')}` : ''}`)}</div>`;
 };
 /* the rail's Side Chats: every box you have a side chat on (threads['@Duy>rivals']), the newest started first, with
    the last thing you asked; a click opens the box on its Side Chat tab, and Back comes here */
