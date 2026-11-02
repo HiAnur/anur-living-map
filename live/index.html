@@ -1194,7 +1194,9 @@ const defsHtml = `<defs>${Object.entries(COL).map(([k, c]) => `<marker id="a-${k
 // by side join left-to-right with one jog in the gap; boxes mostly above each
 // other join bottom-to-top the same way. So a line never runs along a box edge
 // or arrives where another line already does.
-function route(a, b, dup, others = []){
+function route(a, b, dup, others = []){ return routePts(a, b, dup, others).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(''); }
+// a line's corner points, so its words can be put where no other line runs
+function routePts(a, b, dup, others = []){
   // two lines between the same boxes sit 7px either side of the middle
   const off = dup === null ? 0 : dup ? 7 : -7;
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -1216,8 +1218,7 @@ function route(a, b, dup, others = []){
       && Math.max(y1, y2) > n.y - HT(n) / 2 - 4 && Math.min(y1, y2) < n.y + HT(n) / 2 + 4).length;
   }, 0);
   const first = Math.abs(dx) >= Math.abs(dy) ? side() : updown(), second = Math.abs(dx) >= Math.abs(dy) ? updown() : side();
-  const pts = blocked(first) && blocked(second) < blocked(first) ? second : first;
-  return pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
+  return blocked(first) && blocked(second) < blocked(first) ? second : first;
 }
 
 // A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
@@ -1240,8 +1241,31 @@ function curve(a, b, cx){
   const sx = a.x + dir * W(a) / 2, tx = column ? b.x + dir * (W(b) / 2 + 2) : b.x - dir * (W(b) / 2 + 2);
   const bow = column ? Math.min(64, 32 + Math.abs(b.y - a.y) / 8) : Math.max(40, Math.abs(tx - sx) / 2);
   const c1 = [sx + dir * bow, a.y], c2 = [column ? tx + dir * bow : tx - dir * bow, b.y];
-  return { d: `M${sx} ${a.y}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${tx} ${b.y}`,
-    mid: [(sx + 3 * c1[0] + 3 * c2[0] + tx) / 8, (a.y + 3 * c1[1] + 3 * c2[1] + b.y) / 8] };
+  const at = (t) => { const u = 1 - t; return [u * u * u * sx + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * tx, u * u * u * a.y + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * b.y]; };
+  return { d: `M${sx} ${a.y}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${tx} ${b.y}`, mid: at(.5), pts: Array.from({ length: 17 }, (_, i) => at(i / 16)) };
+}
+
+// A line's words never sit where another line runs: they go on a stretch that is the line's own, the way
+// "Charge $99" sits on its own run with the corner clear of it, and never on a stem two lines share or a
+// crossing. Each candidate is a box of the words' size; the first that no other line, box or words touch wins.
+function placeWords(labels, lines, nodes){
+  const segs = lines.flatMap((l) => l.pts.slice(1).map((q, i) => ({ id: l.id, p: l.pts[i], q })));
+  const boxes = nodes.map((n) => [n.x - W(n) / 2, n.y - HT(n) / 2, n.x + W(n) / 2, n.y + HT(n) / 2]);
+  const inR = (x, y, r) => x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3];
+  const hitsSeg = ({ p, q }, r) => { const n = Math.max(1, Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / 3));
+    for (let i = 0; i <= n; i++) if (inR(p[0] + (q[0] - p[0]) * i / n, p[1] + (q[1] - p[1]) * i / n, r)) return true; return false; };
+  const over = (r, s) => r[0] < s[2] && r[2] > s[0] && r[1] < s[3] && r[3] > s[1];
+  const taken = [];
+  return labels.map((L) => {
+    const w = L.text.length * 6.6 + 12, rect = ([x, y]) => [x - w / 2, y - 10, x + w / 2, y + 10];
+    const free = (pt) => { const r = rect(pt); return !segs.some((s) => s.id !== L.id && hitsSeg(s, r)) && !boxes.some((b) => over(r, b)) && !taken.some((t) => over(r, t)); };
+    // along the line's own stretches, longest first, from the middle of each outwards
+    const runs = L.pts.slice(1).map((q, i) => [L.pts[i], q]).sort((s, t) => Math.hypot(t[1][0] - t[0][0], t[1][1] - t[0][1]) - Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]));
+    const along = runs.flatMap(([p, q]) => [.5, .35, .65, .2, .8].map((f) => [p[0] + (q[0] - p[0]) * f, p[1] + (q[1] - p[1]) * f]));
+    const at = [L.first, ...along].find(free) || L.first;
+    taken.push(rect(at));
+    return { ...L, at };
+  });
 }
 
 function render(){
@@ -1256,6 +1280,7 @@ function render(){
   // lines
   // the lines' words go in after every line, so no other line runs across them
   let svg = '', words = '';
+  const lines = [], labels = [];
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
   for (const e of edges){
@@ -1269,10 +1294,13 @@ function render(){
     if (cross?.links.has(`${e.from}>${e.to}`)){
       const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
       svg += `<path class="${kc} ${quiet ? 'faint' : ''}" d="${c.d}" marker-end="url(#a-${kc === 'cross' ? 'old' : k})"/>`;
-      if (e.label) words += `<rect class="gap" x="${c.mid[0]}" y="${c.mid[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${kc}" x="${c.mid[0]}" y="${c.mid[1]}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
+      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
       continue;
     }
-    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${route(a, b, dup, nodes)}" marker-end="url(#a-${k})"/>`;
+    const pts = routePts(a, b, dup, nodes);
+    lines.push({ id: `${e.from}>${e.to}`, pts });
+    svg += `<path class="${k} ${quiet ? 'faint' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="url(#a-${k})"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
@@ -1284,9 +1312,11 @@ function render(){
       const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
       const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
       const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
-      words += `<rect class="gap" x="${mx}" y="${my - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${k}" x="${mx}" y="${my}" text-anchor="middle" dominant-baseline="central">${e.label}</text>`;
+      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my] });
     }
   }
+  for (const L of placeWords(labels, lines, nodes))
+    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}" x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
   edgesEl.innerHTML = defsHtml + svg + words;
   // the gap is as wide as the words, measured, plus a little air
   for (const r of edgesEl.querySelectorAll('rect.gap')){
