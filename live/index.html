@@ -195,7 +195,13 @@ button,input{font:inherit;color:inherit}
 #queue{left:16px;top:60px;width:360px;padding:12px 14px}
 #side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
-#side.on.info{display:flex;flex-direction:column}
+#side.on.info{display:flex;flex-direction:column;overflow:hidden}
+/* on Information the card stays still, one scrollbar only: its notes take the height they need, the Side Chat fills
+   the rest and its messages scroll, the newest at the bottom, the input under them */
+#side.info .info-body,#side.info .refs{flex:none}
+#side.info .sc-sec{flex:1 1 0;min-height:0;display:flex;flex-direction:column}
+#side .sc-msgs{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}
+#side .sc-msgs > :first-child{margin-top:auto}
 #side .refs{padding-bottom:4px}
 /* the Side Chat at the bottom of Information, under a divider with its name */
 #side .sc-sec{margin-top:auto;padding-top:22px}
@@ -1397,14 +1403,15 @@ function renderSide(){
   // each time you ask, so it knows what you said there; what you say here stays on this box and never fills the main chat.
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
-  const chat = `${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}
+  const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
+      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow">${attached(n)}<button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // two tabs: Information (what the box is and what is open on it, then its Side Chat under a divider) and Decision
   // history (what was answered); ✳ Side Chat beside × goes down to the Side Chat, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   // on Information the panel is a column, so Claude references can sit on its bottom edge
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat');
+  const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : `<div class="info-body">
@@ -1438,10 +1445,9 @@ function renderSide(){
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}</div>
     ${n.fact ? `<div class="refs"><div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></div>` : ''}
     <div class="sc-sec"><div class="sc-div"><span>Side Chat${asked ? ` · ${asked}` : ''}</span></div>${chat}</div>`}`;
-  // one scroll for the whole card: opening a box with a Side Chat, or a new message in it, scrolls down to the newest
-  // message; the box's information is above it, a scroll up
-  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`;
-  if (sideTab === 'box' && seen !== sideSeen){ if (sideT.length) el.scrollTop = el.scrollHeight; sideSeen = seen; }
+  // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
+  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
+  if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
 
 // the change a proposed box comes with, as its Apply card: from your chats on the map, or the Claude Code chat linked for you
@@ -1868,7 +1874,7 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
-  else if (t.closest('[data-chat-box]')){ sideTab = 'box'; render(); $('side').scrollTop = $('side').scrollHeight; $('side').querySelector('form[data-ask] input')?.focus(); }
+  else if (t.closest('[data-chat-box]')){ sideTab = 'box'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('form[data-ask] input')?.focus(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
   else if (t.closest('[data-more]')){ const k = t.closest('[data-more]').dataset.more; infoMore.has(k) ? infoMore.delete(k) : infoMore.add(k); render(); if (k.startsWith('o:') && infoMore.has(k)) $(`other-${k.slice(2)}`)?.focus(); }
@@ -1915,7 +1921,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
-  else if (t.closest('[data-scopen]')){ const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'box'; backTo = 'sidechats'; render(); $('side').scrollTop = $('side').scrollHeight; centerOn(id); } }
+  else if (t.closest('[data-scopen]')){ const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'box'; backTo = 'sidechats'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; centerOn(id); } }
   else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; render(); $('mem-in')?.focus(); }
   else if (t.closest('[data-forget]')){ act('forget', { id: t.closest('[data-forget]').dataset.forget }); }
   // a box's name in Decisions opens that box on its History tab
