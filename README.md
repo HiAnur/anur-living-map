@@ -10,6 +10,10 @@ The live, shared version (pan, drag, click a box, Confirm or Dispute from a queu
 - **Next ›** or **→** / **Space**: one step forward. **‹ Back** or **←** / **Backspace**: one step back.
 - Nothing moves until you click. Each click plays one step, then waits.
 
+## Site (`site/index.html`)
+
+The landing page for Living Map, with the plan-first story as an interactive demo: the visitor is the engineer. Claude plans on the map by itself (after 5 seconds, or on the button); the one call it can't make, keep or retire the nightly renewal job, is the visitor's. Each answer branches: keep it, and Claude builds from that; let it go, and the map blocks the merge of the pull request that deletes it, and asks again. Both end a week later on Sam's laptop, where Sam's Claude reads the decision from the map before it plans. Open the file in a browser; no build, no server.
+
 ## Scenario 1 (`index.html`)
 
 1. The app as a mind map: what is built, and the decision the team made on each part.
