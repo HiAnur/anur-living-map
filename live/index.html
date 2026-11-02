@@ -48,7 +48,7 @@ button,input{font:inherit;color:inherit}
 #crumbs .sep{color:var(--text-3)}
 #ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;display:flex;align-items:center;justify-content:flex-end;gap:8px}
 /* the plan's line in the top bar: its pull request, and Execute, which turns on once nothing waits on anyone */
-.prchip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border:1px solid var(--rule-2);border-radius:999px;background:#fff;font:500 11.5px var(--plex);color:var(--text-2);cursor:pointer;white-space:nowrap}
+.prchip{display:inline-block;height:24px;line-height:22px;max-width:320px;padding:0 10px;border:1px solid var(--rule-2);border-radius:999px;background:#fff;font:500 11.5px var(--plex);color:var(--text-2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prchip.draft{border-style:dashed}
 .prchip.open{color:var(--new);border-color:var(--new)}
 .prchip.merged{color:var(--ok);border-color:var(--ok)}
@@ -64,7 +64,6 @@ button,input{font:inherit;color:inherit}
 .xwrap{position:relative;display:inline-flex}
 .xwrap[data-tip]{cursor:not-allowed}
 .xwrap[data-tip]:hover::after{content:attr(data-tip);position:absolute;right:0;bottom:calc(100% + 8px);width:max-content;max-width:280px;padding:7px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;color:var(--text);font:500 12px/1.35 var(--plex);white-space:normal;box-shadow:0 2px 10px rgba(0,0,0,.12);pointer-events:none;z-index:50}
-.xwait{font:12px var(--plex);color:var(--text-2);white-space:nowrap}
 .xdone{font:500 12.5px var(--plex);color:var(--new);white-space:nowrap}
 #ticket b{color:var(--text);font-weight:500}
 .faces{display:flex;align-items:center;gap:8px}
@@ -1460,25 +1459,35 @@ function renderShare(){
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
-// A plan's line: Execute, which stays off while any question on the map is open and says whom it waits on; only
-// the map's admin can press it, and then the chat that drew the plan builds it on a branch. Once that chat posts
-// the branch with its checks, the line says Built beside it: "Branch · 3/3 ✓", or "PR #12" when it went to GitHub.
+// The plan's code, top right beside the people: where it stands at every step, so nobody has to ask.
+// Before Execute nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
+// branch with its checks, the chip names it and how many checks passed ("Branch stripe-renewals · 2/2 ✓",
+// or "PR #12 · 2/2 ✓" when it went to GitHub), and opens the Pull requests panel.
+function prChip(){
+  if (!S.prompt && !S.owner) return '';
+  const pr = (S.prs || []).find((p) => p.id === S.pr);
+  if (pr){
+    const ok = pr.checks.filter((c) => c.ok).length, checks = pr.checks.length ? ` · ${ok}/${pr.checks.length} ✓` : '';
+    return `<button class="prchip ${pr.status}" data-prs title="${esc(`${pr.title ? `${pr.title}: ` : ''}${pr.url ? `pull request ${pr.id}` : `branch ${pr.id}`}. Click for its checks and files`)}">${pr.url ? `PR ${esc(pr.id)}` : `Branch ${esc(pr.id)}`}${checks}</button>`;
+  }
+  return S.executed ? '<span class="prchip none" title="Claude Code is building the plan on a new branch from main">Building on a branch…</span>'
+    : '<span class="prchip none" title="Nothing is built yet. Execute on Claude builds the plan on a branch from main">No branch yet · main unchanged</span>';
+}
+
+// A plan's line, bottom right: Execute, which stays off while any question on the map is open and says whom it
+// waits on; only the map's admin can press it, and then the chat that drew the plan builds it on a branch.
 function planBar(){
   if (!S.prompt && !S.owner) return '';
   const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
   const pr = (S.prs || []).find((p) => p.id === S.pr);
-  const ok = pr ? pr.checks.filter((c) => c.ok).length : 0, checks = pr?.checks.length ? ` · ${ok}/${pr.checks.length} ✓` : '';
-  const chip = !pr ? '' : `<button class="prchip ${pr.status}" data-prs title="${esc(pr.url ? pr.title || '' : `${pr.title ? `${pr.title}, ` : ''}on the branch ${pr.id}`)}">${pr.url ? `PR ${esc(pr.id)}` : 'Branch'}${checks}</button>`;
   const admin = S.people.find((p) => p.id === ME)?.role === 'Admin';
-  if (S.executed) return chip + `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
-  // a plan that isn't done can't run: the reason sits beside the button in words, and hovering the button says
-  // it straight away (a box above it, not the browser's slow tooltip)
+  if (S.executed) return `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
+  // a plan that isn't done can't run: hovering the button says why straight away (a box above it, not the
+  // browser's slow tooltip), so the button stands alone
   const n = open.length, chief = S.people.find((p) => p.role === 'Admin')?.id || 'the admin';
-  const why = n ? `Plan not done · ${n} question${n === 1 ? '' : 's'} waiting on ${waiting.join(', ') || 'an answer'}` : admin ? '' : `Only ${chief} can execute`;
   const tip = n ? `Not ready to execute yet: ${n === 1 ? 'a question is' : `${n} questions are`} still open. It turns on once ${waiting.join(' and ') || 'everyone'} answer${waiting.length === 1 ? 's' : ''}.`
     : admin ? '' : `Ready, but only ${chief} can execute.`;
-  return chip + (why ? `<span class="xwait">${esc(why)}</span>` : '')
-    + `<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}><button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>✳ Execute on Claude</button></span>`;
+  return `<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}><button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>✳ Execute on Claude</button></span>`;
 }
 
 function renderTop(){
@@ -1501,7 +1510,7 @@ function renderTop(){
   if (db){ back.dataset.dback = ''; back.textContent = `‹ Back to ${up ? up.label : 'the map'}`; }
   else if (fb){ back.dataset.enter = inside.id; back.textContent = `‹ Back to ${inside.label}`; }
   else if (inside){ back.dataset.v = 'system'; back.textContent = '‹ Back to the map'; }
-  $('ticket').innerHTML = '';
+  $('ticket').innerHTML = prChip();
   $('plan').innerHTML = planBar();
   document.title = `Living Map · ${S.title}`;
   renderSave();
