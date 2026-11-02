@@ -1435,16 +1435,15 @@ function renderShare(){
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
-// A plan's line: its pull request (a draft that holds the plan while it waits), then Execute. Execute stays off
-// while any question on the map is open and says whom it waits on; only the map's admin can press it, and then
-// the chat that drew the plan builds it. Once that chat opens the PR for review, the line says Built.
+// A plan's line: Execute, which stays off while any question on the map is open and says whom it waits on; only
+// the map's admin can press it, and then the chat that drew the plan builds it on a branch. Once that chat posts
+// the branch with its checks, the line says Built beside it: "Branch · 3/3 ✓", or "PR #12" when it went to GitHub.
 function planBar(){
   if (!S.prompt && !S.owner) return '';
   const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
   const pr = (S.prs || []).find((p) => p.id === S.pr);
-  // a pull request with no address is local: the plan's branch in a repo with no GitHub copy
-  const chip = pr ? `<button class="prchip ${pr.status}" data-prs title="${esc(pr.url ? pr.title || '' : `${pr.title ? `${pr.title}, ` : ''}on the branch ${pr.id}, not on GitHub`)}">${pr.url ? `PR ${esc(pr.id)}` : 'Local PR'} · ${esc(pr.status)}</button>`
-    : '<span class="prchip none" title="The chat that drew this plan opens a draft pull request for it">No PR yet</span>';
+  const ok = pr ? pr.checks.filter((c) => c.ok).length : 0, checks = pr?.checks.length ? ` · ${ok}/${pr.checks.length} ✓` : '';
+  const chip = !pr ? '' : `<button class="prchip ${pr.status}" data-prs title="${esc(pr.url ? pr.title || '' : `${pr.title ? `${pr.title}, ` : ''}on the branch ${pr.id}`)}">${pr.url ? `PR ${esc(pr.id)}` : 'Branch'}${checks}</button>`;
   const admin = S.people.find((p) => p.id === ME)?.role === 'Admin';
   if (S.executed) return chip + `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
   const why = open.length ? `Waiting on ${waiting.join(', ') || 'an answer'}` : admin ? 'Every question is answered: Claude Code builds the plan' : `Only ${S.people.find((p) => p.role === 'Admin')?.id || 'the admin'} can press Execute`;
