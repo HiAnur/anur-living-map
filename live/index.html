@@ -1438,9 +1438,10 @@ function renderSide(){
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}</div>
     ${n.fact ? `<div class="refs"><div class="h">Claude references</div><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></div>` : ''}
     <div class="sc-sec"><div class="sc-div"><span>Side Chat${asked ? ` · ${asked}` : ''}</span></div>${chat}</div>`}`;
-  // a new message in the box's Side Chat scrolls the card down to it; opening a box leaves the card at the top
+  // one scroll for the whole card: opening a box with a Side Chat, or a new message in it, scrolls down to the newest
+  // message; the box's information is above it, a scroll up
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`;
-  if (sideTab === 'box' && seen !== sideSeen){ if (sideSeen.startsWith(`${n.id}:`)) el.scrollTop = el.scrollHeight; sideSeen = seen; }
+  if (sideTab === 'box' && seen !== sideSeen){ if (sideT.length) el.scrollTop = el.scrollHeight; sideSeen = seen; }
 }
 
 // the change a proposed box comes with, as its Apply card: from your chats on the map, or the Claude Code chat linked for you
