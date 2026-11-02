@@ -1567,15 +1567,14 @@ function renderSide(){
   const decision = (c) => {
     const agent = c.from === 'Codex' ? 'Codex' : 'Claude', opts = c.options || [], mine = c.for === ME;
     const more = infoMore.has(`c:${c.id}`), other = infoMore.has(`o:${c.id}`);
-    // the choices read as a list, one per line, never run together with dots; at a glance only their names,
-    // and More adds what each one means
+    // someone else's question shows only the question; More opens its choices, one per line with what each means
     const optRows = (means) => `<div class="d-optx">${opts.map((o) => `<div><b>${o.label}</b>${means && o.means ? `<span>${o.means}</span>` : ''}</div>`).join('')}</div>`;
     const answers = mine
       ? opts.length
         ? `<div class="d-chips">${opts.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}">${o.label}</span>`).join('')}<span class="gb" data-more="o:${c.id}">Other…</span></div>
           ${other ? `<form class="d-other" data-other="${c.id}"><input id="other-${c.id}" placeholder="Say it in your words" autocomplete="off"><button class="gb" type="submit">Send</button></form>` : ''}`
         : `<div class="btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></div>`
-      : opts.length && !more ? optRows(false) : '';
+      : '';
     const why = `${c.plain || c.context ? `<div class="d-why">${c.plain || c.context}</div>` : ''}${opts.length
       ? optRows(true)
       : `${c.yes ? `<div class="d-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="d-if"><b>No</b><span>${c.no}</span></div>` : ''}`}`;
