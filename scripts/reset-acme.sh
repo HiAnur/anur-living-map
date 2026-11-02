@@ -5,11 +5,38 @@
 #
 #   reset-acme.sh          reset for the next take
 #   reset-acme.sh --mark   make the current main the new pre-demo state (moves demo-start)
+#   reset-acme.sh --questions   only the questions: the map goes back to how Claude drew it, before the
+#                               first answer, so they can be answered again; code and data stay as they are
 set -eu
 A=${ACME:-$HOME/Documents/Projects/HeyAnurAI/acme}
 MAP=${MAP_URL:-http://localhost:4323/acme}
 cd "$A"
 ts=$(date +%Y%m%d-%H%M%S)
+
+if [ "${1:-}" = "--questions" ]; then
+  # the version just before the first answer since the map last started over, from the map's History
+  pick=$(node -e '
+    const fs = require("fs"), dir = process.argv[1] + "/.living-map/history";
+    const h = JSON.parse(fs.readFileSync(dir + "/index.json", "utf8"));
+    let first = -1;
+    for (let i = 0; i < h.length && h[i].kind !== "reset" && h[i].kind !== "start"; i++) if (h[i].kind === "call") first = i;
+    const v = first >= 0 && h[first + 1];
+    if (v) console.log(v.id + "\t" + v.what);' "$A")
+  if [ -z "$pick" ]; then echo "no answers to undo: every question is still open"; exit 0; fi
+  id=${pick%%$'\t'*}; what=${pick#*$'\t'}
+  curl -sf -X POST "$MAP/api/act" -H 'content-type: application/json' --data "{\"type\":\"restore\",\"id\":\"$id\",\"by\":\"Duy\"}" >/dev/null \
+    || { echo "the map server isn't answering: open the map with /anur-living-map in acme"; exit 1; }
+  # what the chat hears loses the answers too: the outbox ends where that version was drawn
+  node -e '
+    const fs = require("fs"), f = process.argv[1], what = process.argv[2];
+    if (!fs.existsSync(f)) process.exit();
+    const lines = fs.readFileSync(f, "utf8").split("\n"), at = lines.findLastIndex((l) => l.slice(8) === what);
+    if (at >= 0) fs.writeFileSync(f, lines.slice(0, at + 1).join("\n") + "\n");' "$A/.living-map/outbox.md" "$what"
+  # plan.md was written from the answers; it is kept in a stash, like a full reset does
+  if [ -e plan.md ]; then git stash push -u -q -m "plan.md from run $ts" -- plan.md; echo "kept plan.md: git stash list ('plan.md from run $ts')"; fi
+  echo "questions open again on $MAP/ (back to: $what)"
+  exit 0
+fi
 
 if [ "${1:-}" = "--mark" ]; then
   if git rev-parse -q --verify demo-start >/dev/null; then git tag "backup-demo-start-$ts" demo-start; fi
