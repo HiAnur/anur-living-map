@@ -84,7 +84,7 @@ html,body{height:100%;background:#fbfaf7;overflow:hidden;user-select:none;cursor
 .edges .what{stroke:#141413;stroke-dasharray:5 4}
 .edges .life{stroke:#d6d3cb;stroke-width:1;stroke-dasharray:3 4}
 .edges .strike{stroke:var(--gone);stroke-dasharray:5 4;stroke-width:1.5}
-.edges rect.bound{fill:rgba(0,0,0,.015);stroke:var(--rule);stroke-width:1}
+.edges .bound{fill:rgba(0,0,0,.015);stroke:var(--rule);stroke-width:1}
 .blabel{position:absolute;font-size:12px;color:var(--text-3)}
 
 /* a system: grey as it is; ink once a plan proposes a change; dashed while an agent only assumed it */
@@ -256,8 +256,8 @@ body:not(.chat) #chat{display:none}
     <div id="canvas">
       <div id="stage">
         <div id="l1" class="layer"><svg id="e1" class="edges" viewBox="0 0 960 600"><defs></defs>
-          <rect class="bound" x="200" y="90" width="540" height="440" rx="14"/></svg>
-          <div class="blabel" style="left:216px;top:100px">acme-app, production</div></div>
+          <path class="bound" d="M174 90H816Q830 90 830 104V276Q830 290 816 290H659Q645 290 645 304V516Q645 530 631 530H174Q160 530 160 516V104Q160 90 174 90Z"/></svg>
+          <div class="blabel" style="left:176px;top:100px">acme-app, production</div></div>
         <div id="frameB" class="frame"><span class="ft">Billing</span><span class="fs">New: Pro billed through the provider</span></div>
         <div id="l2" class="layer off"><svg id="e2" class="edges" viewBox="0 0 960 600"><defs></defs></svg></div>
         <div id="frameF" class="frame flowf"><span class="ft">Proposed flow</span><span class="fs">Drawn from the plan, not run</span></div>
@@ -307,31 +307,31 @@ const msgs = $('msgs'), input = $('input'), composer = $('composer'), counter = 
 /* ---------- level 1: the system ---------- */
 // the whole system as it runs today, grey; the plan inks three of its boxes
 const N = {
-  customer: {x:100, y:190, l:'Customer', cls:'actor'},
-  web:      {x:330, y:190, l:'Web app'},
-  billing:  {x:560, y:190, l:'Billing', s:'New: Pro via the provider', ink:'new', at:1, w:180},
-  provider: {x:850, y:190, l:'Payment provider', cls:'ext', w:150},
-  core:     {x:330, y:340, l:'Core API'},
-  db:       {x:560, y:340, l:'Users DB', s:'+ plan column', ink:'chg', at:1},
-  email:    {x:330, y:470, l:'Email service'},
-  renewal:  {x:560, y:470, l:'Renewal job', w:200},
+  customer: {x:85,  y:190, l:'Customer', cls:'actor'},
+  web:      {x:245, y:190, l:'Web app'},
+  core:     {x:435, y:190, l:'Core API'},
+  billing:  {x:670, y:190, l:'Billing', s:'New: Pro via the provider', ink:'new', at:1, w:180},
+  email:    {x:245, y:340, l:'Email service'},
+  db:       {x:480, y:340, l:'Users DB', s:'+ plan column', ink:'chg', at:1},
+  provider: {x:735, y:340, l:'Payment provider', cls:'ext', w:150},
+  renewal:  {x:480, y:470, l:'Renewal job', w:200},
 };
 // k: how the line looks once the plan is drawn; at: the step it appears
 const E = {
-  cw: {d:'M155 190H258'},
-  wc: {d:'M330 215V313'},
-  cd: {d:'M400 340H488'},
-  ce: {d:'M330 365V443'},
-  re: {d:'M460 470H402'},
-  rp: {d:'M660 470H842Q850 470 850 462V217'},
-  wb: {d:'M400 190H468', k:'new', at:1},
-  bp: {d:'M650 180H773', k:'new', at:1},
-  pb: {d:'M775 200H652', k:'new', at:1},
-  bd: {d:'M600 215V313', k:'new', at:1},
+  cw: {d:'M140 190H173'},
+  wc: {d:'M315 190H363'},
+  cd: {d:'M470 215V313'},
+  ce: {d:'M385 215V332Q385 340 377 340H317'},
+  re: {d:'M380 470H253Q245 470 245 462V367'},
+  rp: {d:'M580 470H727Q735 470 735 462V367'},
+  wb: {d:'M505 190H578', k:'new', at:1},
+  bp: {d:'M668 215V313', k:'new', at:1},
+  pb: {d:'M688 315V217', k:'new', at:1},
+  bd: {d:'M620 215V332Q620 340 612 340H552', k:'new', at:1},
 };
 
 /* ---------- level 2: inside Billing ---------- */
-const FRAME_B = {from:[470, 165, 180, 50], to:[210, 100, 460, 440]};
+const FRAME_B = {from:[580, 165, 180, 50], to:[210, 100, 460, 440]};
 const N2 = {
   web2:  {x:110, y:190, l:'Web app', cls:'ghost'},
   db2:   {x:110, y:305, l:'Users DB', cls:'ghost'},
@@ -440,19 +440,19 @@ function mkNode(n, into, extra = ''){
 fit();
 for (const n of Object.values(N)) mkNode(n, l1);
 for (const e of Object.values(E)){ e.L = mkPath(e.d, e1); setKind(e.L, 'old'); }
-const labUpgrade = place(div('lab', 'Upgrade'), 410, 168);
-const labPaid = place(div('lab', 'Payment confirmed'), 662, 208);
-const srcRenewal = place(div('mono', 'jobs/renewal.ts:18 (annual only)'), 462, 502);
-const srcBilling = place(div('mono', 'services/billing/'), 472, 222);
-const srcDb = place(div('mono', 'migrations/007_plan.sql'), 492, 372);
-const mkA = place(div('mk', 'a'), 662, 446);
-const labAssume = place(div('lab w', 'Claude assumed: retire it'), 676, 438);
-const pinP = place(div('pin', 'P'), 464, 446);
-const threadP = place(div('thread'), 680, 392);
+const labUpgrade = place(div('lab', 'Upgrade'), 515, 168);
+const labPaid = place(div('lab', 'Payment confirmed'), 696, 258);
+const srcRenewal = place(div('mono', 'jobs/renewal.ts:18 (annual only)'), 382, 502);
+const srcBilling = place(div('mono', 'services/billing/'), 582, 145);
+const srcDb = place(div('mono', 'migrations/007_plan.sql'), 412, 372);
+const mkA = place(div('mk', 'a'), 660, 486);
+const labAssume = place(div('lab w', 'Claude assumed: retire it'), 674, 478);
+const pinP = place(div('pin', 'P'), 384, 446);
+const threadP = place(div('thread'), 624, 392);
 threadP.innerHTML = `<div class="fact">312 annual customers renew through this job<span class="from">Claude, from the customer database (read-only copy)</span></div>
   <div class="tm fade" id="pAns"><b>Priyanka</b><span class="t">10:02, disputed</span><br>Annual customers keep renewing through our job; new and upgraded customers bill through the provider.</div>`;
 const pAns = threadP.querySelector('#pAns'), pFact = threadP.querySelector('.fact');
-const held = place(div('thread'), 680, 410);
+const held = place(div('thread'), 624, 410);
 held.innerHTML = `<div class="tm"><b>Priyanka's Oct 31 decision held up after #212 and #219 shipped</b></div>
   <div class="fact" style="border:0;margin:6px 0 0;padding:0">9 annual renewals ran Nov 1<span class="from">job run log</span></div>
   <div class="fact" style="border:0;margin:6px 0 0;padding:0">Upgrades billed once<span class="from">provider events</span></div>`;
