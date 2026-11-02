@@ -24,7 +24,7 @@ import path from 'node:path';
 
 import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
-import { googleFinish, googleOn, googleStart } from './google.js';
+import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users } from './users.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
@@ -867,22 +867,10 @@ const everyMap = () => {
   return [...projects, ...names.map((d) => [d, mapCalled(d)])];
 };
 
-// a page, with the signed-in person written into it for the page's own script, and for the sign-in page
-// which ways in it offers: Google when a client is set, passwords only on this Mac
-const page = (res, file, who, local = true) => res.writeHead(200, { 'content-type': 'text/html' })
-  .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [
-    who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
-    googleOn() && '<meta name="lm-google" content="1">', local && '<meta name="lm-passwords" content="1">', '</head>'].filter(Boolean).join('\n')));
-// a caller on this Mac itself: the loopback address, with no proxy in between (a proxy on this Mac adds X-Forwarded-For)
-const LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
-const isLocal = (req) => LOOPBACK.includes(req.socket.remoteAddress || '') && !req.headers['x-forwarded-for'];
-// where the browser opened the map, for Google's redirect: this Mac's own address, or LIVING_MAP_PUBLIC_URL
-// (https://map.example.com) behind a proxy; a Host header from outside is never trusted for it
-const PUBLIC_URL = (process.env.LIVING_MAP_PUBLIC_URL || '').replace(/\/$/, '');
-const originOf = (req, local) => {
-  const host = String(req.headers.host || '');
-  return local && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) ? `http://${host}` : PUBLIC_URL;
-};
+// a page, with the signed-in person written into it for the page's own script
+const page = (res, file, who) => res.writeHead(200, { 'content-type': 'text/html' })
+  .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
+    googleOn() && '<meta name="lm-google" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
 
 http.createServer(async (req, res) => {
@@ -890,34 +878,32 @@ http.createServer(async (req, res) => {
   // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
   // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
   // answers on this Mac; a signed-in browser always acts as the person who signed in.
-  // From outside this Mac (a proxy in front of it), everything needs a signed-in person, the API too, and the
-  // only way in is Google: a password, and choosing a first password for someone, work only on this Mac.
-  const who = users.whoIs(cookieOf(req, 'lm_session')), local = isLocal(req);
-  const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
-  const cookieFor = (name) => `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}${secure}`;
+  const who = users.whoIs(cookieOf(req, 'lm_session'));
   const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
-  const signIn = (name) => json(200, { name }, cookieFor(name));
-  const backTo = (next) => (String(next || '').startsWith('/') && !String(next).startsWith('//') ? String(next) : '/');
-  if (url.pathname === '/login') return page(res, 'login.html', who, local);
+  const signIn = (name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
+  if (url.pathname === '/login') return page(res, 'login.html', who);
+  // Sign in with Google, through Living Map login (google.js); it comes back to this map's own address
+  const signInError = (e) => res.writeHead(302, { location: `/login?error=${encodeURIComponent(e)}` }).end();
   if (url.pathname === '/auth/google' && req.method === 'GET') {
-    const origin = originOf(req, local);
-    if (!googleOn() || !origin) return res.writeHead(302, { location: `/login?error=${encodeURIComponent('Google sign-in is not set up on this map.')}` }).end();
-    return res.writeHead(302, { location: googleStart(origin, backTo(url.searchParams.get('next'))) }).end();
+    if (!googleOn()) return signInError('Google sign-in is not set up on this map.');
+    const host = /^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host || '') ? req.headers.host : `localhost:${PORT}`;
+    const next = url.searchParams.get('next') || '/';
+    return res.writeHead(302, { location: googleStart(`http://${host}`, next.startsWith('/') && !next.startsWith('//') ? next : '/') }).end();
   }
-  if (url.pathname === '/auth/google/callback' && req.method === 'GET') {
-    let got; try { got = await googleFinish(url.searchParams); } catch (e) { return res.writeHead(302, { location: `/login?error=${encodeURIComponent(e.message)}` }).end(); }
-    const name = users.byEmail(got.email);
-    if (!name) return res.writeHead(302, { location: `/login?error=${encodeURIComponent(`${got.email} is not on this map. Ask Duy to add it.`)}` }).end();
-    return res.writeHead(302, { location: got.next, 'set-cookie': cookieFor(name) }).end();
+  if (url.pathname === '/auth/done' && req.method === 'GET') {
+    let got; try { got = await googleFinish(url.searchParams); } catch (e) { return signInError(e.message); }
+    const name = users.person(got.name);
+    if (!name) return signInError(`${got.name} is not one of this map's people.`);
+    return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
   }
-  if (!local && (url.pathname === '/api/login' || url.pathname === '/api/first')) return json(403, { error: 'Sign in with Google.' });
   if (url.pathname === '/api/login' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const one = users.person(a.name);
     // a person with no password yet: the page asks them to choose one
     if (one && !users.has(one)) return json(409, { first: one, min: MIN });
-    const name = users.check(a.name, a.password);
-    if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(401, { error: one ? 'That password is not right.' : `There is no one called that on this map.` }); }
+    // a password this Mac keeps, else one kept at Living Map login (someone with no Google account)
+    const name = users.check(a.name, a.password) || await passwordCheck(a.name, a.password);
+    if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(401, { error: one ? 'That password is not right.' : 'That name and password are not right.' }); }
     return signIn(name);
   }
   if (url.pathname === '/api/first' && req.method === 'POST') {
@@ -934,7 +920,6 @@ http.createServer(async (req, res) => {
   }
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
   if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
-  if (!local && !who) return json(401, { error: 'Sign in first.' });
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
   // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
