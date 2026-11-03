@@ -96,6 +96,19 @@ pick.addEventListener('change', () => {
       .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be loaded.'); location.href = d.href; });
   }).catch((x) => { lerr.textContent = x.message; lerr.hidden = false; pick.value = ''; });
 });
+// opened by a saved file's Load into Living Map (/?load): this page tells that file it is ready, takes the map's
+// data it sends, and makes it a map here the same way (the server checks the data; a message from anywhere else
+// carries none)
+if (new URLSearchParams(location.search).has('load') && window.opener){
+  window.addEventListener('message', (e) => {
+    const data = e.data?.lmLoad; if (typeof data !== 'string') return;
+    fetch('/api/maps/load', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data }) })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be loaded.'); location.href = d.href; })
+      .catch((x) => { lerr.textContent = x.message; lerr.hidden = false; });
+  });
+  window.opener.postMessage('lm-ready', '*');
+}
 let maps = null, sortBy = 'time';
 try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
 const titleOf = (m) => m.title || m.name;
