@@ -95,6 +95,10 @@ button,input,textarea{font:inherit;color:inherit}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
 .tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
 .tbtn.ver.due:disabled{opacity:.6;cursor:progress}
+/* the hover label appears at once, under the button, right-aligned so it stays on screen; the browser's own
+   tooltip waits about a second and often never shows */
+.tbtn.ver{position:relative}
+.tbtn.ver[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;padding:6px 9px;border-radius:7px;background:#141413;color:#fff;font:400 12px/1.45 var(--plex);white-space:pre;text-align:left;z-index:30;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
 .pm-who span{font-size:12px;color:var(--text-2)}
@@ -157,12 +161,12 @@ button,input,textarea{font:inherit;color:inherit}
 /* a cross-link on a topic map: "related to", not part of the tree (crossLinks) */
 #edges > path.cross{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4;opacity:.55}
 #edges > path.cross.faint{opacity:.3}
-/* a line you can click: a wide invisible stroke over it; a picked line turns the blue of a picked box, with
-   Delete line beside its middle (or press Delete) */
+/* a line you can click: a wide invisible stroke over it; a picked line turns the blue of a picked box; Delete or
+   Backspace takes it off the map (no button: a picked line and the key are the whole of it) */
 #edges > path.hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+/* a line's words you may change: a click picks the line, a double click renames it */
+#edges text.ed{pointer-events:all;cursor:pointer}
 #edges > path.pick{stroke:#0D99FF;stroke-width:2.5;stroke-dasharray:none;animation:none;opacity:1}
-.edel{position:absolute;transform:translate(-50%,-50%);z-index:3;height:24px;padding:0 10px;border:1px solid var(--gone);border-radius:999px;background:#fff;color:var(--gone);font:500 12px/22px var(--plex);white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.edel:hover{background:var(--gone);color:#fff}
 #edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
 /* selected: the box lights up blue */
@@ -854,8 +858,8 @@ let VER = null;
 function renderVer(){
   const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
   const line = `Living Map ${VER.version} · build ${VER.build}`;
-  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.title = line; b.disabled = false; }
-  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.title = `${line} · main is ${VER.behind} commit${VER.behind === 1 ? '' : 's'} ahead. Click: pull everything and restart`; }
+  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.dataset.tip = `${line}\nNothing newer on main`; b.disabled = false; }
+  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.dataset.tip = `${line}\nMain has ${VER.behind} newer change${VER.behind === 1 ? '' : 's'}. Click to update`; }
 }
 async function loadVer(check){ try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; } renderVer(); }
 loadVer(true); setInterval(() => loadVer(false), 60_000);
@@ -863,13 +867,13 @@ $('verb').onclick = async () => {
   if (!VER || VER.latest) return;
   const b = $('verb'), was = VER.build; b.textContent = 'Updating…'; b.disabled = true;
   const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the server did not answer' }));
-  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.title = `Could not update: ${r.why}`; return; }
+  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.dataset.tip = `Could not update: ${r.why}`; return; }
   // the server pulls and starts again; the page reloads once the new build answers
   for (let i = 0; i < 45; i++){
     await new Promise((ok) => setTimeout(ok, 1000));
     try { const v = await (await fetch('/api/version')).json(); if (v.build !== was) return location.reload(); } catch {}
   }
-  b.textContent = 'Update'; b.disabled = false; b.title = 'Could not update: the new server did not answer in time';
+  b.textContent = 'Update'; b.disabled = false; b.dataset.tip = 'Could not update: the new server did not answer in time';
 };
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
@@ -946,7 +950,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel']);
 const act = (type, extra = {}) => {
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -1468,8 +1472,6 @@ function render(){
   const lines = [], labels = [];
   // a line you may delete: not one Claude only proposed, and not one touching a box outside your reach
   const canPick = (e, a, b) => !e.proposed && !locked(a) && !locked(b) && !PREVIEW;
-  const half = (pts) => { const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1])); let left = seg.reduce((s, d) => s + d, 0) / 2;
-    for (const [i, d] of seg.entries()){ if (left <= d){ const t = d ? left / d : 0; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t]; } left -= d; } return pts.at(-1); };
   let pickSeen = false;
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
@@ -1497,9 +1499,9 @@ function render(){
       const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
       const pk = pickedLine === `${e.from}>${e.to}`;
       svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
-      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk){ pickSeen = true; lineMid = c.mid; } }
+      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }
       lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
-      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
+      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid, edit: canPick(e, a, b) });
       continue;
     }
     const pts = ptsOf.get(`${e.from}>${e.to}`);
@@ -1507,7 +1509,7 @@ function render(){
     const others = [...ptsOf].filter(([id]) => id !== `${e.from}>${e.to}`).map(([, p]) => p);
     const pk = pickedLine === `${e.from}>${e.to}`;
     svg += `<path class="${k} ${quiet && !pk ? 'faint' : ''} ${still ? 'still' : ''} ${pk ? 'pick' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
-    if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk){ pickSeen = true; lineMid = half(pts); } }
+    if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk) pickSeen = true; }
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
@@ -1519,14 +1521,14 @@ function render(){
       const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
       const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
       const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
-      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my] });
+      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my], edit: canPick(e, a, b) });
     }
   }
   for (const L of placeWords(labels, lines, nodes))
-    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}" x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
+    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
   // a picked line that is gone (deleted, or folded away) lets go
-  if (!pickSeen){ pickedLine = null; lineMid = null; lineAt = null; }
-  edgesEl.innerHTML = defsHtml + svg + words + hits;
+  if (!pickSeen) pickedLine = null;
+  edgesEl.innerHTML = defsHtml + svg + hits + words;
   // the gap is as wide as the words, measured, plus a little air
   for (const r of edgesEl.querySelectorAll('rect.gap')){
     const t = r.nextElementSibling, w = t.getComputedTextLength() + 8;
@@ -1559,9 +1561,6 @@ function render(){
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
   }
-  // beside where you clicked the line (its middle can sit behind a box), else its middle
-  const btnAt = lineAt || lineMid;
-  if (pickedLine && btnAt) html += `<button class="edel" data-edge-del="${pickedLine}" style="left:${btnAt[0]}px;top:${btnAt[1] + 20}px" title="Take this line off the map, for everyone (Delete)">Delete line</button>`;
   nodesEl.innerHTML = html;
   renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
 }
@@ -1718,8 +1717,8 @@ let expanded = null;
 let sideTab = 'box', sideFor = null, sideSeen = '';
 // the box whose card asks "delete?" (Delete this box, or the Delete key on a picked box)
 let delAsk = null;
-// the line picked on the map, as "from>to", and where its Delete line button sits
-let pickedLine = null, lineMid = null, lineAt = null;
+// the line picked on the map, as "from>to"; Delete or Backspace takes it off
+let pickedLine = null;
 // a box opened from Decisions or Claude's chat has a Back to it, which returns to where you were in that list
 let backTo = null, decsScroll = 0;
 // the answered questions opened with More in History, by call id
@@ -2146,7 +2145,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.clo
 // a picked line goes at once on Delete: nothing hangs off a line, and History brings it back
 function deleteLine(id){
   const [from, to] = id.split('>'), a = nodeById(from), b = nodeById(to);
-  pickedLine = null; lineMid = null; act('unlink', { from, to }); render();
+  pickedLine = null; act('unlink', { from, to }); render();
   toast(`The line ${a?.label || from} → ${b?.label || to} is off the map. History can bring it back.`);
 }
 document.addEventListener('keydown', (e) => {
@@ -2225,25 +2224,27 @@ function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x
 /* drawing by hand. The Box tool: press and drag out a box (a click makes one the usual width), then name it where it
    sits. The Line tool: drag from one box and let go on another, then the words on the line, or just Enter. Pan drags
    the map from anywhere. What is being drawn shows as a blue outline until the pointer lets go */
-let drawing = null, naming = null;
+let drawing = null, naming = null, lineTap = { id: null, at: 0 };
 function drawRubber(){
   const d = drawing; if (!d){ $('rubber').innerHTML = ''; return; }
   $('rubber').innerHTML = d.box ? `<rect x="${Math.min(d.x0, d.x1)}" y="${Math.min(d.y0, d.y1)}" width="${Math.abs(d.x1 - d.x0)}" height="${Math.abs(d.y1 - d.y0)}" rx="6"/>`
     : `<path d="M${d.from.x} ${d.from.y}L${d.x} ${d.y}" marker-end="url(#a-new)"/>`;
 }
-// a new box is named where it was drawn, a new line gets its words halfway along it; Enter keeps it, Esc lets it go
+// a new box is named where it was drawn, a new line gets its words halfway along it; a double click on a line's
+// words (or on a line without words) changes them where they sit, empty takes them off. Enter keeps it, Esc lets it go
 function askName(at){
-  naming = at; const el = $('newbox'), line = !!at.from;
+  naming = at; const el = $('newbox'), line = !!(at.from || at.edge);
   // a box is named inside the very shape that was drawn, so what you drew is what you get
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.style.height = `${line ? 36 : at.h || 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); i.focus();
+  const i = el.querySelector('input'); if (at.text){ i.value = at.text; i.select(); } i.focus();
   i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
   i.addEventListener('blur', () => endName(true));
 }
 function endName(keep){
   const at = naming; if (!at) return; naming = null;
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
+  if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view }); return; }
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
   else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), view });
@@ -2262,16 +2263,26 @@ canvas.addEventListener('pointerdown', (e) => {
   if (ex){ if (ex.dataset.dgx) openDiagram(ex.dataset.dgx); else enter(ex.dataset.expand); return; }
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
-  // Delete line, and picking a line with the Select tool (a click on a line picks it, a second click lets go)
+  // picking a line with the Select tool (a click on a line picks it, a second click lets go)
   const rz = e.target.closest('[data-rz]');
   if (rz){ const n = nodeById(rz.closest('.node').dataset.id); if (n){ const w = W(n), h = HT(n), c = rz.dataset.rz;
     // the corner opposite the one you hold stays where it is
     resizing = { n, fx: c.includes('w') ? n.x + w / 2 : n.x - w / 2, fy: c.includes('n') ? n.y + h / 2 : n.y - h / 2 }; moved = false; canvas.setPointerCapture(e.pointerId); } return; }
   if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
-  const del = e.target.closest('[data-edge-del]');
-  if (del){ deleteLine(del.dataset.edgeDel); return; }
-  const ed = tool === 'select' && e.target.closest('[data-edge]');
-  if (ed){ pickedLine = pickedLine === ed.dataset.edge ? null : ed.dataset.edge; lineAt = pickedLine ? toStage(e.clientX, e.clientY) : null; selected = null; delAsk = null; render(); return; }
+  // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
+  const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
+  if (ed && !PREVIEW){
+    const id = ed.dataset.edge || ed.dataset.edgeLabel, now = Date.now();
+    if (lineTap.id === id && now - lineTap.at < 350){
+      lineTap = { id: null, at: 0 }; pickedLine = null;
+      const words = edgesEl.querySelector(`text[data-edge-label="${id}"]`);
+      const at = words ? [Number(words.getAttribute('x')), Number(words.getAttribute('y'))] : toStage(e.clientX, e.clientY);
+      // opened after the click is over: the mouse press that follows this one would take the focus off the box
+      render(); setTimeout(() => askName({ edge: id, text: words?.dataset.text || '', x: Math.round(at[0]), y: Math.round(at[1]) })); return;
+    }
+    lineTap = { id, at: now };
+  }
+  if (ed){ const id = ed.dataset.edge || ed.dataset.edgeLabel; pickedLine = pickedLine === id ? null : id; selected = null; delAsk = null; render(); return; }
   const nd = e.target.closest('.node');
   moved = false;
   if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }

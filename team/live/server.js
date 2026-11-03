@@ -488,7 +488,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -570,6 +570,17 @@ function openMap({ project = '', name = '', home }) {
       const w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
       if (!(w >= 60 && w <= 800 && h >= 36 && h <= 600) || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
       Object.assign(n, { x: Math.round(a.x), y: Math.round(a.y), w, h, moved: true });
+      return true;
+    },
+    // a line's words changed by a double click on them; empty words take them off the line
+    relabel(a) {
+      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
+      const all = [state.edges, ...state.nodes.map((p) => p.inside?.edges || [])].flat();
+      const e = all.find((x) => x.from === from.id && x.to === to.id); if (!e) return false;
+      const label = String(a.label || '').trim().slice(0, 40); if ((e.label || '') === label) return false;
+      if (label) e.label = label; else delete e.label;
+      tell(`${a.by} ${label ? `named the line ${from.label} → ${to.label} "${label}"` : `took the words off the line ${from.label} → ${to.label}`}`);
       return true;
     },
     // a line picked on the map and deleted, by hand
