@@ -897,7 +897,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'link', 'remove']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove']);
 const act = (type, extra = {}) => {
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -1523,7 +1523,7 @@ function mapFile(){
   const box = (n) => [`## ${n.label}${n.sub ? ` · ${n.sub}` : ''}`, n.within ? `Inside ${n.within}.` : '', n.desc && n.desc !== n.sub ? n.desc : '',
     n.decided ? `Decided by ${n.decided.who}, ${n.decided.at}: ${n.decided.what}` : '', n.file ? `File: ${n.file}` : ''].filter(Boolean).join('\n');
   const edges = [...S.edges, ...S.nodes.flatMap((n) => n.inside?.edges || [])], open = S.calls.filter((c) => c.status === 'open');
-  return [`# ${S.title}`, `From Living Map, ${new Date().toLocaleString()}. ${all.length} boxes, ${edges.length} lines.`, '',
+  return [`# ${S.title}`, `From Living Map, ${new Date().toLocaleString()}. ${all.length} box${all.length === 1 ? '' : 'es'}, ${edges.length} line${edges.length === 1 ? '' : 's'}.`, '',
     ...all.flatMap((n) => [box(n), '']),
     '## Lines', ...edges.map((e) => `- ${name(e.from)} → ${name(e.to)}${e.label ? `: ${e.label}` : ''}`), '',
     ...(open.length ? ['## Waiting on an answer', ...open.map((c) => `- ${c.ask || c.text}${c.for ? ` (for ${c.for})` : ''}`), ''] : [])].join('\n');
@@ -2145,7 +2145,7 @@ function endName(keep){
   const at = naming; if (!at) return; naming = null;
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (!keep || (!at.from && !text)) return;
-  if (at.from) act('link', { from: at.from.id, to: at.to.id, label: text, view });
+  if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
   else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), view });
 }
 

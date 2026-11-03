@@ -471,7 +471,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', link: 'drew a line', remove: 'took a box off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -533,7 +533,7 @@ function openMap({ project = '', name = '', home }) {
       tell(`${a.by} drew the box ${label}`);
       return true;
     },
-    link(a) {
+    connect(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, edges = inside ? (inside.edges ??= []) : state.edges;
