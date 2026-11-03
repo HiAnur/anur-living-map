@@ -34,7 +34,7 @@ button{font:inherit;cursor:pointer}
 
 /* top */
 header{display:flex;align-items:center;gap:10px;padding:22px 0 0}
-header .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:500;letter-spacing:-.01em}
+header .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
 header .brand i{width:22px;height:22px;border-radius:6px;background:var(--bone);display:grid;place-items:center}
 header .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#000;transform:rotate(45deg)}
 header .brand span{color:var(--mist);font-weight:400}
@@ -239,6 +239,8 @@ footer a:hover{color:var(--mist)}
   #next{margin-left:0;width:100%}
 }
 @media (max-width:600px){
+  header nav{gap:0}
+  header nav a{padding:10px 6px;font-size:13px;white-space:nowrap}
   .hero{padding-top:48px}
   .try{white-space:normal}
   .composer{display:none}
@@ -252,7 +254,7 @@ footer a:hover{color:var(--mist)}
 <div class="shell">
 <header>
   <a class="brand" href="#"><i></i>Anur <span>Living Map</span></a>
-  <nav><a href="#how">How</a><a href="#why">Why</a><a href="#get">Get it</a></nav>
+  <nav><a href="#how">How</a><a href="#why">Why</a><a href="use-cases.html">Use cases</a><a href="#get">Get it</a></nav>
 </header>
 
 <div class="hero">
