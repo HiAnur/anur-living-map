@@ -95,6 +95,10 @@ button,input,textarea{font:inherit;color:inherit}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
 .tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
 .tbtn.ver.due:disabled{opacity:.6;cursor:progress}
+/* the hover label appears at once, under the button, right-aligned so it stays on screen; the browser's own
+   tooltip waits about a second and often never shows */
+.tbtn.ver{position:relative}
+.tbtn.ver[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;padding:6px 9px;border-radius:7px;background:#141413;color:#fff;font:400 12px/1.45 var(--plex);white-space:pre;text-align:left;z-index:30;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
 .pm-who span{font-size:12px;color:var(--text-2)}
@@ -854,8 +858,8 @@ let VER = null;
 function renderVer(){
   const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
   const line = `Living Map ${VER.version} · build ${VER.build}`;
-  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.title = line; b.disabled = false; }
-  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.title = `${line} · main is ${VER.behind} commit${VER.behind === 1 ? '' : 's'} ahead. Click: pull everything and restart`; }
+  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.dataset.tip = `${line}\nNothing newer on main`; b.disabled = false; }
+  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.dataset.tip = `${line}\nMain has ${VER.behind} newer change${VER.behind === 1 ? '' : 's'}. Click to update`; }
 }
 async function loadVer(check){ try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; } renderVer(); }
 loadVer(true); setInterval(() => loadVer(false), 60_000);
@@ -863,13 +867,13 @@ $('verb').onclick = async () => {
   if (!VER || VER.latest) return;
   const b = $('verb'), was = VER.build; b.textContent = 'Updating…'; b.disabled = true;
   const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the server did not answer' }));
-  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.title = `Could not update: ${r.why}`; return; }
+  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.dataset.tip = `Could not update: ${r.why}`; return; }
   // the server pulls and starts again; the page reloads once the new build answers
   for (let i = 0; i < 45; i++){
     await new Promise((ok) => setTimeout(ok, 1000));
     try { const v = await (await fetch('/api/version')).json(); if (v.build !== was) return location.reload(); } catch {}
   }
-  b.textContent = 'Update'; b.disabled = false; b.title = 'Could not update: the new server did not answer in time';
+  b.textContent = 'Update'; b.disabled = false; b.dataset.tip = 'Could not update: the new server did not answer in time';
 };
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
