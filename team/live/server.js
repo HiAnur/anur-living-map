@@ -82,12 +82,14 @@ function openMap({ project = '', name = '', home }) {
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
   const SAVES = path.join(home, 'saves');
-  // a team map locks nothing: everyone on it sees the whole map; only the story keeps its cast's areas
-  const team = () => demo().people.map((p) => ({ ...p, sees: 'all' }));
+  // a team map's people are whoever has signed in on it, from the moment they open it; nobody is listed who
+  // never came. The story's seed is only the role book: the role a seated name carries when they join. Everyone
+  // sees the whole map; only the story keeps its cast and their areas.
+  const roleOf = (id) => demo().people.find((p) => p.id === id)?.role;
   const seed = () => {
     if (!project && !name) return demo();
     const drawn = project ? readProject(project) : { title: name, desc: '', nodes: [], edges: [] };
-    return { ...drawn, ticket: '', prompt: '', people: team(), calls: [], prs: [], answers: { '*': 'I drew what I know on the map. Click a box for its files, or ask me about one.' } };
+    return { ...drawn, ticket: '', prompt: '', people: [], calls: [], prs: [], answers: { '*': 'I drew what I know on the map. Click a box for its files, or ask me about one.' } };
   };
 
   const fresh = () => ({ ...seed(), log: [], threads: {}, comments: [] });
@@ -118,8 +120,8 @@ function openMap({ project = '', name = '', home }) {
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
-  // the seated people come from the seed; guests who signed in before stay; everyone sees the whole map
-  if (project || name) { const seated = team(); state.people = [...seated, ...(state.people || []).filter((p) => !seated.some((x) => x.id === p.id)).map((p) => ({ ...p, sees: 'all' }))]; }
+  // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
+  if (project || name) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
@@ -792,8 +794,8 @@ function openMap({ project = '', name = '', home }) {
       send(res, 'state', state); send(res, 'cursors', cursors);
       if (who) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); req.on('close', () => clients.delete(res));
-      // someone signed in who is not one of the map's people joins them as a guest, so the menu shows them here
-      if (who && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: 'Guest', sees: 'all' }); save(); push(); }
+      // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any
+      if (who && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
       if (who) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
