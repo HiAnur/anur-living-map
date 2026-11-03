@@ -118,7 +118,8 @@ function openMap({ project = '', name = '', home }) {
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
-  if (project || name) state.people = team(); // a map stored with an older lock loses it too
+  // the seated people come from the seed; guests who signed in before stay; everyone sees the whole map
+  if (project || name) { const seated = team(); state.people = [...seated, ...(state.people || []).filter((p) => !seated.some((x) => x.id === p.id)).map((p) => ({ ...p, sees: 'all' }))]; }
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
@@ -791,6 +792,8 @@ function openMap({ project = '', name = '', home }) {
       send(res, 'state', state); send(res, 'cursors', cursors);
       if (who) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); req.on('close', () => clients.delete(res));
+      // someone signed in who is not one of the map's people joins them as a guest, so the menu shows them here
+      if (who && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: 'Guest', sees: 'all' }); save(); push(); }
       if (who) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
