@@ -88,7 +88,13 @@ button,input{font:inherit;color:inherit}
 .pm-row.away .face{opacity:.35}
 .pm-who em.on{font-style:normal;color:#1E8A4A}
 .pm-out{margin-top:4px;border-top:1px solid var(--rule);border-radius:0 0 8px 8px;color:var(--text-2);cursor:pointer}
-.pm-ver{padding:6px 8px 2px;font-size:11px;color:var(--text-2);opacity:.7}
+/* the version, before the faces, Share keeps the corner: "Latest" with a green dot when this copy matches main (hover shows the version
+   and build); "Update" in Claude's colour when main holds newer commits, one click pulls everything and restarts */
+.tbtn.ver{display:inline-flex;align-items:center;gap:6px}
+.tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
+.tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
+.tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
+.tbtn.ver.due:disabled{opacity:.6;cursor:progress}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
 .pm-who span{font-size:12px;color:var(--text-2)}
@@ -791,6 +797,7 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <div class="savew" id="savew"></div>
   <div id="crumbs"></div>
   <div id="ticket"></div>
+  <button class="tbtn ver" id="verb" hidden></button>
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
@@ -841,8 +848,28 @@ const $ = (id) => document.getElementById(id);
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 // which code this map runs, shown at the foot of the people menu so a teammate can say which one they are on
-let VER = '';
-fetch('/api/version').then((r) => r.json()).then((v) => { VER = `Living Map ${v.version}${v.commit ? ` · ${v.commit} · ${v.at}` : ''}`; }).catch(() => {});
+// the version pill: asked with a fresh check when the page opens, then from the server's last check every minute
+let VER = null;
+function renderVer(){
+  const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
+  const line = `Living Map ${VER.version} · build ${VER.build}`;
+  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.title = line; b.disabled = false; }
+  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.title = `${line} · main is ${VER.behind} commit${VER.behind === 1 ? '' : 's'} ahead. Click: pull everything and restart`; }
+}
+async function loadVer(check){ try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; } renderVer(); }
+loadVer(true); setInterval(() => loadVer(false), 60_000);
+$('verb').onclick = async () => {
+  if (!VER || VER.latest) return;
+  const b = $('verb'), was = VER.build; b.textContent = 'Updating…'; b.disabled = true;
+  const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the server did not answer' }));
+  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.title = `Could not update: ${r.why}`; return; }
+  // the server pulls and starts again; the page reloads once the new build answers
+  for (let i = 0; i < 45; i++){
+    await new Promise((ok) => setTimeout(ok, 1000));
+    try { const v = await (await fetch('/api/version')).json(); if (v.build !== was) return location.reload(); } catch {}
+  }
+  b.textContent = 'Update'; b.disabled = false; b.title = 'Could not update: the new server did not answer in time';
+};
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
 const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' };
@@ -1652,8 +1679,7 @@ function renderTop(){
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
       <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
-      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}
-      ${VER ? `<div class="pm-ver">${VER}</div>` : ''}</div>` : ''}`;
+      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
 
 // renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one

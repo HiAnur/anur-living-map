@@ -1030,8 +1030,17 @@ const server = http.createServer(async (req, res) => {
     fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
     return json(200, { name });
   }
-  // which code this server runs: the package version, and the commit and its date when run from a clone
-  if (url.pathname === '/api/version') return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(VERSION));
+  // which code this server runs: the package version, the build (commits in the clone), and whether main holds
+  // newer ones; ?check=1 asks origin first (about a second), otherwise the answer is from the last check
+  if (url.pathname === '/api/version') return (url.searchParams.get('check') ? checkLatest() : Promise.resolve()).then(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(VERSION)));
+  // the Update button: everything Anur (the clone, so the server, the MCP tools and the skill's copy) is brought
+  // to main and the server starts again. The answer goes out first; the page waits for the new build to answer
+  if (url.pathname === '/api/update' && req.method === 'POST') {
+    const why = (await checkLatest()) === null ? 'not run from a clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: !why, why }));
+    if (!why) setTimeout(update, 50);
+    return;
+  }
   if (url.pathname === '/api/maps') {
     const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
@@ -1076,22 +1085,51 @@ const REPO = path.resolve(DIR, '..', '..');
 const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
 const git = (...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
 const EVERY = 10 * 60_000;
-async function keepCurrent() {
-  if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true' || (await git('branch', '--show-current')) !== 'main' || (await git('status', '--porcelain'))) return;
+// the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
+// by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line
+function refreshSkill() {
+  const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = path.join(os.homedir(), '.claude', 'skills', 'anur-living-map');
+  for (const f of fs.readdirSync(src, { recursive: true })) {
+    const s = path.join(src, f), d = path.join(dst, f);
+    if (fs.statSync(s).isDirectory()) continue;
+    fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, `${d}.new`); fs.renameSync(`${d}.new`, d);
+  }
+}
+// asks origin how many commits main holds that this clone does not; null when this is not a clone or origin is out of reach
+const GIT_NET = ['-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=4'];
+async function checkLatest() {
+  if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true') return null;
+  if ((await git(...GIT_NET, 'fetch', '-q', 'origin', 'main')) === null) return VERSION.latest;
+  VERSION.behind = Number(await git('rev-list', '--count', 'HEAD..origin/main')) || 0;
+  VERSION.latest = VERSION.behind === 0;
+  return VERSION.latest;
+}
+// why a pull cannot run: the clone is on another branch or has changes of its own; '' when it can
+async function cannotUpdate() {
+  if ((await git('branch', '--show-current')) !== 'main') return 'the clone is not on main';
+  // only edits to tracked files block a pull: a map's own .living-map/ folder or any other new file does not
+  if (await git('status', '--porcelain', '--untracked-files=no')) return 'the clone has changes of its own';
+  return '';
+}
+// pulls main, refreshes the skill's copy and starts this server again on the new code
+async function update() {
+  if (await cannotUpdate()) return;
   const was = await git('rev-parse', 'HEAD');
-  if ((await git('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=4', 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
+  if ((await git(...GIT_NET, 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
   const now = await git('rev-parse', 'HEAD');
   if (now === was) return;
-  try { fs.cpSync(path.join(REPO, 'team', 'skill', 'anur-living-map'), path.join(os.homedir(), '.claude', 'skills', 'anur-living-map'), { recursive: true }); } catch {}
+  try { refreshSkill(); } catch {}
   console.log(`update: ${await git('rev-list', '--count', `${was}..${now}`)} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`);
   server.closeAllConnections();
   server.close(() => { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'inherit' }).unref(); process.exit(0); });
 }
-const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, commit: '', at: '' };
+async function keepCurrent() { if ((await checkLatest()) === false) await update(); }
+// build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
+const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0 };
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');
-  if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; }
+  if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; VERSION.build = Number(await git('rev-list', '--count', 'HEAD')) || 0; }
   if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
   keepCurrent(); setInterval(keepCurrent, EVERY).unref();
 });
