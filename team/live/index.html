@@ -18,7 +18,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex);overflow:hidden;user-select:none}
-button,input{font:inherit;color:inherit}
+button,input,textarea{font:inherit;color:inherit}
 #top{position:fixed;left:0;right:0;top:0;height:44px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
 /* the map's folder and name sit in the middle of the top bar, like a file name in Figma */
 #crumbs{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;color:var(--text-2)}
@@ -653,7 +653,8 @@ body.resizing{cursor:col-resize;user-select:none}
 .att-row{display:flex;gap:5px;flex:1;min-width:0;overflow:hidden;margin:0}
 .att-c svg{width:13px;height:13px;flex:none;fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
 .att-c{display:inline-flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0;max-width:60%;padding:2px 7px;border:1px solid var(--rule);border-radius:7px;background:#fafaf7;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cbox > input{display:block;width:100%;height:26px;border:0;padding:0;background:none;font-size:14px;outline:none}
+/* the chat box grows with what is typed, up to about eight lines, then scrolls */
+.cbox > textarea{display:block;width:100%;height:26px;max-height:180px;border:0;padding:3px 0;background:none;font-size:14px;line-height:20px;outline:none;resize:none;overflow-y:auto}
 .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
@@ -1960,7 +1961,7 @@ const modelLabel = (m) => {
 };
 const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat>
     ${pics && chatPics.length ? `<div class="tray">${chatPics.map((p, i) => `<span><img src="${p}" alt="A picture to send"><b data-unpic="${i}" title="Remove">×</b></span>`).join('')}</div>` : ''}
-    <input placeholder="${placeholder}" autocomplete="off">
+    <textarea rows="1" placeholder="${placeholder}" autocomplete="off"></textarea>
     <div class="crow">${pics ? '<button type="button" class="add" data-attach title="Add a picture" aria-label="Add a picture">+</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-pick>' : ''}
       ${modelLabel(model)}<button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
 // while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
@@ -2369,7 +2370,7 @@ canvas.addEventListener('wheel', (e) => {
 
 function enter(id){ view = id; selected = null; render(); fit(); }
 // Esc steps back out of a box
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input')){ if (view.startsWith('diagram:')) closeDiagram(); else enter('system'); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input, textarea')){ if (view.startsWith('diagram:')) closeDiagram(); else enter('system'); } });
 document.addEventListener('click', (e) => {
   const t = e.target;
   // the people menu closes on any click outside it
@@ -2492,12 +2493,12 @@ document.addEventListener('submit', (e) => {
   }
   const c = e.target.closest('form[data-chat]');
   if (c){
-    e.preventDefault(); const i = c.querySelector('input'), text = i.value.trim();
+    e.preventDefault(); const i = c.querySelector('textarea'), text = i.value.trim();
     if (MIRROR && (text || chatPics.length)){ act('say', { text, images: chatPics }); chatPics = []; i.value = ''; renderChat(); }
-    else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; }
+    else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; i.style.height = ''; }
     return;
   }
-  // your own answer to a question with options
+    // your own answer to a question with options
   const o = e.target.closest('form[data-other]');
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
@@ -2512,7 +2513,7 @@ document.addEventListener('submit', (e) => {
 const addPics = (files) => {
   const ok = [...files].filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type) && f.size <= 10e6).slice(0, Math.max(0, 5 - chatPics.length));
   Promise.all(ok.map((f) => new Promise((done) => { const r = new FileReader(); r.onload = () => done(r.result); r.onerror = () => done(null); r.readAsDataURL(f); })))
-    .then((urls) => { chatPics = [...chatPics, ...urls.filter(Boolean)]; renderChat(); document.querySelector('#chat form[data-chat] input')?.focus(); });
+    .then((urls) => { chatPics = [...chatPics, ...urls.filter(Boolean)]; renderChat(); document.querySelector('#chat form[data-chat] textarea')?.focus(); });
 };
 document.addEventListener('change', (e) => { if (e.target.matches?.('#chat [data-pick]')) addPics(e.target.files); });
 document.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])]; if (MIRROR && f.length && e.target.closest?.('#chat')){ e.preventDefault(); addPics(f); } });
@@ -2573,11 +2574,11 @@ function listen(){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : ae.closest('#chat') ? '#chat form[data-chat] input' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
     LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next; render();
     if (railTab === 'history') fetchHist();
-    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); } }
+    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (first){ first = false; fit(); }
   });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
@@ -2586,12 +2587,21 @@ function listen(){
     const v = JSON.parse(m.data); MIRROR = v.owner === ME ? v : null;
     const ae = document.activeElement, typing = ae?.closest?.('#chat') ? ae.value : null;
     renderChat();
-    if (typing !== null){ const el = document.querySelector('#chat form[data-chat] input'); if (el){ el.value = typing; el.focus(); } }
+    if (typing !== null){ const el = document.querySelector('#chat form[data-chat] textarea'); if (el){ el.value = typing; el.focus(); fitBox(el); } }
   });
   es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
 }
 window.addEventListener('resize', fit);
+// the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
+// input method is still composing a word); the box grows with each line
+document.addEventListener('keydown', (e) => {
+  const t = e.target.closest?.('form[data-chat] textarea');
+  if (!t || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+  e.preventDefault(); t.form.requestSubmit();
+});
+const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
+document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea'); if (t) fitBox(t); });
 listen();
 fetchInbox(); setInterval(fetchInbox, 8000);
 </script>
