@@ -2684,6 +2684,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
+  else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
   // Delete this box on the card asks the same question as the Delete key, above the box itself
   else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); keepInView(delAsk); }
@@ -2811,8 +2812,22 @@ function renderHist(){
 function renderHistBar(){
   const el = $('histbar'); el.classList.toggle('on', !!PREVIEW || !!FILE); document.body.classList.toggle('previewing', !!PREVIEW);
   el.innerHTML = PREVIEW ? `<span class="hb-w">${vtime(PREVIEW.at)} · ${esc(PREVIEW.what)}</span><button class="go" data-hrestore>Restore this version</button><button data-hnow>Back to now</button>`
-    : FILE ? `<span class="hb-w">A saved copy from ${esc(new Date(FILE).toLocaleString())}. To work on it, open Living Map and choose Load a map file.</span>` : '';
+    : FILE ? `<span class="hb-w">A saved copy from ${esc(new Date(FILE).toLocaleString())}.</span><button class="go" data-fload>Load into Living Map</button>` : '';
 }
+// Load into Living Map, in a saved file: opens the Living Map on this Mac (its usual address) in a new tab, which
+// says it is ready, then hands it the file's data; that tab makes it a map of its own and shows it. Signed out,
+// that tab asks to sign in first and then takes the data; not running, it shows nothing, and the bar says what to do
+const LM = 'http://localhost:4323';
+let loading = null;
+function loadFile(){
+  const b = document.querySelector('[data-fload]'); if (!b) return;
+  loading = window.open(`${LM}/?load`, '_blank');
+  toast('If no Living Map opens, type /anur-living-map in Claude Code first, then click again.');
+}
+window.addEventListener('message', (e) => {
+  if (!FILE || e.data !== 'lm-ready' || !loading || e.source !== loading) return;
+  loading.postMessage({ lmLoad: document.getElementById('lm-data').textContent }, LM);
+});
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
   fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
