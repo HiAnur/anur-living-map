@@ -17,7 +17,7 @@ REV="$HOME/.living-map-2/server.rev"   # the commit the running server was start
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, pulled from GitHub when it is
 #    on main with no changes of its own (a few seconds at most; offline it gives up after a moment and says so),
 #    and the skill's copy under ~/.claude/skills follows, for the next time it is read.
-if [ ! -d "$H/.git" ]; then
+if [ ! -e "$H/.git" ]; then
   git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
 fi
 [ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
@@ -28,10 +28,14 @@ elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 pull -q --ff-
   now=$(git -C "$H" rev-parse HEAD)
   if [ "$now" = "$was" ]; then echo "update: already the latest"
   else
-    mkdir -p "$HOME/.claude/skills" && cp -R "$H/team/skill/anur-living-map" "$HOME/.claude/skills/"
-    echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled, the skill's copy refreshed: $(git -C "$H" log -1 --format=%s)"
+    echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled: $(git -C "$H" log -1 --format=%s)"
   fi
 else echo "update: could not reach GitHub, staying with what is here"; fi
+# the skill's copy under ~/.claude/skills always matches the clone, however the clone got its latest (this pull,
+# the server's own, a pull by hand); the copy read for this run stays as it was, the next run reads the new one
+if ! diff -rq "$H/team/skill/anur-living-map" "$HOME/.claude/skills/anur-living-map" >/dev/null 2>&1; then
+  mkdir -p "$HOME/.claude/skills" && cp -R "$H/team/skill/anur-living-map" "$HOME/.claude/skills/" && echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
+fi
 
 # 1. the server. Running older code than the clone, it is restarted on the new code (the list of maps and every
 #    map are on disk, so nothing is lost; listeners in other chats end and say to open the map again). Otherwise
