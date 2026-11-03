@@ -29,5 +29,5 @@ CLAUDE.local.md
 .claude/settings.local.json
 .claude/worktrees/
 
-# the map's own state when the map is opened on this repo
+# a map opened on this repo keeps its state here
 .living-map/

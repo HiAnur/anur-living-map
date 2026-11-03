@@ -487,8 +487,8 @@ function openMap({ project = '', name = '', home }) {
     fs.writeFileSync(HIST_LIST, JSON.stringify(history));
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
-  const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -548,8 +548,9 @@ function openMap({ project = '', name = '', home }) {
       if (!list) return false;
       const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
       let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
-      const sees = seesOf(a.by), w = Math.round(Number(a.w));
-      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 110 && w <= 400 ? { w } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
+      // the box keeps the size it was drawn at (the page grows it only when its words need more room)
+      const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
+      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       tell(`${a.by} drew the box ${label}`);
       return true;
     },
@@ -560,6 +561,15 @@ function openMap({ project = '', name = '', home }) {
       const label = String(a.label || '').trim().slice(0, 40), had = edges.find((e) => e.from === from.id && e.to === to.id);
       if (had) { if (!label) return false; had.label = label; } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}) });
       tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
+      return true;
+    },
+    // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
+    resize(a) {
+      const n = nodeOf(a.id); if (!n) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
+      const w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
+      if (!(w >= 60 && w <= 800 && h >= 36 && h <= 600) || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
+      Object.assign(n, { x: Math.round(a.x), y: Math.round(a.y), w, h, moved: true });
       return true;
     },
     // a line picked on the map and deleted, by hand
