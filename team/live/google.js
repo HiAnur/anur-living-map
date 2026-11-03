@@ -19,7 +19,8 @@ export function googleStart(origin, next) {
     challenge: crypto.createHash('sha256').update(verifier).digest('base64url') })}`;
 }
 
-// what came back on /auth/done: the person and the page to go back to, or an Error in plain words
+// what came back on /auth/done: the person (listed: named by the login's list, so one of the map's people may be
+// seated; else only Google's name for them) and the page to go back to, or an Error in plain words
 export async function googleFinish(params) {
   const s = pending.get(params.get('state') || '');
   pending.delete(params.get('state') || '');
@@ -30,7 +31,7 @@ export async function googleFinish(params) {
   const d = r ? await r.json().catch(() => ({})) : {};
   if (!r?.ok || !d.name) throw new Error(d.error || 'The sign-in service did not answer. Try again.');
   const name = String(d.name).replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) || String(d.email || '').split('@')[0] || 'Someone';
-  return { email: d.email, name, next: s.next };
+  return { email: d.email, name, listed: d.listed === true, next: s.next };
 }
 
 // a name and password kept at Living Map login, for someone with no Google account: the name to sign in as, or null
