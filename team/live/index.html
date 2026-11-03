@@ -144,12 +144,10 @@ button,input{font:inherit;color:inherit}
 /* a cross-link on a topic map: "related to", not part of the tree (crossLinks) */
 #edges > path.cross{stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 4;opacity:.55}
 #edges > path.cross.faint{opacity:.3}
-/* a line you can click: a wide invisible stroke over it; a picked line turns the blue of a picked box, with
-   Delete line beside its middle (or press Delete) */
+/* a line you can click: a wide invisible stroke over it; a picked line turns the blue of a picked box; Delete or
+   Backspace takes it off the map (no button: a picked line and the key are the whole of it) */
 #edges > path.hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
 #edges > path.pick{stroke:#0D99FF;stroke-width:2.5;stroke-dasharray:none;animation:none;opacity:1}
-.edel{position:absolute;transform:translate(-50%,-50%);z-index:3;height:24px;padding:0 10px;border:1px solid var(--gone);border-radius:999px;background:#fff;color:var(--gone);font:500 12px/22px var(--plex);white-space:nowrap;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.edel:hover{background:var(--gone);color:#fff}
 #edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
 /* selected: the box lights up blue */
@@ -1419,8 +1417,6 @@ function render(){
   const lines = [], labels = [];
   // a line you may delete: not one Claude only proposed, and not one touching a box outside your reach
   const canPick = (e, a, b) => !e.proposed && !locked(a) && !locked(b) && !PREVIEW;
-  const half = (pts) => { const seg = pts.slice(1).map((p, i) => Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1])); let left = seg.reduce((s, d) => s + d, 0) / 2;
-    for (const [i, d] of seg.entries()){ if (left <= d){ const t = d ? left / d : 0; return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t]; } left -= d; } return pts.at(-1); };
   let pickSeen = false;
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
@@ -1448,7 +1444,7 @@ function render(){
       const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
       const pk = pickedLine === `${e.from}>${e.to}`;
       svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
-      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk){ pickSeen = true; lineMid = c.mid; } }
+      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }
       lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
       if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
       continue;
@@ -1458,7 +1454,7 @@ function render(){
     const others = [...ptsOf].filter(([id]) => id !== `${e.from}>${e.to}`).map(([, p]) => p);
     const pk = pickedLine === `${e.from}>${e.to}`;
     svg += `<path class="${k} ${quiet && !pk ? 'faint' : ''} ${still ? 'still' : ''} ${pk ? 'pick' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
-    if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk){ pickSeen = true; lineMid = half(pts); } }
+    if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk) pickSeen = true; }
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
@@ -1476,7 +1472,7 @@ function render(){
   for (const L of placeWords(labels, lines, nodes))
     words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}" x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
   // a picked line that is gone (deleted, or folded away) lets go
-  if (!pickSeen){ pickedLine = null; lineMid = null; lineAt = null; }
+  if (!pickSeen) pickedLine = null;
   edgesEl.innerHTML = defsHtml + svg + words + hits;
   // the gap is as wide as the words, measured, plus a little air
   for (const r of edgesEl.querySelectorAll('rect.gap')){
@@ -1508,9 +1504,6 @@ function render(){
     // the file only for the box you picked; the card has it too
     if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
   }
-  // beside where you clicked the line (its middle can sit behind a box), else its middle
-  const btnAt = lineAt || lineMid;
-  if (pickedLine && btnAt) html += `<button class="edel" data-edge-del="${pickedLine}" style="left:${btnAt[0]}px;top:${btnAt[1] + 20}px" title="Take this line off the map, for everyone (Delete)">Delete line</button>`;
   nodesEl.innerHTML = html;
   renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
 }
@@ -1668,8 +1661,8 @@ let expanded = null;
 let sideTab = 'box', sideFor = null, sideSeen = '';
 // the box whose card asks "delete?" (Delete this box, or the Delete key on a picked box)
 let delAsk = null;
-// the line picked on the map, as "from>to", and where its Delete line button sits
-let pickedLine = null, lineMid = null, lineAt = null;
+// the line picked on the map, as "from>to"; Delete or Backspace takes it off
+let pickedLine = null;
 // a box opened from Decisions or Claude's chat has a Back to it, which returns to where you were in that list
 let backTo = null, decsScroll = 0;
 // the answered questions opened with More in History, by call id
@@ -2096,7 +2089,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.clo
 // a picked line goes at once on Delete: nothing hangs off a line, and History brings it back
 function deleteLine(id){
   const [from, to] = id.split('>'), a = nodeById(from), b = nodeById(to);
-  pickedLine = null; lineMid = null; act('unlink', { from, to }); render();
+  pickedLine = null; act('unlink', { from, to }); render();
   toast(`The line ${a?.label || from} → ${b?.label || to} is off the map. History can bring it back.`);
 }
 document.addEventListener('keydown', (e) => {
@@ -2200,11 +2193,9 @@ canvas.addEventListener('pointerdown', (e) => {
   if (ex){ if (ex.dataset.dgx) openDiagram(ex.dataset.dgx); else enter(ex.dataset.expand); return; }
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
-  // Delete line, and picking a line with the Select tool (a click on a line picks it, a second click lets go)
-  const del = e.target.closest('[data-edge-del]');
-  if (del){ deleteLine(del.dataset.edgeDel); return; }
+  // picking a line with the Select tool (a click on a line picks it, a second click lets go)
   const ed = tool === 'select' && e.target.closest('[data-edge]');
-  if (ed){ pickedLine = pickedLine === ed.dataset.edge ? null : ed.dataset.edge; lineAt = pickedLine ? toStage(e.clientX, e.clientY) : null; selected = null; delAsk = null; render(); return; }
+  if (ed){ pickedLine = pickedLine === ed.dataset.edge ? null : ed.dataset.edge; selected = null; delAsk = null; render(); return; }
   const nd = e.target.closest('.node');
   moved = false;
   if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }

@@ -1067,7 +1067,7 @@ const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
 const git = (...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
 const EVERY = 10 * 60_000;
 async function keepCurrent() {
-  if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true' || (await git('branch', '--show-current')) !== 'main' || (await git('status', '--porcelain'))) return;
+  if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true' || (await git('branch', '--show-current')) !== 'main' || (await git('status', '--porcelain', '--untracked-files=no'))) return;
   const was = await git('rev-parse', 'HEAD');
   if ((await git('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=4', 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
   const now = await git('rev-parse', 'HEAD');
