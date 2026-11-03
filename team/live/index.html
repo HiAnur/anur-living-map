@@ -130,13 +130,17 @@ button,input{font:inherit;color:inherit}
 #rubber path{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
-#newbox input{width:100%;height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#newbox input{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 #newbox input::placeholder{font-weight:400;color:var(--text-3)}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
 .d-del .ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .gb.bad{background:var(--gone);color:#fff;border-color:var(--gone)}
+/* Delete on a picked box asks right above it: Enter deletes, Esc keeps */
+.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--gone);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
+.delq .gb{height:26px;padding:0 10px;font-size:12.5px}
+.delq kbd{font:11px var(--plex);color:var(--text-3)}
 /* the plan touches two boxes: they carry their sentence in full ink, the rest steps back until you look at it */
 .node.faint{opacity:.62}
 .node.faint:hover,.node.faint.sel{opacity:1}
@@ -945,7 +949,8 @@ const subLines = (n) => {
   return wraps.get(key);
 };
 // boxes are as tall as their words need: taller for a name on two lines, and for each extra line of the second line
-const HT = (n) => ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16;
+// a box drawn by hand keeps the height it was drawn at (h), and grows only when its words need more
+const HT = (n) => Math.max(n.h || 0, ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -1499,6 +1504,7 @@ function render(){
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb bad" data-delete-yes="${n.id}">Delete</button><button class="gb" data-delete-no>Keep</button><kbd>Enter · Esc</kbd></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
@@ -2104,11 +2110,22 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
+// Delete or Backspace on a picked box asks once, right above the box: Enter deletes it, Esc keeps it
+function deleteBox(id){
+  const n = nodeById(id); delAsk = null; if (selected === id) selected = null;
+  act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+}
 document.addEventListener('keydown', (e) => {
-  if (!['Delete', 'Backspace'].includes(e.key) || !selected || e.target.closest('input, textarea') || PREVIEW) return;
+  if (e.target.closest('input, textarea') || PREVIEW) return;
+  if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
+    return;
+  }
+  if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
-  e.preventDefault(); delAsk = n.id; sideTab = 'box'; render();
-});
+  e.preventDefault(); delAsk = n.id; render();
+}, true);
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
 const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
@@ -2173,7 +2190,8 @@ function drawRubber(){
 // a new box is named where it was drawn, a new line gets its words halfway along it; Enter keeps it, Esc lets it go
 function askName(at){
   naming = at; const el = $('newbox'), line = !!at.from;
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.classList.add('on');
+  // a box is named inside the very shape that was drawn, so what you drew is what you get
+  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.style.height = `${line ? 36 : at.h || 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
   const i = el.querySelector('input'); i.focus();
   i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
@@ -2184,7 +2202,7 @@ function endName(keep){
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
-  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), view });
+  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), view });
 }
 
 /* pan, zoom, drag */
@@ -2201,6 +2219,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   // Delete line, and picking a line with the Select tool (a click on a line picks it, a second click lets go)
+  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   const del = e.target.closest('[data-edge-del]');
   if (del){ deleteLine(del.dataset.edgeDel); return; }
   const ed = tool === 'select' && e.target.closest('[data-edge]');
@@ -2267,9 +2286,10 @@ canvas.addEventListener('pointerup', (e) => {
   if (drawing){
     const d = drawing; drawing = null; drawRubber(); setTool('select');
     if (d.box){
-      // a drag of 30px or more sets the box's width (110 to 400); a click makes one the usual width where it was clicked
-      const wide = Math.abs(d.x1 - d.x0) >= 30;
-      askName({ x: Math.round(wide ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(wide ? (d.y0 + d.y1) / 2 : d.y0), w: wide ? Math.min(400, Math.max(110, Math.round(Math.abs(d.x1 - d.x0)))) : null });
+      // the box is the rectangle you dragged, width and height (at least 60 by 36, so a name fits); a click makes one the usual size
+      const dw = Math.abs(d.x1 - d.x0), dh = Math.abs(d.y1 - d.y0), drawn = dw >= 20 || dh >= 20;
+      askName({ x: Math.round(drawn ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(drawn ? (d.y0 + d.y1) / 2 : d.y0),
+        w: drawn ? Math.min(800, Math.max(60, Math.round(dw))) : null, h: drawn ? Math.min(600, Math.max(36, Math.round(dh))) : null });
     } else {
       const to = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node'), n = to && nodeById(to.dataset.id);
       if (!n || n === d.from) toast('Let go of the line on another box.');
@@ -2361,7 +2381,7 @@ document.addEventListener('click', (e) => {
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
   else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); }
   else if (t.closest('[data-delete-no]')){ delAsk = null; render(); }
-  else if (t.closest('[data-delete-yes]')){ const id = t.closest('[data-delete-yes]').dataset.deleteYes, n = nodeById(id); delAsk = null; if (selected === id) selected = null; act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`); }
+  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('[data-resolve]')){

@@ -548,8 +548,9 @@ function openMap({ project = '', name = '', home }) {
       if (!list) return false;
       const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
       let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
-      const sees = seesOf(a.by), w = Math.round(Number(a.w));
-      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 110 && w <= 400 ? { w } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
+      // the box keeps the size it was drawn at (the page grows it only when its words need more room)
+      const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
+      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       tell(`${a.by} drew the box ${label}`);
       return true;
     },

@@ -28,3 +28,6 @@ coverage/
 CLAUDE.local.md
 .claude/settings.local.json
 .claude/worktrees/
+
+# a map opened on this repo keeps its state here
+.living-map/
