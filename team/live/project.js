@@ -326,10 +326,10 @@ function groupsOf(list, from, edges, out) {
 // One column of siblings, top to bottom: as they sit now, with boxes that belong together next to each other
 // (the group where its highest box is). Boxes with no place yet follow in the order they were drawn, each beside
 // the boxes it belongs with or else at the end of the column; `up` makes the end the top.
-function arrange(list, group, drawn, up) {
-  const seq = [], sit = list.filter(placed).sort((a, b) => a.y - b.y || a.x - b.x);
+function arrange(list, group, drawn, up, chosen = placed) {
+  const seq = [], sit = list.filter(chosen).sort((a, b) => a.y - b.y || a.x - b.x);
   for (const n of sit) if (!seq.includes(n)) seq.push(...sit.filter((m) => group(m) === group(n)));
-  for (const n of list.filter((m) => !placed(m)).sort((a, b) => drawn(a) - drawn(b))) {
+  for (const n of list.filter((m) => !chosen(m)).sort((a, b) => drawn(a) - drawn(b))) {
     const mates = seq.filter((m) => group(m) === group(n));
     seq.splice(mates.length ? (up ? seq.indexOf(mates[0]) : seq.indexOf(mates.at(-1)) + 1) : up ? 0 : seq.length, 0, n);
   }
@@ -350,8 +350,10 @@ function arrange(list, group, drawn, up) {
 // Room: a box per 150px down (100px clear between two boxes, 83px under a two-line name, so a line's words
 // sit between them with air); across, 200px between a column's widest box and the next, or more when the
 // words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
+// `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
+// a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press.
 const SLOT = 150, GAP = 200, CHAR = 6.8;
-export function tidyTree(nodes, edges, shown = null) {
+export function tidyTree(nodes, edges, shown = null, chosen = placed) {
   const tree = treeOf(nodes, edges);
   if (!tree || (shown && !shown.has(tree.root.id))) return false;
   const { root, kids, ring, out } = tree;
@@ -374,14 +376,14 @@ export function tidyTree(nodes, edges, shown = null) {
     let top = n.y - (weight(seq, every) - 1) * SLOT / 2;
     for (const c of seq) {
       const l = leaves(c, every), ks = kids.get(c.id) || [], open = ks.filter(vis), all = every || !open.length, list = all ? ks : open;
-      const next = arrange(list, groupsOf(list, c.id, edges, out), drawnIn(c.id), false);
+      const next = arrange(list, groupsOf(list, c.id, edges, out), drawnIn(c.id), false, chosen);
       c.x = Math.round(root.x + side * reach[ring.get(c.id)]); c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
       stack(c, next, side, all);
     }
   };
   const all = kids.get(root.id) || [], open = all.filter(vis), every = !open.length, first = every ? all : open;
   const group = groupsOf(first, root.id, edges, out), drawn = drawnIn(root.id), side = new Map();
-  for (const c of first) if (placed(c) && Math.abs(c.x - root.x) > 1) side.set(c.id, c.x < root.x ? -1 : 1);
+  for (const c of first) if (chosen(c) && Math.abs(c.x - root.x) > 1) side.set(c.id, c.x < root.x ? -1 : 1);
   for (const c of first.filter((m) => !side.has(m.id))) {
     const mate = first.find((m) => side.has(m.id) && group(m) === group(c));
     if (mate) side.set(c.id, side.get(mate.id));
@@ -400,8 +402,8 @@ export function tidyTree(nodes, edges, shown = null) {
     if (!best || score[0] < best[0] || (score[0] === best[0] && score[1] < best[1])) { best = score; k = i; }
   }
   units.forEach((u, i) => u.list.forEach((c) => side.set(c.id, i < k ? 1 : -1)));
-  stack(root, arrange(first.filter((c) => side.get(c.id) === -1), group, drawn, true), -1, every);
-  stack(root, arrange(first.filter((c) => side.get(c.id) === 1), group, drawn, false), 1, every);
+  stack(root, arrange(first.filter((c) => side.get(c.id) === -1), group, drawn, true, chosen), -1, every);
+  stack(root, arrange(first.filter((c) => side.get(c.id) === 1), group, drawn, false, chosen), 1, every);
   return true;
 }
 

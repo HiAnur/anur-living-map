@@ -516,7 +516,10 @@ function openMap({ project = '', name = '', home }) {
   const ACTS = {
     move(a) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
-      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true;
+      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
+      // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)
+      if (nodeOf(a.id)) n.moved = true;
+      return true;
     },
     // drawn by hand on the map: a box where it was drawn (a.view: inside that box), a line from one box to another
     // (words on it optional; drawing one that exists changes its words), and a box taken off the map, its lines with
@@ -529,7 +532,7 @@ function openMap({ project = '', name = '', home }) {
       const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
       let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
       const sees = seesOf(a.by), w = Math.round(Number(a.w));
-      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, ...(w >= 110 && w <= 400 ? { w } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
+      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 110 && w <= 400 ? { w } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       tell(`${a.by} drew the box ${label}`);
       return true;
     },
@@ -557,7 +560,8 @@ function openMap({ project = '', name = '', home }) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      if (!tidyTree(list, edges, only)) tidy(list, edges, only);
+      // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
+      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },

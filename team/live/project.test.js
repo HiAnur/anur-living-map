@@ -53,6 +53,25 @@ describe('tidyTree', () => {
     expect(at(nodes)).toEqual(once);
   });
 
+  it('with only dragged boxes kept, regroups and rebalances every other box, and keeps a dragged one where it was put', () => {
+    const { nodes, edges } = gtm();
+    const moved = (n) => Number.isFinite(n.x) && n.moved;
+    tidyTree(nodes, edges, null, moved);
+    // nobody dragged anything: balanced in the order drawn, the two billing boxes side by side
+    const right = column(nodes, 1), left = column(nodes, -1);
+    expect(Math.abs(right.length + (right.includes('who') ? 2 : 0) + (right.includes('rivals') ? 2 : 0) - left.length - (left.includes('who') ? 2 : 0) - (left.includes('rivals') ? 2 : 0))).toBeLessThanOrEqual(1);
+    const col = right.includes('offer') ? right : left;
+    expect(Math.abs(col.indexOf('offer') - col.indexOf('price'))).toBe(1);
+    const once = at(nodes);
+    tidyTree(nodes, edges, null, moved);
+    expect(at(nodes)).toEqual(once);
+    // Today dragged to the far side of where it landed stays on that side
+    const t = get(nodes, 'today'), to = t.x < 70 ? 1 : -1;
+    Object.assign(t, { x: 70 + to * 400, y: t.y, moved: true });
+    tidyTree(nodes, edges, null, moved);
+    expect(Math.sign(get(nodes, 'today').x - 70)).toBe(to);
+  });
+
   it('stays stable for any set of boxes showing', () => {
     const { nodes, edges } = gtm();
     const shown = new Set(['gtm', 'who', 'where', 'seller', 'offer', 'price', 'spread', 'today', 'rivals', 'open', 'test']);
