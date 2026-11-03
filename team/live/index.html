@@ -831,7 +831,7 @@ const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 // which code this map runs, shown at the foot of the people menu so a teammate can say which one they are on
 let VER = '';
-fetch('/api/version').then((r) => r.json()).then((v) => { VER = `Living Map ${v.version}${v.commit ? ` · ${v.commit} · ${v.at}` : ''}`; }).catch(() => {});
+fetch('/api/version').then((r) => r.json()).then((v) => { VER = `Living Map ${v.version}${v.build ? ` · build ${v.build}` : ''}`; }).catch(() => {});
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
 const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' };

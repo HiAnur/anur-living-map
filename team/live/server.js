@@ -1066,22 +1066,33 @@ const REPO = path.resolve(DIR, '..', '..');
 const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
 const git = (...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
 const EVERY = 10 * 60_000;
+// the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
+// by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line
+function refreshSkill() {
+  const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = path.join(os.homedir(), '.claude', 'skills', 'anur-living-map');
+  for (const f of fs.readdirSync(src, { recursive: true })) {
+    const s = path.join(src, f), d = path.join(dst, f);
+    if (fs.statSync(s).isDirectory()) continue;
+    fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, `${d}.new`); fs.renameSync(`${d}.new`, d);
+  }
+}
 async function keepCurrent() {
   if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true' || (await git('branch', '--show-current')) !== 'main' || (await git('status', '--porcelain'))) return;
   const was = await git('rev-parse', 'HEAD');
   if ((await git('-c', 'http.lowSpeedLimit=1000', '-c', 'http.lowSpeedTime=4', 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
   const now = await git('rev-parse', 'HEAD');
   if (now === was) return;
-  try { fs.cpSync(path.join(REPO, 'team', 'skill', 'anur-living-map'), path.join(os.homedir(), '.claude', 'skills', 'anur-living-map'), { recursive: true }); } catch {}
+  try { refreshSkill(); } catch {}
   console.log(`update: ${await git('rev-list', '--count', `${was}..${now}`)} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`);
   server.closeAllConnections();
   server.close(() => { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'inherit' }).unref(); process.exit(0); });
 }
-const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, commit: '', at: '' };
+// build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
+const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '' };
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');
-  if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; }
+  if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; VERSION.build = Number(await git('rev-list', '--count', 'HEAD')) || 0; }
   if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
   keepCurrent(); setInterval(keepCurrent, EVERY).unref();
 });
