@@ -120,6 +120,25 @@ describe('tidyTree', () => {
     expect(get(nodes, 'discount').y).toBe(get(nodes, 'offer').y + 150);
     expect(column(nodes, -1)[0]).toBe('extra');
   });
+
+  it('starts from the box it is given, with a line into that box left as a cross-link', () => {
+    const { nodes, edges } = gtm();
+    edges.push({ from: 'test', to: 'gtm' });
+    expect(tidyTree(nodes, edges)).toBe(false);
+    expect(tidyTree(nodes, edges, null, () => false, 'gtm')).toBe(true);
+    expect(get(nodes, 'gtm').x).toBe(70);
+    expect(column(nodes, 1).length + column(nodes, -1).length).toBe(10);
+  });
+
+  it('lays out under a new start box that holds two boxes nothing led to', () => {
+    const { nodes, edges } = gtm();
+    nodes.push({ id: 'side', label: 'side', x: 900, y: 900, w: 180 }, { id: 'top', label: 'top', x: 70, y: 155, w: 140 });
+    expect(tidyTree(nodes, edges, null, () => false, 'gtm')).toBe(false);
+    edges.push({ from: 'top', to: 'gtm' }, { from: 'top', to: 'side' });
+    expect(tidyTree(nodes, edges, null, () => false, 'top')).toBe(true);
+    expect(Math.abs(get(nodes, 'gtm').x - 70)).toBeGreaterThan(0);
+    expect(Math.sign(get(nodes, 'who').x - 70)).toBe(Math.sign(get(nodes, 'gtm').x - 70));
+  });
 });
 
 describe('tidy (grid map)', () => {

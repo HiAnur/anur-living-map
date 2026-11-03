@@ -168,8 +168,8 @@ const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 // A new box on a topic map goes where Tidy up would put it (on its parent's side, beside the boxes it belongs
 // with, after the box drawn before it), without moving a box already there; on any other map, the free grid
 // spot where its lines cross the fewest boxes and are shortest.
-export function placeNew(nodes, edges) {
-  if (!nodes.some((n) => !placed(n)) || placeInTree(nodes, edges)) return;
+export function placeNew(nodes, edges, start = null) {
+  if (!nodes.some((n) => !placed(n)) || placeInTree(nodes, edges, start)) return;
   for (const n of nodes) {
     if (placed(n)) continue;
     const others = nodes.filter((o) => o !== n && placed(o));
@@ -196,13 +196,13 @@ export function placeNew(nodes, edges) {
 // copy's, kept between the siblings it sits between there, so the next Tidy up keeps its side and its order.
 // Only on a map laid out as a mind map (most boxes already in the copy's columns): a map still on the grid, such
 // as one read from a project's folders, keeps the grid until someone presses Tidy up.
-function placeInTree(nodes, edges) {
-  const tree = treeOf(nodes, edges);
+function placeInTree(nodes, edges, start) {
+  const tree = treeOf(nodes, edges, start);
   if (!tree) return false;
   const { root, kids, parent, ring } = tree;
   if (!placed(root) && nodes.some(placed)) return false;
   const twin = new Map(nodes.map((n) => [n.id, { ...n, ...(placed(root) ? {} : n === root ? { x: 90, y: 150 } : {}) }]));
-  tidyTree([...twin.values()], edges);
+  tidyTree([...twin.values()], edges, null, placed, start);
   const sat = nodes.filter((n) => n !== root && placed(n));
   if (sat.filter((n) => n.x === twin.get(n.id).x).length * 2 < sat.length) return false;
   if (!placed(root)) { root.x = 90; root.y = 150; }
@@ -289,15 +289,16 @@ export function tidy(nodes, edges = [], shown = null) {
 }
 
 // The tree under the one box no line comes into, ring by ring: the first line to reach a box makes it that box's
-// child, and a box's children keep the order their lines were drawn in. Null when there is no single such box
+// child, and a box's children keep the order their lines were drawn in. Given the box the map starts from
+// (`start`), the tree hangs under it and lines into it are cross-links. Null when there is no single such box
 // or it does not reach every box.
-function treeOf(nodes, edges) {
+function treeOf(nodes, edges, start = null) {
   const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
-    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to) continue;
+    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || e.to === start) continue;
     if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); into.add(e.to);
   }
-  const roots = nodes.filter((n) => !into.has(n.id));
+  const roots = by.has(start) ? [by.get(start)] : nodes.filter((n) => !into.has(n.id));
   if (nodes.length < 2 || roots.length !== 1) return null;
   const root = roots[0], kids = new Map(), parent = new Map(), seen = new Set([root.id]), q = [root.id], ring = new Map([[root.id, 0]]);
   while (q.length) {
@@ -351,10 +352,11 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // sit between them with air); across, 200px between a column's widest box and the next, or more when the
 // words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
 // `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
-// a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press.
+// a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press. `start` is the
+// box the map starts from, when one was chosen.
 const SLOT = 150, GAP = 200, CHAR = 6.8;
-export function tidyTree(nodes, edges, shown = null, chosen = placed) {
-  const tree = treeOf(nodes, edges);
+export function tidyTree(nodes, edges, shown = null, chosen = placed, start = null) {
+  const tree = treeOf(nodes, edges, start);
   if (!tree || (shown && !shown.has(tree.root.id))) return false;
   const { root, kids, ring, out } = tree;
   if (!placed(root)) return false;
