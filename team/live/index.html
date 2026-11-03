@@ -1444,6 +1444,12 @@ function placeWords(labels, lines, nodes){
   });
 }
 
+// the box where the map starts is drawn in ink, unless it carries a colour of its own (a question waiting on it, an
+// answer, something the plan does to it): that colour says more, and white words on it could not be read
+function startLook(n, mine){
+  if (fold.depth.get(n.id) !== 0 || !fold.kids.has(n.id) || n.proposed || locked(n)) return false;
+  return !(decisionMap() ? boxDecision(n) : n.state) && !mine;
+}
 function render(){
   if (!S) return;
   const fb = flowBox();
@@ -1530,7 +1536,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', n.kind || '', fold.depth.get(n.id) === 0 && fold.kids.has(n.id) ? 'start' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', startLook(n, mine) ? 'start' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
