@@ -140,6 +140,25 @@ button,input,textarea{font:inherit;color:inherit}
 #rubber{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px;pointer-events:none}
 #rubber rect{fill:var(--new-tint);stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
 #rubber path{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
+/* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
+   Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
+   let go on empty map and a new box goes there, named in place, with the line to it */
+.node .cd{position:absolute;z-index:4;width:10px;height:10px;margin:-6.5px 0 0 -6.5px;border:1.5px solid #0D99FF;border-radius:50%;background:#d6ebff;cursor:crosshair;
+  visibility:hidden;opacity:0;transition:opacity .15s,visibility 0s .4s,transform .1s}
+.node:hover .cd{visibility:visible;opacity:1;transition:opacity .15s,visibility 0s,transform .1s}
+.node .cd:hover{background:#0D99FF;transform:scale(1.2)}
+/* only the Select tool draws from the dots */
+#canvas.drawing .cd,#canvas.hand .cd,#canvas.commenting .cd{display:none}
+/* only under the pointer, and on the box's edge, where a line from them starts; a picked box shows just its corners */
+.node .cd.t{left:50%;top:0}.node .cd.b{left:50%;top:100%}.node .cd.l{left:0;top:50%}.node .cd.r{left:100%;top:50%}
+.node:has(.cd):hover:not(.sel){outline:2px solid #0D99FF;outline-offset:-1px}
+/* the fold button sits on the side its boxes hang from, where a dot now is: under the pointer it steps out past the dot */
+.node:has(.cd):hover .fold.r{right:-36px}.node:has(.cd):hover .fold.l{left:-36px}
+.node:has(.cd):hover .fold.b{bottom:-36px}.node:has(.cd):hover .fold.t{top:-36px}
+/* the selection box dragged out on empty map */
+#rubber rect.mq{fill:rgba(13,153,255,.08);stroke:#0D99FF;stroke-width:1;stroke-dasharray:none}
+#canvas.spacepan{cursor:grab}
+#rubber rect.snap{fill:none;stroke:#0D99FF;stroke-width:2;stroke-dasharray:none}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
 #newbox input{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
@@ -172,7 +191,8 @@ button,input,textarea{font:inherit;color:inherit}
 #edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
 /* selected: the box lights up blue */
-.node.sel{outline:2px solid #0D99FF;outline-offset:3px;box-shadow:none}
+/* a picked box: its own edge turns blue, with the resize squares on its corners and the dots out past its sides */
+.node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
 .node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;gap:6px}
 /* a name longer than its box wraps to a second line, never a third, and the box grows to hold it (HT) */
 .node .nt{min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
@@ -275,9 +295,9 @@ button,input,textarea{font:inherit;color:inherit}
 .node .fold.shut:hover{background:#3d3c39}
 .node .fold.r{right:-10px;top:50%;margin-top:-9px}
 /* a picked box shows a handle on each corner: drag one to resize, the opposite corner stays put */
-.node .rz{position:absolute;z-index:3;width:10px;height:10px;background:#fff;border:1.5px solid #0D99FF;border-radius:2px}
-.node .rz.nw{left:-8px;top:-8px;cursor:nwse-resize}.node .rz.se{right:-8px;bottom:-8px;cursor:nwse-resize}
-.node .rz.ne{right:-8px;top:-8px;cursor:nesw-resize}.node .rz.sw{left:-8px;bottom:-8px;cursor:nesw-resize}
+.node .rz{position:absolute;z-index:3;width:9px;height:9px;background:#fff;border:1.5px solid #0D99FF;border-radius:2px}
+.node .rz.nw{left:-6.5px;top:-6.5px;cursor:nwse-resize}.node .rz.se{right:-6.5px;bottom:-6.5px;cursor:nwse-resize}
+.node .rz.ne{right:-6.5px;top:-6.5px;cursor:nesw-resize}.node .rz.sw{left:-6.5px;bottom:-6.5px;cursor:nesw-resize}
 .node .fold.l{left:-10px;top:50%;margin-top:-9px}
 .node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
 .node .fold.t{top:-10px;left:50%;margin-left:-9px}
@@ -768,6 +788,8 @@ body.previewing .node.proposed{display:none}
 .tb:hover{background:#f3f2ee}
 .tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .tb.on{background:#ecebe6;color:var(--text)}
+/* each tool's key, small at its lower right: V select, H pan, R box, A line, T text, C comment */
+.tb{min-width:34px}.tb .tk{position:absolute;right:3px;bottom:1px;font:500 9px/1 var(--plex);color:var(--text-3);pointer-events:none}
 /* the bar is white like every other card on the map */
 .tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
 /* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
@@ -817,14 +839,14 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
 <div id="tools">
-  <span class="tb on" data-tool="select" title="Select"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg></span>
-  <span class="tb" data-tool="hand" title="Pan: drag the map"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg></span>
+  <span class="tb on" data-tool="select" title="Select (V)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg><kbd class="tk">V</kbd></span>
+  <span class="tb" data-tool="hand" title="Pan: drag the map (H)"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg><kbd class="tk">H</kbd></span>
   <i class="tdiv"></i>
-  <span class="tb" data-tool="box" title="Box: drag one out, or click"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg></span>
-  <span class="tb" data-tool="arrow" title="Line: drag from one box to another"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg></span>
-  <span class="tb" data-tool="text" title="Text"><svg viewBox="0 0 20 20"><path d="M5 5h10M10 5v11"/></svg></span>
+  <span class="tb" data-tool="box" title="Box: drag one out, or click (R)"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">R</kbd></span>
+  <span class="tb" data-tool="arrow" title="Line: drag from one box to another (A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">A</kbd></span>
+  <span class="tb" data-tool="text" title="Text (T)"><svg viewBox="0 0 20 20"><path d="M5 5h10M10 5v11"/></svg><kbd class="tk">T</kbd></span>
   <i class="tdiv"></i>
-  <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg></span>
+  <span class="tb" data-tool="comment" title="Comment (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">C</kbd></span>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
@@ -1359,6 +1381,23 @@ const endOf = (k) => k === 'assumed-gone' ? 'url(#x-gone)' : `url(#a-${k})`;
 function route(a, b, dup, others = [], port){ return routePts(a, b, dup, others, port).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(''); }
 // a line's corner points, so its words can be put where no other line runs; `port` moves where it leaves
 // its first box and enters its second along that side, so lines meeting one side never share a stretch
+// a line drawn from a dot: out of the middle of the side it was drawn from, into the middle of the side it arrived
+// on, square to each box for a short stretch, with one or two corners between
+function pinnedPts(a, b, out, inn){
+  const step = { t: [0, -1], b: [0, 1], l: [-1, 0], r: [1, 0] };
+  out ||= sideFacing(a, [b.x, b.y]); inn ||= sideFacing(b, [a.x, a.y]);
+  const s = sideAt(a, out), e = sideAt(b, inn), gap = 2, stub = 16;
+  const end = [e[0] + step[inn][0] * gap, e[1] + step[inn][1] * gap];
+  const p1 = [s[0] + step[out][0] * stub, s[1] + step[out][1] * stub], p2 = [e[0] + step[inn][0] * stub, e[1] + step[inn][1] * stub];
+  const flat = (c) => c === 'l' || c === 'r';
+  let mid;
+  if (flat(out) && flat(inn)){ const mx = (p1[0] + p2[0]) / 2; mid = [[mx, p1[1]], [mx, p2[1]]]; }
+  else if (!flat(out) && !flat(inn)){ const my = (p1[1] + p2[1]) / 2; mid = [[p1[0], my], [p2[0], my]]; }
+  else mid = flat(out) ? [[p2[0], p1[1]]] : [[p1[0], p2[1]]];
+  // drop points that sit on a straight run, so a straight line is two points
+  const pts = [s, p1, ...mid, p2, end].filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1]) > 0.5);
+  return pts.filter((p, i) => i === 0 || i === pts.length - 1 || !((Math.abs(pts[i - 1][0] - p[0]) < 0.5 && Math.abs(pts[i + 1][0] - p[0]) < 0.5) || (Math.abs(pts[i - 1][1] - p[1]) < 0.5 && Math.abs(pts[i + 1][1] - p[1]) < 0.5)));
+}
 function routePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
   // two lines between the same boxes sit 7px either side of the middle
   const off = dup === null ? 0 : dup ? 7 : -7;
@@ -1507,11 +1546,11 @@ function render(){
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
-    if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup });
+    if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup, e });
   }
   const ports = portsFor(routed, nodes, !cross);
   // every plain line's points first, so each can hop where it crosses another
-  const ptsOf = new Map(routed.map((l) => [l.id, routePts(l.a, l.b, l.dup, nodes, ports.get(l.id))]));
+  const ptsOf = new Map(routed.map((l) => [l.id, l.e.out || l.e.in ? pinnedPts(l.a, l.b, l.e.out, l.e.in) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id))]));
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = dupOf.get(e);
@@ -1569,7 +1608,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', n.kind || '', startLook(n, mine) ? 'start' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', startLook(n, mine) ? 'start' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
@@ -1579,6 +1618,7 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
+      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
@@ -1586,8 +1626,8 @@ function render(){
     // once it is answered the warning stays on the box's card and in its steps, and the map stays clear
     const warn = n.warn && !locked(n) && open.length;
     if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (n.inside || n.diagram ? 14 : 6)}px;width:${W(n)}px">⚠ ${n.warn}</div>`;
-    // the file only for the box you picked; the card has it too
-    if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5)}px">${n.file}</div>`;
+    // the file only for the box you picked, below the dot under it; the card has it too
+    if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5) + 22}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
   renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
@@ -2168,6 +2208,9 @@ function renderCursors(){
 /* comments */
 let tool = 'select', openThread = null, draft = null, panelQuery = '', pendingOpen = false, showResolved = false, lit = null;
 document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQuery = e.target.value; renderComments(); const q = $('cpq'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); } });
+// one key per tool, as the toolbar shows: V select, H pan, R box, A line, T text, C comment (C again goes back to Select)
+const TOOL_KEYS = { v: 'select', h: 'hand', r: 'box', a: 'arrow', t: 'text' };
+document.addEventListener('keydown', (e) => { if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable]')) return; const k = e.key.toLowerCase(); if (TOOL_KEYS[k] && !PREVIEW){ e.preventDefault(); setTool(TOOL_KEYS[k]); render(); } });
 document.addEventListener('keydown', (e) => { if (e.key === 'c' && !e.target.closest('input, textarea')) setTool(tool === 'comment' ? 'select' : 'comment'); if (e.key === 'Escape'){ draft = null; openThread = null; if (['box', 'arrow', 'hand'].includes(tool)) setTool('select'); else render(); } });
 // Delete or Backspace on a picked box asks the same question as Delete this box on its card
 // a picked line goes at once on Delete: nothing hangs off a line, and History brings it back
@@ -2178,6 +2221,7 @@ function deleteLine(id){
 }
 document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea')) return;
+  if (group.size && e.key === 'Escape'){ group.clear(); render(); return; }
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
@@ -2253,8 +2297,32 @@ function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x
    sits. The Line tool: drag from one box and let go on another, then the words on the line, or just Enter. Pan drags
    the map from anywhere. What is being drawn shows as a blue outline until the pointer lets go */
 let drawing = null, naming = null, lineTap = { id: null, at: 0 };
+// the middle of a box's side: t r b l
+const sideAt = (n, c) => [n.x + (c === 'r' ? W(n) / 2 : c === 'l' ? -W(n) / 2 : 0), n.y + (c === 'b' ? HT(n) / 2 : c === 't' ? -HT(n) / 2 : 0)];
+// the side of box n that faces the point p
+const sideFacing = (n, p) => { const dx = p[0] - n.x, dy = p[1] - n.y; return Math.abs(dx) * HT(n) > Math.abs(dy) * W(n) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't'); };
+// the box a line from a dot points to: the one under the pointer, or within 30px of it; not the box it starts on
+function boxNear(sx, sy, from){
+  let best = null, gap = 31;
+  for (const el of nodesEl.querySelectorAll('.node')){
+    const n = nodeById(el.dataset.id); if (!n || n === from || locked(n) || n.proposed) continue;
+    const g = Math.max(Math.abs(sx - n.x) - W(n) / 2, Math.abs(sy - n.y) - HT(n) / 2, 0);
+    if (g < gap){ gap = g; best = n; }
+  }
+  return best;
+}
 function drawRubber(){
   const d = drawing; if (!d){ $('rubber').innerHTML = ''; return; }
+  if (d.dot){
+    const a = sideAt(d.from, d.dot);
+    // back over the box it started on: nothing is drawn, and letting go there draws nothing
+    if (!d.far || d.home){ $('rubber').innerHTML = ''; return; }
+    if (d.to){ const b = sideAt(d.to, sideFacing(d.to, [d.x, d.y])), t = d.to;
+      $('rubber').innerHTML = `<rect class="snap" x="${t.x - W(t) / 2 - 4}" y="${t.y - HT(t) / 2 - 4}" width="${W(t) + 8}" height="${HT(t) + 8}" rx="8"/><path d="M${a[0]} ${a[1]}L${b[0]} ${b[1]}" marker-end="url(#a-new)"/>`; return; }
+    const g = { x: d.x, y: d.y, w: W(d.from), h: HT(d.from) }, b = sideAt({ x: g.x, y: g.y, w: g.w, h: g.h }, sideFacing({ x: g.x, y: g.y, w: g.w, h: g.h }, a));
+    $('rubber').innerHTML = `<rect x="${g.x - g.w / 2}" y="${g.y - g.h / 2}" width="${g.w}" height="${g.h}" rx="6"/><path d="M${a[0]} ${a[1]}L${b[0]} ${b[1]}" marker-end="url(#a-new)"/>`;
+    return;
+  }
   $('rubber').innerHTML = d.box ? `<rect x="${Math.min(d.x0, d.x1)}" y="${Math.min(d.y0, d.y1)}" width="${Math.abs(d.x1 - d.x0)}" height="${Math.abs(d.y1 - d.y0)}" rx="6"/>`
     : `<path d="M${d.from.x} ${d.from.y}L${d.x} ${d.y}" marker-end="url(#a-new)"/>`;
 }
@@ -2275,12 +2343,25 @@ function endName(keep){
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view }); return; }
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
-  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), view });
+  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), ...(at.link ? { from: at.link.id, out: at.out, in: at.in } : {}), view });
 }
 
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false, resizing = null;
+// drag on empty map draws a selection box: the boxes wholly inside it are picked together (group) and move together;
+// the view moves with the trackpad, the Hand tool, or by holding Space while dragging
+let group = new Set(), marquee = null, spaceDown = false;
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('input, textarea, [contenteditable]')){ e.preventDefault(); if (!spaceDown){ spaceDown = true; canvas.classList.add('spacepan'); } } });
+document.addEventListener('keyup', (e) => { if (e.code === 'Space'){ spaceDown = false; canvas.classList.remove('spacepan'); } });
+const inBox = (n, r) => n.x - W(n) / 2 >= r[0] && n.x + W(n) / 2 <= r[2] && n.y - HT(n) / 2 >= r[1] && n.y + HT(n) / 2 <= r[3];
+function marqueeHits(m){
+  const r = [Math.min(m.x0, m.x1), Math.min(m.y0, m.y1), Math.max(m.x0, m.x1), Math.max(m.y0, m.y1)];
+  return [...nodesEl.querySelectorAll('.node')].map((el) => nodeById(el.dataset.id)).filter((n) => n && !locked(n) && !n.proposed && inBox(n, r)).map((n) => n.id);
+}
+// a right-button drag moves the map, from anywhere on it, whatever the tool; the browser's own menu stays shut on the map
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 canvas.addEventListener('pointerdown', (e) => {
+  if (e.button === 2){ moved = true; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); try { canvas.setPointerCapture(e.pointerId); } catch {} return; }
   const pin = e.target.closest('.pinc');
   // Apply and Not now inside a box's diagram are buttons: their click goes to the page, not the map
   if (e.target.closest('.dgask')) return;
@@ -2292,6 +2373,9 @@ canvas.addEventListener('pointerdown', (e) => {
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   // picking a line with the Select tool (a click on a line picks it, a second click lets go)
+  const cd = tool === 'select' && !PREVIEW && e.target.closest('[data-cd]');
+  if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
+    drawing = { from: n, dot: cd.dataset.cd, x: sx, y: sy, x0: sx, y0: sy, far: false, to: null }; canvas.setPointerCapture(e.pointerId); } return; }
   const rz = e.target.closest('[data-rz]');
   if (rz){ const n = nodeById(rz.closest('.node').dataset.id); if (n){ const w = W(n), h = HT(n), c = rz.dataset.rz;
     // the corner opposite the one you hold stays where it is
@@ -2345,17 +2429,27 @@ canvas.addEventListener('pointerdown', (e) => {
     // a locked box opens its "no access" card and never moves
     if (locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy };
+    if (group.size > 1 && group.has(n.id)) drag.many = [...group].map((id) => nodeById(id)).filter(Boolean).map((m) => ({ n: m, dx: m.x - sx, dy: m.y - sy }));
+    else if (group.size){ group.clear(); }
   }
-  else { panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
+  else if (spaceDown || PREVIEW){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
+  else { const [sx, sy] = toStage(e.clientX, e.clientY); marquee = { x0: sx, y0: sy, x1: sx, y1: sy }; }
   canvas.setPointerCapture(e.pointerId);
 });
 let lastCur = 0;
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
-  if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; } drawRubber(); return; }
+  if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
+    if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
+    drawRubber(); return; }
   if (resizing){ const r = resizing, w = Math.min(800, Math.max(60, Math.abs(sx - r.fx))), h = Math.min(600, Math.max(36, Math.abs(sy - r.fy)));
     moved = true; r.n.w = Math.round(w); r.n.h = Math.round(h); r.n.x = Math.round(r.fx + Math.sign(sx - r.fx || 1) * w / 2); r.n.y = Math.round(r.fy + Math.sign(sy - r.fy || 1) * h / 2); render(); return; }
-  if (drag){ moved = true; drag.n.x = Math.round(sx + drag.dx); drag.n.y = Math.round(sy + drag.dy); render(); }
+  if (marquee){ marquee.x1 = sx; marquee.y1 = sy; moved = moved || Math.hypot(sx - marquee.x0, sy - marquee.y0) > 4;
+    if (moved){ const m = marquee; group = new Set(marqueeHits(m)); selected = null; pickedLine = null; render();
+      $('rubber').innerHTML = `<rect class="mq" x="${Math.min(m.x0, m.x1)}" y="${Math.min(m.y0, m.y1)}" width="${Math.abs(m.x1 - m.x0)}" height="${Math.abs(m.y1 - m.y0)}"/>`; }
+    return; }
+  if (drag?.many){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
+  else if (drag){ moved = true; drag.n.x = Math.round(sx + drag.dx); drag.n.y = Math.round(sy + drag.dy); render(); }
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
@@ -2374,7 +2468,18 @@ const pick = (n) => {
 canvas.addEventListener('pointerup', (e) => {
   if (resizing){ const n = resizing.n; resizing = null; if (moved) act('resize', { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }); return; }
   if (drawing){
-    const d = drawing; drawing = null; drawRubber(); setTool('select');
+    const d = drawing; drawing = null; drawRubber();
+    // from a dot: onto a box it points there at once (double-click the line to give it words); onto empty map a new
+    // box goes where the ghost was, the size of the box the line came from, named in place; a click on a dot picks the box
+    if (d.dot){
+      if (!d.far){ selected = d.from.id; render(); return; }
+      if (d.home) return;
+      // it arrives on the side of the box nearest where you let go
+      if (d.to){ act('connect', { from: d.from.id, to: d.to.id, label: '', out: d.dot, in: sideFacing(d.to, [d.x, d.y]), view }); return; }
+      const ghost = { x: d.x, y: d.y, w: W(d.from), h: HT(d.from) };
+      askName({ x: Math.round(d.x), y: Math.round(d.y), w: d.from.w || null, h: d.from.h || null, link: d.from, out: d.dot, in: sideFacing(ghost, sideAt(d.from, d.dot)) }); return;
+    }
+    setTool('select');
     if (d.box){
       // the box is the rectangle you dragged, width and height (at least 60 by 36, so a name fits); a click makes one the usual size
       const dw = Math.abs(d.x1 - d.x0), dh = Math.abs(d.y1 - d.y0), drawn = dw >= 20 || dh >= 20;
@@ -2387,6 +2492,17 @@ canvas.addEventListener('pointerup', (e) => {
       else askName({ from: d.from, to: n, x: Math.round((d.from.x + n.x) / 2), y: Math.round((d.from.y + n.y) / 2) });
     }
     return;
+  }
+  if (marquee){
+    marquee = null; $('rubber').innerHTML = '';
+    // a click on empty map lets go of everything; one box in the selection box is picked the usual way, with its card
+    if (!moved){ group.clear(); selected = null; pickedLine = null; render(); return; }
+    if (group.size === 1){ const [id] = group; group.clear(); selected = id; }
+    render(); return;
+  }
+  if (drag?.many){
+    if (moved){ for (const m of drag.many) act('move', { id: m.n.id, x: m.n.x, y: m.n.y }); drag = null; return; }
+    group.clear();
   }
   if (drag){
     if (moved) act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y });
@@ -2615,7 +2731,8 @@ function listen(){
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
     if (resizing){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === resizing.n.id); if (d){ Object.assign(d, { x: resizing.n.x, y: resizing.n.y, w: resizing.n.w, h: resizing.n.h }); resizing.n = d; } }
-    if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
+    if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
+      for (const m of drag.many || []){ const e = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === m.n.id); if (e){ e.x = m.n.x; e.y = m.n.y; m.n = e; } } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
     if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))

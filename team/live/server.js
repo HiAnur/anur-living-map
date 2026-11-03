@@ -76,6 +76,8 @@ const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING
 const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 
+// the sides of a box a line can leave or arrive on: top, right, bottom, left
+const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
 function openMap({ project = '', name = '', home }) {
   if (project) fs.mkdirSync(home, { recursive: true });
@@ -551,15 +553,20 @@ function openMap({ project = '', name = '', home }) {
       // the box keeps the size it was drawn at (the page grows it only when its words need more room)
       const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
       list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
-      tell(`${a.by} drew the box ${label}`);
+      // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
+      const from = a.from ? nodeOf(a.from) : null;
+      if (from && (sees === 'all' || from.area === sees)) (inside ? (inside.edges ??= []) : state.edges).push({ from: from.id, to: id, ...(sideOf(a.out) ? { out: a.out } : {}), ...(sideOf(a.in) ? { in: a.in } : {}) });
+      tell(`${a.by} drew the box ${label}${from ? `, with a line from ${from.label}` : ''}`);
       return true;
     },
+    // a line dragged out of a box's dot keeps the side it left from (out) and the side it arrives on (in): t r b l
     connect(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
+      const out = sideOf(a.out), inn = sideOf(a.in), sides = { ...(out ? { out } : {}), ...(inn ? { in: inn } : {}) };
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, edges = inside ? (inside.edges ??= []) : state.edges;
       const label = String(a.label || '').trim().slice(0, 40), had = edges.find((e) => e.from === from.id && e.to === to.id);
-      if (had) { if (!label) return false; had.label = label; } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}) });
+      if (had) { if (!label && !out && !inn) return false; if (label) had.label = label; Object.assign(had, sides); } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}), ...sides });
       tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
       return true;
     },
