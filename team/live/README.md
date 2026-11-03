@@ -21,4 +21,6 @@ node server.js                          # the plan-first story, http://localhost
 - It keeps itself current: run from a git clone on `main` with no changes of its own, the server looks at GitHub when it starts and every ten minutes, pulls what is new, refreshes the skill's copy under `~/.claude/skills` and starts itself again in its place; pages and listeners reconnect by themselves. A copy without git (`npx anur-living-map`) is left to npx.
 - Any Claude Code chat on this Mac, in any folder, can read and change a map with two tools from `mcp.js`: `living_map_read` and `living_map_change` (boxes, lines, to-dos and questions for a teammate, many in one call, boxes named by id or by name). Registered once with `claude mcp add --scope user living-map -- node <path>/mcp.js`; `LIVING_MAP_URL` points it at another server.
 
+A test copy of the server (an agent checking a change) runs on another port, such as `node server.js 4399 --project <repo>`: port 4323 is the team map people have open, and a copy started there takes its place with empty maps.
+
 Without `--project`, the map is the plan-first story from `seed.json`; Codex and the merge check in that story are staged.
