@@ -143,7 +143,7 @@ button,input,textarea{font:inherit;color:inherit}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
-.node .cd{position:absolute;z-index:4;width:10px;height:10px;margin:-6.5px 0 0 -6.5px;border:1.5px solid #0D99FF;border-radius:50%;background:#d6ebff;cursor:crosshair;
+.node .cd{position:absolute;z-index:4;width:10px;height:10px;margin:-5px 0 0 -5px;border:1.5px solid #0D99FF;border-radius:50%;background:#d6ebff;cursor:crosshair;
   visibility:hidden;opacity:0;transition:opacity .15s,visibility 0s .4s,transform .1s}
 .node:hover .cd{visibility:visible;opacity:1;transition:opacity .15s,visibility 0s,transform .1s}
 .node .cd:hover{background:#0D99FF;transform:scale(1.2)}
@@ -151,7 +151,8 @@ button,input,textarea{font:inherit;color:inherit}
 #canvas.drawing .cd,#canvas.hand .cd,#canvas.commenting .cd{display:none}
 /* only under the pointer, and on the box's edge, where a line from them starts; a picked box shows just its corners.
    No dot on the side the fold button is on: the button keeps that spot */
-.node .cd.t{left:50%;top:0}.node .cd.b{left:50%;top:100%}.node .cd.l{left:0;top:50%}.node .cd.r{left:100%;top:50%}
+/* centred on the blue edge: the box's 1px border sits outside the space these are placed in, so each reaches 1px further out */
+.node .cd.t{left:50%;top:-1px}.node .cd.b{left:50%;top:calc(100% + 1px)}.node .cd.l{left:-1px;top:50%}.node .cd.r{left:calc(100% + 1px);top:50%}
 .node:has(.cd):hover:not(.sel){outline:2px solid #0D99FF;outline-offset:-1px}
 /* the selection box dragged out on empty map */
 #rubber rect.mq{fill:rgba(13,153,255,.08);stroke:#0D99FF;stroke-width:1;stroke-dasharray:none}
@@ -1626,6 +1627,7 @@ function render(){
       ${foldButton(n, byId)}
       ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete ${group.size} boxes?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
@@ -2233,7 +2235,10 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
 // Delete or Backspace on a picked box asks once, right above the box: Enter deletes it, Esc keeps it
+// several boxes picked with a selection drag: Delete asks once, above the top one, and takes them all off ('*')
+const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
+  if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
   const n = nodeById(id); delAsk = null; if (selected === id) selected = null;
   act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
 }
@@ -2244,6 +2249,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
     return;
   }
+  if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); delAsk = '*'; render(); return; }
   if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
   e.preventDefault(); delAsk = n.id; render();
