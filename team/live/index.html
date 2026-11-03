@@ -1626,6 +1626,7 @@ function render(){
       ${foldButton(n, byId)}
       ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete ${group.size} boxes?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
@@ -2239,7 +2240,10 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
 // Delete or Backspace on a picked box asks once, right above the box: Enter deletes it, Esc keeps it
+// several boxes picked with a selection drag: Delete asks once, above the top one, and takes them all off ('*')
+const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
+  if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
   const n = nodeById(id); delAsk = null; if (selected === id) selected = null;
   act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
 }
@@ -2250,6 +2254,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
     return;
   }
+  if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); delAsk = '*'; render(); return; }
   if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
   e.preventDefault(); delAsk = n.id; render();
@@ -2361,12 +2366,13 @@ function endName(keep){
 
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false, resizing = null;
-// drag on empty map draws a selection box: the boxes wholly inside it are picked together (group) and move together;
+// drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
 // the view moves with the trackpad, the Hand tool, or by holding Space while dragging
 let group = new Set(), marquee = null, spaceDown = false;
 document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('input, textarea, [contenteditable]')){ e.preventDefault(); if (!spaceDown){ spaceDown = true; canvas.classList.add('spacepan'); } } });
 document.addEventListener('keyup', (e) => { if (e.code === 'Space'){ spaceDown = false; canvas.classList.remove('spacepan'); } });
-const inBox = (n, r) => n.x - W(n) / 2 >= r[0] && n.x + W(n) / 2 <= r[2] && n.y - HT(n) / 2 >= r[1] && n.y + HT(n) / 2 <= r[3];
+// a box is picked as soon as the selection box touches it
+const inBox = (n, r) => n.x + W(n) / 2 >= r[0] && n.x - W(n) / 2 <= r[2] && n.y + HT(n) / 2 >= r[1] && n.y - HT(n) / 2 <= r[3];
 function marqueeHits(m){
   const r = [Math.min(m.x0, m.x1), Math.min(m.y0, m.y1), Math.max(m.x0, m.x1), Math.max(m.y0, m.y1)];
   return [...nodesEl.querySelectorAll('.node')].map((el) => nodeById(el.dataset.id)).filter((n) => n && !locked(n) && !n.proposed && inBox(n, r)).map((n) => n.id);
