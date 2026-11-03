@@ -143,18 +143,17 @@ button,input,textarea{font:inherit;color:inherit}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
-.node .cd{position:absolute;z-index:4;width:10px;height:10px;margin:-6.5px 0 0 -6.5px;border:1.5px solid #0D99FF;border-radius:50%;background:#d6ebff;cursor:crosshair;
+.node .cd{position:absolute;z-index:4;width:10px;height:10px;margin:-5px 0 0 -5px;border:1.5px solid #0D99FF;border-radius:50%;background:#d6ebff;cursor:crosshair;
   visibility:hidden;opacity:0;transition:opacity .15s,visibility 0s .4s,transform .1s}
 .node:hover .cd{visibility:visible;opacity:1;transition:opacity .15s,visibility 0s,transform .1s}
 .node .cd:hover{background:#0D99FF;transform:scale(1.2)}
 /* only the Select tool draws from the dots */
 #canvas.drawing .cd,#canvas.hand .cd,#canvas.commenting .cd{display:none}
-/* only under the pointer, and on the box's edge, where a line from them starts; a picked box shows just its corners */
-.node .cd.t{left:50%;top:0}.node .cd.b{left:50%;top:100%}.node .cd.l{left:0;top:50%}.node .cd.r{left:100%;top:50%}
+/* only under the pointer, and on the box's edge, where a line from them starts; a picked box shows just its corners.
+   No dot on the side the fold button is on: the button keeps that spot */
+/* centred on the blue edge: the box's 1px border sits outside the space these are placed in, so each reaches 1px further out */
+.node .cd.t{left:50%;top:-1px}.node .cd.b{left:50%;top:calc(100% + 1px)}.node .cd.l{left:-1px;top:50%}.node .cd.r{left:calc(100% + 1px);top:50%}
 .node:has(.cd):hover:not(.sel){outline:2px solid #0D99FF;outline-offset:-1px}
-/* the fold button sits on the side its boxes hang from, where a dot now is: under the pointer it steps out past the dot */
-.node:has(.cd):hover .fold.r{right:-36px}.node:has(.cd):hover .fold.l{left:-36px}
-.node:has(.cd):hover .fold.b{bottom:-36px}.node:has(.cd):hover .fold.t{top:-36px}
 /* the selection box dragged out on empty map */
 #rubber rect.mq{fill:rgba(13,153,255,.08);stroke:#0D99FF;stroke-width:1;stroke-dasharray:none}
 #canvas.spacepan{cursor:grab}
@@ -1155,11 +1154,16 @@ function renderLevels(){
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-level]'); if (b) setLevel(Number(b.dataset.level)); });
 // the button sits on the side a box's lines leave from: − shows on hover, a folded box shows how many it hides
+// the side of a box its fold button sits on: the side its boxes hang from; null for a box with nothing under it
+function foldSide(n, at){
+  const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return null;
+  const ks = kids.map((k) => at[k] || nodeById(k)).filter(Boolean); if (!ks.length) return null;
+  const dx = ks.reduce((s, k) => s + k.x, 0) / ks.length - n.x, dy = ks.reduce((s, k) => s + k.y, 0) / ks.length - n.y;
+  const side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');
+  return side === 'b' && n.inside ? 'r' : side;
+}
 function foldButton(n, at){
-  const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return '';
-  const ks = kids.map((k) => at[k] || nodeById(k)).filter(Boolean), dx = ks.reduce((s, k) => s + k.x, 0) / ks.length - n.x, dy = ks.reduce((s, k) => s + k.y, 0) / ks.length - n.y;
-  let side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');
-  if (side === 'b' && n.inside) side = 'r';
+  const side = foldSide(n, at); if (!side) return '';
   const shut = folded.has(n.id), hid = fold.hides.get(n.id)?.length || 0;
   return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${n.label}` : `Fold: hide the boxes under ${n.label}`}">${shut ? hid || '+' : '−'}</span>`;
 }
@@ -1622,7 +1626,7 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
-      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
