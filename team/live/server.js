@@ -847,6 +847,16 @@ function openMap({ project = '', name = '', home }) {
   // the map's API, at <map address>/api/...; false when the path is not one of them
   async function handle(req, res, p, who = null) {
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
+    // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
+    // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
+    if (p === '/api/file') {
+      const data = JSON.stringify(state).replace(/<\//g, '<\\/');
+      const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
+        .replace('</head>', `<meta name="lm-file" content="${new Date().toISOString()}">\n<script id="lm-data" type="application/json">${data}</script>\n</head>`);
+      const file = `${String(state.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html`;
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-disposition': `attachment; filename="${file.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(file)}` }).end(html);
+      return true;
+    }
     // the plan.md Claude wrote for this map, read from the repo's root
     if (p === '/api/planmd') {
       const f = project && path.join(project, 'plan.md');
@@ -959,6 +969,13 @@ const addProject = (folder) => {
 };
 if (PROJECT) for (const f of remembered()) addProject(f);
 const named = new Map();
+// a name no map here has yet, from the first words of what it is about (a prompt, a shared file's title)
+function freeName(text) {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
+  const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
+  let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
+  return name;
+}
 const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
 // every map to choose from: the code folders' own, then each named one
 const everyMap = () => {
@@ -1030,10 +1047,20 @@ const server = http.createServer(async (req, res) => {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const prompt = String(a.prompt || '').trim().slice(0, 4000);
     if (!prompt) return json(400, { error: 'Say what the map is about.' });
-    const base = prompt.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
-    const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
-    let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
+    const name = freeName(prompt);
     mapCalled(name).build({ prompt, by: who });
+    return json(200, { name, href: `/${name}/` });
+  }
+  // Load a map file: the data a shared file carries (Share as a file) becomes a map here, named after its title,
+  // exactly as it was saved, and opens
+  if (url.pathname === '/api/maps/load' && req.method === 'POST') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch {}
+    if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
+    const name = freeName(String(s.title || 'map'));
+    const dir = path.join(DIR, 'maps', name);
+    fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));
+    mapCalled(name);
     return json(200, { name, href: `/${name}/` });
   }
   // deleting a map from the list: only a map made here, never a code folder's. Its folder moves to
