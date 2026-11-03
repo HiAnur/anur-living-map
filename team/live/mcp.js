@@ -51,9 +51,9 @@ async function read({ map } = {}) {
   return out.join('\n');
 }
 
-async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [] } = {}) {
+async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false } = {}) {
   map = mapName(map);
-  if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length)) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions or remember.');
+  if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length) && tidy !== true) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions, remember or tidy.');
   const s = await stateOf(map), had = s.nodes || [], people = s.people || [];
   const nodes = [], edges = [], calls = [], done = [], skipped = [];
   const taken = new Set(had.map((n) => n.id));
@@ -118,9 +118,10 @@ async function change({ map, note, boxes = [], lines = [], questions = [], remem
     if (!a || !z) { skipped.push(`remove line ${l.from} → ${l.to}: ${!a ? l.from : l.to} is not on the map`); continue; }
     unlink.push({ from: a.id, to: z.id }); done.push(`Removed the line ${a.label} → ${z.label}`);
   }
-  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
+  if (tidy === true) done.push('Laid out the whole map again, each box beside the box it hangs under');
+  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
   await call(api(map, 'act'), { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink }) });
+    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink, tidy: tidy === true }) });
   return [`Done on ${s.title || 'the map'} · ${pageOf(map)}`, ...done, ...(skipped.length ? ['Left out:', ...skipped.map((x) => `- ${x}`)] : [])].join('\n');
 }
 
@@ -161,6 +162,8 @@ const TOOLS = [
         from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'What happens to the box it points at, in a few plain words ("Sends the link").' } } } },
       remove_lines: { type: 'array', description: 'Lines to take off the map, by the boxes they join (id or name); the boxes stay.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' } } } },
+      tidy: { type: 'boolean', description: 'true lays out the whole map again after this change, every box beside the box it hangs under, boxes people dragged included. '
+        + 'To reorganize the map, fix only which box hangs under which (one box at the top, every other box with one line into it) and set this; never place boxes yourself.' },
       questions: { type: 'array', description: 'Questions for a teammate, shown on the box with answer buttons. Yes/no when that is the whole choice; 2 to 4 options when there are real alternatives, your pick first.',
         items: { type: 'object', required: ['box', 'for', 'ask'], properties: {
           box: { type: 'string', description: 'The box it is about, by id or name.' },
