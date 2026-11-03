@@ -551,13 +551,13 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
-    // in their window). A topic map lays out as a mind map; any other map lines its showing boxes up on the grid,
-    // with no line through a box. Boxes Claude proposed and nobody applied yet find new places around it.
+    // in their window). A topic map lays out as a mind map; any other map puts its showing boxes that are off the
+    // grid on it, with no line through a box. Neither moves anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
     tidy(a) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      if (!tidyTree(list, edges, only)) tidy(only ? list.filter((n) => only.has(n.id)) : list, edges);
+      if (!tidyTree(list, edges, only)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },
