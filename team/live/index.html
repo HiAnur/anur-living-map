@@ -190,7 +190,7 @@ button,input,textarea{font:inherit;color:inherit}
 #edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
 /* selected: the box lights up blue */
-/* a picked box: its own edge turns blue, with the resize squares on its corners and the dots out past its sides */
+/* a picked box: its own edge turns blue, with the dots out past its sides */
 .node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
 .node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
 /* a name longer than its box wraps to a second line, never a third, and the box grows to hold it (HT) */
@@ -292,10 +292,6 @@ button,input,textarea{font:inherit;color:inherit}
 .node .fold.shut{background:#141413;border-color:#141413;color:#fff}
 .node .fold.shut:hover{background:#3d3c39}
 .node .fold.r{right:-10px;top:50%;margin-top:-9px}
-/* a picked box shows a handle on each corner: drag one to resize, the opposite corner stays put */
-.node .rz{position:absolute;z-index:3;width:9px;height:9px;background:#fff;border:1.5px solid #0D99FF;border-radius:2px}
-.node .rz.nw{left:-6.5px;top:-6.5px;cursor:nwse-resize}.node .rz.se{right:-6.5px;bottom:-6.5px;cursor:nwse-resize}
-.node .rz.ne{right:-6.5px;top:-6.5px;cursor:nesw-resize}.node .rz.sw{left:-6.5px;bottom:-6.5px;cursor:nesw-resize}
 .node .fold.l{left:-10px;top:50%;margin-top:-9px}
 .node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
 .node .fold.t{top:-10px;left:50%;margin-left:-9px}
@@ -1015,9 +1011,16 @@ let inboxOpen = false, elsewhere = [];
 const fetchInbox = () => fetch(`/api/inbox?as=${encodeURIComponent(ME)}`).then((r) => r.json())
   .then((x) => { elsewhere = x.filter((m) => m.name !== HERE); if (S) renderInbox(); }).catch(() => {});
 const cam = { x: 0, y: 0, z: 1 };
-const W = (n) => n.w || (n.kind === 'actor' ? 110 : 140), H = 50;
-// a name too long for its box wraps to two lines, measured once per name and width
+// A box is as big as its words and no bigger: the usual width (140, a person 110), wider for a long name up to
+// 220, where the name wraps; as tall as its lines. A box drawn big with one word in it is the usual size.
+const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
+const W = (n) => {
+  const key = `w|${n.kind}|${n.icon}|${n.label}`;
+  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.round(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 24 + (n.icon === 'db' ? 20 : 0))))); }
+  return wraps.get(key);
+};
+// a name too long for its box wraps to two lines, measured once per name and width
 const twoLines = (n) => {
   const room = W(n) - 24 - (n.icon === 'db' ? 20 : 0), key = `${room}|${n.label}`;
   if (!wraps.has(key)) { ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, ruler.measureText(String(n.label || '')).width > room); }
@@ -1038,8 +1041,7 @@ const subLines = (n) => {
   return wraps.get(key);
 };
 // boxes are as tall as their words need: taller for a name on two lines, and for each extra line of the second line
-// a box drawn by hand keeps the height it was drawn at (h), and grows only when its words need more
-const HT = (n) => Math.max(n.h || 0, ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16);
+const HT = (n) => (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -1385,6 +1387,15 @@ const endOf = (k) => k === 'assumed-gone' ? 'url(#x-gone)' : `url(#a-${k})`;
 // other join bottom-to-top the same way. So a line never runs along a box edge
 // or arrives where another line already does.
 function route(a, b, dup, others = [], port){ return routePts(a, b, dup, others, port).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join(''); }
+// a line's way with its ends in the middle of their sides, routed after the lines listed before it (each once per list)
+const plains = new WeakMap();
+function plainPts(l, nodes, list){
+  let memo = plains.get(list); if (!memo){ memo = new Map(); plains.set(list, memo); }
+  if (memo.has(l)) return memo.get(l);
+  const used = []; for (const o of list){ if (o === l) break; used.push(plainPts(o, nodes, list)); }
+  const pts = l.e?.out || l.e?.in ? gridRoute(l.a, l.b, nodes, l.e.out || null, l.e.in || null, used) || pinnedPts(l.a, l.b, l.e.out, l.e.in) : routePts(l.a, l.b, l.dup, nodes, undefined, used);
+  memo.set(l, pts); return pts;
+}
 // a line's corner points, so its words can be put where no other line runs; `port` moves where it leaves
 // its first box and enters its second along that side, so lines meeting one side never share a stretch
 // a line drawn from a dot: out of the middle of the side it was drawn from, into the middle of the side it arrived
@@ -1404,7 +1415,100 @@ function pinnedPts(a, b, out, inn){
   const pts = [s, p1, ...mid, p2, end].filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1]) > 0.5);
   return pts.filter((p, i) => i === 0 || i === pts.length - 1 || !((Math.abs(pts[i - 1][0] - p[0]) < 0.5 && Math.abs(pts[i + 1][0] - p[0]) < 0.5) || (Math.abs(pts[i - 1][1] - p[1]) < 0.5 && Math.abs(pts[i + 1][1] - p[1]) < 0.5)));
 }
-function routePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
+// A line finds its way around the other boxes, the way draw.io and Lucidchart route theirs: it leaves one box
+// square to a side and enters the other the same way, runs only level or upright, turns as few corners as it
+// can, and crosses no box. Where it may run: the lines 14px outside every nearby box's sides, the middle of each
+// gap between them, and each box's own middle lines. Over that grid the cheapest way wins: its length, plus 40
+// for each corner, plus a little for leaving or entering on a side that does not face the other box, so a
+// straight line stays straight. A stretch another line already runs along costs half as much again, so two
+// lines never share one, and each crossing costs a little, so a line crosses as few as it can.
+// A line drawn from a dot keeps the sides it was drawn between.
+// When no way round exists (boxes packed tight), the plain shape below is drawn instead.
+const PAD = 14, BEND = 40, CROSS = 8, routes = new Map();
+function gridRoute(a, b, others, out = null, inn = null, used = []){
+  const rect = (n, p) => [n.x - W(n) / 2 - p, n.y - HT(n) / 2 - p, n.x + W(n) / 2 + p, n.y + HT(n) / 2 + p];
+  // only the boxes near the two matter: those in the area between them, and 160px around it
+  const area = [Math.min(a.x - W(a) / 2, b.x - W(b) / 2) - 160, Math.min(a.y - HT(a) / 2, b.y - HT(b) / 2) - 160, Math.max(a.x + W(a) / 2, b.x + W(b) / 2) + 160, Math.max(a.y + HT(a) / 2, b.y + HT(b) / 2) + 160];
+  const near = others.filter((n) => n !== a && n !== b && n.x + W(n) / 2 > area[0] && n.x - W(n) / 2 < area[2] && n.y + HT(n) / 2 > area[1] && n.y - HT(n) / 2 < area[3]);
+  // the stretches of lines already drawn that run through the area: along one costs more, across one a little
+  const busy = used.flatMap((l) => l.slice(1).map((q, i) => [l[i], q])).filter(([p, q]) => Math.max(p[0], q[0]) > area[0] && Math.min(p[0], q[0]) < area[2] && Math.max(p[1], q[1]) > area[1] && Math.min(p[1], q[1]) < area[3]);
+  const key = [a.id, b.id, out, inn, ...[a, b, ...near].map((n) => `${n.x},${n.y},${W(n)},${HT(n)}`), ...busy.map(([p, q]) => `${p[0]},${p[1]},${q[0]},${q[1]}`)].join('|');
+  if (routes.has(key)) return routes.get(key);
+  if (routes.size > 4000) routes.clear();
+  const boxes = [a, b, ...near], walls = boxes.map((n) => rect(n, PAD - 1));
+  const axis = (vals) => { const u = [...new Set(vals.map((v) => Math.round(v * 2) / 2))].sort((p, q) => p - q), all = [...u];
+    for (let i = 1; i < u.length; i++) if (u[i] - u[i - 1] > 2 * PAD) all.push((u[i] + u[i - 1]) / 2); return all.sort((p, q) => p - q); };
+  const xs = axis(boxes.flatMap((n) => [n.x - W(n) / 2 - PAD, n.x + W(n) / 2 + PAD, ...(n === a || n === b ? [n.x] : [])])), ys = axis(boxes.flatMap((n) => [n.y - HT(n) / 2 - PAD, n.y + HT(n) / 2 + PAD, ...(n === a || n === b ? [n.y] : [])]));
+  const xi = new Map(xs.map((v, i) => [v, i])), yi = new Map(ys.map((v, i) => [v, i]));
+  // a level run from xs[i] to xs[i+1] at ys[j] is open when it runs through no box (the walls sit 1px inside the grid lines)
+  const nx = xs.length, ny = ys.length, N = nx * ny, seenH = new Int8Array(N), seenV = new Int8Array(N);
+  const openH = (i, j) => { const k = j * nx + i; if (!seenH[k]) seenH[k] = walls.some((r) => ys[j] > r[1] && ys[j] < r[3] && xs[i + 1] > r[0] && xs[i] < r[2]) ? 2 : 1; return seenH[k] === 1; };
+  const openV = (i, j) => { const k = j * nx + i; if (!seenV[k]) seenV[k] = walls.some((r) => xs[i] > r[0] && xs[i] < r[2] && ys[j + 1] > r[1] && ys[j] < r[3]) ? 2 : 1; return seenV[k] === 1; };
+  const busyH = busy.filter(([p, q]) => Math.abs(p[1] - q[1]) < .5), busyV = busy.filter(([p, q]) => Math.abs(p[0] - q[0]) < .5);
+  // what a level run from xs[i] to xs[i+1] at ys[j] costs on top of its length: along a drawn line, or across one
+  const extraH = (i, j) => busyH.reduce((c, [p, q]) => c + (Math.abs(p[1] - ys[j]) < .5 && Math.min(p[0], q[0]) < xs[i + 1] && Math.max(p[0], q[0]) > xs[i] ? (Math.min(Math.max(p[0], q[0]), xs[i + 1]) - Math.max(Math.min(p[0], q[0]), xs[i])) / 2 : 0), 0)
+    + busyV.reduce((c, [p, q]) => c + (p[0] > xs[i] && p[0] < xs[i + 1] && ys[j] > Math.min(p[1], q[1]) && ys[j] < Math.max(p[1], q[1]) ? CROSS : 0), 0);
+  const extraV = (i, j) => busyV.reduce((c, [p, q]) => c + (Math.abs(p[0] - xs[i]) < .5 && Math.min(p[1], q[1]) < ys[j + 1] && Math.max(p[1], q[1]) > ys[j] ? (Math.min(Math.max(p[1], q[1]), ys[j + 1]) - Math.max(Math.min(p[1], q[1]), ys[j])) / 2 : 0), 0)
+    + busyH.reduce((c, [p, q]) => c + (p[1] > ys[j] && p[1] < ys[j + 1] && xs[i] > Math.min(p[0], q[0]) && xs[i] < Math.max(p[0], q[0]) ? CROSS : 0), 0);
+  // the stub points: PAD outside the middle of each side, and the way a line must run there
+  const stubs = (n, only) => ['t', 'r', 'b', 'l'].filter((c) => !only || c === only).map((c) => {
+    const [x, y] = sideAt(n, c), p = c === 't' ? [x, y - PAD] : c === 'b' ? [x, y + PAD] : c === 'l' ? [x - PAD, y] : [x + PAD, y];
+    return { c, v: yi.get(Math.round(p[1] * 2) / 2) * nx + xi.get(Math.round(p[0] * 2) / 2), d: c === 't' || c === 'b' ? 1 : 0 }; }).filter((s) => Number.isFinite(s.v));
+  const faceA = sideFacing(a, [b.x, b.y]), faceB = sideFacing(b, [a.x, a.y]);
+  // the cheapest way over the grid, A* over (point, direction): a corner costs BEND; the guess for what is left
+  // is the straight-line distance to the nearest way in, which never overestimates
+  const ends = new Map(stubs(b, inn).map((st) => [st.v * 2 + st.d, st])), endAt = [...ends.values()].map((st) => [xs[st.v % nx], ys[Math.floor(st.v / nx)]]);
+  const left = (v) => { const x = xs[v % nx], y = ys[Math.floor(v / nx)]; let m = Infinity; for (const [ex, ey] of endAt) m = Math.min(m, Math.abs(ex - x) + Math.abs(ey - y)); return m; };
+  const cost = new Float64Array(2 * N).fill(Infinity), from = new Int32Array(2 * N).fill(-1);
+  const heap = []; const push = (k, c) => { heap.push([c + left(k >> 1), k, c]); let i = heap.length - 1; while (i && heap[(i - 1) >> 1][0] > heap[i][0]){ const p = (i - 1) >> 1; [heap[i], heap[p]] = [heap[p], heap[i]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length){ heap[0] = last; let i = 0; for (;;){ let m = i; const l = 2 * i + 1, r = l + 1; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[i], heap[m]] = [heap[m], heap[i]]; i = m; } } return top; };
+  for (const st of stubs(a, out)){ const k = st.v * 2 + st.d, c = st.c === faceA ? 0 : BEND / 2; if (c < cost[k]){ cost[k] = c; push(k, c); } }
+  let hit = null;
+  while (heap.length){
+    const [f, k, c] = pop(); if (c > cost[k]) continue;
+    if (hit && f > hit.c) break;
+    if (ends.has(k)){ const extra = ends.get(k).c === faceB ? 0 : BEND / 2; if (!hit || c + extra < hit.c) hit = { k, c: c + extra }; continue; }
+    const v = k >> 1, d = k & 1, i = v % nx, j = (v - i) / nx;
+    const step = (v2, d2, len) => { const k2 = v2 * 2 + d2, c2 = c + len + (d2 === d ? 0 : BEND); if (c2 < cost[k2]){ cost[k2] = c2; from[k2] = k; push(k2, c2); } };
+    if (i + 1 < nx && openH(i, j)) step(v + 1, 0, xs[i + 1] - xs[i] + extraH(i, j));
+    if (i > 0 && openH(i - 1, j)) step(v - 1, 0, xs[i] - xs[i - 1] + extraH(i - 1, j));
+    if (j + 1 < ny && openV(i, j)) step(v + nx, 1, ys[j + 1] - ys[j] + extraV(i, j));
+    if (j > 0 && openV(i, j - 1)) step(v - nx, 1, ys[j] - ys[j - 1] + extraV(i, j - 1));
+  }
+  let pts = null;
+  if (hit){
+    const path = []; for (let k = hit.k; k >= 0; k = from[k]) path.unshift([xs[(k >> 1) % nx], ys[Math.floor((k >> 1) / nx)]]);
+    const first = path[0], last = path[path.length - 1];
+    const startSide = stubs(a, out).find((st) => xs[st.v % nx] === first[0] && ys[Math.floor(st.v / nx)] === first[1]).c, endSide = ends.get(hit.k).c;
+    const e = sideAt(b, endSide), end = endSide === 't' ? [e[0], e[1] - 2] : endSide === 'b' ? [e[0], e[1] + 2] : endSide === 'l' ? [e[0] - 2, e[1]] : [e[0] + 2, e[1]];
+    const all = [sideAt(a, startSide), ...path, end];
+    // corners only: a point on a straight run goes
+    pts = all.filter((p, i) => i === 0 || i === all.length - 1 || !((Math.abs(all[i - 1][0] - p[0]) < .5 && Math.abs(all[i + 1][0] - p[0]) < .5) || (Math.abs(all[i - 1][1] - p[1]) < .5 && Math.abs(all[i + 1][1] - p[1]) < .5)));
+  }
+  routes.set(key, pts);
+  return pts;
+}
+// a routed line's ends step along their sides: `off` keeps two lines between the same boxes apart, `port` keeps
+// lines meeting one side apart (portsFor). A straight line whose ends step differently gets a jog in the middle
+function withPorts(pts, off, port){
+  const n = pts.length, p = pts.map((q) => [...q]);
+  const flat = (u, v) => Math.abs(u[1] - v[1]) < .5;
+  const s0 = flat(p[0], p[1]) ? 1 : 0, e0 = flat(p[n - 2], p[n - 1]) ? 1 : 0;
+  if (n === 2 && off + port.from !== off + port.to){
+    const mid = s0 ? (p[0][0] + p[1][0]) / 2 : (p[0][1] + p[1][1]) / 2;
+    const a = s0 ? [p[0][0], p[0][1] + off + port.from] : [p[0][0] + off + port.from, p[0][1]], b = s0 ? [p[1][0], p[1][1] + off + port.to] : [p[1][0] + off + port.to, p[1][1]];
+    return s0 ? [a, [mid, a[1]], [mid, b[1]], b] : [a, [a[0], mid], [b[0], mid], b];
+  }
+  p[0][s0] += off + port.from; p[1][s0] += off + port.from;
+  p[n - 1][e0] += off + port.to; p[n - 2][e0] += off + port.to;
+  return p;
+}
+function routePts(a, b, dup, others = [], port = { from: 0, to: 0 }, used = []){
+  const found = gridRoute(a, b, others, null, null, used);
+  if (found) return withPorts(found, dup === null ? 0 : dup ? 7 : -7, port);
+  return simplePts(a, b, dup, others, port);
+}
+function simplePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
   // two lines between the same boxes sit 7px either side of the middle
   const off = dup === null ? 0 : dup ? 7 : -7;
   const dx = b.x - a.x, dy = b.y - a.y;
@@ -1435,7 +1539,7 @@ function routePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
 // A line that arrives straight keeps the middle; the others step aside towards where they come from. Lines
 // leaving one box spread the same way, except on a mind map, where fanning out of one stem is the shape.
 function portsFor(list, nodes, spreadOut = true){
-  const plain = list.map((l) => ({ ...l, pts: routePts(l.a, l.b, l.dup, nodes) }));
+  const plain = list.map((l) => ({ ...l, pts: plainPts(l, nodes, list) }));
   const vertical = (p, q) => Math.abs(p[0] - q[0]) < 1;
   const groups = new Map(), add = (key, item) => { if (!groups.has(key)) groups.set(key, []); groups.get(key).push(item); };
   for (const l of plain){
@@ -1556,7 +1660,7 @@ function render(){
   }
   const ports = portsFor(routed, nodes, !cross);
   // every plain line's points first, so each can hop where it crosses another
-  const ptsOf = new Map(routed.map((l) => [l.id, l.e.out || l.e.in ? pinnedPts(l.a, l.b, l.e.out, l.e.in) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id))]));
+  const ptsOf = new Map(routed.map((l) => [l.id, l.e.out || l.e.in ? plainPts(l, nodes, routed) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id), routed.slice(0, routed.indexOf(l)).map((o) => plainPts(o, nodes, routed)))]));
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = dupOf.get(e);
@@ -1584,17 +1688,10 @@ function render(){
     svg += `<path class="${k} ${quiet && !pk ? 'faint' : ''} ${still ? 'still' : ''} ${pk ? 'pick' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
     if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk) pickSeen = true; }
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
+    // the words go halfway along the line's longest stretch, unless another line or box is there (placeWords)
     if (e.label){
-      const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
-      const off = dup === null ? 0 : dup ? 7 : -7;
-      const x1 = a.x < b.x ? a.x + W(a) / 2 : a.x - W(a) / 2, x2 = level ? (a.x < b.x ? b.x - W(b) / 2 : b.x + W(b) / 2) : b.x;
-      // a straight up-and-down line carries its words halfway between the two boxes; a sideways line with a jog
-      // carries them on its own last stretch, so lines that share a stem out of one box keep their words apart
-      const branch = !level && !upright && Math.abs(b.x - a.x) >= Math.abs(b.y - a.y);
-      const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
-      const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
-      const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
-      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my], edit: canPick(e, a, b) });
+      const [p, q] = pts.slice(1).map((q, i) => [pts[i], q]).sort((s, t) => Math.hypot(t[1][0] - t[0][0], t[1][1] - t[0][1]) - Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]))[0];
+      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], edit: canPick(e, a, b) });
     }
   }
   for (const L of placeWords(labels, lines, nodes))
@@ -1623,7 +1720,6 @@ function render(){
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
-      ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete ${group.size} boxes?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
@@ -2347,8 +2443,7 @@ function drawRubber(){
 // words (or on a line without words) changes them where they sit, empty takes them off. Enter keeps it, Esc lets it go
 function askName(at){
   naming = at; const el = $('newbox'), line = !!(at.from || at.edge);
-  // a box is named inside the very shape that was drawn, so what you drew is what you get
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.style.height = `${line ? 36 : at.h || 50}px`; el.classList.add('on');
+  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
   const i = el.querySelector('input'); if (at.text){ i.value = at.text; i.select(); } i.focus();
   i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
@@ -2360,11 +2455,11 @@ function endName(keep){
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view }); return; }
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
-  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), ...(at.link ? { from: at.link.id, out: at.out, in: at.in } : {}), view });
+  else act('add', { label: text, x: at.x, y: at.y, ...(at.link ? { from: at.link.id, out: at.out, in: at.in } : {}), view });
 }
 
 /* pan, zoom, drag */
-let drag = null, panning = null, moved = false, resizing = null;
+let drag = null, panning = null, moved = false;
 // drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
 // the view moves with the trackpad, the Hand tool, or by holding Space while dragging
 let group = new Set(), marquee = null, spaceDown = false;
@@ -2394,10 +2489,6 @@ canvas.addEventListener('pointerdown', (e) => {
   const cd = tool === 'select' && !PREVIEW && e.target.closest('[data-cd]');
   if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
     drawing = { from: n, dot: cd.dataset.cd, x: sx, y: sy, x0: sx, y0: sy, far: false, to: null }; canvas.setPointerCapture(e.pointerId); } return; }
-  const rz = e.target.closest('[data-rz]');
-  if (rz){ const n = nodeById(rz.closest('.node').dataset.id); if (n){ const w = W(n), h = HT(n), c = rz.dataset.rz;
-    // the corner opposite the one you hold stays where it is
-    resizing = { n, fx: c.includes('w') ? n.x + w / 2 : n.x - w / 2, fy: c.includes('n') ? n.y + h / 2 : n.y - h / 2 }; moved = false; canvas.setPointerCapture(e.pointerId); } return; }
   if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
   const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
@@ -2460,8 +2551,6 @@ canvas.addEventListener('pointermove', (e) => {
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
     if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
     drawRubber(); return; }
-  if (resizing){ const r = resizing, w = Math.min(800, Math.max(60, Math.abs(sx - r.fx))), h = Math.min(600, Math.max(36, Math.abs(sy - r.fy)));
-    moved = true; r.n.w = Math.round(w); r.n.h = Math.round(h); r.n.x = Math.round(r.fx + Math.sign(sx - r.fx || 1) * w / 2); r.n.y = Math.round(r.fy + Math.sign(sy - r.fy || 1) * h / 2); render(); return; }
   if (marquee){ marquee.x1 = sx; marquee.y1 = sy; moved = moved || Math.hypot(sx - marquee.x0, sy - marquee.y0) > 4;
     if (moved){ const m = marquee; group = new Set(marqueeHits(m)); selected = null; pickedLine = null; render();
       $('rubber').innerHTML = `<rect class="mq" x="${Math.min(m.x0, m.x1)}" y="${Math.min(m.y0, m.y1)}" width="${Math.abs(m.x1 - m.x0)}" height="${Math.abs(m.y1 - m.y0)}"/>`; }
@@ -2484,7 +2573,6 @@ const pick = (n) => {
   if (n.inside || n.diagram) tapTimer = setTimeout(go, DBL); else go();
 };
 canvas.addEventListener('pointerup', (e) => {
-  if (resizing){ const n = resizing.n; resizing = null; if (moved) act('resize', { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }); return; }
   if (drawing){
     const d = drawing; drawing = null; drawRubber();
     // from a dot: onto a box it points there at once (double-click the line to give it words); onto empty map a new
@@ -2495,14 +2583,13 @@ canvas.addEventListener('pointerup', (e) => {
       // it arrives on the side of the box nearest where you let go
       if (d.to){ act('connect', { from: d.from.id, to: d.to.id, label: '', out: d.dot, in: sideFacing(d.to, [d.x, d.y]), view }); return; }
       const ghost = { x: d.x, y: d.y, w: W(d.from), h: HT(d.from) };
-      askName({ x: Math.round(d.x), y: Math.round(d.y), w: d.from.w || null, h: d.from.h || null, link: d.from, out: d.dot, in: sideFacing(ghost, sideAt(d.from, d.dot)) }); return;
+      askName({ x: Math.round(d.x), y: Math.round(d.y), link: d.from, out: d.dot, in: sideFacing(ghost, sideAt(d.from, d.dot)) }); return;
     }
     setTool('select');
     if (d.box){
-      // the box is the rectangle you dragged, width and height (at least 60 by 36, so a name fits); a click makes one the usual size
+      // the box goes in the middle of the rectangle you dragged, at the size its words need; a click puts one there
       const dw = Math.abs(d.x1 - d.x0), dh = Math.abs(d.y1 - d.y0), drawn = dw >= 20 || dh >= 20;
-      askName({ x: Math.round(drawn ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(drawn ? (d.y0 + d.y1) / 2 : d.y0),
-        w: drawn ? Math.min(800, Math.max(60, Math.round(dw))) : null, h: drawn ? Math.min(600, Math.max(36, Math.round(dh))) : null });
+      askName({ x: Math.round(drawn ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(drawn ? (d.y0 + d.y1) / 2 : d.y0) });
     } else {
       const to = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node'), n = to && nodeById(to.dataset.id);
       if (!n || n === d.from) toast('Let go of the line on another box.');
@@ -2748,7 +2835,6 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
-    if (resizing){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === resizing.n.id); if (d){ Object.assign(d, { x: resizing.n.x, y: resizing.n.y, w: resizing.n.w, h: resizing.n.h }); resizing.n = d; } }
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
       for (const m of drag.many || []){ const e = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === m.n.id); if (e){ e.x = m.n.x; e.y = m.n.y; m.n = e; } } }
     // a box or flow you are inside that no longer exists sends you back to the system
