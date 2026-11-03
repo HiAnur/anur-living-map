@@ -857,7 +857,7 @@ const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 let VER = null;
 function renderVer(){
   const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
-  const line = `Living Map ${VER.version} · build ${VER.build}`;
+  const line = `Living Map ${VER.version} · build ${VER.build}${VER.commit ? ` · ${VER.commit}` : ''}`;
   if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.dataset.tip = `${line}\nNothing newer on main`; b.disabled = false; }
   else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.dataset.tip = `${line}\nMain has ${VER.behind} newer change${VER.behind === 1 ? '' : 's'}. Click to update`; }
 }
