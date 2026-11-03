@@ -23,7 +23,7 @@ fi
 [ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
 was=$(git -C "$H" rev-parse HEAD); br=$(git -C "$H" branch --show-current)
 if [ "$br" != main ]; then echo "update: skipped, $H is on $br"
-elif [ -n "$(git -C "$H" status --porcelain)" ]; then echo "update: skipped, $H has changes of its own"
+elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
 elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 pull -q --ff-only origin main 2>/dev/null; then
   now=$(git -C "$H" rev-parse HEAD)
   if [ "$now" = "$was" ]; then echo "update: already the latest"
