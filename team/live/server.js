@@ -325,7 +325,8 @@ function openMap({ project = '', name = '', home }) {
       'You cannot change any file, and you never change the map yourself. When the person asks for a change to the map, say it in one line,',
       'then end your reply with one block the page shows them with an Apply button; nothing changes until they press it:',
       '```map', '{"nodes": [{"id": "when", "label": "When", "sub": "every week in November", "desc": "what it is, in one short line\\n- one point a bullet\\n- another", "state": "new"}],',
-      ' "edges": [{"from": "test", "to": "when", "label": "optional"}], "remove": ["an-id"]}', '```',
+      ' "edges": [{"from": "test", "to": "when", "label": "optional"}], "remove": ["an-id"], "unlink": [{"from": "a-box", "to": "another-box"}]}', '```',
+      '"remove" takes boxes off the map with their lines; "unlink" takes off only the line from one box to the other.',
       'A new box needs a new lowercase id and a label; giving an existing box id changes that box. Leave out x and y.',
       'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',
       'never added again under another name. A new block replaces any of your offers still waiting for Apply, so put the whole change in it.',
@@ -390,6 +391,15 @@ function openMap({ project = '', name = '', home }) {
     placeNew(state.nodes, state.edges);
     merge(state.calls, (c) => c.id, p.calls);
     for (const id of p.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
+    for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
+  }
+  // a line taken off the map, wherever it is drawn: the system or the inside of a box
+  function unlinkEdge(from, to) {
+    let gone = false;
+    for (const s of [state, ...state.nodes.map((n) => n.inside).filter(Boolean)]) {
+      const before = (s.edges || []).length; s.edges = (s.edges || []).filter((e) => !(e.from === from && e.to === to)); gone ||= s.edges.length < before;
+    }
+    return gone;
   }
 
   // the change Claude proposes in a chat, as a ```map block, checked against the map: what it would do
@@ -403,7 +413,7 @@ function openMap({ project = '', name = '', home }) {
   // a proposed change ({nodes, edges, remove}) checked against the map for the person it is for
   function check(p, by) {
     const sees = seesOf(by), mayTouch = (n) => sees === 'all' || n.area === sees;
-    const ops = [], dropped = [], plan = { nodes: [], edges: [], remove: [], memory: [] }, slug = /^[a-z0-9-]{1,40}$/;
+    const ops = [], dropped = [], plan = { nodes: [], edges: [], remove: [], unlink: [], memory: [] }, slug = /^[a-z0-9-]{1,40}$/;
     for (const n of (p.nodes || []).slice(0, 12)) {
       const had = nodeOf(n?.id);
       if (!n || !slug.test(n.id || '')) { dropped.push({ text: n?.label || 'a box', why: 'no usable id' }); continue; }
@@ -430,6 +440,13 @@ function openMap({ project = '', name = '', home }) {
       const had = nodeOf(id);
       if (!had || !mayTouch(had)) { dropped.push({ text: `remove ${id}`, why: had ? 'outside your access' : 'no such box' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
+    }
+    const lineOn = (from, to) => [state, ...state.nodes.map((n) => n.inside).filter(Boolean)].some((s) => (s.edges || []).some((e) => e.from === from && e.to === to));
+    for (const e of (p.unlink || []).slice(0, 12)) {
+      const a = nodeOf(e?.from), z = nodeOf(e?.to);
+      if (!a || !z || !lineOn(a.id, z.id)) { dropped.push({ text: `remove the line ${e?.from} → ${e?.to}`, why: 'no such line' }); continue; }
+      if (![a, z].every(mayTouch)) { dropped.push({ text: `remove the line ${a.label} → ${z.label}`, why: 'outside your access' }); continue; }
+      plan.unlink.push({ from: a.id, to: z.id }); ops.push(`Remove the line ${a.label} → ${z.label}`);
     }
     for (const m of (p.memory || []).slice(0, 6)) {
       const box = m?.box ? nodeOf(m.box) : null, text = String(m?.text || '').trim().slice(0, 300), kind = m?.kind === 'instruction' ? 'instruction' : 'memory';
@@ -471,7 +488,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -543,6 +560,14 @@ function openMap({ project = '', name = '', home }) {
       const label = String(a.label || '').trim().slice(0, 40), had = edges.find((e) => e.from === from.id && e.to === to.id);
       if (had) { if (!label) return false; had.label = label; } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}) });
       tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
+      return true;
+    },
+    // a line picked on the map and deleted, by hand
+    unlink(a) {
+      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
+      if (!unlinkEdge(from.id, to.id)) return false;
+      tell(`${a.by} took the line ${from.label} → ${to.label} off the map`);
       return true;
     },
     remove(a) {
@@ -782,8 +807,8 @@ function openMap({ project = '', name = '', home }) {
       state.memory.splice(i, 1); return true;
     },
     edit(a) {
-      if (![a.nodes, a.edges, a.calls, a.memory].some((x) => Array.isArray(x) && x.length)) return false;
-      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls });
+      if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length)) return false;
+      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink });
       for (const m of (a.memory || []).slice(0, 10)) keepMemory(m, a.by);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });
       tell(`${a.by} changed the map: ${String(a.note || 'a quick change').slice(0, 200)}`);

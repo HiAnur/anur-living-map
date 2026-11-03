@@ -51,9 +51,9 @@ async function read({ map } = {}) {
   return out.join('\n');
 }
 
-async function change({ map, note, boxes = [], lines = [], questions = [], remember = [] } = {}) {
+async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [] } = {}) {
   map = mapName(map);
-  if (![boxes, lines, questions, remember].some((x) => Array.isArray(x) && x.length)) throw new Error('Nothing to change: give boxes, lines, questions or remember.');
+  if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length)) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions or remember.');
   const s = await stateOf(map), had = s.nodes || [], people = s.people || [];
   const nodes = [], edges = [], calls = [], done = [], skipped = [];
   const taken = new Set(had.map((n) => n.id));
@@ -112,9 +112,15 @@ async function change({ map, note, boxes = [], lines = [], questions = [], remem
     memory.push({ kind: r.kind === 'instruction' ? 'instruction' : 'memory', box: on?.id || null, text: clip(r.text, 300) });
     done.push(`${r.kind === 'instruction' ? 'Instruction' : 'Memory'} for ${on ? on.label : 'the whole map'}: ${r.text}`);
   }
-  if (!nodes.length && !edges.length && !calls.length && !memory.length) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
+  const unlink = [];
+  for (const l of (removeLines || []).slice(0, 40)) {
+    const a = find(l.from), z = find(l.to);
+    if (!a || !z) { skipped.push(`remove line ${l.from} → ${l.to}: ${!a ? l.from : l.to} is not on the map`); continue; }
+    unlink.push({ from: a.id, to: z.id }); done.push(`Removed the line ${a.label} → ${z.label}`);
+  }
+  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
   await call(api(map, 'act'), { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory }) });
+    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink }) });
   return [`Done on ${s.title || 'the map'} · ${pageOf(map)}`, ...done, ...(skipped.length ? ['Left out:', ...skipped.map((x) => `- ${x}`)] : [])].join('\n');
 }
 
@@ -153,6 +159,8 @@ const TOOLS = [
         area: { type: 'string', description: '"billing" on anything about money, so the CFO can see it.' } } } },
       lines: { type: 'array', description: 'Lines to draw between boxes, by id or name.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'What happens to the box it points at, in a few plain words ("Sends the link").' } } } },
+      remove_lines: { type: 'array', description: 'Lines to take off the map, by the boxes they join (id or name); the boxes stay.', items: { type: 'object', required: ['from', 'to'], properties: {
+        from: { type: 'string' }, to: { type: 'string' } } } },
       questions: { type: 'array', description: 'Questions for a teammate, shown on the box with answer buttons. Yes/no when that is the whole choice; 2 to 4 options when there are real alternatives, your pick first.',
         items: { type: 'object', required: ['box', 'for', 'ask'], properties: {
           box: { type: 'string', description: 'The box it is about, by id or name.' },
