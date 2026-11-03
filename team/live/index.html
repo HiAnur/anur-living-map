@@ -1061,8 +1061,9 @@ function unfolded({ nodes, edges }){
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
   const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
   while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
-  // the one start box: of the boxes no line comes into, the one with the most boxes under it (the first drawn on a tie)
-  const tops = [...ids].filter((id) => !into.has(id) && kids.has(id));
+  // the one start box: of the boxes no line comes into, the one with the most boxes under it, the first drawn on a
+  // tie, so the first box put on an empty map is the start
+  const tops = [...ids].filter((id) => !into.has(id));
   const start = tops.map((id) => [id, walk([id]).size]).reduce((b, c) => (c[1] > b[1] ? c : b), [null, 0])[0];
   fold = { start, kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   return shown.size === ids.size ? { nodes, edges } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter((e) => shown.has(e.from) && shown.has(e.to)) };
