@@ -122,11 +122,11 @@ button,input,textarea{font:inherit;color:inherit}
 #edges text.assumed-gone{fill:var(--gone)}
 .node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
 .node:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
-/* where the map starts (level 0: a box no line comes into, with boxes off it): ink, the way a mind map's centre
+/* where the map starts (the one box no line comes into with the most boxes under it): orange, the way a mind map's centre
    stands out. What the plan does to a box, or a question on it, still shows in that state's own colour */
-.node.start{background:#141413;border-color:#141413}
+.node.start{background:#E8590C;border-color:#E8590C}
 .node.start .n,.node.start .s{color:#fff}
-.node.start .s{opacity:.75}
+.node.start .s{opacity:.85}
 /* drawing by hand: the Box tool drags out a box (a click makes one the usual width), the Line tool drags from one
    box to another; what is being drawn shows in blue, and the name or the words on the line are typed in place */
 #canvas.drawing{cursor:crosshair}
@@ -567,7 +567,7 @@ a{color:inherit;text-decoration:none}
 @keyframes flowx{to{background-position:20px 0}}
 #legend i.gone{background:repeating-linear-gradient(90deg,var(--gone) 0 5px,transparent 5px 9px)}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
-#legend i.st{width:22px;height:14px;border-radius:4px;background:#141413}
+#legend i.st{width:22px;height:14px;border-radius:4px;background:#E8590C}
 /* on a map of decisions: amber waits on an answer, green is answered, plain is information; its own legend */
 .node.ask{border:1.5px solid var(--todo);background:#fffaeb}
 .node.done{border:1.5px solid rgba(46,139,87,.55);background:#f2f8f4}
@@ -1041,7 +1041,7 @@ let folded = new Set();
 try { folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch {}
 const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); } catch {} };
 // each box's children, and for each folded box the boxes it hides, as of the last drawing
-let fold = { kids: new Map(), depth: new Map(), hides: new Map() };
+let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
 function unfolded({ nodes, edges }){
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
   for (const e of edges) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
@@ -1057,7 +1057,10 @@ function unfolded({ nodes, edges }){
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
   const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
   while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
-  fold = { kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  // the one start box: of the boxes no line comes into, the one with the most boxes under it (the first drawn on a tie)
+  const tops = [...ids].filter((id) => !into.has(id) && kids.has(id));
+  const start = tops.map((id) => [id, walk([id]).size]).reduce((b, c) => (c[1] > b[1] ? c : b), [null, 0])[0];
+  fold = { start, kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   return shown.size === ids.size ? { nodes, edges } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter((e) => shown.has(e.from) && shown.has(e.to)) };
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
@@ -1444,10 +1447,10 @@ function placeWords(labels, lines, nodes){
   });
 }
 
-// the box where the map starts is drawn in ink, unless it carries a colour of its own (a question waiting on it, an
+// the one box where the map starts is drawn in orange, unless it carries a colour of its own (a question waiting on it, an
 // answer, something the plan does to it): that colour says more, and white words on it could not be read
 function startLook(n, mine){
-  if (fold.depth.get(n.id) !== 0 || !fold.kids.has(n.id) || n.proposed || locked(n)) return false;
+  if (n.id !== fold.start || n.proposed || locked(n)) return false;
   return !(decisionMap() ? boxDecision(n) : n.state) && !mine;
 }
 function render(){
