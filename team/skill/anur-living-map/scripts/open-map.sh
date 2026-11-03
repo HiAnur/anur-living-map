@@ -32,9 +32,12 @@ elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 pull -q --ff-
   fi
 else echo "update: could not reach GitHub, staying with what is here"; fi
 # the skill's copy under ~/.claude/skills always matches the clone, however the clone got its latest (this pull,
-# the server's own, a pull by hand); the copy read for this run stays as it was, the next run reads the new one
-if ! diff -rq "$H/team/skill/anur-living-map" "$HOME/.claude/skills/anur-living-map" >/dev/null 2>&1; then
-  mkdir -p "$HOME/.claude/skills" && cp -R "$H/team/skill/anur-living-map" "$HOME/.claude/skills/" && echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
+# the server's own, a pull by hand). Each file is replaced through a rename, never written in place: bash reads
+# this very script by offset while it runs, so writing over it would tear it mid-line.
+SK="$H/team/skill/anur-living-map"; SD="$HOME/.claude/skills/anur-living-map"
+if ! diff -rq "$SK" "$SD" >/dev/null 2>&1; then
+  (cd "$SK" && find . -type f) | while read -r f; do mkdir -p "$(dirname "$SD/$f")"; cp "$SK/$f" "$SD/$f.new" && mv -f "$SD/$f.new" "$SD/$f"; done
+  echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
 fi
 
 # 1. the server. Running older code than the clone, it is restarted on the new code (the list of maps and every

@@ -88,7 +88,13 @@ button,input{font:inherit;color:inherit}
 .pm-row.away .face{opacity:.35}
 .pm-who em.on{font-style:normal;color:#1E8A4A}
 .pm-out{margin-top:4px;border-top:1px solid var(--rule);border-radius:0 0 8px 8px;color:var(--text-2);cursor:pointer}
-.pm-ver{padding:6px 8px 2px;font-size:11px;color:var(--text-2);opacity:.7}
+/* the version, before the faces, Share keeps the corner: "Latest" with a green dot when this copy matches main (hover shows the version
+   and build); "Update" in Claude's colour when main holds newer commits, one click pulls everything and restarts */
+.tbtn.ver{display:inline-flex;align-items:center;gap:6px}
+.tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
+.tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
+.tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
+.tbtn.ver.due:disabled{opacity:.6;cursor:progress}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
 .pm-who span{font-size:12px;color:var(--text-2)}
@@ -130,13 +136,20 @@ button,input{font:inherit;color:inherit}
 #rubber path{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
-#newbox input{width:100%;height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#newbox input{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 #newbox input::placeholder{font-weight:400;color:var(--text-3)}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
 .d-del .ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .gb.bad{background:var(--gone);color:#fff;border-color:var(--gone)}
+/* Delete on a picked box asks right above it: Enter deletes, Esc keeps */
+.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
+.delq .gb{height:26px;padding:0 8px 0 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+/* each button carries its own key; Delete is a soft red, not a solid one */
+.delq .gb.soft{background:#fdf1f0;color:var(--gone);border-color:rgba(210,59,50,.3)}
+.delq .gb.soft:hover{background:#fbe4e2}
+.delq kbd{font:500 10.5px/16px var(--plex);padding:0 5px;border-radius:4px;background:rgba(0,0,0,.06);color:inherit;opacity:.8}
 /* the plan touches two boxes: they carry their sentence in full ink, the rest steps back until you look at it */
 .node.faint{opacity:.62}
 .node.faint:hover,.node.faint.sel{opacity:1}
@@ -253,6 +266,10 @@ button,input{font:inherit;color:inherit}
 .node .fold.shut{background:#141413;border-color:#141413;color:#fff}
 .node .fold.shut:hover{background:#3d3c39}
 .node .fold.r{right:-10px;top:50%;margin-top:-9px}
+/* a picked box shows a handle on each corner: drag one to resize, the opposite corner stays put */
+.node .rz{position:absolute;z-index:3;width:10px;height:10px;background:#fff;border:1.5px solid #0D99FF;border-radius:2px}
+.node .rz.nw{left:-8px;top:-8px;cursor:nwse-resize}.node .rz.se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.node .rz.ne{right:-8px;top:-8px;cursor:nesw-resize}.node .rz.sw{left:-8px;bottom:-8px;cursor:nesw-resize}
 .node .fold.l{left:-10px;top:50%;margin-top:-9px}
 .node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
 .node .fold.t{top:-10px;left:50%;margin-left:-9px}
@@ -778,6 +795,7 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <div class="savew" id="savew"></div>
   <div id="crumbs"></div>
   <div id="ticket"></div>
+  <button class="tbtn ver" id="verb" hidden></button>
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
@@ -828,8 +846,28 @@ const $ = (id) => document.getElementById(id);
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 // which code this map runs, shown at the foot of the people menu so a teammate can say which one they are on
-let VER = '';
-fetch('/api/version').then((r) => r.json()).then((v) => { VER = `Living Map ${v.version}${v.commit ? ` · ${v.commit} · ${v.at}` : ''}`; }).catch(() => {});
+// the version pill: asked with a fresh check when the page opens, then from the server's last check every minute
+let VER = null;
+function renderVer(){
+  const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
+  const line = `Living Map ${VER.version} · build ${VER.build}`;
+  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.title = line; b.disabled = false; }
+  else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.title = `${line} · main is ${VER.behind} commit${VER.behind === 1 ? '' : 's'} ahead. Click: pull everything and restart`; }
+}
+async function loadVer(check){ try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; } renderVer(); }
+loadVer(true); setInterval(() => loadVer(false), 60_000);
+$('verb').onclick = async () => {
+  if (!VER || VER.latest) return;
+  const b = $('verb'), was = VER.build; b.textContent = 'Updating…'; b.disabled = true;
+  const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the server did not answer' }));
+  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.title = `Could not update: ${r.why}`; return; }
+  // the server pulls and starts again; the page reloads once the new build answers
+  for (let i = 0; i < 45; i++){
+    await new Promise((ok) => setTimeout(ok, 1000));
+    try { const v = await (await fetch('/api/version')).json(); if (v.build !== was) return location.reload(); } catch {}
+  }
+  b.textContent = 'Update'; b.disabled = false; b.title = 'Could not update: the new server did not answer in time';
+};
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
 const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' };
@@ -905,7 +943,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize']);
 const act = (type, extra = {}) => {
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -943,7 +981,8 @@ const subLines = (n) => {
   return wraps.get(key);
 };
 // boxes are as tall as their words need: taller for a name on two lines, and for each extra line of the second line
-const HT = (n) => ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16;
+// a box drawn by hand keeps the height it was drawn at (h), and grows only when its words need more
+const HT = (n) => Math.max(n.h || 0, ((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -1495,6 +1534,8 @@ function render(){
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
+      ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
@@ -1631,8 +1672,7 @@ function renderTop(){
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
       <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
-      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}
-      ${VER ? `<div class="pm-ver">${VER}</div>` : ''}</div>` : ''}`;
+      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
 
 // renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one
@@ -1814,7 +1854,7 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
-    ${locked(n) ? '' : `<div class="d-del">${delAsk === n.id ? `<div class="ask"><span>Take ${esc(n.label)} and its lines off the map, for everyone?</span><button class="gb bad" data-delete-yes="${n.id}">Delete</button><button class="gb" data-delete-no>Keep</button></div>` : `<span class="d-more" data-delete="${n.id}">Delete this box</span>`}</div>`}</div>
+    ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
     ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}`}`;
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
@@ -2097,11 +2137,22 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
+// Delete or Backspace on a picked box asks once, right above the box: Enter deletes it, Esc keeps it
+function deleteBox(id){
+  const n = nodeById(id); delAsk = null; if (selected === id) selected = null;
+  act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+}
 document.addEventListener('keydown', (e) => {
-  if (!['Delete', 'Backspace'].includes(e.key) || !selected || e.target.closest('input, textarea') || PREVIEW) return;
+  if (e.target.closest('input, textarea') || PREVIEW) return;
+  if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
+    return;
+  }
+  if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
-  e.preventDefault(); delAsk = n.id; sideTab = 'box'; render();
-});
+  e.preventDefault(); delAsk = n.id; render();
+}, true);
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
 const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
@@ -2166,7 +2217,8 @@ function drawRubber(){
 // a new box is named where it was drawn, a new line gets its words halfway along it; Enter keeps it, Esc lets it go
 function askName(at){
   naming = at; const el = $('newbox'), line = !!at.from;
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.classList.add('on');
+  // a box is named inside the very shape that was drawn, so what you drew is what you get
+  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.style.height = `${line ? 36 : at.h || 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
   const i = el.querySelector('input'); i.focus();
   i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
@@ -2177,11 +2229,11 @@ function endName(keep){
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
-  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), view });
+  else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), view });
 }
 
 /* pan, zoom, drag */
-let drag = null, panning = null, moved = false;
+let drag = null, panning = null, moved = false, resizing = null;
 canvas.addEventListener('pointerdown', (e) => {
   const pin = e.target.closest('.pinc');
   // Apply and Not now inside a box's diagram are buttons: their click goes to the page, not the map
@@ -2194,6 +2246,11 @@ canvas.addEventListener('pointerdown', (e) => {
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   // picking a line with the Select tool (a click on a line picks it, a second click lets go)
+  const rz = e.target.closest('[data-rz]');
+  if (rz){ const n = nodeById(rz.closest('.node').dataset.id); if (n){ const w = W(n), h = HT(n), c = rz.dataset.rz;
+    // the corner opposite the one you hold stays where it is
+    resizing = { n, fx: c.includes('w') ? n.x + w / 2 : n.x - w / 2, fy: c.includes('n') ? n.y + h / 2 : n.y - h / 2 }; moved = false; canvas.setPointerCapture(e.pointerId); } return; }
+  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   const ed = tool === 'select' && e.target.closest('[data-edge]');
   if (ed){ pickedLine = pickedLine === ed.dataset.edge ? null : ed.dataset.edge; selected = null; delAsk = null; render(); return; }
   const nd = e.target.closest('.node');
@@ -2238,6 +2295,8 @@ let lastCur = 0;
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; } drawRubber(); return; }
+  if (resizing){ const r = resizing, w = Math.min(800, Math.max(60, Math.abs(sx - r.fx))), h = Math.min(600, Math.max(36, Math.abs(sy - r.fy)));
+    moved = true; r.n.w = Math.round(w); r.n.h = Math.round(h); r.n.x = Math.round(r.fx + Math.sign(sx - r.fx || 1) * w / 2); r.n.y = Math.round(r.fy + Math.sign(sy - r.fy || 1) * h / 2); render(); return; }
   if (drag){ moved = true; drag.n.x = Math.round(sx + drag.dx); drag.n.y = Math.round(sy + drag.dy); render(); }
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
@@ -2255,12 +2314,14 @@ const pick = (n) => {
   if (n.inside || n.diagram) tapTimer = setTimeout(go, DBL); else go();
 };
 canvas.addEventListener('pointerup', (e) => {
+  if (resizing){ const n = resizing.n; resizing = null; if (moved) act('resize', { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }); return; }
   if (drawing){
     const d = drawing; drawing = null; drawRubber(); setTool('select');
     if (d.box){
-      // a drag of 30px or more sets the box's width (110 to 400); a click makes one the usual width where it was clicked
-      const wide = Math.abs(d.x1 - d.x0) >= 30;
-      askName({ x: Math.round(wide ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(wide ? (d.y0 + d.y1) / 2 : d.y0), w: wide ? Math.min(400, Math.max(110, Math.round(Math.abs(d.x1 - d.x0)))) : null });
+      // the box is the rectangle you dragged, width and height (at least 60 by 36, so a name fits); a click makes one the usual size
+      const dw = Math.abs(d.x1 - d.x0), dh = Math.abs(d.y1 - d.y0), drawn = dw >= 20 || dh >= 20;
+      askName({ x: Math.round(drawn ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(drawn ? (d.y0 + d.y1) / 2 : d.y0),
+        w: drawn ? Math.min(800, Math.max(60, Math.round(dw))) : null, h: drawn ? Math.min(600, Math.max(36, Math.round(dh))) : null });
     } else {
       const to = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node'), n = to && nodeById(to.dataset.id);
       if (!n || n === d.from) toast('Let go of the line on another box.');
@@ -2350,9 +2411,10 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
-  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); }
+  // Delete this box on the card asks the same question as the Delete key, above the box itself
+  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); keepInView(delAsk); }
   else if (t.closest('[data-delete-no]')){ delAsk = null; render(); }
-  else if (t.closest('[data-delete-yes]')){ const id = t.closest('[data-delete-yes]').dataset.deleteYes, n = nodeById(id); delAsk = null; if (selected === id) selected = null; act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`); }
+  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('[data-resolve]')){
@@ -2492,6 +2554,7 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    if (resizing){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === resizing.n.id); if (d){ Object.assign(d, { x: resizing.n.x, y: resizing.n.y, w: resizing.n.w, h: resizing.n.h }); resizing.n = d; } }
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
