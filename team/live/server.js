@@ -995,6 +995,8 @@ const server = http.createServer(async (req, res) => {
     fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
     return json(200, { name });
   }
+  // which code this server runs: the package version, and the commit and its date when run from a clone
+  if (url.pathname === '/api/version') return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(VERSION));
   if (url.pathname === '/api/maps') {
     const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
@@ -1050,9 +1052,11 @@ async function keepCurrent() {
   server.closeAllConnections();
   server.close(() => { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'inherit' }).unref(); process.exit(0); });
 }
+const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, commit: '', at: '' };
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');
+  if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; }
   if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
   keepCurrent(); setInterval(keepCurrent, EVERY).unref();
 });

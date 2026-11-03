@@ -88,6 +88,7 @@ button,input{font:inherit;color:inherit}
 .pm-row.away .face{opacity:.35}
 .pm-who em.on{font-style:normal;color:#1E8A4A}
 .pm-out{margin-top:4px;border-top:1px solid var(--rule);border-radius:0 0 8px 8px;color:var(--text-2);cursor:pointer}
+.pm-ver{padding:6px 8px 2px;font-size:11px;color:var(--text-2);opacity:.7}
 .pm-out:hover{background:#f3f2ee;color:var(--text)}
 .pm-who b{font-weight:500;font-size:13.5px}.pm-who i{font-style:normal;font-weight:400;color:var(--text-3)}
 .pm-who span{font-size:12px;color:var(--text-2)}
@@ -822,6 +823,9 @@ const $ = (id) => document.getElementById(id);
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+// which code this map runs, shown at the foot of the people menu so a teammate can say which one they are on
+let VER = '';
+fetch('/api/version').then((r) => r.json()).then((v) => { VER = `Living Map ${v.version}${v.commit ? ` · ${v.commit} · ${v.at}` : ''}`; }).catch(() => {});
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
 const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' };
@@ -1614,7 +1618,8 @@ function renderTop(){
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
       <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
-      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
+      ${SIGNED_IN ? `<div class="pm-row pm-out" data-signout>Sign out</div>` : ''}
+      ${VER ? `<div class="pm-ver">${VER}</div>` : ''}</div>` : ''}`;
 }
 
 // renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one
