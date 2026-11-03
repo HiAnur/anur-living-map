@@ -138,9 +138,12 @@ button,input{font:inherit;color:inherit}
 .d-del .ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .gb.bad{background:var(--gone);color:#fff;border-color:var(--gone)}
 /* Delete on a picked box asks right above it: Enter deletes, Esc keeps */
-.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--gone);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
-.delq .gb{height:26px;padding:0 10px;font-size:12.5px}
-.delq kbd{font:11px var(--plex);color:var(--text-3)}
+.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
+.delq .gb{height:26px;padding:0 8px 0 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
+/* each button carries its own key; Delete is a soft red, not a solid one */
+.delq .gb.soft{background:#fdf1f0;color:var(--gone);border-color:rgba(210,59,50,.3)}
+.delq .gb.soft:hover{background:#fbe4e2}
+.delq kbd{font:500 10.5px/16px var(--plex);padding:0 5px;border-radius:4px;background:rgba(0,0,0,.06);color:inherit;opacity:.8}
 /* the plan touches two boxes: they carry their sentence in full ink, the rest steps back until you look at it */
 .node.faint{opacity:.62}
 .node.faint:hover,.node.faint.sel{opacity:1}
@@ -259,6 +262,10 @@ button,input{font:inherit;color:inherit}
 .node .fold.shut{background:#141413;border-color:#141413;color:#fff}
 .node .fold.shut:hover{background:#3d3c39}
 .node .fold.r{right:-10px;top:50%;margin-top:-9px}
+/* a picked box shows a handle on each corner: drag one to resize, the opposite corner stays put */
+.node .rz{position:absolute;z-index:3;width:10px;height:10px;background:#fff;border:1.5px solid #0D99FF;border-radius:2px}
+.node .rz.nw{left:-8px;top:-8px;cursor:nwse-resize}.node .rz.se{right:-8px;bottom:-8px;cursor:nwse-resize}
+.node .rz.ne{right:-8px;top:-8px;cursor:nesw-resize}.node .rz.sw{left:-8px;bottom:-8px;cursor:nesw-resize}
 .node .fold.l{left:-10px;top:50%;margin-top:-9px}
 .node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
 .node .fold.t{top:-10px;left:50%;margin-left:-9px}
@@ -911,7 +918,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize']);
 const act = (type, extra = {}) => {
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -1504,7 +1511,8 @@ function render(){
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
-      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb bad" data-delete-yes="${n.id}">Delete</button><button class="gb" data-delete-no>Keep</button><kbd>Enter · Esc</kbd></div>` : ''}
+      ${selected === n.id && !locked(n) && !n.proposed && !PREVIEW ? ['nw', 'ne', 'sw', 'se'].map((c) => `<span class="rz ${c}" data-rz="${c}"></span>`).join('') : ''}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
@@ -1827,7 +1835,7 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
-    ${locked(n) ? '' : `<div class="d-del">${delAsk === n.id ? `<div class="ask"><span>Take ${esc(n.label)} and its lines off the map, for everyone?</span><button class="gb bad" data-delete-yes="${n.id}">Delete</button><button class="gb" data-delete-no>Keep</button></div>` : `<span class="d-more" data-delete="${n.id}">Delete this box</span>`}</div>`}</div>
+    ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
     ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}`}`;
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
@@ -2206,7 +2214,7 @@ function endName(keep){
 }
 
 /* pan, zoom, drag */
-let drag = null, panning = null, moved = false;
+let drag = null, panning = null, moved = false, resizing = null;
 canvas.addEventListener('pointerdown', (e) => {
   const pin = e.target.closest('.pinc');
   // Apply and Not now inside a box's diagram are buttons: their click goes to the page, not the map
@@ -2219,6 +2227,10 @@ canvas.addEventListener('pointerdown', (e) => {
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   // Delete line, and picking a line with the Select tool (a click on a line picks it, a second click lets go)
+  const rz = e.target.closest('[data-rz]');
+  if (rz){ const n = nodeById(rz.closest('.node').dataset.id); if (n){ const w = W(n), h = HT(n), c = rz.dataset.rz;
+    // the corner opposite the one you hold stays where it is
+    resizing = { n, fx: c.includes('w') ? n.x + w / 2 : n.x - w / 2, fy: c.includes('n') ? n.y + h / 2 : n.y - h / 2 }; moved = false; canvas.setPointerCapture(e.pointerId); } return; }
   if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   const del = e.target.closest('[data-edge-del]');
   if (del){ deleteLine(del.dataset.edgeDel); return; }
@@ -2266,6 +2278,8 @@ let lastCur = 0;
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; } drawRubber(); return; }
+  if (resizing){ const r = resizing, w = Math.min(800, Math.max(60, Math.abs(sx - r.fx))), h = Math.min(600, Math.max(36, Math.abs(sy - r.fy)));
+    moved = true; r.n.w = Math.round(w); r.n.h = Math.round(h); r.n.x = Math.round(r.fx + Math.sign(sx - r.fx || 1) * w / 2); r.n.y = Math.round(r.fy + Math.sign(sy - r.fy || 1) * h / 2); render(); return; }
   if (drag){ moved = true; drag.n.x = Math.round(sx + drag.dx); drag.n.y = Math.round(sy + drag.dy); render(); }
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
@@ -2283,6 +2297,7 @@ const pick = (n) => {
   if (n.inside || n.diagram) tapTimer = setTimeout(go, DBL); else go();
 };
 canvas.addEventListener('pointerup', (e) => {
+  if (resizing){ const n = resizing.n; resizing = null; if (moved) act('resize', { id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }); return; }
   if (drawing){
     const d = drawing; drawing = null; drawRubber(); setTool('select');
     if (d.box){
@@ -2379,7 +2394,8 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
-  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); }
+  // Delete this box on the card asks the same question as the Delete key, above the box itself
+  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); keepInView(delAsk); }
   else if (t.closest('[data-delete-no]')){ delAsk = null; render(); }
   else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
@@ -2521,6 +2537,7 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    if (resizing){ const d = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === resizing.n.id); if (d){ Object.assign(d, { x: resizing.n.x, y: resizing.n.y, w: resizing.n.w, h: resizing.n.h }); resizing.n = d; } }
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
