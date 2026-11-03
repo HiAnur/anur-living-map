@@ -662,6 +662,10 @@ body.resizing{cursor:col-resize;user-select:none}
 /* the chat box grows with what is typed, up to about eight lines, then scrolls */
 .cbox > textarea{display:block;width:100%;height:26px;max-height:180px;border:0;padding:3px 0;background:none;font-size:14px;line-height:20px;outline:none;resize:none;overflow-y:auto}
 .cbox .crow{display:flex;align-items:center;gap:6px;margin-top:6px}
+/* the side chat's box: what Claude reads (the chips) on top, then the text box, two lines tall and growing, the send button at its foot */
+.side-ask .att-row{flex:none;margin:0 0 8px}
+.side-ask .crow{align-items:flex-end;margin-top:0}
+.side-ask textarea{flex:1;min-width:0;height:46px;max-height:180px;border:0;padding:3px 0;background:none;font-size:14px;line-height:20px;outline:none;resize:none;overflow-y:auto}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
 .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
@@ -1856,7 +1860,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}</div>
-    <form class="ask cbox side-ask" data-ask="${n.id}"><input placeholder="Brainstorm ${n.label}" autocomplete="off"><div class="crow">${attached(n)}<button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
+    <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -2444,7 +2448,7 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
-  else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('form[data-ask] input')?.focus(); }
+  else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('form[data-ask] textarea')?.focus(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
   else if (t.closest('[data-more]')){ const k = t.closest('[data-more]').dataset.more; infoMore.has(k) ? infoMore.delete(k) : infoMore.add(k); render(); if (k.startsWith('o:') && infoMore.has(k)) $(`other-${k.slice(2)}`)?.focus(); }
@@ -2550,8 +2554,8 @@ document.addEventListener('submit', (e) => {
   const o = e.target.closest('form[data-other]');
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
-  e.preventDefault(); const i = f.querySelector('input'); const text = i.value.trim(); if (!text) return;
-  act('ask', { node: f.dataset.ask, text, side: true }); i.value = '';
+  e.preventDefault(); const i = f.querySelector('textarea'); const text = i.value.trim(); if (!text) return;
+  act('ask', { node: f.dataset.ask, text, side: true }); i.value = ''; fitBox(i);
   // "visualize this flow": Claude draws it, so the map opens on it
   const fx = flowOf(nodeById(f.dataset.ask));
   if (fx && /flow|visuali|diagram|draw|sequence/i.test(text)) setTimeout(() => openFlow(fx.id), 700);
@@ -2624,7 +2628,7 @@ function listen(){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] input' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
     LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next; render();
     if (railTab === 'history') fetchHist();
@@ -2646,12 +2650,12 @@ window.addEventListener('resize', fit);
 // the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
 // input method is still composing a word); the box grows with each line
 document.addEventListener('keydown', (e) => {
-  const t = e.target.closest?.('form[data-chat] textarea');
+  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea');
   if (!t || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
   e.preventDefault(); t.form.requestSubmit();
 });
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
-document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea'); if (t) fitBox(t); });
+document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea'); if (t) fitBox(t); });
 listen();
 fetchInbox(); setInterval(fetchInbox, 8000);
 </script>
