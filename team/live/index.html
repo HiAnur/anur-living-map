@@ -160,6 +160,8 @@ button,input{font:inherit;color:inherit}
 /* a line you can click: a wide invisible stroke over it; a picked line turns the blue of a picked box; Delete or
    Backspace takes it off the map (no button: a picked line and the key are the whole of it) */
 #edges > path.hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}
+/* a line's words you may change: a click picks the line, a double click renames it */
+#edges text.ed{pointer-events:all;cursor:pointer}
 #edges > path.pick{stroke:#0D99FF;stroke-width:2.5;stroke-dasharray:none;animation:none;opacity:1}
 #edges text.cross{font-size:11px;fill:var(--text-3)}
 .node .s2{font:12px/1.3 var(--plex);color:var(--gone);white-space:nowrap}
@@ -943,7 +945,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel']);
 const act = (type, extra = {}) => {
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -1485,7 +1487,7 @@ function render(){
       svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
       if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }
       lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
-      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
+      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid, edit: canPick(e, a, b) });
       continue;
     }
     const pts = ptsOf.get(`${e.from}>${e.to}`);
@@ -1505,14 +1507,14 @@ function render(){
       const tx = a.x < b.x ? b.x - W(b) / 2 - 2 : b.x + W(b) / 2 + 2;
       const mx = upright ? a.x : branch ? ((x1 + tx) / 2 + tx) / 2 : (x1 + x2) / 2;
       const my = upright ? ((a.y < b.y ? a.y + HT(a) / 2 : a.y - HT(a) / 2) + (a.y < b.y ? b.y - HT(b) / 2 : b.y + HT(b) / 2)) / 2 : branch ? b.y + off : a.y + off;
-      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my] });
+      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [mx, my], edit: canPick(e, a, b) });
     }
   }
   for (const L of placeWords(labels, lines, nodes))
-    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}" x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
+    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central">${L.text}</text>`;
   // a picked line that is gone (deleted, or folded away) lets go
   if (!pickSeen) pickedLine = null;
-  edgesEl.innerHTML = defsHtml + svg + words + hits;
+  edgesEl.innerHTML = defsHtml + svg + hits + words;
   // the gap is as wide as the words, measured, plus a little air
   for (const r of edgesEl.querySelectorAll('rect.gap')){
     const t = r.nextElementSibling, w = t.getComputedTextLength() + 8;
@@ -2208,25 +2210,27 @@ function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x
 /* drawing by hand. The Box tool: press and drag out a box (a click makes one the usual width), then name it where it
    sits. The Line tool: drag from one box and let go on another, then the words on the line, or just Enter. Pan drags
    the map from anywhere. What is being drawn shows as a blue outline until the pointer lets go */
-let drawing = null, naming = null;
+let drawing = null, naming = null, lineTap = { id: null, at: 0 };
 function drawRubber(){
   const d = drawing; if (!d){ $('rubber').innerHTML = ''; return; }
   $('rubber').innerHTML = d.box ? `<rect x="${Math.min(d.x0, d.x1)}" y="${Math.min(d.y0, d.y1)}" width="${Math.abs(d.x1 - d.x0)}" height="${Math.abs(d.y1 - d.y0)}" rx="6"/>`
     : `<path d="M${d.from.x} ${d.from.y}L${d.x} ${d.y}" marker-end="url(#a-new)"/>`;
 }
-// a new box is named where it was drawn, a new line gets its words halfway along it; Enter keeps it, Esc lets it go
+// a new box is named where it was drawn, a new line gets its words halfway along it; a double click on a line's
+// words (or on a line without words) changes them where they sit, empty takes them off. Enter keeps it, Esc lets it go
 function askName(at){
-  naming = at; const el = $('newbox'), line = !!at.from;
+  naming = at; const el = $('newbox'), line = !!(at.from || at.edge);
   // a box is named inside the very shape that was drawn, so what you drew is what you get
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : at.w || 140}px`; el.style.height = `${line ? 36 : at.h || 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); i.focus();
+  const i = el.querySelector('input'); if (at.text){ i.value = at.text; i.select(); } i.focus();
   i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
   i.addEventListener('blur', () => endName(true));
 }
 function endName(keep){
   const at = naming; if (!at) return; naming = null;
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
+  if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view }); return; }
   if (!keep || (!at.from && !text)) return;
   if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
   else act('add', { label: text, x: at.x, y: at.y, ...(at.w ? { w: at.w } : {}), ...(at.h ? { h: at.h } : {}), view });
@@ -2251,8 +2255,20 @@ canvas.addEventListener('pointerdown', (e) => {
     // the corner opposite the one you hold stays where it is
     resizing = { n, fx: c.includes('w') ? n.x + w / 2 : n.x - w / 2, fy: c.includes('n') ? n.y + h / 2 : n.y - h / 2 }; moved = false; canvas.setPointerCapture(e.pointerId); } return; }
   if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
-  const ed = tool === 'select' && e.target.closest('[data-edge]');
-  if (ed){ pickedLine = pickedLine === ed.dataset.edge ? null : ed.dataset.edge; selected = null; delAsk = null; render(); return; }
+  // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
+  const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
+  if (ed && !PREVIEW){
+    const id = ed.dataset.edge || ed.dataset.edgeLabel, now = Date.now();
+    if (lineTap.id === id && now - lineTap.at < 350){
+      lineTap = { id: null, at: 0 }; pickedLine = null;
+      const words = edgesEl.querySelector(`text[data-edge-label="${id}"]`);
+      const at = words ? [Number(words.getAttribute('x')), Number(words.getAttribute('y'))] : toStage(e.clientX, e.clientY);
+      // opened after the click is over: the mouse press that follows this one would take the focus off the box
+      render(); setTimeout(() => askName({ edge: id, text: words?.dataset.text || '', x: Math.round(at[0]), y: Math.round(at[1]) })); return;
+    }
+    lineTap = { id, at: now };
+  }
+  if (ed){ const id = ed.dataset.edge || ed.dataset.edgeLabel; pickedLine = pickedLine === id ? null : id; selected = null; delAsk = null; render(); return; }
   const nd = e.target.closest('.node');
   moved = false;
   if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
