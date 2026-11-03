@@ -126,7 +126,7 @@ button,input,textarea{font:inherit;color:inherit}
 #edges text{font:12px var(--plex);fill:var(--text-2)}
 #edges text.new{fill:var(--new)}
 #edges text.assumed-gone{fill:var(--gone)}
-.node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
+.node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;text-align:center;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
 .node:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
 /* where the map starts (the one box no line comes into with the most boxes under it): orange, the way a mind map's centre
    stands out. What the plan does to a box, or a question on it, still shows in that state's own colour */
@@ -192,10 +192,9 @@ button,input,textarea{font:inherit;color:inherit}
 /* selected: the box lights up blue */
 /* a picked box: its own edge turns blue, with the resize squares on its corners and the dots out past its sides */
 .node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
-.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;gap:6px}
+.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
 /* a name longer than its box wraps to a second line, never a third, and the box grows to hold it (HT) */
 .node .nt{min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-.node.actor .n{justify-content:center;text-align:center}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
 .node .s{font:12px/1.3 var(--plex);color:var(--text-2);overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .node.actor{width:110px;border-radius:999px;align-items:center}
