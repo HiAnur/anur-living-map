@@ -6,7 +6,7 @@
 //
 //   GET  /start?return=http://localhost:4322/auth/done&state=S&challenge=C    → Google
 //   GET  /auth/google/callback                                              → <return>?code=…&state=S
-//   POST /exchange {code, verifier}                                          → {email, name}
+//   POST /exchange {code, verifier}                                          → {email, name, listed}
 //   POST /password {name, password}                                          → {name}, a sign-in with no Google account
 //
 // The list, from any Mac signed in to gcloud with access to the project:
@@ -140,15 +140,17 @@ http.createServer(async (req, res) => {
     if (q.get('error')) return back(res, f, { error: q.get('error') === 'access_denied' ? 'Google sign-in was cancelled.' : `Google said: ${q.get('error')}.` });
     // the name the list gives this address, else the name Google has for the person, else the address's first part
     let email, name;
-    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; name = (await nameOf(email)) || g.name || email.split('@')[0]; } catch (e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
+    let listed = false;
+    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
     console.log(`signed in ${email} as ${name}`);
-    return back(res, f, { code: seal('code', { email, name, challenge: f.challenge }) });
+    return back(res, f, { code: seal('code', { email, name, listed, challenge: f.challenge }) });
   }
   if (url.pathname === '/exchange' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const c = KEY && unseal('code', a.code, CODE_TTL);
     if (!c || sha(a.verifier || '') !== c.challenge) return json(res, 400, { error: 'That sign-in code is not good. Sign in again.' });
-    return json(res, 200, { email: c.email, name: c.name });
+    // listed: the name is the list's, so the map may seat them as that person; otherwise it is only Google's
+    return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed });
   }
   if (url.pathname === '/password' && req.method === 'POST') {
     let a = {}, name = null; try { a = JSON.parse(await body(req)); } catch {}

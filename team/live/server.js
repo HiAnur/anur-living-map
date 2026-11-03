@@ -898,8 +898,9 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/auth/done' && req.method === 'GET') {
     let got; try { got = await googleFinish(url.searchParams); } catch (e) { return signInError(e.message); }
-    // one of this map's people, by full name or first name; anyone else acts under the name Google gave
-    const name = users.person(got.name) || users.person(got.name.split(' ')[0]) || got.name;
+    // one of this map's people only when the login's list says so (an address, not a name, proves who someone is);
+    // anyone else is a guest under their Google name, never seated as a person who happens to share it
+    const name = got.listed ? users.person(got.name) || got.name : users.person(got.name) ? `${got.name} (guest)` : got.name;
     return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
   }
   if (url.pathname === '/api/login' && req.method === 'POST') {
