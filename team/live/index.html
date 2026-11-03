@@ -1329,6 +1329,26 @@ function curve(a, b, cx){
   return { d: `M${sx} ${a.y}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${tx} ${b.y}`, mid: at(.5), pts: Array.from({ length: 17 }, (_, i) => at(i / 16)) };
 }
 
+// Where a line's level run crosses another line's upright run, it hops over it with a small arc, the way a
+// wiring diagram shows one wire passing over another, so a crossing never reads as a junction. Only level runs
+// hop, so each crossing gets one hop; a crossing within a hop's width of a corner or an end is left alone.
+function hopPath(pts, others, r = 6){
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++){
+    const [x1, y1] = pts[i - 1], [x2, y2] = pts[i];
+    if (Math.abs(y1 - y2) > .5 || Math.abs(x1 - x2) < 2 * r){ d += `L${x2} ${y2}`; continue; }
+    const dir = Math.sign(x2 - x1), lo = Math.min(x1, x2) + r, hi = Math.max(x1, x2) - r, xs = new Set();
+    for (const o of others) for (let j = 1; j < o.length; j++){
+      const [ox1, oy1] = o[j - 1], [ox2, oy2] = o[j];
+      if (Math.abs(ox1 - ox2) > .5) continue;
+      if (ox1 > lo && ox1 < hi && y1 > Math.min(oy1, oy2) + r && y1 < Math.max(oy1, oy2) - r) xs.add(Math.round(ox1));
+    }
+    for (const x of [...xs].sort((p, q) => dir * (p - q))) d += `L${x - dir * r} ${y1}A${r} ${r} 0 0 ${dir > 0 ? 1 : 0} ${x + dir * r} ${y1}`;
+    d += `L${x2} ${y2}`;
+  }
+  return d;
+}
+
 // A line's words never sit where another line runs: they go on a stretch that is the line's own, the way
 // "Charge $99" sits on its own run with the corner clear of it, and never on a stem two lines share or a
 // crossing. Each candidate is a box of the words' size; the first that no other line, box or words touch wins.
@@ -1374,6 +1394,8 @@ function render(){
     if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup });
   }
   const ports = portsFor(routed, nodes, !cross);
+  // every plain line's points first, so each can hop where it crosses another
+  const ptsOf = new Map(routed.map((l) => [l.id, routePts(l.a, l.b, l.dup, nodes, ports.get(l.id))]));
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = dupOf.get(e);
@@ -1392,9 +1414,10 @@ function render(){
       if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid });
       continue;
     }
-    const pts = routePts(a, b, dup, nodes, ports.get(`${e.from}>${e.to}`));
+    const pts = ptsOf.get(`${e.from}>${e.to}`);
     lines.push({ id: `${e.from}>${e.to}`, pts });
-    svg += `<path class="${k} ${quiet ? 'faint' : ''} ${still ? 'still' : ''}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}" marker-end="${endOf(k)}"/>`;
+    const others = [...ptsOf].filter(([id]) => id !== `${e.from}>${e.to}`).map(([, p]) => p);
+    svg += `<path class="${k} ${quiet ? 'faint' : ''} ${still ? 'still' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
     // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
     if (e.label){
       const level = Math.abs(a.y - b.y) < 2, upright = Math.abs(a.x - b.x) < 2;
