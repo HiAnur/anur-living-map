@@ -873,6 +873,11 @@ const $ = (id) => document.getElementById(id);
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+// A saved file: this same page with the map's data written into it (Share as a file). It draws that data and
+// nothing else; no server is asked, and nothing on it changes until it is loaded into Living Map.
+const FILE = document.querySelector('meta[name="lm-file"]')?.content || '';
+const FILE_DATA = FILE ? JSON.parse(document.getElementById('lm-data').textContent) : null;
+const FILE_SAYS = 'This is a saved file. Load it into Living Map to change it.';
 // the version pill: asked with a fresh check when the page opens, then from the server's last check every minute
 let VER = null, STARTED = null, UPDATED_AT = 0;
 // set by the Update click just before the reload, read once here
@@ -895,6 +900,7 @@ function renderVer(){
   else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.dataset.tip = `${line}\nMain has ${VER.behind} newer change${VER.behind === 1 ? '' : 's'}. Click to update`; }
 }
 async function loadVer(check){
+  if (FILE) return;
   try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; }
   if (VER?.started){ if (STARTED === null) STARTED = VER.started; else if (VER.started !== STARTED) return reloadWhenIdle(); }
   renderVer();
@@ -998,6 +1004,7 @@ function md(t){
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
 const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel']);
 const act = (type, extra = {}) => {
+  if (FILE){ toast(FILE_SAYS); return Promise.resolve(); }
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 };
@@ -1757,26 +1764,14 @@ function renderShare(){
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team</span><span class="sh-role">can edit ›</span></div>
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
       <div class="sh-h">Or send the map itself</div>
-      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · every box, line and decision, readable anywhere</i></span><button class="gb" data-share-file>Download</button></div>
+      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
     </div>`;
 }
-// the map as one file anyone can read (Markdown): each box with its notes and what was decided on it, the lines, and
-// what still waits on an answer; Download in Share saves it as <map name>.md
-function mapFile(){
-  const all = S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || []).map((m) => ({ ...m, within: n.label }))]);
-  const name = (id) => all.find((n) => n.id === id)?.label || id;
-  const box = (n) => [`## ${n.label}${n.sub ? ` · ${n.sub}` : ''}`, n.within ? `Inside ${n.within}.` : '', n.desc && n.desc !== n.sub ? n.desc : '',
-    n.decided ? `Decided by ${n.decided.who}, ${n.decided.at}: ${n.decided.what}` : '', n.file ? `File: ${n.file}` : ''].filter(Boolean).join('\n');
-  const edges = [...S.edges, ...S.nodes.flatMap((n) => n.inside?.edges || [])], open = S.calls.filter((c) => c.status === 'open');
-  return [`# ${S.title}`, `From Living Map, ${new Date().toLocaleString()}. ${all.length} box${all.length === 1 ? '' : 'es'}, ${edges.length} line${edges.length === 1 ? '' : 's'}.`, '',
-    ...all.flatMap((n) => [box(n), '']),
-    '## Lines', ...edges.map((e) => `- ${name(e.from)} → ${name(e.to)}${e.label ? `: ${e.label}` : ''}`), '',
-    ...(open.length ? ['## Waiting on an answer', ...open.map((c) => `- ${c.ask || c.text}${c.for ? ` (for ${c.for})` : ''}`), ''] : [])].join('\n');
-}
+// the map as one file (Share as a file): this page with the map's data inside, so it opens on its own anywhere
+// and Load a map file brings it back here exactly; the server builds it at api/file and names it <map name>.html
 function downloadMap(){
-  const a = document.createElement('a'), file = `${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.md`;
-  a.href = URL.createObjectURL(new Blob([mapFile()], { type: 'text/markdown' })); a.download = file; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000); toast(`Saved ${file} to your downloads.`);
+  const a = document.createElement('a'); a.href = 'api/file'; a.download = ''; a.click();
+  toast(`Saving ${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html to your downloads.`);
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
@@ -2814,8 +2809,9 @@ function renderHist(){
       || '<div class="d-wait">No changes yet.</div>'}`;
 }
 function renderHistBar(){
-  const el = $('histbar'); el.classList.toggle('on', !!PREVIEW); document.body.classList.toggle('previewing', !!PREVIEW);
-  el.innerHTML = PREVIEW ? `<span class="hb-w">${vtime(PREVIEW.at)} · ${esc(PREVIEW.what)}</span><button class="go" data-hrestore>Restore this version</button><button data-hnow>Back to now</button>` : '';
+  const el = $('histbar'); el.classList.toggle('on', !!PREVIEW || !!FILE); document.body.classList.toggle('previewing', !!PREVIEW);
+  el.innerHTML = PREVIEW ? `<span class="hb-w">${vtime(PREVIEW.at)} · ${esc(PREVIEW.what)}</span><button class="go" data-hrestore>Restore this version</button><button data-hnow>Back to now</button>`
+    : FILE ? `<span class="hb-w">A saved copy from ${esc(new Date(FILE).toLocaleString())}. To work on it, open Living Map and choose Load a map file.</span>` : '';
 }
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
@@ -2829,6 +2825,7 @@ let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.
 
 /* follow the server */
 function listen(){
+  if (FILE){ LIVE = S = FILE_DATA; renderHistBar(); render(); fit(); return; }
   const es = new EventSource('api/events');
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
@@ -2874,7 +2871,7 @@ document.addEventListener('keydown', (e) => {
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
 document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea'); if (t) fitBox(t); });
 listen();
-fetchInbox(); setInterval(fetchInbox, 8000);
+if (!FILE){ fetchInbox(); setInterval(fetchInbox, 8000); }
 </script>
 </body>
 </html>

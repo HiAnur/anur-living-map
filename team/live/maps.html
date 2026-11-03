@@ -30,6 +30,11 @@ a.map:hover{border-color:var(--text)}
 #new button:disabled{opacity:.5;cursor:default}
 #new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
+/* a map someone shared as a file comes back here exactly, as a map of its own */
+.load{display:flex;align-items:center;gap:12px;margin:-12px 0 28px;color:var(--text-2);font-size:13px}
+.load label{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font-size:13px;color:var(--text);cursor:pointer}
+.load label:hover{border-color:var(--text)}
+#lerr{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
 /* the list sorts by time (last changed first) or by name; this browser remembers the choice */
 .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .head h1{margin:0}
@@ -57,6 +62,8 @@ a.map:hover{border-color:var(--text)}
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" hidden></div>
+  <div class="load"><span>Have a map someone sent you as a file?</span><label><input type="file" accept=".html,text/html" hidden>Load a map file</label></div>
+  <div id="lerr" hidden></div>
   <div class="head"><h1>Or pick a map you have</h1>
     <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
   <div id="list" class="none">Loading…</div>
@@ -76,6 +83,18 @@ form.addEventListener('submit', (e) => {
     .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
     .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not start.'); location.href = `${d.href}?chat=1`; })
     .catch((x) => { err.textContent = x.message; err.hidden = false; go.disabled = false; });
+});
+// a map file (Share as a file) carries the map's data inside its page: that data becomes a map here, and it opens
+const pick = document.querySelector('.load input'), lerr = document.getElementById('lerr');
+pick.addEventListener('change', () => {
+  const f = pick.files[0]; if (!f) return; lerr.hidden = true;
+  f.text().then((t) => {
+    const data = t.match(/<script id="lm-data" type="application\/json">([^]*?)<\/script>/)?.[1];
+    if (!data) throw new Error('Not a map file. Share as a file on a map makes one.');
+    return fetch('/api/maps/load', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ data }) })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be loaded.'); location.href = d.href; });
+  }).catch((x) => { lerr.textContent = x.message; lerr.hidden = false; pick.value = ''; });
 });
 let maps = null, sortBy = 'time';
 try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
