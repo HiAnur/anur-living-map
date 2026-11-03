@@ -1045,11 +1045,15 @@ const server = http.createServer(async (req, res) => {
   // newer ones; ?check=1 asks origin first (about a second), otherwise the answer is from the last check
   if (url.pathname === '/api/version') return (url.searchParams.get('check') ? checkLatest() : Promise.resolve()).then(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(VERSION)));
   // the Update button: everything Anur (the clone, so the server, the MCP tools and the skill's copy) is brought
-  // to main and the server starts again. The answer goes out first; the page waits for the new build to answer
+  // to main. The answer comes once the download is done, so the page can show each step; then the server restarts
   if (url.pathname === '/api/update' && req.method === 'POST') {
-    const why = (await checkLatest()) === null ? 'not run from a clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: !why, why }));
-    if (!why) setTimeout(update, 50);
+    const send = (a) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(a));
+    const why = (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
+    if (why) return send({ ok: false, why });
+    const got = await pull();
+    if (!got) return send({ ok: false, why: 'GitHub could not be reached' });
+    send({ ok: true, pulled: got.count });
+    if (got.count) setTimeout(restart, 50);
     return;
   }
   if (url.pathname === '/api/maps') {
@@ -1117,26 +1121,29 @@ async function checkLatest() {
 }
 // why a pull cannot run: the clone is on another branch or has changes of its own; '' when it can
 async function cannotUpdate() {
-  if ((await git('branch', '--show-current')) !== 'main') return 'the clone is not on main';
+  const branch = await git('branch', '--show-current');
+  if (branch !== 'main') return branch ? `this copy is on the branch ${branch}, not main` : 'this copy is a preview, not main';
   // only edits to tracked files block a pull: a map's own .living-map/ folder or any other new file does not
-  if (await git('status', '--porcelain', '--untracked-files=no')) return 'the clone has changes of its own';
+  if (await git('status', '--porcelain', '--untracked-files=no')) return 'this copy has edits that are not on main';
   return '';
 }
 // pulls main, refreshes the skill's copy and starts this server again on the new code
-async function update() {
-  if (await cannotUpdate()) return;
+// pulls main and refreshes the skill's copy; how many commits came in, or null when the pull failed
+async function pull() {
   const was = await git('rev-parse', 'HEAD');
-  if ((await git(...GIT_NET, 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return;
-  const now = await git('rev-parse', 'HEAD');
-  if (now === was) return;
-  try { refreshSkill(); } catch {}
-  console.log(`update: ${await git('rev-list', '--count', `${was}..${now}`)} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`);
+  if ((await git(...GIT_NET, 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return null;
+  const now = await git('rev-parse', 'HEAD'), count = now === was ? 0 : Number(await git('rev-list', '--count', `${was}..${now}`)) || 0;
+  if (count) { try { refreshSkill(); } catch {} console.log(`update: ${count} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`); }
+  return { count };
+}
+// starts this server again on the code now in the clone
+function restart() {
   server.closeAllConnections();
   server.close(() => { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'inherit' }).unref(); process.exit(0); });
 }
-async function keepCurrent() { if ((await checkLatest()) === false) await update(); }
+async function keepCurrent() { if ((await checkLatest()) === false && !(await cannotUpdate()) && (await pull())?.count) restart(); }
 // build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
-const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0 };
+const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');

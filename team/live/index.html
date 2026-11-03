@@ -94,7 +94,9 @@ button,input,textarea{font:inherit;color:inherit}
 .tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
 .tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
-.tbtn.ver.due:disabled{opacity:.6;cursor:progress}
+.tbtn.ver.due:disabled{opacity:.75;cursor:progress}
+.tbtn.ver.no{color:var(--text-2);border-color:var(--rule-2);background:#f3f2ee}
+.tbtn.ver.show::after{content:attr(data-tip);position:absolute;top:calc(100% + 6px);right:0;padding:6px 9px;border-radius:7px;background:#141413;color:#fff;font:400 12px/1.45 var(--plex);white-space:pre;text-align:left;z-index:30;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 /* the hover label appears at once, under the button, right-aligned so it stays on screen; the browser's own
    tooltip waits about a second and often never shows */
 .tbtn.ver{position:relative}
@@ -852,28 +854,53 @@ const $ = (id) => document.getElementById(id);
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
-// which code this map runs, shown at the foot of the people menu so a teammate can say which one they are on
 // the version pill: asked with a fresh check when the page opens, then from the server's last check every minute
-let VER = null;
+let VER = null, STARTED = null, UPDATED_AT = 0;
+// set by the Update click just before the reload, read once here
+try { if (sessionStorage.getItem('lm-updated') !== null){ UPDATED_AT = Date.now(); sessionStorage.removeItem('lm-updated'); } } catch {}
+// a server started since this page loaded may run newer code: the page reloads, once nobody is typing in it
+function reloadWhenIdle(){
+  const ae = document.activeElement;
+  if (ae?.matches?.('input, textarea, [contenteditable="true"]') && (ae.value || ae.textContent)) return setTimeout(reloadWhenIdle, 2000);
+  location.reload();
+}
 function renderVer(){
   const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
   const line = `Living Map ${VER.version} · build ${VER.build}${VER.commit ? ` · ${VER.commit}` : ''}`;
-  if (VER.latest){ b.textContent = 'Latest'; b.className = 'tbtn ver ok'; b.dataset.tip = `${line}\nNothing newer on main`; b.disabled = false; }
+  if (VER.latest){
+    // just after an update the pill says so for a few seconds, then settles on Latest
+    const fresh = UPDATED_AT && Date.now() - UPDATED_AT < 4000;
+    b.textContent = fresh ? '✓ Updated' : 'Latest'; b.className = 'tbtn ver ok'; b.dataset.tip = `${line}\nNothing newer on main`; b.disabled = false;
+    if (fresh) setTimeout(renderVer, 4000 - (Date.now() - UPDATED_AT));
+  }
   else { b.textContent = 'Update'; b.className = 'tbtn ver due'; b.dataset.tip = `${line}\nMain has ${VER.behind} newer change${VER.behind === 1 ? '' : 's'}. Click to update`; }
 }
-async function loadVer(check){ try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; } renderVer(); }
-loadVer(true); setInterval(() => loadVer(false), 60_000);
+async function loadVer(check){
+  try { VER = await (await fetch(`/api/version${check ? '?check=1' : ''}`)).json(); } catch { VER = null; }
+  if (VER?.started){ if (STARTED === null) STARTED = VER.started; else if (VER.started !== STARTED) return reloadWhenIdle(); }
+  renderVer();
+}
+// the server's last answer shows at once; the fresh check (a round trip to GitHub) replaces it when it lands
+loadVer(false).then(() => loadVer(true)); setInterval(() => loadVer(false), 60_000);
 $('verb').onclick = async () => {
   if (!VER || VER.latest) return;
-  const b = $('verb'), was = VER.build; b.textContent = 'Updating…'; b.disabled = true;
-  const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the server did not answer' }));
-  if (!r.ok){ b.textContent = 'Update'; b.disabled = false; b.dataset.tip = `Could not update: ${r.why}`; return; }
-  // the server pulls and starts again; the page reloads once the new build answers
+  const b = $('verb'), was = VER.started;
+  // each step shows on the button: the download, the restart on the new code, then the page reloads to Latest
+  const fail = (why) => {
+    b.textContent = 'Can’t update'; b.className = 'tbtn ver no show'; b.disabled = false; b.dataset.tip = `Could not update:\n${why}`;
+    setTimeout(() => { b.classList.remove('show'); renderVer(); }, 6000);
+  };
+  b.textContent = 'Downloading…'; b.disabled = true;
+  const r = await fetch('/api/update', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: false, why: 'the map did not answer' }));
+  if (!r.ok) return fail(r.why);
+  b.textContent = 'Restarting…';
+  try { sessionStorage.setItem('lm-updated', '1'); } catch {}
   for (let i = 0; i < 45; i++){
     await new Promise((ok) => setTimeout(ok, 1000));
-    try { const v = await (await fetch('/api/version')).json(); if (v.build !== was) return location.reload(); } catch {}
+    try { const v = await (await fetch('/api/version')).json(); if (v.started !== was) return location.reload(); } catch {}
   }
-  b.textContent = 'Update'; b.disabled = false; b.dataset.tip = 'Could not update: the new server did not answer in time';
+  try { sessionStorage.removeItem('lm-updated'); } catch {}
+  fail('the map did not come back within 45 seconds');
 };
 if (/rec/.test(location.search)) document.body.classList.add('rec');
 // one colour per person, the way Figma colours each collaborator: on their avatar, their cursor and their mark on a box
@@ -2572,6 +2599,8 @@ let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.
 /* follow the server */
 function listen(){
   const es = new EventSource('api/events');
+  // the live connection comes back after the server restarts: ask which server answers now
+  es.onopen = () => loadVer(false);
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
