@@ -471,7 +471,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -516,16 +516,52 @@ function openMap({ project = '', name = '', home }) {
   const ACTS = {
     move(a) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
-      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y); return true;
+      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
+      // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)
+      if (nodeOf(a.id)) n.moved = true;
+      return true;
+    },
+    // drawn by hand on the map: a box where it was drawn (a.view: inside that box), a line from one box to another
+    // (words on it optional; drawing one that exists changes its words), and a box taken off the map, its lines with
+    // it. Someone who sees one area draws in that area and takes off only what is in it
+    add(a) {
+      const label = String(a.label || '').trim().slice(0, 80);
+      if (!label || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
+      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
+      if (!list) return false;
+      const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
+      let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
+      const sees = seesOf(a.by), w = Math.round(Number(a.w));
+      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 110 && w <= 400 ? { w } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
+      tell(`${a.by} drew the box ${label}`);
+      return true;
+    },
+    connect(a) {
+      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
+      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, edges = inside ? (inside.edges ??= []) : state.edges;
+      const label = String(a.label || '').trim().slice(0, 40), had = edges.find((e) => e.from === from.id && e.to === to.id);
+      if (had) { if (!label) return false; had.label = label; } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}) });
+      tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
+      return true;
+    },
+    remove(a) {
+      const n = nodeOf(a.id); if (!n) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
+      const drop = (s) => { s.nodes = s.nodes.filter((x) => x !== n); if (s.edges) s.edges = s.edges.filter((e) => e.from !== n.id && e.to !== n.id); };
+      drop(state); for (const p of state.nodes) if (p.inside) drop(p.inside);
+      tell(`${a.by} took ${n.label} off the map`);
+      return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
-    // in their window). A topic map lays out as a mind map; any other map lines its showing boxes up on the grid,
-    // with no line through a box. Boxes Claude proposed and nobody applied yet find new places around it.
+    // in their window). A topic map lays out as a mind map; any other map puts its showing boxes that are off the
+    // grid on it, with no line through a box. Neither moves anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
     tidy(a) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      if (!tidyTree(list, edges, only)) tidy(only ? list.filter((n) => only.has(n.id)) : list, edges);
+      // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
+      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },

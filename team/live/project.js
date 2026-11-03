@@ -163,20 +163,26 @@ export function crossings(nodes, edges) {
   return k;
 }
 
+const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
+
+// A new box on a topic map goes where Tidy up would put it (on its parent's side, beside the boxes it belongs
+// with, after the box drawn before it), without moving a box already there; on any other map, the free grid
+// spot where its lines cross the fewest boxes and are shortest.
 export function placeNew(nodes, edges) {
+  if (!nodes.some((n) => !placed(n)) || placeInTree(nodes, edges)) return;
   for (const n of nodes) {
-    if (Number.isFinite(n.x) && Number.isFinite(n.y)) continue;
-    const placed = nodes.filter((o) => o !== n && Number.isFinite(o.x));
+    if (placed(n)) continue;
+    const others = nodes.filter((o) => o !== n && placed(o));
     const links = edges.filter((e) => e.from === n.id || e.to === n.id)
-      .map((e) => placed.find((o) => o.id === (e.from === n.id ? e.to : e.from))).filter(Boolean);
-    const cols = placed.map((o) => Math.round((o.x - 90) / COL)), rows = placed.map((o) => Math.round((o.y - 150) / ROW));
+      .map((e) => others.find((o) => o.id === (e.from === n.id ? e.to : e.from))).filter(Boolean);
+    const cols = others.map((o) => Math.round((o.x - 90) / COL)), rows = others.map((o) => Math.round((o.y - 150) / ROW));
     let best = null;
     for (let r = Math.min(...rows) - 1; r <= Math.max(...rows) + 1; r++)
       for (let c = Math.min(...cols) - 1; c <= Math.max(...cols) + 1; c++) {
         const x = 90 + c * COL, y = 150 + r * ROW;
-        if (placed.some((o) => Math.abs(o.x - x) < COL - 30 && Math.abs(o.y - y) < ROW - 20)) continue;
+        if (others.some((o) => Math.abs(o.x - x) < COL - 30 && Math.abs(o.y - y) < ROW - 20)) continue;
         // its own lines through other boxes, and lines already drawn through it, both count
-        const all = [...placed, { ...n, x, y }], ids = new Set(all.map((o) => o.id));
+        const all = [...others, { ...n, x, y }], ids = new Set(all.map((o) => o.id));
         const cross = crossings(all, edges.filter((e) => ids.has(e.from) && ids.has(e.to)));
         const len = links.reduce((l, o) => l + Math.abs(o.x - x) + Math.abs(o.y - y), 0);
         const score = cross * 10000 + len;
@@ -186,30 +192,65 @@ export function placeNew(nodes, edges) {
   }
 }
 
-// Tidy up, after people have dragged boxes around: boxes that sit roughly in one
-// column or row share it exactly, so lines between them run straight; empty rows
-// and columns close up, so the gaps are even; two boxes that would share a cell
-// are split, the one nearer keeping it. Left of stays left of, above stays above,
-// and the top-left box keeps its place, so the map does not jump. Then no line
-// runs through a box: while one does, the box whose move frees the most lines
-// goes to the nearest free cell that does it.
-export function tidy(nodes, edges = []) {
-  const list = nodes.filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y));
+// Each new box takes the column and order a tidied copy of the map gives it, at the free height nearest that
+// copy's, kept between the siblings it sits between there, so the next Tidy up keeps its side and its order.
+// Only on a map laid out as a mind map (most boxes already in the copy's columns): a map still on the grid, such
+// as one read from a project's folders, keeps the grid until someone presses Tidy up.
+function placeInTree(nodes, edges) {
+  const tree = treeOf(nodes, edges);
+  if (!tree) return false;
+  const { root, kids, parent, ring } = tree;
+  if (!placed(root) && nodes.some(placed)) return false;
+  const twin = new Map(nodes.map((n) => [n.id, { ...n, ...(placed(root) ? {} : n === root ? { x: 90, y: 150 } : {}) }]));
+  tidyTree([...twin.values()], edges);
+  const sat = nodes.filter((n) => n !== root && placed(n));
+  if (sat.filter((n) => n.x === twin.get(n.id).x).length * 2 < sat.length) return false;
+  if (!placed(root)) { root.x = 90; root.y = 150; }
+  const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (BW(o) + BW(n)) / 2 + 20 && Math.abs(o.y - y) < SLOT / 2);
+  const fresh = nodes.filter((n) => !placed(n)).sort((a, b) => ring.get(a.id) - ring.get(b.id) || twin.get(a.id).y - twin.get(b.id).y);
+  for (const n of fresh) {
+    const t = twin.get(n.id), sibs = kids.get(parent.get(n.id)).filter((s) => s !== n && placed(s) && Math.sign(twin.get(s.id).x - root.x) === Math.sign(t.x - root.x));
+    const prev = sibs.filter((s) => twin.get(s.id).y < t.y).sort((a, b) => twin.get(b.id).y - twin.get(a.id).y)[0];
+    const next = sibs.filter((s) => twin.get(s.id).y > t.y).sort((a, b) => twin.get(a.id).y - twin.get(b.id).y)[0];
+    const anchor = prev || next || tree.by.get(parent.get(n.id)), want = Math.round(t.y + anchor.y - twin.get(anchor.id).y);
+    const lo = prev ? prev.y : -Infinity, hi = next ? next.y : Infinity;
+    n.x = t.x;
+    const tries = [0]; for (let d = 25; d <= 40 * SLOT; d += 25) tries.push(d, -d);
+    const y = tries.map((d) => want + d).find((v) => v > lo && v < hi && clear(n, v)) ?? tries.map((d) => want + d).find((v) => clear(n, v));
+    n.y = y ?? want;
+  }
+  return true;
+}
+
+// Tidy up, after people have dragged boxes around. A box already on the grid stays where it is, so pressing it
+// twice moves nothing the second time; a box off the grid goes to the nearest free cell. While most boxes are
+// still off the grid (a map drawn by hand, or laid out on other spacing), the ones off it that sit roughly in one
+// column or row share it, empty rows and columns between them close up, left of stays left of and above stays above. Then no line runs through a box: while one does, of the boxes that were off the
+// grid, the one whose move frees the most lines goes to the nearest free cell that does it. Only the boxes in
+// `shown` move; the others keep their cells.
+export function tidy(nodes, edges = [], shown = null) {
+  const list = nodes.filter(placed);
   if (!list.length) return;
+  const spot = (c, r) => [90 + c * COL, 150 + r * ROW], key = (c, r) => `${c},${r}`;
+  const cell = (n) => [Math.round((n.x - 90) / COL), Math.round((n.y - 150) / ROW)];
+  const onGrid = (n) => { const [x, y] = spot(...cell(n)); return n.x === x && n.y === y; };
+  const may = (n) => !shown || shown.has(n.id);
+  const taken = new Set(), loose = [];
+  for (const n of list.filter(onGrid)) { const k = key(...cell(n)); if (!taken.has(k)) taken.add(k); else if (may(n)) loose.push(n); }
+  for (const n of list.filter((m) => !onGrid(m))) if (may(n)) loose.push(n); else taken.add(key(...cell(n)));
+  const anchored = list.length - loose.length >= loose.length;
   // values within half a step of the first in their band are one column (or row)
   const bands = (vals, step) => {
     const band = new Map(); let i = -1, start = -Infinity;
     for (const v of [...new Set(vals)].sort((a, b) => a - b)) { if (v - start > step / 2) { i++; start = v; } band.set(v, i); }
     return band;
   };
-  const cb = bands(list.map((n) => n.x), COL), rb = bands(list.map((n) => n.y), ROW);
-  const c0 = Math.round((Math.min(...list.map((n) => n.x)) - 90) / COL), r0 = Math.round((Math.min(...list.map((n) => n.y)) - 150) / ROW);
-  const spot = (c, r) => [90 + c * COL, 150 + r * ROW];
-  const want = list.map((n) => {
-    const c = c0 + cb.get(n.x), r = r0 + rb.get(n.y), [x, y] = spot(c, r);
+  const cb = bands(loose.map((n) => n.x), COL), rb = bands(loose.map((n) => n.y), ROW);
+  const c0 = Math.round((Math.min(...loose.map((n) => n.x)) - 90) / COL), r0 = Math.round((Math.min(...loose.map((n) => n.y)) - 150) / ROW);
+  const want = loose.map((n) => {
+    const [c, r] = anchored ? cell(n) : [c0 + cb.get(n.x), r0 + rb.get(n.y)], [x, y] = spot(c, r);
     return { n, c, r, off: Math.hypot(n.x - x, n.y - y) };
   }).sort((a, b) => a.off - b.off);
-  const taken = new Set(), key = (c, r) => `${c},${r}`;
   for (const w of want) {
     let [c, r] = [w.c, w.r];
     // a cell already held: the nearest free one, same row first
@@ -223,21 +264,21 @@ export function tidy(nodes, edges = []) {
     taken.add(key(c, r));
     [w.n.x, w.n.y] = spot(c, r);
   }
-  const lines = edges.filter((e) => list.some((n) => n.id === e.from) && list.some((n) => n.id === e.to));
-  const cell = (n) => [Math.round((n.x - 90) / COL), Math.round((n.y - 150) / ROW)];
-  for (let round = 0; round < 40; round++) {
-    const now = crossings(list, lines);
+  const seen = list.filter(may), ids = new Set(seen.map((n) => n.id));
+  const lines = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+  for (let round = 0; round < 40 && loose.length; round++) {
+    const now = crossings(seen, lines);
     if (!now) break;
     const held = new Set(list.map((n) => key(...cell(n))));
     const cs = list.map((n) => cell(n)[0]), rs = list.map((n) => cell(n)[1]);
     let best = null;
-    for (const n of list) {
+    for (const n of loose) {
       const [c, r] = cell(n), was = [n.x, n.y];
       for (let r2 = Math.min(...rs) - 1; r2 <= Math.max(...rs) + 1; r2++)
         for (let c2 = Math.min(...cs) - 1; c2 <= Math.max(...cs) + 1; c2++) {
           if (held.has(key(c2, r2))) continue;
           [n.x, n.y] = spot(c2, r2);
-          const k = crossings(list, lines), d = Math.abs(c2 - c) + Math.abs(r2 - r);
+          const k = crossings(seen, lines), d = Math.abs(c2 - c) + Math.abs(r2 - r);
           if (k < now && (!best || k < best.k || (k === best.k && d < best.d))) best = { n, c: c2, r: r2, k, d };
         }
       [n.x, n.y] = was;
@@ -247,35 +288,76 @@ export function tidy(nodes, edges = []) {
   }
 }
 
-// A topic map (one box everything hangs off) tidies the way a mind map does: the first box keeps its place,
-// the boxes off it split left and right as they sit now (one straight above or below goes to the lighter
-// side), each ring one column further out, and every box centred beside the boxes under it, so the lines
-// fan out and never cross. A box with lines from two boxes hangs under the one nearer the first box; its
-// other line is a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs.
-// Only the boxes in `shown` (all, without it) take room; what is folded away under a showing box lines up
-// beside it, ready for when it unfolds. False, and nothing moves, when no single box reaches them all.
-// Room: a box per 150px down (100px clear between two boxes, 83px under a two-line name, so a line's words
-// sit between them with air); across, 200px between a column's widest box and the next, or more when the
-// words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
-const SLOT = 150, GAP = 200, CHAR = 6.8;
-export function tidyTree(nodes, edges, shown = null) {
+// The tree under the one box no line comes into, ring by ring: the first line to reach a box makes it that box's
+// child, and a box's children keep the order their lines were drawn in. Null when there is no single such box
+// or it does not reach every box.
+function treeOf(nodes, edges) {
   const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
     if (!by.has(e.from) || !by.has(e.to) || e.from === e.to) continue;
     if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); into.add(e.to);
   }
   const roots = nodes.filter((n) => !into.has(n.id));
-  if (nodes.length < 2 || roots.length !== 1 || (shown && !shown.has(roots[0].id))) return false;
-  // ring by ring out from the first box: the first line to reach a box makes it that box's child
-  const kids = new Map(), seen = new Set([roots[0].id]), q = [roots[0].id], ring = new Map([[roots[0].id, 0]]);
+  if (nodes.length < 2 || roots.length !== 1) return null;
+  const root = roots[0], kids = new Map(), parent = new Map(), seen = new Set([root.id]), q = [root.id], ring = new Map([[root.id, 0]]);
   while (q.length) {
     const id = q.shift();
     for (const t of out.get(id) || []) if (!seen.has(t)) {
-      seen.add(t); q.push(t); ring.set(t, ring.get(id) + 1);
+      seen.add(t); q.push(t); ring.set(t, ring.get(id) + 1); parent.set(t, id);
       if (!kids.has(id)) kids.set(id, []); kids.get(id).push(by.get(t));
     }
   }
-  if (seen.size !== nodes.length) return false;
+  return seen.size === nodes.length ? { root, by, out, kids, parent, ring } : null;
+}
+
+// Siblings that belong together, from what the map already says: the same area, a line to the same box, or
+// the same words on the lines from their parent. Returns each box's group.
+function groupsOf(list, from, edges, out) {
+  const up = new Map(list.map((n) => [n.id, n.id]));
+  const find = (id) => (up.get(id) === id ? id : find(up.get(id)));
+  const words = (n) => edges.find((e) => e.from === from && e.to === n.id)?.label;
+  list.forEach((a, i) => list.slice(i + 1).forEach((b) => {
+    const to = new Set(out.get(a.id) || []);
+    if ((a.area && a.area === b.area) || (words(a) && words(a) === words(b)) || (out.get(b.id) || []).some((t) => to.has(t))) up.set(find(a.id), find(b.id));
+  }));
+  return (n) => find(n.id);
+}
+
+// One column of siblings, top to bottom: as they sit now, with boxes that belong together next to each other
+// (the group where its highest box is). Boxes with no place yet follow in the order they were drawn, each beside
+// the boxes it belongs with or else at the end of the column; `up` makes the end the top.
+function arrange(list, group, drawn, up, chosen = placed) {
+  const seq = [], sit = list.filter(chosen).sort((a, b) => a.y - b.y || a.x - b.x);
+  for (const n of sit) if (!seq.includes(n)) seq.push(...sit.filter((m) => group(m) === group(n)));
+  for (const n of list.filter((m) => !chosen(m)).sort((a, b) => drawn(a) - drawn(b))) {
+    const mates = seq.filter((m) => group(m) === group(n));
+    seq.splice(mates.length ? (up ? seq.indexOf(mates[0]) : seq.indexOf(mates.at(-1)) + 1) : up ? 0 : seq.length, 0, n);
+  }
+  return seq;
+}
+
+// A topic map (one box everything hangs off) tidies the way a mind map does, the first box keeping its place and
+// each ring one column further out, every box centred beside the boxes under it so the lines fan out and never
+// cross. What people chose stays: a box keeps the side it sits on and its order among its siblings, so pressing
+// Tidy up again moves nothing. Siblings that belong together (groupsOf) sit next to each other. A box with no
+// side yet (no place, or straight above or below the first box) joins the side of a box it belongs with; the
+// rest split in the order they were drawn, the first ones on the right, top to bottom, the others on the left,
+// bottom to top (clockwise, as XMind and MindManager place them), where the two sides weigh nearest the same in
+// boxes at the ends. A box with lines from two boxes hangs under the one nearer the first box; its other line is
+// a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs. Only the boxes in
+// `shown` (all, without it) take room; what is folded away under a showing box lines up beside it, ready for
+// when it unfolds. False, and nothing moves, when no single box reaches them all.
+// Room: a box per 150px down (100px clear between two boxes, 83px under a two-line name, so a line's words
+// sit between them with air); across, 200px between a column's widest box and the next, or more when the
+// words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
+// `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
+// a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press.
+const SLOT = 150, GAP = 200, CHAR = 6.8;
+export function tidyTree(nodes, edges, shown = null, chosen = placed) {
+  const tree = treeOf(nodes, edges);
+  if (!tree || (shown && !shown.has(tree.root.id))) return false;
+  const { root, kids, ring, out } = tree;
+  if (!placed(root)) return false;
   // how far out each ring's column sits from the first box
   const wide = [], words = [];
   for (const n of nodes) { const r = ring.get(n.id); wide[r] = Math.max(wide[r] || 0, BW(n)); }
@@ -288,21 +370,40 @@ export function tidyTree(nodes, edges, shown = null) {
   const vis = (n) => !shown || shown.has(n.id);
   const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
   const weight = (list, every) => list.reduce((s, c) => s + leaves(c, every), 0);
-  const order = (list) => [...list].sort((a, b) => a.y - b.y || a.x - b.x);
-  // a box's children in the next column out, stacked top to bottom as they sit now, centred on it
-  const stack = (n, list, side, every) => {
-    let top = n.y - (weight(list, every) - 1) * SLOT / 2;
-    for (const c of order(list)) {
-      const l = leaves(c, every);
+  const drawnIn = (from) => { const ks = kids.get(from) || []; return (n) => ks.indexOf(n); };
+  // a box's children in the next column out, stacked top to bottom in `seq` order, centred on it
+  const stack = (n, seq, side, every) => {
+    let top = n.y - (weight(seq, every) - 1) * SLOT / 2;
+    for (const c of seq) {
+      const l = leaves(c, every), ks = kids.get(c.id) || [], open = ks.filter(vis), all = every || !open.length, list = all ? ks : open;
+      const next = arrange(list, groupsOf(list, c.id, edges, out), drawnIn(c.id), false, chosen);
       c.x = Math.round(root.x + side * reach[ring.get(c.id)]); c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
-      const ks = kids.get(c.id) || [], open = ks.filter(vis);
-      stack(c, every || !open.length ? ks : open, side, every || !open.length);
+      stack(c, next, side, all);
     }
   };
-  const root = roots[0], all = kids.get(root.id) || [], open = all.filter(vis), every = !open.length, first = every ? all : open;
-  const left = first.filter((c) => c.x < root.x - 1), right = first.filter((c) => c.x > root.x + 1);
-  for (const c of order(first.filter((c) => Math.abs(c.x - root.x) <= 1))) (weight(left, every) <= weight(right, every) ? left : right).push(c);
-  stack(root, left, -1, every); stack(root, right, 1, every);
+  const all = kids.get(root.id) || [], open = all.filter(vis), every = !open.length, first = every ? all : open;
+  const group = groupsOf(first, root.id, edges, out), drawn = drawnIn(root.id), side = new Map();
+  for (const c of first) if (chosen(c) && Math.abs(c.x - root.x) > 1) side.set(c.id, c.x < root.x ? -1 : 1);
+  for (const c of first.filter((m) => !side.has(m.id))) {
+    const mate = first.find((m) => side.has(m.id) && group(m) === group(c));
+    if (mate) side.set(c.id, side.get(mate.id));
+  }
+  // the boxes with no side yet, whole groups in the order they were drawn: the first k on the right
+  const units = [];
+  for (const c of first.filter((m) => !side.has(m.id))) {
+    const u = units.find((v) => v.g === group(c));
+    if (u) { u.list.push(c); u.w += leaves(c, every); } else units.push({ g: group(c), list: [c], w: leaves(c, every) });
+  }
+  const sideWeight = (s) => weight(first.filter((c) => side.get(c.id) === s), every);
+  const wr = sideWeight(1), wl = sideWeight(-1), total = units.reduce((s, u) => s + u.w, 0);
+  let k = 0, best = null;
+  for (let i = 0, r = wr; i <= units.length; r += units[i]?.w || 0, i++) {
+    const l = wl + total - (r - wr), score = [Math.abs(r - l), r >= l ? 0 : 1];
+    if (!best || score[0] < best[0] || (score[0] === best[0] && score[1] < best[1])) { best = score; k = i; }
+  }
+  units.forEach((u, i) => u.list.forEach((c) => side.set(c.id, i < k ? 1 : -1)));
+  stack(root, arrange(first.filter((c) => side.get(c.id) === -1), group, drawn, true, chosen), -1, every);
+  stack(root, arrange(first.filter((c) => side.get(c.id) === 1), group, drawn, false, chosen), 1, every);
   return true;
 }
 
