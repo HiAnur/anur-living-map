@@ -7,6 +7,7 @@
 //   GET  /api/state                     the whole map (seed + what people did)
 //   GET  /api/events                    server-sent events: state after every change
 //   GET  /api/outbox                    what the chat hears, plain words
+//   GET  /api/rules                     how a chat answers the map (chat-rules.md); ?session= marks them as that chat's
 //   POST /api/act  {type, by, ...}      move {id,x,y} · call {id, answer: confirm|dispute}
 //                                       call {id, option} or {id, other: "own words"} on a call with options
 //                                       ask {node, text} · cursor {x,y,view} · reset · open
@@ -75,6 +76,9 @@ const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
 const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
+// how a chat answers what the map sends it, sent with every message, so a chat that started before an update
+// never works from rules the map has outgrown; read each time, so an update reaches chats already running
+const chatRules = (base) => { try { return fs.readFileSync(path.join(DIR, 'chat-rules.md'), 'utf8').replaceAll('{{BASE}}', base).trim(); } catch { return ''; } };
 
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
@@ -235,6 +239,17 @@ function openMap({ project = '', name = '', home }) {
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const waiters = [];
+  // this map's address, for the rules a chat follows
+  const address = () => `http://localhost:${PORT}${name ? `/${name}` : project ? `/${mapName(project)}` : ''}`;
+  // which version of the rules each chat last got: they go out again only when they are new to that chat,
+  // and otherwise one line says where to read them, for a chat that has lost them from view
+  const rulesSeen = new Map();
+  const rulesFor = (session) => {
+    const rules = chatRules(address()); if (!rules) return '';
+    const v = crypto.createHash('sha1').update(rules).digest('hex');
+    if (rulesSeen.get(session) === v) return `\nAnswer by the map's rules, unchanged since you last got them (${address()}/api/rules).\n`;
+    rulesSeen.set(session, v); return `\nHOW TO ANSWER IT (from the map server):\n${rules}\n`;
+  };
   // what the change being made told the outbox; the history names that version with it
   let told = null;
   const tell = (text, to = '') => {
@@ -250,7 +265,7 @@ function openMap({ project = '', name = '', home }) {
       if (!mine.length) continue;
       state.forChats = state.forChats.filter((m) => !mine.includes(m));
       waiters.splice(waiters.indexOf(w), 1); clearTimeout(w.timer);
-      w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((m) => `- ${m.at} ${m.text}`).join('\n') + '\n');
+      w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
       changed = true;
     }
     if (changed) save();
@@ -889,6 +904,12 @@ function openMap({ project = '', name = '', home }) {
     if (p === '/api/history') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(history)); return true; }
     const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
     if (ver) { if (!vfile || !fs.existsSync(vfile)) res.writeHead(404).end(); else res.writeHead(200, { 'content-type': 'application/json' }).end(fs.readFileSync(vfile)); return true; }
+    // with ?session=, that chat now has these rules, so its next message carries only the news
+    if (p === '/api/rules') {
+      const rules = chatRules(address()), session = new URL(req.url, 'http://x').searchParams.get('session');
+      if (session && rules) rulesSeen.set(session, crypto.createHash('sha1').update(rules).digest('hex'));
+      res.writeHead(200, { 'content-type': 'text/plain' }).end(rules + '\n'); return true;
+    }
     if (p === '/api/outbox') { res.writeHead(200, { 'content-type': 'text/plain' }).end(fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8') : ''); return true; }
     // a chat's listener waits here until the map has something for that chat; after 4 minutes it gets
     // an empty answer and asks again

@@ -101,3 +101,6 @@ if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
     --data "{\"type\":\"link\",\"by\":\"${LIVING_MAP_ME:-$(id -F 2>/dev/null | cut -d' ' -f1)}\",\"session\":\"$CLAUDE_CODE_SESSION_ID\",\"file\":\"$F\"}" >/dev/null
   echo "chat: linked to the map"
 else echo "chat: not linked (no session id)"; fi
+
+# 5. the rules this chat follows on this map, from the server itself, so they match what it can do
+echo "RULES FROM THE MAP:"; curl -s "${U}api/rules?session=${CLAUDE_CODE_SESSION_ID:-}"

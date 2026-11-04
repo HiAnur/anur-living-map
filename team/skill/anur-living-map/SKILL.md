@@ -47,34 +47,7 @@ The second argument is the map: this repo's folder name for its own map (the lis
 
 The script links this chat to the map, so the map's Claude pane shows this conversation, live, and what is typed there comes here. It links as the person who uses this Mac (the first word of the account's full name, or `LIVING_MAP_ME`): only their signed-in browser is shown this chat. The chat linked last is the one the pane follows.
 
-It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. Then:
-
-- Open your reply with one line saying it back, starting "From your map:" (for example: From your map: a teammate answered "Charge $60 an engineer?" with Yes). What the listener prints is not in the chat's transcript; your reply is.
-- `<Name> wrote in the map's chat: "…"` is the user typing to you from the map's Claude pane: answer it as if they typed it here. Your reply shows in that pane. When it ends `(attached <path>, …)`, they sent pictures with it: Read each file before you answer.
-- When a request from the pane asks to change the map, propose the change rather than drawing it, so it shows blue on the map until they press Apply (the same box shape as a plan; `remove` lists box ids to take away):
-
-  ```bash
-  curl -s -X POST localhost:4323/gtm/api/act -H 'content-type: application/json' --data-binary @- <<JSON
-  {"type":"propose","session":"$CLAUDE_CODE_SESSION_ID","note":"one line","nodes":[{"id":"pilot-4","label":"Pilot 4","sub":"name to come"}],"edges":[{"from":"test","to":"pilot-4"}],"remove":[]}
-  JSON
-  ```
-
-  To reorganize the map or make the lines point better, change only which box hangs under which (every box but one with one line into it; `unlink` the rest, or turn a line around when the flow reads better the other way), set `"start"` to the box the map starts from (when no box can hold the others, add one for the map's subject with lines to the top boxes), and add `"tidy":true`: on Apply the map lays every box out again itself. Never place boxes.
-
-  A change to what a box opens into goes the same way: give the box its whole new `diagram` (`{"kind":"sequence","items":[…]}`, the shape `living_map_change` takes). Opening the box before Apply shows what comes in blue and what goes in red.
-- `<Name> pressed Execute: …` is the user's go to build the plan: follow the repo's CLAUDE.md; by default build on a branch from `main`, and post the branch with its checks back to the map.
-- Act on it the way the repo's CLAUDE.md says: an answer to a question is that person's answer, and building still waits for the user's go. Anything that leaves this machine or cannot be undone waits for the user's word here.
-- Start the listener again right away, the same way.
-
-**Every part a plan or proposal affects gets a line to it, labeled with what happens to it** in a few plain words ("Sends the link", "Sets the new password"). The test: someone reading only the lines knows every part the change touches and what changes there. 
-
-**A box's `warn` is the one short line under it on the map: what to do and what breaks if not** ("Move the cards first, or 50 renewals stop"); the reason goes in `why`, which shows only on the box's card. The test: it fits under the box in two lines, and every word has one meaning. 
-
-**A change that happens in steps over time (a migration, a cutover, data moving between services) gets a sequence on the box it is about** (`diagram: {kind: "sequence", title, items: [{from, to, label}]}`, one step per item, labels under 80 characters). The test: someone who opens that box sees who does what, in what order, without this chat. 
-
-**A box's notes carry every rule already set for what it stands for.** Before drawing or proposing a box, look for what is already decided about it: this chat, the map's own chats and answers, the repo's and the user's `CLAUDE.md` and rules, memory, and the skills that cover it. Each one goes in the box's `desc` as a `- ` line naming where it comes from. The test: someone who opens only that box knows every rule that governs it, without this chat. 
-
-**Every plan this chat posts carries `"session"`, this chat's id** (`echo $CLAUDE_CODE_SESSION_ID`). That is how the map knows which chat drew which boxes and questions, so what people do to them comes back here and not to another chat.
+It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. When the rules for answering are new to this chat, they come under it after `HOW TO ANSWER IT`, from the server itself (otherwise one line says they are unchanged since you last got them): how to say it back, how to propose a change so it waits for Apply, how to reorganize the map, what Execute means, how a plan is drawn. Follow them; they are always as current as the map, and they win over anything read earlier. `open-map.sh` prints the same rules when it opens the map (after `RULES FROM THE MAP`), so plans this chat draws follow them too. Then start the listener again right away, the same way.
 
 ## 4. Reply
 
