@@ -616,6 +616,8 @@ body.paned #foot,body.paned #plan{right:calc(88px + var(--chatw))}
 #bot .star{height:20px;font:500 21px/20px var(--plex);color:var(--claude)}
 #bot:hover{background:#f3f2ee;color:var(--text)}
 #bot.on{background:#f7e6de;color:var(--text)}
+#bot.busy .star{animation:spark 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){#bot.busy .star{animation:none}}
 /* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it;
    so do a box's card, Decisions and Comments, one pane at a time (body.paned) */
 /* its width is --chatw, shared by every pane: drag the pane's left edge to change it, the way Descript's divider moves */
@@ -2197,9 +2199,15 @@ function renderMirror(el){
   // a picture still loading grows the chat: if you were at the bottom, stay there
   for (const i of box.querySelectorAll('img')) if (!i.complete) i.onload = () => { if (box.scrollHeight - box.scrollTop - box.clientHeight < i.clientHeight + 80) box.scrollTop = box.scrollHeight; };
 }
+// the ✳ on the Chat button pulses while Claude is at work in your chat, so you see it with the pane closed; the same
+// moments the pane says Working, less a message still on its way to the chat
+const claudeAtWork = () => {
+  if (MIRROR){ const last = MIRROR.msgs?.at(-1); return busy() || (last?.who === 'you' && (!last.map || !!last.handed)); }
+  return !!S.starting || !!(S.threads?.[`@${ME}`] || []).at(-1)?.thinking;
+};
 function renderChat(){
   const el = $('chat'), open = chatOpen && !selected;
-  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen);
+  el.classList.toggle('on', open); $('bot').classList.toggle('on', chatOpen); $('bot').classList.toggle('busy', claudeAtWork());
   if (!open) return;
   if (MIRROR) return renderMirror(el);
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
