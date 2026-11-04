@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Living Map use cases</title>
+<meta name="description" content="How a project manager and an engineer each use Living Map: the PM sees what will ship and makes the product calls; the engineer sees every part an agent's change touches before it ships.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* the landing page's face (index.html): true black, bone text, the map's drawings on paper */
+:root{
+  color-scheme:dark;
+  --bone:#edefe9; --mist:#b4b7b1; --dust:#7d8079; --nebula:#8a88f2; --rule-d:rgba(237,239,233,.12);
+  --sans:"Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --serif:"Fraunces", "Iowan Old Style", Georgia, serif;
+  --mono:"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --canvas:#fbfaf7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:#000;color:var(--bone);font:16px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:rgba(138,136,242,.35)}
+:focus-visible{outline:2px solid var(--nebula);outline-offset:3px;border-radius:4px}
+a{color:inherit}
+.shell{max-width:1160px;margin:0 auto;padding:0 24px}
+
+header{display:flex;align-items:center;gap:10px;padding:22px 0 0}
+header .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:500;letter-spacing:-.01em;white-space:nowrap}
+header .brand i{width:22px;height:22px;border-radius:6px;background:var(--bone);display:grid;place-items:center}
+header .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#000;transform:rotate(45deg)}
+header .brand span{color:var(--mist);font-weight:400}
+header nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+header nav a{color:var(--mist);text-decoration:none;font-size:14px;padding:10px 12px;border-radius:8px}
+header nav a:hover,header nav a[aria-current]{color:var(--bone);background:rgba(237,239,233,.06)}
+
+.hero{padding:64px 0 0}
+h1{font:500 clamp(32px,4.6vw,52px)/1.08 var(--serif);letter-spacing:-.02em;text-wrap:balance;max-width:760px}
+.hero p{margin-top:16px;color:var(--mist);font-size:17px;max-width:560px;text-wrap:pretty}
+.jump{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.jump a{display:inline-flex;align-items:center;gap:10px;height:44px;padding:0 18px;border-radius:9px;text-decoration:none;font-size:14px;font-weight:500;border:1px solid var(--rule-d)}
+.jump a:hover{border-color:var(--mist)}
+.jump a b{font:500 12px var(--mono);color:var(--dust)}
+
+.shell > section{padding:80px 0 0}
+.role{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.role .tag{font:500 12.5px var(--mono);color:var(--dust)}
+h2{font:500 clamp(24px,3vw,32px)/1.15 var(--serif);letter-spacing:-.015em;text-wrap:balance}
+.lead{margin-top:10px;color:var(--mist);max-width:560px;text-wrap:pretty}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:28px}
+.tile svg{display:block;width:100%;height:auto;border-radius:12px;background:var(--canvas)}
+.tile h3{margin-top:12px;font:500 16px/1.3 var(--sans);letter-spacing:-.01em}
+.tile h3 span{display:block;font-weight:400;color:var(--mist);margin-top:2px}
+
+/* the drawings share the map's own vocabulary: blue is new, dashed red is a guess, a yellow dot is something to do */
+.tile text{font-family:var(--sans);font-size:12.5px;fill:#6c6a64}
+.tile .ink{fill:#141413;font-weight:500}
+.tile .box{fill:#fff;stroke:#d6d3cb}
+.tile .new{fill:rgba(47,111,228,.07);stroke:#2F6FE4;stroke-width:1.5}
+.tile .gone{fill:none;stroke:#D23B32;stroke-width:1.5;stroke-dasharray:5 4}
+.tile .kept{fill:#fff;stroke:#141413;stroke-width:1.5}
+.tile .ln{fill:none;stroke:#b9b6ae}
+.tile .lnew{fill:none;stroke:#2F6FE4;stroke-width:1.5}
+.tile .lgone{fill:none;stroke:#D23B32;stroke-width:1.5;stroke-dasharray:5 4}
+.tile .red{fill:#D23B32}
+.tile .blue{fill:#2a5bbf}
+.tile .chg{fill:#D9A400}
+.tile .mono{font-family:var(--mono);font-size:11.5px;fill:#8e8b84}
+.tile .btn{fill:#fff;stroke:rgba(0,0,0,.18)}
+.tile .btnm{fill:#141413}
+.tile .btnt{fill:#141413;font-weight:500}
+.tile .btntm{fill:#fff;font-weight:500}
+.tile .pinc{fill:#141413}
+.tile .pint{fill:#fff;font-weight:500;font-size:11px}
+.tile .card{fill:#fff;stroke:rgba(0,0,0,.1)}
+.tile .claude{fill:#C96442}
+.tile .rule{stroke:rgba(0,0,0,.1)}
+
+.get{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+.get > div{min-width:0}
+.get p{margin-top:14px;color:var(--mist);text-wrap:pretty;max-width:440px}
+.get p a{color:var(--bone)}
+pre{background:#0d0d0d;border:1px solid var(--rule-d);border-radius:10px;padding:16px 18px;font:13px/1.7 var(--mono);color:var(--bone);overflow-x:auto}
+pre .c{color:var(--dust)}
+.links{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.links a{display:inline-flex;align-items:center;height:44px;padding:0 18px;border-radius:9px;text-decoration:none;font-size:14px;font-weight:500;border:1px solid var(--rule-d);color:var(--bone)}
+.links a.main{background:var(--bone);color:#000;border-color:var(--bone)}
+.links a:hover{border-color:var(--mist)}
+.links a.main:hover{background:#fff}
+footer{margin-top:88px;padding:26px 0 36px;border-top:1px solid var(--rule-d);display:flex;flex-wrap:wrap;gap:8px 24px;font-size:13.5px;color:var(--dust)}
+footer a{color:var(--dust);text-decoration:none}
+footer a:hover{color:var(--mist)}
+
+@media (max-width:900px){
+  .tiles{grid-template-columns:1fr}
+  .get{grid-template-columns:1fr;gap:28px}
+}
+@media (max-width:600px){
+  .shell{padding:0 16px}
+  .hero{padding-top:48px}
+  header nav{gap:0}
+  header nav a{padding:10px 6px;font-size:13px;white-space:nowrap}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<header>
+  <a class="brand" href="index.html"><i></i>Anur <span>Living Map</span></a>
+  <nav><a href="index.html#how">How</a><a href="use-cases.html" aria-current="page">Use cases</a><a href="#get">Get it</a></nav>
+</header>
+
+<div class="hero">
+  <h1>One map. The PM sees what will ship. The engineer sees what it changes.</h1>
+  <p>Claude Code draws its plan on a map of your system before it writes code. Each person on the team reads that map for the part that is theirs.</p>
+  <div class="jump"><a href="#pm"><b>01</b>Project manager</a><a href="#eng"><b>02</b>Engineer</a></div>
+</div>
+
+<section id="pm">
+  <div class="role"><span class="tag">01</span><h2>If you manage the project</h2></div>
+  <p class="lead">Know what will ship and make the product calls, without reading the code.</p>
+  <div class="tiles">
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="The plan as parts of the product: Pro plan and Billing are new, in blue; the renewal job is dashed red because the agent assumed it can go">
+        <rect class="box" x="30" y="40" width="110" height="50" rx="6"/><text x="44" y="69" class="ink">Pricing page</text>
+        <path class="lnew" d="M140 65H200"/>
+        <rect class="new" x="200" y="40" width="120" height="50" rx="6"/><text x="214" y="62" class="ink">Pro plan</text><text x="214" y="79">New</text>
+        <path class="lnew" d="M260 90V130"/>
+        <rect class="new" x="200" y="130" width="120" height="50" rx="6"/><text x="214" y="152" class="ink">Billing</text><text x="214" y="169">New</text>
+        <path class="lgone" d="M85 90V130"/>
+        <rect class="gone" x="30" y="130" width="110" height="50" rx="6"/><text x="44" y="159" class="ink" style="text-decoration:line-through">Renewal job</text>
+        <text x="30" y="204" class="red">assumed it can go</text>
+      </svg>
+      <h3>See the plan before it is built<span>The agent’s plan, as parts of your product.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="A question from Claude for Priyanka, with two answers; her answer reaches the agent's chat with her name and the date">
+        <rect class="card" x="30" y="22" width="300" height="108" rx="10"/>
+        <circle class="chg" cx="48" cy="44" r="5"/><text x="60" y="48" class="ink">Claude asks Priyanka</text>
+        <text x="46" y="70">Do annual plans still renew once a year?</text>
+        <rect class="btnm" x="46" y="86" width="84" height="30" rx="6"/><text x="62" y="105" class="btntm">Yes, keep</text>
+        <rect class="btn" x="138" y="86" width="96" height="30" rx="6"/><text x="154" y="105" class="btnt">No, monthly</text>
+        <path class="ln" d="M88 130V150"/>
+        <circle class="claude" cx="36" cy="172" r="3"/><text x="46" y="176">Claude</text>
+        <text x="46" y="196" class="ink">From your map: annual plans renew yearly.</text><text x="46" y="212" class="mono">Priyanka, Nov 2</text>
+      </svg>
+      <h3>Make the calls only you can make<span>Claude asks you by name. Your answer reaches it at once.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="The map shared as one Markdown file listing what was decided and what still waits on an answer">
+        <rect class="card" x="60" y="18" width="240" height="186" rx="8"/>
+        <text x="78" y="42" class="mono">pro-plan.md</text>
+        <path class="rule" d="M60 54H300"/>
+        <text x="78" y="78" class="ink">Decided</text>
+        <text x="78" y="98">Keep the renewal job</text><text x="226" y="98" class="mono">Priyanka</text>
+        <text x="78" y="118">Pro is billed by Stripe</text><text x="226" y="118" class="mono">Duy</text>
+        <text x="78" y="150" class="ink">Waiting on an answer</text>
+        <circle class="chg" cx="82" cy="166" r="4"/><text x="92" y="170">Trial length for Pro</text><text x="226" y="170" class="mono">Priyanka</text>
+        <circle class="chg" cx="82" cy="186" r="4"/><text x="92" y="190">Price in Canada</text><text x="226" y="190" class="mono">Sam</text>
+      </svg>
+      <h3>Share where it stands<span>Every decision and open question, in one file.</span></h3>
+    </div>
+  </div>
+</section>
+
+<section id="eng">
+  <div class="role"><span class="tag">02</span><h2>If you write the code</h2></div>
+  <p class="lead">Understand what you ship: every part the agent’s change touches, and every guess it made, before it lands.</p>
+  <div class="tiles">
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="The Pro plan change in the middle, with a labeled blue line to each part it touches: Web app, Billing, Users DB">
+        <rect class="new" x="120" y="86" width="120" height="48" rx="6"/><text x="134" y="107" class="ink">Pro plan</text><text x="134" y="124">this change</text>
+        <path class="lnew" d="M180 86V60H90V44"/>
+        <rect class="box" x="40" y="12" width="100" height="32" rx="6"/><text x="54" y="33" class="ink">Web app</text>
+        <text x="194" y="54" class="blue">Shows the upgrade button</text>
+        <path class="lnew" d="M240 110H272"/>
+        <rect class="box" x="272" y="94" width="72" height="32" rx="6"/><text x="284" y="115" class="ink">Billing</text>
+        <text x="246" y="146" class="blue">Charges by Stripe</text>
+        <path class="lnew" d="M180 134V172"/>
+        <rect class="box" x="130" y="172" width="100" height="32" rx="6"/><text x="144" y="193" class="ink">Users DB</text>
+        <text x="20" y="160" class="blue">Adds a plan column</text>
+      </svg>
+      <h3>Every part it touches<span>One line to each, saying what changes there.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="The renewal job dashed red because Claude only assumed it can go, with Confirm and Dispute buttons beside it">
+        <rect class="gone" x="30" y="40" width="130" height="50" rx="6"/><text x="44" y="62" class="ink" style="text-decoration:line-through">Renewal job</text><text x="44" y="79" class="mono">jobs/renewal.ts</text>
+        <text x="30" y="112" class="red">Claude assumed it can go</text>
+        <path class="ln" d="M160 65H184"/>
+        <rect class="card" x="184" y="24" width="150" height="128" rx="10"/>
+        <text x="198" y="48" class="ink">312 annual plans</text><text x="198" y="66">renew through it.</text>
+        <rect class="btnm" x="198" y="82" width="72" height="28" rx="6"/><text x="211" y="100" class="btntm">Dispute</text>
+        <rect class="btn" x="198" y="116" width="72" height="28" rx="6"/><text x="209" y="134" class="btnt">Confirm</text>
+        <rect class="kept" x="30" y="150" width="130" height="50" rx="6"/><text x="44" y="172" class="ink">Renewal job</text><text x="44" y="189">kept, after Dispute</text>
+      </svg>
+      <h3>Catch what the agent guessed<span>A guess stays dashed until someone confirms it.</span></h3>
+    </div>
+    <div class="tile">
+      <svg viewBox="0 0 360 220" role="img" aria-label="A map drawn from a repo's own folders: web app, core service, email service, renewal job, database and scheduler, each with its path">
+        <rect class="box" x="20" y="20" width="100" height="44" rx="6"/><text x="32" y="39" class="ink">Web app</text><text x="32" y="55" class="mono">apps/web</text>
+        <path class="ln" d="M120 42H134"/>
+        <rect class="box" x="134" y="20" width="112" height="44" rx="6"/><text x="144" y="39" class="ink">Core</text><text x="144" y="55" class="mono">services/core</text>
+        <path class="ln" d="M246 42H258"/>
+        <rect class="box" x="258" y="20" width="90" height="44" rx="6"/><text x="268" y="39" class="ink">Email</text><text x="268" y="55" class="mono">services/…</text>
+        <path class="ln" d="M190 64V100"/>
+        <rect class="box" x="140" y="100" width="100" height="44" rx="6"/><text x="152" y="119" class="ink">Database</text><text x="152" y="135" class="mono">db/schema</text>
+        <path class="ln" d="M140 122H120"/>
+        <rect class="box" x="20" y="100" width="100" height="44" rx="6"/><text x="32" y="119" class="ink">Renewal job</text><text x="32" y="135" class="mono">jobs/</text>
+        <path class="ln" d="M70 144V160"/>
+        <rect class="box" x="20" y="160" width="100" height="44" rx="6"/><text x="32" y="179" class="ink">Scheduler</text><text x="32" y="195" class="mono">infra/</text>
+        <text x="152" y="186">Drawn from the repo’s</text><text x="152" y="203">folders, imports, settings</text>
+      </svg>
+      <h3>Read a system you did not write<span>The map is drawn from the repo itself.</span></h3>
+    </div>
+  </div>
+</section>
+
+<section id="get" class="get">
+  <div>
+    <h2>Open source. Runs on your Mac, beside Claude Code.</h2>
+    <p>The shared team map is with our first teams now. <a href="mailto:duy@heyanur.ai">duy@heyanur.ai</a></p>
+    <div class="links"><a class="main" href="https://github.com/HiAnur/anur-living-map">GitHub</a><a href="mailto:duy@heyanur.ai">Talk to us</a></div>
+  </div>
+<pre><span class="c"># in your repo, with Node 22+ and Claude Code signed in</span>
+npx anur-living-map</pre>
+</section>
+
+<footer><span>© 2026 Anur</span><a href="https://heyanur.ai">heyanur.ai</a><a href="https://github.com/HiAnur/anur-living-map">github.com/HiAnur/anur-living-map</a><span>MIT license</span></footer>
+</div>
+</body>
+</html>

@@ -13,6 +13,8 @@ The pages below are the story boards the map grew from, each a click-through in 
 
 The landing page for Living Map, with the plan-first story as an interactive demo: the visitor is the engineer. Claude plans on the map by itself (after 5 seconds, or on the button); the one call it can't make, keep or retire the nightly renewal job, is the visitor's. Each answer branches: keep it, and Claude builds from that; let it go, and the map blocks the merge of the pull request that deletes it, and asks again. Both end a week later on Sam's laptop, where Sam's Claude reads the decision from the map before it plans. Open the file in a browser; no build, no server.
 
+`site/use-cases.html`, linked from the landing page's top bar, is the use cases page: what a project manager and an engineer each get from the map, three drawings for each, in the landing page's style.
+
 ## Scenario 1 (`index.html`)
 
 1. The app as a mind map: what is built, and the decision the team made on each part.
