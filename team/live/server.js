@@ -34,7 +34,11 @@ import { MIN, users } from './users.js';
 // can't change anything: read-only tools, no commands, no web, none of your settings or MCP servers.
 const SESSION_VARS = ['CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_REMOTE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION',
   'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_WORKER_EPOCH',
-  'CLAUDE_AFTER_LAST_COMPACT', 'CLAUDE_EFFORT'];
+  'CLAUDE_AFTER_LAST_COMPACT', 'CLAUDE_EFFORT',
+  // the app renews its chats' sign-in when they ask over the line dropped above; left set, the answer
+  // asks the app, never hears back, and fails once the sign-in is old, instead of renewing it itself
+  'CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH', 'CLAUDE_CODE_HOST_AUTH_REFRESH_TIMEOUT_MS',
+  'CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH', 'CLAUDE_CODE_SDK_HAS_SESSIONS_OAUTH_REFRESH'];
 const READ = 'Read,Grep,Glob';
 function askClaude({ cwd, prompt, onText, onDone }) {
   const env = { ...process.env };
