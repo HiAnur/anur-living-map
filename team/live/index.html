@@ -617,7 +617,6 @@ body.paned #foot,body.paned #plan{right:calc(88px + var(--chatw))}
 #bot:hover{background:#f3f2ee;color:var(--text)}
 #bot.on{background:#f7e6de;color:var(--text)}
 #bot.busy .star{animation:spark 1.6s ease-in-out infinite}
-@media (prefers-reduced-motion:reduce){#bot.busy .star{animation:none}}
 /* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it;
    so do a box's card, Decisions and Comments, one pane at a time (body.paned) */
 /* its width is --chatw, shared by every pane: drag the pane's left edge to change it, the way Descript's divider moves */
@@ -663,10 +662,11 @@ body.resizing{cursor:col-resize;user-select:none}
 .msg.cm{padding:0;margin:10px 0 4px;font-size:14px;line-height:1.55}
 .msg.cm + .msg.cm{margin-top:2px}
 .msg.cm .md p{margin-bottom:10px}
+/* the ✳ blinks while Claude works even with Reduce motion on, as in the Claude app: it is how you tell Claude is at work */
 .spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
 .doing{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:13.5px}
 @keyframes spark{50%{opacity:.35;transform:rotate(45deg)}}
-@media (prefers-reduced-motion:reduce){.spark{animation:none}}
+.secs{margin-left:6px;font-size:12px;color:var(--text-2);font-variant-numeric:tabular-nums}
 /* the box you write in: rounded like Claude's, the pictures you are about to send above the words,
    + to add a picture (paste or drop one too) and the send arrow below */
 .ask.cbox{display:block;padding:10px 10px 8px 14px;border:1px solid var(--rule-2);border-radius:18px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.04)}
@@ -2015,7 +2015,7 @@ function renderSide(){
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
+      : claudes(`${m.thinking && !m.text ? `<span class="spark" title="Reading the map">✳</span>${secs(m.since)}` : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
@@ -2179,16 +2179,20 @@ const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat
 // while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
 // way the Claude app does; a turn quiet for ten minutes was stopped, not working
 const busy = () => !!MIRROR?.status?.working && Date.now() - MIRROR.status.at < 10 * 60_000;
-const working = (doing) => claudes(`<div class="doing"><span class="spark">✳</span><span>${esc(doing || 'Working')}…</span></div>`);
+const working = (doing, since) => claudes(`<div class="doing"><span class="spark">✳</span><span>${esc(doing || 'Working')}…</span>${secs(since)}</div>`);
+// how long Claude has been at it, the way the Claude app counts it: 12s, then 1m 05s; ticked once a second in place
+const took = (since) => { const t = Math.max(0, Math.floor((Date.now() - since) / 1000)); return t < 60 ? `${t}s` : `${Math.floor(t / 60)}m ${String(t % 60).padStart(2, '0')}s`; };
+const secs = (since) => since ? `<span class="secs" data-since="${since}">${took(since)}</span>` : '';
+setInterval(() => { for (const el of document.querySelectorAll('[data-since]')) el.textContent = took(Number(el.dataset.since)); }, 1000);
 // what the pane says under your last message: a message the chat has not taken yet never reads as Claude at work.
 // It is on its way while the chat listens or for a few seconds after you send it; past that, the chat stopped
 // listening, and the pane says how to wake it.
 const SENDING = 10_000;
 let sendingTimer = null;
 function waitLine(last){
-  if (busy()) return working(MIRROR.status?.doing);
+  if (busy()) return working(MIRROR.status?.doing, MIRROR.status?.since);
   if (last?.who !== 'you') return '';
-  if (!last.map || last.handed) return working(MIRROR.status?.doing);
+  if (!last.map || last.handed) return working(MIRROR.status?.doing, MIRROR.status?.since || last.at);
   const left = SENDING - (Date.now() - last.at);
   if (MIRROR.listening || left > 0){
     clearTimeout(sendingTimer); if (left > 0) sendingTimer = setTimeout(redrawChat, left + 50);
@@ -2233,7 +2237,7 @@ function renderChat(){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
-        : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
+        : claudes(`${m.thinking && !m.text ? `<span class="spark" title="Reading the map">✳</span>${secs(m.since)}` : md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}

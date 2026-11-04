@@ -695,14 +695,14 @@ function openMap({ project = '', name = '', home }) {
         return true;
       }
       // the reply fills in as Claude writes it, pushed to every window a few times a second
-      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, ...(n ? { about: n.id } : {}) };
+      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, since: Date.now(), ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
       askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side),
         onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
-          clearTimeout(soon); delete msg.thinking; msg.text = withoutBlock(text); msg.at = stamp();
+          clearTimeout(soon); delete msg.thinking; delete msg.since; msg.text = withoutBlock(text); msg.at = stamp();
           if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
           const pr = proposal(text, a.by);
