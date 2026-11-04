@@ -41,11 +41,21 @@ const SESSION_VARS = ['CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_CODE_SESSION_ID', 'CLA
 const READ = 'Read,Grep,Glob';
 // Claude Code keeps a sign-in of its own, apart from the Claude app's; when that one can no longer be renewed,
 // every answer fails until it is signed in again, however signed in the app is
-const SIGNED_OUT = 'Claude Code on this Mac is signed out, so it can\'t answer. Open Terminal, run `claude auth login`, sign in in the browser, then ask again.';
+const SIGNED_OUT = 'Claude Code on this Mac is signed out, so it can\'t answer.';
 const signedOut = (text) => /authenticat|oauth|\/login|not logged in|invalid api key/i.test(String(text ?? ''));
+const childEnv = () => { const env = { ...process.env }; for (const k of SESSION_VARS) delete env[k]; return env; };
+// Sign in, on a signed-out answer: Claude Code's own `claude auth login`, with no Terminal. It opens the browser
+// and hears back from it by itself, so the answer comes once you approve there; one at a time, given up after 5 minutes
+let signingIn = null;
+const claudeLogin = () => signingIn ??= new Promise((resolve) => {
+  const proc = spawn('claude', ['auth', 'login'], { env: childEnv(), stdio: 'ignore' });
+  const limit = setTimeout(() => proc.kill('SIGTERM'), 300_000);
+  const done = (ok) => { clearTimeout(limit); signingIn = null; resolve(ok); };
+  proc.on('error', () => done(false));
+  proc.on('close', (code) => done(code === 0));
+});
 function askClaude({ cwd, prompt, onText, onDone }) {
-  const env = { ...process.env };
-  for (const k of SESSION_VARS) delete env[k];
+  const env = childEnv();
   const proc = spawn('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', READ, '--allowedTools', READ, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
     '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', ''], { cwd, env });
@@ -693,6 +703,7 @@ function openMap({ project = '', name = '', home }) {
         onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
           clearTimeout(soon); delete msg.thinking; msg.text = withoutBlock(text); msg.at = stamp();
+          if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
           const pr = proposal(text, a.by);
           if (pr?.status === 'pending') for (const x of t) if (x !== msg && x.proposal?.status === 'pending') Object.assign(x.proposal, { status: 'dropped', replaced: true });
@@ -1093,6 +1104,7 @@ const server = http.createServer(async (req, res) => {
     users.end(cookieOf(req, 'lm_session'));
     return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'lm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' }).end('{}');
   }
+  if (url.pathname === '/api/claude-login' && req.method === 'POST') return who ? json(200, { ok: await claudeLogin() }) : json(401, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
   if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   // with a project, / lists every map to choose from: the project's own, then each named one

@@ -774,7 +774,7 @@ body.previewing .node.proposed{display:none}
 .prop{margin-top:8px;padding:10px 12px;border:1px solid var(--new);border-radius:10px;background:var(--new-tint);font-size:13px}
 .prop .ph{font-weight:500;margin-bottom:4px}
 .prop ul{padding-left:18px;margin:0 0 8px}
-.prop .pd{font-size:12px;color:var(--text-2);margin-bottom:8px}
+.prop .pd{font-size:12px;color:var(--text-2);margin-bottom:8px}.prop .pd:last-child{margin-bottom:0}
 .prop .btns{display:flex;gap:6px}
 .prop .gb.yes{background:#141413;color:#fff;border-color:#141413}
 .prop.applied{border-color:rgba(46,139,87,.4);background:#f2f8f4}.prop.applied .ph{color:var(--ok)}
@@ -2013,7 +2013,7 @@ function renderSide(){
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}`)).join('')}</div>
+      : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
@@ -2070,6 +2070,22 @@ const proposalOf = (id) => {
     for (const [i, m] of S.threads[k].entries()) if (has(m?.proposal)) return change(m, k, i);
   const p = (S.proposals || []).find((p) => has(p) && (S.linked || []).some((l) => l.session === p.session && l.owner === ME));
   return p ? changeP(p) : '';
+};
+/* a signed-out answer carries Sign in: the server runs Claude Code's own sign-in, the browser opens, and once you
+   approve there, asking again works; one state for the page, since it is one Claude Code on this Mac */
+let loginState = '';
+const LOGIN_SAYS = {
+  waiting: 'Approve in the browser window that opened. This waits until you do.',
+  done: 'Signed in. Ask again.',
+  failed: 'Sign-in did not finish. Press Sign in to try again, or run <code>claude auth login</code> in Terminal.',
+};
+const signin = (m) => !m.signin || FILE ? '' : `<div class="prop${loginState === 'done' ? ' applied' : ''}">
+  ${loginState ? `<div class="pd">${LOGIN_SAYS[loginState]}</div>` : ''}
+  ${loginState === 'waiting' || loginState === 'done' ? '' : '<div class="btns"><span class="gb yes" data-claude-login>Sign in</span></div>'}</div>`;
+const claudeLogin = () => {
+  loginState = 'waiting'; render();
+  fetch('/api/claude-login', { method: 'POST' }).then((r) => r.json()).catch(() => ({}))
+    .then((r) => { loginState = r.ok ? 'done' : 'failed'; render(); });
 };
 /* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */
 const change = (m, key, i) => {
@@ -2209,7 +2225,7 @@ function renderChat(){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
-        : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, `@${ME}`, i)}`)).join('')
+        : claudes(`${m.thinking && !m.text ? '<span class="spark" title="Reading the map">✳</span>' : md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
@@ -2693,6 +2709,7 @@ document.addEventListener('click', (e) => {
   if (PREVIEW && t.closest('[data-call], [data-apply], [data-drop], [data-applyp], [data-dropp], #tidyb')){ toast(FROZEN_SAYS); return; }
   const face = t.closest('[data-as]');
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
+  if (t.closest('[data-claude-login]')){ claudeLogin(); return; }
   if (t.closest('[data-signout]')){ fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); return; }
   if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
