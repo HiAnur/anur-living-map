@@ -154,9 +154,12 @@ function openMap({ project = '', name = '', home }) {
   const ownsChat = (session, by) => (state.linked || []).some((l) => l.session === session && l.owner === by);
   function mirrorView() {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
-    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, ...(s.imgs ? { imgs: s.imgs } : {}) }));
+    // handed: the chat's listener has taken the message; one written before this was tracked counts as taken
+    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, handed: !s.id || !!s.handed, ...(s.imgs ? { imgs: s.imgs } : {}) }));
     const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
-    return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
+    // listening: the chat's listener is waiting for the map right now, so what is written next reaches it at once
+    return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), listening: waiters.some((w) => w.who === l.session),
+      msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
   }
   const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
   function startMirror() {
@@ -256,10 +259,11 @@ function openMap({ project = '', name = '', home }) {
   };
   // what the change being made told the outbox; the history names that version with it
   let told = null;
-  const tell = (text, to = '') => {
+  // said: the id of what the owner wrote in the pane, marked handed once a listener takes it
+  const tell = (text, to = '', said = '') => {
     told = text;
     fs.mkdirSync(home, { recursive: true }); fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`);
-    if (to) { state.forChats = [...(state.forChats || []), { to, text, at: stamp() }].slice(-50); setTimeout(wake); }
+    if (to) { state.forChats = [...(state.forChats || []), { to, text, at: stamp(), ...(said ? { said } : {}) }].slice(-50); setTimeout(wake); }
   };
   // hand each waiting chat what is meant for it; "*" goes to the chat that started listening last
   function wake() {
@@ -270,9 +274,10 @@ function openMap({ project = '', name = '', home }) {
       state.forChats = state.forChats.filter((m) => !mine.includes(m));
       waiters.splice(waiters.indexOf(w), 1); clearTimeout(w.timer);
       w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
+      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((x) => x.id === m.said); if (s) s.handed = Date.now(); }
       changed = true;
     }
-    if (changed) save();
+    if (changed) { save(); setTimeout(sendMirror); }
   }
   // which chat a change belongs to: the one that drew the call or box, else the last one that drew on this map
   const ownerOf = (nodeId, call) => call?.session || nodeOf(nodeId)?.session || state.owner || '*';
@@ -776,8 +781,9 @@ function openMap({ project = '', name = '', home }) {
       if (!text && !pics.length) return false;
       // a chat the map started itself hears it straight away, and its transcript shows it in the pane
       if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((p) => p.file).join(', ')})` : ''}`); return true; }
-      ((state.said ??= {})[l.session] ??= []).push({ text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
-      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session);
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      ((state.said ??= {})[l.session] ??= []).push({ id, text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
+      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session, id);
       setTimeout(sendMirror); return true;
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
@@ -920,11 +926,12 @@ function openMap({ project = '', name = '', home }) {
     if (p === '/api/wait') {
       const who = new URL(req.url, 'http://x').searchParams.get('session') || '';
       if (!who) { res.writeHead(400).end('session missing'); return true; }
-      const drop = () => { const i = waiters.indexOf(w); if (i >= 0) waiters.splice(i, 1); clearTimeout(w.timer); };
+      // the pane hears when a listener comes and goes, so it can say whether the chat is listening
+      const drop = () => { const i = waiters.indexOf(w); if (i >= 0) { waiters.splice(i, 1); setTimeout(sendMirror); } clearTimeout(w.timer); };
       const w = { who, res, timer: setTimeout(() => { drop(); res.writeHead(200).end(''); }, 240_000) };
       waiters.push(w);
       res.on('close', drop);
-      wake();
+      wake(); setTimeout(sendMirror);
       return true;
     }
     // a picture in the synced chat, only for the signed-in window of the person whose chat it is

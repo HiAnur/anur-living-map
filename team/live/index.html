@@ -2162,13 +2162,35 @@ const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat
 // way the Claude app does; a turn quiet for ten minutes was stopped, not working
 const busy = () => !!MIRROR?.status?.working && Date.now() - MIRROR.status.at < 10 * 60_000;
 const working = (doing) => claudes(`<div class="doing"><span class="spark">✳</span><span>${esc(doing || 'Working')}…</span></div>`);
+// what the pane says under your last message: a message the chat has not taken yet never reads as Claude at work.
+// It is on its way while the chat listens or for a few seconds after you send it; past that, the chat stopped
+// listening, and the pane says how to wake it.
+const SENDING = 10_000;
+let sendingTimer = null;
+function waitLine(last){
+  if (busy()) return working(MIRROR.status?.doing);
+  if (last?.who !== 'you') return '';
+  if (!last.map || last.handed) return working(MIRROR.status?.doing);
+  const left = SENDING - (Date.now() - last.at);
+  if (MIRROR.listening || left > 0){
+    clearTimeout(sendingTimer); if (left > 0) sendingTimer = setTimeout(redrawChat, left + 50);
+    return working('Sending to your Claude chat');
+  }
+  return claudes(`<div class="doing">Your Claude chat stopped listening to the map, so it has not read this yet. Type /anur-living-map in that chat in the Claude app and it will.</div>`);
+}
+// redraws the chat pane without losing what you are typing in it
+function redrawChat(){
+  const ae = document.activeElement, typing = ae?.closest?.('#chat') ? ae.value : null;
+  renderChat();
+  if (typing !== null){ const el = document.querySelector('#chat form[data-chat] textarea'); if (el){ el.value = typing; el.focus(); fitBox(el); } }
+}
 function renderMirror(el){
   const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
   el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
-      ${!chatHist && (busy() || last?.who === 'you') ? working(MIRROR.status?.doing) : ''}</div>
+      ${chatHist ? '' : waitLine(last)}</div>
     ${chatHist ? '' : composer('Reply to Claude…', true, MIRROR.model)}`;
   const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
   if (n !== chatSeen){ box.scrollTop = chatHist ? 0 : box.scrollHeight; chatSeen = n; } else box.scrollTop = keep;
@@ -2888,9 +2910,7 @@ function listen(){
   // your Claude Code chat, synced into the Claude pane; typing in the pane survives the redraw
   es.addEventListener('mirror', (m) => {
     const v = JSON.parse(m.data); MIRROR = v.owner === ME ? v : null;
-    const ae = document.activeElement, typing = ae?.closest?.('#chat') ? ae.value : null;
-    renderChat();
-    if (typing !== null){ const el = document.querySelector('#chat form[data-chat] textarea'); if (el){ el.value = typing; el.focus(); fitBox(el); } }
+    redrawChat();
   });
   es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
