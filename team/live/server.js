@@ -329,6 +329,11 @@ function openMap({ project = '', name = '', home }) {
       '```map', '{"nodes": [{"id": "when", "label": "When", "sub": "every week in November", "desc": "what it is, in one short line\\n- one point a bullet\\n- another", "state": "new"}],',
       ' "edges": [{"from": "test", "to": "when", "label": "optional"}], "remove": ["an-id"], "unlink": [{"from": "a-box", "to": "another-box"}]}', '```',
       '"remove" takes boxes off the map with their lines; "unlink" takes off only the line from one box to the other.',
+      'When the person asks to reorganize or lay out the map, or for the lines to point better, fix only which box hangs under which:',
+      'one box the map starts from, every other box with exactly one line into it from the box it belongs under (unlink the others, or keep one as a cross-link),',
+      'turning a line around when the flow reads better the other way. Set "start" to the id of the box the map starts from; when no box on the map',
+      'can hold all the others, add one new box for the map\'s subject, with lines from it to the boxes at the top, and start from it.',
+      'Then add "tidy": true, and on Apply the map places every box itself; never try to place boxes.',
       'A new box needs a new lowercase id and a label; giving an existing box id changes that box. Leave out x and y.',
       'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',
       'never added again under another name. A new block replaces any of your offers still waiting for Apply, so put the whole change in it.',
@@ -390,7 +395,7 @@ function openMap({ project = '', name = '', home }) {
     merge(state.nodes, (n) => n.id, p.nodes);
     merge(state.edges, (e) => `${e.from}>${e.to}`, p.edges);
     // a new box with no place goes where its lines cross nothing
-    placeNew(state.nodes, state.edges);
+    placeNew(state.nodes, state.edges, state.start);
     merge(state.calls, (c) => c.id, p.calls);
     for (const id of p.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
     for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
@@ -457,6 +462,11 @@ function openMap({ project = '', name = '', home }) {
       plan.memory.push({ kind, box: box?.id || null, text });
       ops.push(`${kind === 'instruction' ? 'Instruction' : 'Remember'} for ${box ? box.label : 'the whole map'}: ${text}`);
     }
+    if (p.start) {
+      if (typeof p.start === 'string' && there(p.start)) { plan.start = p.start; ops.push(`Start the map from ${name(p.start)}`); }
+      else dropped.push({ text: `start from ${p.start}`, why: 'no such box' });
+    }
+    if (p.tidy === true) { plan.tidy = true; ops.push('Lay out the whole map again, each box beside the box it hangs under'); }
     // a new box gets its place now, so the page can show it on the map as proposed and Apply puts it exactly there
     placeProposed(plan);
     return { status: ops.length ? 'pending' : 'dropped', ops, dropped, plan };
@@ -464,8 +474,15 @@ function openMap({ project = '', name = '', home }) {
   function placeProposed(plan) {
     const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map(({ x, y, ...n }) => n);
     if (!fresh.length) return;
-    placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges]);
+    placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
     for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
+  }
+  // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
+  // read as one tree; the boxes are Claude's to place again until someone drags one
+  function relayout() {
+    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start)) tidy(state.nodes, state.edges);
+    for (const n of state.nodes) delete n.moved;
+    for (const p of pendingProposals()) placeProposed(p.plan);
   }
   // every change Claude proposed that nobody has applied or set aside yet, from the map's chats and the linked
   // chat; with a person, only the ones that person may apply
@@ -614,7 +631,7 @@ function openMap({ project = '', name = '', home }) {
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved)) tidy(list, edges, only);
+      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },
@@ -708,7 +725,9 @@ function openMap({ project = '', name = '', home }) {
       if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
       const to = fromChat ? fromChat.session : ownerOf(touched || m.about || null);
+      if (pr.plan.start) state.start = pr.plan.start;
       draw(pr.plan);
+      if (pr.plan.tidy) relayout();
       for (const m of pr.plan.memory || []) keepMemory(m, a.by);
       pr.status = 'applied'; pr.by = a.by; pr.at = stamp();
       state.log.push({ at: Date.now(), who: a.by, action: 'applied', text: pr.ops.join('; ') });
@@ -835,8 +854,10 @@ function openMap({ project = '', name = '', home }) {
       state.memory.splice(i, 1); return true;
     },
     edit(a) {
-      if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length)) return false;
+      if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
+      if (typeof a.start === 'string' && [...state.nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) state.start = a.start;
       draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink });
+      if (a.tidy === true) relayout();
       for (const m of (a.memory || []).slice(0, 10)) keepMemory(m, a.by);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });
       tell(`${a.by} changed the map: ${String(a.note || 'a quick change').slice(0, 200)}`);

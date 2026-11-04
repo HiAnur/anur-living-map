@@ -51,9 +51,9 @@ async function read({ map } = {}) {
   return out.join('\n');
 }
 
-async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [] } = {}) {
+async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start } = {}) {
   map = mapName(map);
-  if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length)) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions or remember.');
+  if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length) && tidy !== true && !start) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions, remember, start or tidy.');
   const s = await stateOf(map), had = s.nodes || [], people = s.people || [];
   const nodes = [], edges = [], calls = [], done = [], skipped = [];
   const taken = new Set(had.map((n) => n.id));
@@ -118,9 +118,13 @@ async function change({ map, note, boxes = [], lines = [], questions = [], remem
     if (!a || !z) { skipped.push(`remove line ${l.from} → ${l.to}: ${!a ? l.from : l.to} is not on the map`); continue; }
     unlink.push({ from: a.id, to: z.id }); done.push(`Removed the line ${a.label} → ${z.label}`);
   }
-  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
+  const top = start ? find(start) : null;
+  if (start && !top) skipped.push(`start from "${start}": no such box`);
+  if (top) done.push(`The map starts from ${top.label}`);
+  if (tidy === true) done.push('Laid out the whole map again, each box beside the box it hangs under');
+  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true && !top) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
   await call(api(map, 'act'), { method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink }) });
+    body: JSON.stringify({ type: 'edit', by: 'Claude', note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink, tidy: tidy === true, ...(top ? { start: top.id } : {}) }) });
   return [`Done on ${s.title || 'the map'} · ${pageOf(map)}`, ...done, ...(skipped.length ? ['Left out:', ...skipped.map((x) => `- ${x}`)] : [])].join('\n');
 }
 
@@ -161,6 +165,9 @@ const TOOLS = [
         from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'What happens to the box it points at, in a few plain words ("Sends the link").' } } } },
       remove_lines: { type: 'array', description: 'Lines to take off the map, by the boxes they join (id or name); the boxes stay.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' } } } },
+      tidy: { type: 'boolean', description: 'true lays out the whole map again after this change, every box beside the box it hangs under, boxes people dragged included. '
+        + 'To reorganize the map, fix only which box hangs under which (one box the map starts from, every other box with one line into it, a line turned around when the flow reads better the other way) and set this; never place boxes yourself.' },
+      start: { type: 'string', description: 'The box the map starts from (id or name), drawn in the middle with everything else hanging under it. When no box can hold all the others, add a box for the map\'s subject in this change, with lines to the boxes at the top, and name it here.' },
       questions: { type: 'array', description: 'Questions for a teammate, shown on the box with answer buttons. Yes/no when that is the whole choice; 2 to 4 options when there are real alternatives, your pick first.',
         items: { type: 'object', required: ['box', 'for', 'ask'], properties: {
           box: { type: 'string', description: 'The box it is about, by id or name.' },

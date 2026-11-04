@@ -59,6 +59,8 @@ It ends the moment the map has something for this chat, printing it after `FROM 
   JSON
   ```
 
+  To reorganize the map or make the lines point better, change only which box hangs under which (every box but one with one line into it; `unlink` the rest, or turn a line around when the flow reads better the other way), set `"start"` to the box the map starts from (when no box can hold the others, add one for the map's subject with lines to the top boxes), and add `"tidy":true`: on Apply the map lays every box out again itself. Never place boxes.
+
   A change to what a box opens into goes the same way: give the box its whole new `diagram` (`{"kind":"sequence","items":[…]}`, the shape `living_map_change` takes). Opening the box before Apply shows what comes in blue and what goes in red.
 - `<Name> pressed Execute: …` is the user's go to build the plan: follow the repo's CLAUDE.md; by default build on a branch from `main`, and post the branch with its checks back to the map.
 - Act on it the way the repo's CLAUDE.md says: an answer to a question is that person's answer, and building still waits for the user's go. Anything that leaves this machine or cannot be undone waits for the user's word here.
