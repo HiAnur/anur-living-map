@@ -46,7 +46,7 @@ function plainStep(b) {
 // person, so every user entry with words counts as yours there
 export function follow(file, onChange, { anyUser = false } = {}) {
   let offset = 0, rest = '', msgs = [], busy = false, model = null;
-  // whether Claude is in the middle of a turn, what it is doing now, and when it last did anything
+  // whether Claude is in the middle of a turn, what it is doing now, when it last did anything, and since when it works
   let state = { working: false, doing: '', at: 0 };
   // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
   const imgs = new Map();
@@ -64,7 +64,7 @@ export function follow(file, onChange, { anyUser = false } = {}) {
     const at = Date.parse(j.timestamp) || Date.now();
     if (j.type === 'user' && (j.origin?.kind === 'human' || (anyUser && !j.toolUseResult)) && !j.isMeta) {
       yourTurn(j.message?.content, at);
-      state = { working: true, doing: '', at };
+      state = { working: true, doing: '', at, since: at };
     } else if (j.type === 'attachment' && j.attachment?.type === 'queued_command' && j.attachment.commandMode === 'prompt' && j.attachment.origin?.kind === 'human') {
       // what you typed while Claude was still working
       yourTurn(j.attachment.prompt, at);
@@ -75,7 +75,7 @@ export function follow(file, onChange, { anyUser = false } = {}) {
       if (t) add('claude', t, at);
       // still at it until a reply ends the turn; the step it is on, in plain words
       const step = (j.message?.content || []).filter((b) => b?.type === 'tool_use').at(-1);
-      state = j.message?.stop_reason === 'end_turn' ? { working: false, doing: '', at } : { working: true, doing: step ? plainStep(step) : state.doing, at };
+      state = j.message?.stop_reason === 'end_turn' ? { working: false, doing: '', at } : { working: true, doing: step ? plainStep(step) : state.doing, at, since: state.working ? state.since : at };
     } else if (j.type === 'user' && state.working) state = { ...state, at };
   }
   function read() {
