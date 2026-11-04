@@ -215,6 +215,9 @@ h2{font:500 clamp(24px,3vw,32px)/1.15 var(--serif);letter-spacing:-.015em;text-w
 .get p a{color:var(--bone)}
 pre{background:#0d0d0d;border:1px solid var(--rule-d);border-radius:10px;padding:16px 18px;font:13px/1.7 var(--mono);color:var(--bone);overflow-x:auto}
 pre .c{color:var(--dust)}
+/* a long command wraps with the rest of it indented, so each command still reads as one line */
+pre .c,pre .l{display:block;white-space:pre-wrap;overflow-wrap:anywhere}
+pre .l{padding-left:2ch;text-indent:-2ch}
 .links{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
 .links a{display:inline-flex;align-items:center;height:44px;padding:0 18px;border-radius:9px;text-decoration:none;font-size:14px;font-weight:500;border:1px solid var(--rule-d);color:var(--bone)}
 .links a.main{background:var(--bone);color:#000;border-color:var(--bone)}
@@ -352,8 +355,7 @@ footer a:hover{color:var(--mist)}
     <p>The shared team map is with our first teams now. <a href="mailto:duy@heyanur.ai">duy@heyanur.ai</a></p>
     <div class="links"><a class="main" href="https://github.com/HiAnur/anur-living-map">GitHub</a><a href="mailto:duy@heyanur.ai">Talk to us</a></div>
   </div>
-<pre><span class="c"># in your repo, with Node 22+ and Claude Code signed in</span>
-npx anur-living-map</pre>
+<pre><span class="c"># once, with Node 22+ and Claude Code signed in</span><span class="l">git clone https://github.com/HiAnur/anur-living-map.git ~/anur-living-map</span><span class="l">cp -R ~/anur-living-map/team/skill/anur-living-map ~/.claude/skills/</span><span class="l">claude mcp add --scope user living-map -- node ~/anur-living-map/team/live/mcp.js</span><span class="c"># then, in a Claude Code chat in your repo</span><span class="l">/anur-living-map</span></pre>
 </section>
 
 <footer><span>© 2026 Anur</span><a href="https://heyanur.ai">heyanur.ai</a><a href="https://github.com/HiAnur/anur-living-map">github.com/HiAnur/anur-living-map</a><span>MIT license</span></footer>
