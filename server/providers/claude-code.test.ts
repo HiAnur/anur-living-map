@@ -11,7 +11,7 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { afterEach, test, vi } from "vitest";
 
-import { childEnv, claudeCode, type Spawn } from "./claude-code.ts";
+import { childEnv, claudeCode, signedOut, type Spawn } from "./claude-code.ts";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -85,6 +85,17 @@ test("claude never runs as part of the chat session that started the server", ()
     CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH: "1",
   });
   assert.deepEqual(env, { PATH: "/bin", HOME: "/h" });
+});
+
+test("a sign-in Claude Code cannot renew reads as signed out; other failures do not", () => {
+  assert.ok(
+    signedOut(
+      "Failed to authenticate: OAuth session expired and could not be refreshed",
+    ),
+  );
+  assert.ok(signedOut("Not logged in · Please run /login"));
+  assert.ok(!signedOut("Claude took too long to answer"));
+  assert.ok(!signedOut(undefined));
 });
 
 test("extract runs a fresh call with its own instructions, no tools and no cache, and returns the structured answer", async () => {

@@ -58,9 +58,8 @@ const SESSION_VARS = [
   "CLAUDE_CODE_WORKER_EPOCH",
   "CLAUDE_AFTER_LAST_COMPACT",
   "CLAUDE_EFFORT",
-  // the app renews its chats' sign-in when they ask over the line dropped
-  // above; left set, a child asks the app, never hears back, and fails once
-  // its sign-in is old, instead of renewing it itself
+  // the app renews its chats' sign-in over the line dropped above; a child
+  // cut off from that line renews its own
   "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH",
   "CLAUDE_CODE_HOST_AUTH_REFRESH_TIMEOUT_MS",
   "CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH",
@@ -71,6 +70,16 @@ export function childEnv(env: NodeJS.ProcessEnv = process.env) {
   for (const k of SESSION_VARS) delete out[k];
   return out;
 }
+
+// Claude Code keeps a sign-in of its own, apart from the Claude app's; when
+// that one can no longer be renewed, every claude -p fails until it is signed
+// in again, however signed in the app is
+export const SIGNED_OUT =
+  "Claude Code on this Mac is signed out, so it can't answer. Open Terminal, run `claude auth login`, sign in in the browser, then ask again.";
+export const signedOut = (text: unknown) =>
+  /authenticat|oauth|\/login|not logged in|invalid api key/i.test(
+    String(text ?? ""),
+  );
 
 // $ per million tokens (input, output) and a cache read's share of input. A
 // resumed conversation's CLI total also counts everything it cost before, so
