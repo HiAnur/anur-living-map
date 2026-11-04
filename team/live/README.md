@@ -1,6 +1,6 @@
 # Anur Living Map, the server
 
-One small server holds the map; every open window draws the same one, and a click in one window (a Dispute, an Approve) moves them all. With `--project <repo>` the map is drawn from that repo's own files; without it, it plays the plan-first story from `seed.json`. What people decide is written to `outbox.md`, which a Claude Code chat can read back.
+One small server holds the map; every open window draws the same one, and a click in one window (a Dispute, an Approve) moves them all. With `--project <repo>` the map is drawn from that repo's own files; without it, it plays the plan-first story from `seed.json`. What people decide is written to `outbox.md`, which a Claude Code chat can read back. A linked chat's listener (`wait.js`) gets what is meant for that chat, and with it `chat-rules.md`, the rules for answering it, whenever that chat has not had this version of them yet (otherwise one line says they are unchanged), so a chat that started before an update still works from the current rules; `GET /api/rules` gives the same text, and `open-map.sh` prints it when it opens a map.
 
 ```bash
 node server.js 4323 --project <repo>    # http://localhost:4323/<repo folder name>/
