@@ -1,6 +1,6 @@
 {
   "name": "anur-living-map",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Anur Living Map: the team's shared map of a codebase, where Claude Code plans a feature before building it. `npx anur-living-map` in a repo opens its map.",
   "type": "module",
   "bin": { "anur-living-map": "bin.js" },

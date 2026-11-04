@@ -14,6 +14,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+// Node 22 or newer, before anything else: older Node fails later with an error that says
+// nothing about Node, so say it here, with how to get it, and stop.
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+if (nodeMajor < 22) {
+  console.error(
+    `Living Map needs Node 22 or newer; this is Node ${process.versions.node}.\n` +
+      'Install it, then run npx anur-living-map again:\n' +
+      '  Homebrew (Mac):   brew install node\n' +
+      '  nvm:              nvm install 22 && nvm use 22\n' +
+      '  anything else:    https://nodejs.org, the LTS download',
+  );
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
 
 if (args[0] === 'mcp') {
