@@ -81,6 +81,8 @@ test("claude never runs as part of the chat session that started the server", ()
     CLAUDECODE: "1",
     CLAUDE_CODE_SESSION_ID: "chat",
     CLAUDE_CODE_REMOTE_SESSION_ID: "cse_1",
+    CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH: "1",
+    CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH: "1",
   });
   assert.deepEqual(env, { PATH: "/bin", HOME: "/h" });
 });
