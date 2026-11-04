@@ -35,11 +35,14 @@ import { MIN, users } from './users.js';
 const SESSION_VARS = ['CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_REMOTE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION',
   'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_WORKER_EPOCH',
   'CLAUDE_AFTER_LAST_COMPACT', 'CLAUDE_EFFORT',
-  // the app renews its chats' sign-in when they ask over the line dropped above; left set, the answer
-  // asks the app, never hears back, and fails once the sign-in is old, instead of renewing it itself
+  // the app renews its chats' sign-in over the line dropped above; a child cut off from that line renews its own
   'CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH', 'CLAUDE_CODE_HOST_AUTH_REFRESH_TIMEOUT_MS',
   'CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH', 'CLAUDE_CODE_SDK_HAS_SESSIONS_OAUTH_REFRESH'];
 const READ = 'Read,Grep,Glob';
+// Claude Code keeps a sign-in of its own, apart from the Claude app's; when that one can no longer be renewed,
+// every answer fails until it is signed in again, however signed in the app is
+const SIGNED_OUT = 'Claude Code on this Mac is signed out, so it can\'t answer. Open Terminal, run `claude auth login`, sign in in the browser, then ask again.';
+const signedOut = (text) => /authenticat|oauth|\/login|not logged in|invalid api key/i.test(String(text ?? ''));
 function askClaude({ cwd, prompt, onText, onDone }) {
   const env = { ...process.env };
   for (const k of SESSION_VARS) delete env[k];
@@ -62,7 +65,8 @@ function askClaude({ cwd, prompt, onText, onDone }) {
       if (e?.type === 'message_start' && text) text += '\n\n';
       if (e?.type === 'content_block_delta' && e.delta?.text) { text += e.delta.text; onText(text); }
       // the finished reply is the last message's words, without "let me look" on the way there
-      if (d.type === 'result') end(d.is_error ? `Claude could not answer: ${d.result || 'an error'}` : String(d.result || text).trim());
+      if (d.type === 'result') end(!d.is_error ? String(d.result || text).trim()
+        : signedOut(d.result) ? SIGNED_OUT : `Claude could not answer: ${d.result || 'an error'}`);
     }
   });
   proc.on('close', () => end(text.trim() || 'Claude stopped before it answered. Ask again.'));

@@ -45,6 +45,8 @@ import {
 import {
   childEnv,
   priceOf,
+  SIGNED_OUT,
+  signedOut,
   type Spawn,
 } from "../server/providers/claude-code.ts";
 import type {
@@ -803,7 +805,13 @@ export function createSides(deps: SideDeps) {
       },
       now(),
     );
-    if (d.is_error) errors.set(id, "The side chat couldn't finish its answer.");
+    if (d.is_error)
+      errors.set(
+        id,
+        signedOut(d.result)
+          ? SIGNED_OUT
+          : "The side chat couldn't finish its answer.",
+      );
     else errors.delete(id);
     settle(id, !!d.is_error);
     l.idle = setTimeout(() => end(id), idleMs);
