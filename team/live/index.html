@@ -161,6 +161,7 @@ button,input,textarea{font:inherit;color:inherit}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
 #newbox input{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#newbox input.draft{caret-color:transparent;user-select:none;text-align:center}
 #newbox input::placeholder{font-weight:400;color:var(--text-3)}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
@@ -2539,7 +2540,8 @@ function topicDraft(n, child){
 }
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
-  naming = { view, ...at }; const el = $('newbox'), line = !!(at.from || at.edge);
+  const line = !!(at.from || at.edge);
+  naming = { view, ...at, untouched: !line && !at.edit }; const el = $('newbox');
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
     const parent = nodeById(at.link.id) || at.link;
@@ -2557,19 +2559,27 @@ function askName(at){
   cam.y += Math.max(60 - py, Math.min(0, r.height - 80 - py)); place();
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); i.value = at.text ?? (line ? '' : 'Topic'); i.focus(); i.select();
+  const i = el.querySelector('input'); i.value = at.text ?? (line ? '' : 'Topic'); i.focus();
+  if (naming.untouched) i.classList.add('draft'); else i.select();
+  const beginTyping = () => {
+    if (!naming?.untouched) return;
+    naming.untouched = false; i.value = ''; i.classList.remove('draft');
+  };
+  i.addEventListener('beforeinput', (e) => { if (e.inputType.startsWith('insert')) beginTyping(); });
+  i.addEventListener('compositionstart', beginTyping);
+  i.addEventListener('input', () => { if (naming){ naming.untouched = false; i.classList.remove('draft'); } });
   i.addEventListener('keydown', (e) => {
     e.stopPropagation(); if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape'){ e.preventDefault(); endName(false); }
     else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
       const current = naming, label = i.value.trim();
-      if (!label) return;
+      if (!label || current.untouched) return;
       const id = endName(true);
       const parent = current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null);
       topicDraft({ ...current, id, label, parent }, e.key === 'Tab' || !parent);
     } else if (e.key === 'Enter'){ e.preventDefault(); endName(true); }
-    else if (!line && !i.value && ['Backspace', 'Delete'].includes(e.key)){
+    else if (!line && (naming.untouched || !i.value) && ['Backspace', 'Delete'].includes(e.key)){
       e.preventDefault(); const current = naming; endName(false);
       if (current.edit){ const parent = topicParent(nodeById(current.edit)); deleteBox(current.edit); Promise.resolve().then(() => { selected = parent?.id || null; render(); }); }
     }
@@ -2580,7 +2590,7 @@ function endName(keep){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
-  if (!keep || (!at.from && !text)){
+  if (!keep || at.untouched || (!at.from && !text)){
     Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming){ selected = id || null; render(); } }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
