@@ -1002,7 +1002,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox']);
 const act = (type, extra = {}) => {
   if (FILE){ toast(FILE_SAYS); return Promise.resolve(); }
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
@@ -2311,7 +2311,7 @@ document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQue
 // key again, goes back to Select
 const TOOL_KEYS = { v: 'select', h: 'hand', r: 'box', a: 'arrow', c: 'comment' };
 document.addEventListener('keydown', (e) => {
-  if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable]')) return;
+  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable]')) return;
   const t = TOOL_KEYS[e.key.toLowerCase()];
   if (t){ e.preventDefault(); if (t !== 'select' && t !== 'hand' && PREVIEW){ toast(FROZEN_SAYS); return; } setTool(tool === t && t !== 'select' ? 'select' : t); }
 });
@@ -2334,11 +2334,12 @@ document.addEventListener('keydown', (e) => {
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
   if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
-  const n = nodeById(id); delAsk = null; if (selected === id) selected = null;
-  act('remove', { id }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+  const n = nodeById(id), parent = topicParent(n); delAsk = null; if (selected === id) selected = parent?.id || null;
+  pendingRemovals.add(id); hideRemoved(S);
+  act('remove', { id }).then((r) => { if (!r?.ok) toast('The box could not be deleted. Reload to try again.'); }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
 }
 document.addEventListener('keydown', (e) => {
-  if (e.target.closest('input, textarea') || PREVIEW) return;
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
   if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
@@ -2347,7 +2348,7 @@ document.addEventListener('keydown', (e) => {
   if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); delAsk = '*'; render(); return; }
   if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
-  e.preventDefault(); delAsk = n.id; render();
+  e.preventDefault(); if (!e.repeat) deleteBox(n.id);
 }, true);
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
@@ -2436,22 +2437,87 @@ function drawRubber(){
 }
 // a new box is named where it was drawn, a new line gets its words halfway along it; a double click on a line's
 // words (or on a line without words) changes them where they sit, empty takes them off. Enter keeps it, Esc lets it go
+// Keep the next editor ready while the previous box is being saved. A promise for its server-minted
+// id lets fast Tab/Enter sequences attach each new box to the right parent without losing keystrokes.
+const pendingRemovals = new Set();
+function hideRemoved(state){
+  const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
+  clean(state); for (const n of state.nodes) if (n.inside) clean(n.inside);
+}
+function topicParent(n){
+  if (!n) return null;
+  const all = view === 'system' ? S : nodeById(view)?.inside;
+  const edge = all?.edges?.find((e) => e.to === n.id && e.from !== n.id);
+  return edge ? nodeById(edge.from) : null;
+}
+function topicDraft(n, child){
+  const parent = child ? n : (n.parent ?? topicParent(n));
+  const right = !parent || n.x >= parent.x;
+  let x = child ? n.x + (right ? 1 : -1) * (W(n) / 2 + 140) : n.x;
+  let y = child ? n.y : n.y + HT(n) + 35;
+  const nodes = scope().nodes;
+  while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
+  if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
+  askName({ x, y, link: parent, keyboard: true, returnTo: n.id, view });
+}
 function askName(at){
-  naming = at; const el = $('newbox'), line = !!(at.from || at.edge);
+  naming = { view, ...at }; const el = $('newbox'), line = !!(at.from || at.edge);
+  // Bring the editor inside the visible canvas without zooming the rest of the map.
+  const r = canvas.getBoundingClientRect(), px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
+  cam.x += Math.max(100 - px, Math.min(0, r.width - 260 - px));
+  cam.y += Math.max(60 - py, Math.min(0, r.height - 80 - py)); place();
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
-  el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the new box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); if (at.text){ i.value = at.text; i.select(); } i.focus();
-  i.addEventListener('keydown', (e) => { if (e.key === 'Enter') endName(true); else if (e.key === 'Escape') endName(false); e.stopPropagation(); });
+  el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off">`;
+  const i = el.querySelector('input'); if (at.text != null){ i.value = at.text; i.select(); } i.focus();
+  i.addEventListener('keydown', (e) => {
+    e.stopPropagation(); if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape'){ e.preventDefault(); endName(false); }
+    else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
+      e.preventDefault(); if (e.repeat) return;
+      const current = naming, label = i.value.trim();
+      if (!label) return;
+      const id = endName(true);
+      topicDraft({ ...current, id, label, parent: current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null) }, e.key === 'Tab');
+    } else if (e.key === 'Enter'){ e.preventDefault(); endName(true); }
+    else if (!line && !i.value && ['Backspace', 'Delete'].includes(e.key)){
+      e.preventDefault(); const current = naming; endName(false);
+      if (current.edit) deleteBox(current.edit);
+    }
+  });
   i.addEventListener('blur', () => endName(true));
 }
 function endName(keep){
   const at = naming; if (!at) return; naming = null;
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
-  if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view }); return; }
-  if (!keep || (!at.from && !text)) return;
-  if (at.from) act('connect', { from: at.from.id, to: at.to.id, label: text, view });
-  else act('add', { label: text, x: at.x, y: at.y, ...(at.link ? { from: at.link.id, out: at.out, in: at.in } : {}), view });
+  if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
+  if (!keep || (!at.from && !text)){
+    Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming){ selected = id || null; render(); } }); return;
+  }
+  if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
+  const saved = (async () => {
+    const from = at.link ? await at.link.id : null;
+    if (at.link && !from) throw new Error('parent');
+    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
+    if (!r?.ok) throw new Error('save');
+    const result = await r.json(), id = at.edit || result.id;
+    if (!naming && view === at.view){ selected = id; render(); }
+    return id;
+  })().catch(() => { toast('The box could not be saved. Please try again.'); return null; });
+  return saved;
 }
+document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || group.size > 1 || pickedLine || delAsk || tool !== 'select') return;
+  const n = selected && nodeById(selected);
+  if (n && !locked(n) && !n.proposed){
+    if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){ e.preventDefault(); if (!e.repeat) topicDraft(n, e.key === 'Tab' || !topicParent(n)); }
+    else if (e.key === 'F2' || (e.key.length === 1 && e.key !== ' ')){
+      e.preventDefault(); askName({ x: n.x, y: n.y, edit: n.id, text: e.key === 'F2' ? n.label : e.key });
+      if (e.key !== 'F2'){ const i = $('newbox').querySelector('input'); i.setSelectionRange(i.value.length, i.value.length); }
+    }
+  } else if (!scope().nodes.length && e.key === 'Enter'){
+    e.preventDefault(); askName({ x: 0, y: 0, keyboard: true });
+  }
+}, true);
 
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false;
@@ -2847,6 +2913,8 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    for (const id of pendingRemovals) if (!next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === id)) pendingRemovals.delete(id);
+    hideRemoved(next);
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
       for (const m of drag.many || []){ const e = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === m.n.id); if (e){ e.x = m.n.x; e.y = m.n.y; m.n = e; } } }
     // a box or flow you are inside that no longer exists sends you back to the system

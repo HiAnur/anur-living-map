@@ -556,6 +556,7 @@ function openMap({ project = '', name = '', home }) {
       // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
       const from = a.from ? nodeOf(a.from) : null;
       if (from && (sees === 'all' || from.area === sees)) (inside ? (inside.edges ??= []) : state.edges).push({ from: from.id, to: id, ...(sideOf(a.out) ? { out: a.out } : {}), ...(sideOf(a.in) ? { in: a.in } : {}) });
+      a.created = id;
       tell(`${a.by} drew the box ${label}${from ? `, with a line from ${from.label}` : ''}`);
       return true;
     },
@@ -596,6 +597,13 @@ function openMap({ project = '', name = '', home }) {
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
       if (!unlinkEdge(from.id, to.id)) return false;
       tell(`${a.by} took the line ${from.label} → ${to.label} off the map`);
+      return true;
+    },
+    renamebox(a) {
+      const n = nodeOf(a.id), sees = seesOf(a.by), label = String(a.label || '').trim().slice(0, 80);
+      if (!n || !label || (sees !== 'all' && n.area !== sees)) return false;
+      n.label = label;
+      tell(`${a.by} renamed a box to ${label}`);
       return true;
     },
     remove(a) {
@@ -916,7 +924,7 @@ function openMap({ project = '', name = '', home }) {
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const ok = !!ACTS[a.type]?.(a);
       if (ok) { remember(a.type, a.by, big); save(); push(); }
-      res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? '{}' : '{"error":"no"}');
+      res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? JSON.stringify(a.created ? { id: a.created } : {}) : '{"error":"no"}');
       return true;
     }
     return false;
