@@ -2542,11 +2542,12 @@ function askName(at){
   naming = { view, ...at }; const el = $('newbox'), line = !!(at.from || at.edge);
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
-    const right = at.x >= at.link.x;
-    const a = sideAt(at.link, at.keyboard ? (right ? 'r' : 'l') : sideFacing(at.link, [at.x, at.y]));
-    const b = sideAt(ghost, at.keyboard ? (right ? 'l' : 'r') : sideFacing(ghost, [at.link.x, at.link.y]));
-    const bend = (a[0] + b[0]) / 2;
-    const path = at.keyboard ? `M${a[0]} ${a[1]}H${bend}V${b[1]}H${b[0]}` : `M${a[0]} ${a[1]}L${b[0]} ${b[1]}`;
+    const parent = nodeById(at.link.id) || at.link;
+    const nodes = [...scope().nodes.filter((n) => n.id !== parent.id), parent, ghost];
+    const pts = at.keyboard
+      ? (view === 'system' && crossLinks() ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
+      : [sideAt(parent, sideFacing(parent, [at.x, at.y])), sideAt(ghost, sideFacing(ghost, [parent.x, parent.y]))];
+    const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
 

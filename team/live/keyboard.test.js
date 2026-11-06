@@ -14,12 +14,13 @@ function harness(){
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:rubber,
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
-    W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
+    crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
     render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
     setTool(t){ctx.tool=t;}, toStage:(x,y)=>[x,y], locked:n=>!!n.locked,
     nodeById:id=>ctx.S.nodes.find(n=>n.id===id), scope:()=>ctx.S,
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
   });
+  vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
   const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.key(event(key))};
@@ -27,6 +28,10 @@ function harness(){
 describe('keyboard brainstorming',()=>{
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
     const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.input().selected).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
+  });
+  it('uses the saved branch stem for the new topic preview',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.key('Tab');
+    expect(h.rubber.innerHTML).toContain('M70 0L84 0L84 85L138 85');
   });
   it('R makes an unconnected editable Topic even with a box selected',()=>{
     const h=harness();h.key('r');expect(h.input().value).toBe('Topic');expect(h.ctx.naming.link).toBeUndefined();expect(h.ctx.naming.edit).toBeUndefined();
