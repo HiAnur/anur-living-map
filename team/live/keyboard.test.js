@@ -9,7 +9,7 @@ const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf(
 function harness(){
   let input, handler;
   const ctx = vm.createContext({ console, Promise, Set, Map });
-  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', focus(){}, select(){ this.selected = true; }, addEventListener(type, f){ if(type === 'keydown') this.key = f; } }; }, querySelector(){ return input; } };
+  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:rubber,
@@ -23,11 +23,27 @@ function harness(){
   vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
   const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
-  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.key(event(key))};
+  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
 }
 describe('keyboard brainstorming',()=>{
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
-    const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.input().selected).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
+    const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.ctx.naming.untouched).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
+  });
+  it('discards untouched drafts without saving on blur or either delete key',async()=>{
+    for (const key of ['blur','Backspace','Delete','Escape']){
+      const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');
+      if(key==='blur') h.blur();else h.edit(key);
+      await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);expect(h.rubber.innerHTML).toBe('');
+    }
+  });
+  it('does not save placeholders or make more drafts with Tab or Enter',()=>{
+    const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');const draft=h.ctx.naming;
+    h.edit('Tab');h.edit('Enter');expect(h.ctx.naming).toBe(draft);expect(calls).toEqual([]);
+  });
+  it('saves only entered names and discards names erased before saving',async()=>{
+    const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'typed'})};};
+    h.key('Tab');h.type('Sub-topic');h.blur();await Promise.resolve();await Promise.resolve();expect(calls[0][1].label).toBe('Sub-topic');
+    const empty=harness();empty.ctx.act=(...args)=>calls.push(args);empty.key('r');empty.type('');empty.blur();expect(calls).toHaveLength(1);
   });
   it('uses the saved branch stem for the new topic preview',()=>{
     const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.key('Tab');
@@ -43,7 +59,7 @@ describe('keyboard brainstorming',()=>{
     const h=harness();h.key('F2');expect(h.input().value).toBe('Root');h.input().value='Changed';h.edit('Escape');await Promise.resolve();expect(h.ctx.S.nodes[0].label).toBe('Root');expect(h.ctx.selected).toBe('root');
   });
   it('chains child creation to the saved parent id without waiting to type',async()=>{
-    const h=harness();h.key('Tab');h.input().value='Child';h.edit('Tab');expect(h.input().value).toBe('Sub-topic');expect(await h.ctx.naming.link.id).toBe('child');expect(h.rubber.innerHTML).toContain('marker-end');
+    const h=harness();h.key('Tab');h.type('Child');h.edit('Tab');expect(h.input().value).toBe('Sub-topic');expect(await h.ctx.naming.link.id).toBe('child');expect(h.rubber.innerHTML).toContain('marker-end');
   });
   it('Enter makes a sibling using the same parent',()=>{
     const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.selected='child';h.key('Enter');expect(h.ctx.naming.link.id).toBe('root');
