@@ -843,7 +843,7 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <span class="tb on" data-tool="select" title="Select (V)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg><kbd class="tk">V</kbd></span>
   <span class="tb" data-tool="hand" title="Pan: drag the map (H)"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg><kbd class="tk">H</kbd></span>
   <i class="tdiv"></i>
-  <span class="tb" data-tool="box" title="Box: drag one out, or click (R)"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">R</kbd></span>
+  <span class="tb" data-tool="box" title="Box: drag one out, or press R to type"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">R</kbd></span>
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">A</kbd></span>
   <i class="tdiv"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">C</kbd></span>
@@ -1012,6 +1012,8 @@ const act = (type, extra = {}) => {
   return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
 };
 
+let keyboardSelection = false;
+const lastTopics = new Map();
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {}, hereNow = [];
 // History: its versions, the one on show (null: the live map) and the live map underneath it
 let HIST = [], PREVIEW = null, LIVE = null, histAsk = 0;
@@ -1663,6 +1665,7 @@ function startLook(n, mine){
 }
 function render(){
   if (!S) return;
+  if (selected && nodeById(selected)) lastTopics.set(view, selected);
   const fb = flowBox();
   const db = !fb && diagramBox();
   if (db && !db.diagram && !diagramChange(db.id)){ view = 'system'; return render(); }
@@ -1944,6 +1947,7 @@ const openSecs = new Set();
 document.addEventListener('toggle', (e) => { const k = e.target?.dataset?.openKey; if (k) e.target.open ? openSecs.add(k) : openSecs.delete(k); }, true);
 function renderSide(){
   const el = $('side');
+  if (keyboardSelection){ el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
   el.classList.toggle('on', !!(n || pb));
   el.classList.remove('info');
@@ -2399,14 +2403,14 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
-// Delete or Backspace on a picked box asks once, right above the box: Enter deletes it, Esc keeps it
+// A single picked box is removed immediately; its parent remains selected. History can restore it.
 // several boxes picked with a selection drag: Delete asks once, above the top one, and takes them all off ('*')
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
   if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
   const n = nodeById(id), parent = topicParent(n); delAsk = null; if (selected === id) selected = parent?.id || null;
   pendingRemovals.add(id); hideRemoved(S);
-  act('remove', { id }).then((r) => { if (!r?.ok) toast('The box could not be deleted. Reload to try again.'); }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+  act('remove', { id }).then(async (r) => { if (!r?.ok){ pendingRemovals.delete(id); await refreshMap(); toast('The box could not be deleted. Please try again.'); } }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
 }
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
@@ -2418,7 +2422,7 @@ document.addEventListener('keydown', (e) => {
   if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); delAsk = '*'; render(); return; }
   if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
-  e.preventDefault(); if (!e.repeat) deleteBox(n.id);
+  e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox(n.id);
 }, true);
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
 const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
@@ -2510,6 +2514,9 @@ function drawRubber(){
 // Keep the next editor ready while the previous box is being saved. A promise for its server-minted
 // id lets fast Tab/Enter sequences attach each new box to the right parent without losing keystrokes.
 const pendingRemovals = new Set();
+async function refreshMap(){
+  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW) S = LIVE; render(); } catch {}
+}
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
   clean(state); for (const n of state.nodes) if (n.inside) clean(n.inside);
@@ -2528,17 +2535,29 @@ function topicDraft(n, child){
   const nodes = scope().nodes;
   while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
-  askName({ x, y, link: parent, keyboard: true, returnTo: n.id, view });
+  askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, view });
 }
 function askName(at){
+  keyboardSelection = true; renderSide(); fitPane();
   naming = { view, ...at }; const el = $('newbox'), line = !!(at.from || at.edge);
+  if (at.link){
+    const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
+    const parent = nodeById(at.link.id) || at.link;
+    const nodes = [...scope().nodes.filter((n) => n.id !== parent.id), parent, ghost];
+    const pts = at.keyboard
+      ? (view === 'system' && crossLinks() ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
+      : [sideAt(parent, sideFacing(parent, [at.x, at.y])), sideAt(ghost, sideFacing(ghost, [parent.x, parent.y]))];
+    const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
+    $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
+  }
+
   // Bring the editor inside the visible canvas without zooming the rest of the map.
   const r = canvas.getBoundingClientRect(), px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
   cam.x += Math.max(100 - px, Math.min(0, r.width - 260 - px));
   cam.y += Math.max(60 - py, Math.min(0, r.height - 80 - py)); place();
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); if (at.text != null){ i.value = at.text; i.select(); } i.focus();
+  const i = el.querySelector('input'); i.value = at.text ?? (line ? '' : 'Topic'); i.focus(); i.select();
   i.addEventListener('keydown', (e) => {
     e.stopPropagation(); if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape'){ e.preventDefault(); endName(false); }
@@ -2547,17 +2566,18 @@ function askName(at){
       const current = naming, label = i.value.trim();
       if (!label) return;
       const id = endName(true);
-      topicDraft({ ...current, id, label, parent: current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null) }, e.key === 'Tab');
+      const parent = current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null);
+      topicDraft({ ...current, id, label, parent }, e.key === 'Tab' || !parent);
     } else if (e.key === 'Enter'){ e.preventDefault(); endName(true); }
     else if (!line && !i.value && ['Backspace', 'Delete'].includes(e.key)){
       e.preventDefault(); const current = naming; endName(false);
-      if (current.edit) deleteBox(current.edit);
+      if (current.edit){ const parent = topicParent(nodeById(current.edit)); deleteBox(current.edit); Promise.resolve().then(() => { selected = parent?.id || null; render(); }); }
     }
   });
   i.addEventListener('blur', () => endName(true));
 }
 function endName(keep){
-  const at = naming; if (!at) return; naming = null;
+  const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
   if (!keep || (!at.from && !text)){
@@ -2575,17 +2595,49 @@ function endName(keep){
   })().catch(() => { toast('The box could not be saved. Please try again.'); return null; });
   return saved;
 }
+function selectTopic(id){
+  keyboardSelection = true; selected = id; render();
+  const n = nodeById(id), r = canvas.getBoundingClientRect();
+  if (n){ cam.x = r.width / 2 - n.x * cam.z; cam.y = r.height / 2 - n.y * cam.z; place(); }
+}
+// Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
+function keyboardNeighbor(n, key){
+  const [dx, dy] = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
+  return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed)
+    .map((b) => { const x = b.x - n.x, y = b.y - n.y; return { b, ahead: x * dx + y * dy, across: Math.abs(x * dy - y * dx) }; })
+    .filter((p) => p.ahead > 0).sort((a, b) => (a.ahead + a.across * 3) - (b.ahead + b.across * 3))[0]?.b;
+}
 document.addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || group.size > 1 || pickedLine || delAsk || tool !== 'select') return;
-  const n = selected && nodeById(selected);
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
+  let n = selected && nodeById(selected);
+  if (!n && e.key === 'Tab' && !e.shiftKey){
+    const nodes = scope().nodes.filter((b) => !locked(b) && !b.proposed);
+    n = nodes.find((b) => b.id === lastTopics.get(view)) || nodes.find((b) => b.id === fold.start) || nodes[0];
+    e.preventDefault(); if (e.repeat) return;
+    setTool('select');
+    if (!n){ askName({ x: 0, y: 0, keyboard: true, text: 'Topic' }); return; }
+    selectTopic(n.id); topicDraft(n, true); return;
+  }
+  if (e.key.toLowerCase() === 'r'){
+    e.preventDefault(); if (e.repeat) return;
+    setTool('select');
+    const r = canvas.getBoundingClientRect(), [x, y] = toStage(r.left + r.width / 2, r.top + r.height / 2);
+    let at = { x: n ? n.x : x, y: n ? n.y + HT(n) + 35 : y };
+    while (scope().nodes.some((b) => Math.abs(b.x - at.x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - at.y) < (HT(b) + 50) / 2 + 20)) at.y += 85;
+    askName({ ...at, keyboard: true, returnTo: n?.id, text: 'Topic' }); return;
+  }
+  if (tool !== 'select') return;
   if (n && !locked(n) && !n.proposed){
     if ((e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){ e.preventDefault(); if (!e.repeat) topicDraft(n, e.key === 'Tab' || !topicParent(n)); }
-    else if (e.key === 'F2' || (e.key.length === 1 && e.key !== ' ')){
-      e.preventDefault(); askName({ x: n.x, y: n.y, edit: n.id, text: e.key === 'F2' ? n.label : e.key });
-      if (e.key !== 'F2'){ const i = $('newbox').querySelector('input'); i.setSelectionRange(i.value.length, i.value.length); }
+    else if (e.key === 'F2'){ e.preventDefault(); askName({ x: n.x, y: n.y, edit: n.id, text: n.label }); }
+    else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)){
+      e.preventDefault(); const next = keyboardNeighbor(n, e.key); if (next) selectTopic(next.id);
     }
-  } else if (!scope().nodes.length && e.key === 'Enter'){
-    e.preventDefault(); askName({ x: 0, y: 0, keyboard: true });
+  } else if (e.key === 'Enter' && !scope().nodes.length){
+    e.preventDefault(); askName({ x: 0, y: 0, keyboard: true, text: 'Topic' });
+  } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)){
+    const first = scope().nodes.find((b) => !locked(b) && !b.proposed);
+    if (first){ e.preventDefault(); selectTopic(first.id); }
   }
 }, true);
 
@@ -2699,6 +2751,7 @@ let lastTap = { id: null, at: 0 };
 const DBL = 320;
 let tapTimer = null;
 const pick = (n) => {
+  keyboardSelection = false;
   clearTimeout(tapTimer);
   const go = () => { selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); };
   if (n.inside || n.diagram) tapTimer = setTimeout(go, DBL); else go();
