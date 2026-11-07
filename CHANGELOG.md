@@ -21,7 +21,7 @@ Changes sync when your Mac reconnects, and **Turn off link** revokes access.
 <dt><strong>✨ [New feature] Shipping log on the website</strong></dt>
 <dd>
 
-Open **Docs** in the Living Map website sidebar to read the latest entries from GitHub. [Website update](https://github.com/HiAnur/hianur.com/commit/12ddc03) <!-- merged-at: 2026-11-07T18:56:21Z -->
+Open **Shipping log** in the Living Map website sidebar to read the latest entries from GitHub. [Website update](https://github.com/HiAnur/hianur.com/commit/12ddc03) <!-- merged-at: 2026-11-07T18:56:21Z -->
 
 </dd>
 </dl>
