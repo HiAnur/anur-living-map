@@ -5,6 +5,26 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Edit descriptions on the map</strong></dt>
+<dd>
+
+Double-click a box’s title to rename it, or its description to edit that text in place. [#151](https://github.com/HiAnur/anur-living-map/pull/151) <!-- merged-at: 2026-11-07T19:48:37Z -->
+
+<img src="docs/shipping/2026-11-07/canvas-description-edit.png" alt="A connected box on the map with its lower description selected for editing and its title still visible above." width="640">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] Aligned branch lines</strong></dt>
+<dd>
+
+Two-child branches share one vertical stem, even when their boxes have different widths. [#151](https://github.com/HiAnur/anur-living-map/pull/151) <!-- merged-at: 2026-11-07T19:48:37Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] Cloud sharing</strong></dt>
 <dd>
 
