@@ -13,9 +13,12 @@ describe('pointer tool shortcut',()=>{
     });
     vm.runInContext(html.slice(html.indexOf('function setTool('),html.indexOf('\n',html.indexOf('function setTool('))),ctx);
     vm.runInContext(html.slice(html.indexOf('const TOOL_KEYS ='),html.indexOf("document.addEventListener('keydown', (e) => { if (e.key === 'Escape'){ draft")),ctx);
-    handler({key:'v',code:'KeyV',target:{closest:()=>false},preventDefault(){}});
+    handler({key:'v',code:'KeyV',metaKey:true,target:{closest:()=>false},preventDefault(){}});
     expect(ctx.tool).toBe('select');expect(ctx.spaceDown).toBe(false);expect(ctx.panning).toBeNull();expect([...active]).toEqual(['select']);expect(classes.size).toBe(0);
-    ctx.tool='hand';handler({key:'v',code:'KeyV',target:{closest:()=>true},preventDefault(){}});expect(ctx.tool).toBe('hand');
+    for(const key of ['a','h','c']){handler({key,metaKey:true,target:{closest:()=>false},preventDefault(){}});expect(ctx.tool).toBe({a:'arrow',h:'hand',c:'comment'}[key]);}
+    handler({key:'a',target:{closest:()=>false},preventDefault(){}});expect(ctx.tool).toBe('comment');
+    for(const key of ['a','c','v']){handler({key,metaKey:true,target:{closest:()=>true},preventDefault(){throw Error('Text shortcut intercepted');}});expect(ctx.tool).toBe('comment');}
+    ctx.tool='hand';handler({key:'v',code:'KeyV',metaKey:true,target:{closest:()=>true},preventDefault(){}});expect(ctx.tool).toBe('hand');
   });
 });
 
