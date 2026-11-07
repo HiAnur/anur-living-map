@@ -16,12 +16,13 @@ export function reparentTopic(state, a, canEdit = () => true) {
   const all = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
   const graph = !a.view || a.view === 'system' ? state : all.find((n) => n.id === a.view)?.inside;
   if (!graph) return false;
-  const node = graph.nodes.find((n) => n.id === a.id), parent = graph.nodes.find((n) => n.id === a.parent);
-  if (!node || !parent || !canEdit(parent)) return false;
-  const branch = branchIds(state, [node.id]);
+  const roots = a.ids || [a.id], parent = graph.nodes.find((n) => n.id === a.parent);
+  if (!Array.isArray(roots) || !roots.length || new Set(roots).size !== roots.length || roots.some((id) => !graph.nodes.some((n) => n.id === id)) || !parent || !canEdit(parent)) return false;
+  if (roots.some((id) => roots.some((other) => other !== id && branchIds(state,[other]).has(id)))) return false;
+  const branch = branchIds(state, roots);
   if (branch.has(parent.id) || [...branch].some((id) => !all.find((n) => n.id === id && canEdit(n)))) return false;
-  const incoming = (graph.edges || []).filter((e) => e.to === node.id);
-  if (!Array.isArray(a.parents) || JSON.stringify(incoming.map((e) => e.from).sort()) !== JSON.stringify([...a.parents].sort())) return false;
+  const incoming = (graph.edges || []).filter((e) => roots.includes(e.to));
+  if (roots.some((id) => { const parents = a.ids ? a.parentsById?.[id] : a.parents; return !Array.isArray(parents) || JSON.stringify(incoming.filter((e) => e.to === id).map((e) => e.from).sort()) !== JSON.stringify([...parents].sort()); })) return false;
   if (incoming.some((e) => !all.find((n) => n.id === e.from && canEdit(n)))) return false;
   const moves = a.moves;
   if (!Array.isArray(moves) || !moves.length || moves.length > graph.nodes.length || new Set(moves.map((m) => m?.id)).size !== moves.length) return false;
@@ -31,7 +32,7 @@ export function reparentTopic(state, a, canEdit = () => true) {
     return !n || !canEdit(n) || ![m.fromX, m.fromY, m.x, m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY;
   })) return false;
   for (const m of moves) Object.assign(graph.nodes.find((n) => n.id === m.id), { x: Math.round(m.x), y: Math.round(m.y), moved: true });
-  graph.edges = [...(graph.edges || []).filter((e) => e.to !== node.id), { from: parent.id, to: node.id }];
+  graph.edges = [...(graph.edges || []).filter((e) => !roots.includes(e.to)), ...roots.map((id) => ({from:parent.id,to:id}))];
   return true;
 }
 // Dates describe edits; they must not make an otherwise unchanged undo conflict.
