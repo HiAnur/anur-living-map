@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>Auto plan finds gaps across a branch</strong></dt>
+<dd>
+
+Auto plan uses the whole map from any box and places missing topics under the relevant child or descendant. [#156](https://github.com/HiAnur/anur-living-map/pull/156) <!-- merged-at: 2026-11-07T23:06:05Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Claude's map tools work again after sign-in</strong></dt>
 <dd>
 
