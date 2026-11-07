@@ -3149,7 +3149,7 @@ document.addEventListener('click', (e) => {
   // a tool pressed again goes back to Select
   else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
   // Tidy up lays out what you can see: boxes folded away take no room
-  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view, only: scope().nodes.filter((n) => !n.proposed).map((n) => n.id) }); }
+  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) { const nodes = scope().nodes.filter((n) => !n.proposed); act('tidy', { view, only: nodes.map((n) => n.id), sizes: nodes.map((n) => ({id:n.id,w:W(n),h:HT(n)})) }); } }
   else if (t.id === 'fitb'){ fit(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }

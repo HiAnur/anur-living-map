@@ -687,8 +687,9 @@ function openMap({ project = '', name = '', home }) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
+      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((s) => [s.id, {w:s.w, h:s.h}]));
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start)) tidy(list, edges, only);
+      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start, sizes)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },

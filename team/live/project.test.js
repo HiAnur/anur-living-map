@@ -25,6 +25,35 @@ const column = (nodes, side) => nodes.filter((n) => ['who', 'where', 'seller', '
   .filter((n) => Math.sign(n.x - 70) === side).sort((a, b) => a.y - b.y).map((n) => n.id);
 
 describe('tidyTree', () => {
+  it('shortens plain connections and packs sibling branches with room between boxes', () => {
+    const nodes = [{id:'root',x:0,y:0}, {id:'a',x:340,y:-150}, {id:'b',x:340,y:0}, {id:'c',x:340,y:150}, {id:'leaf',x:680,y:0}];
+    const edges = ['a','b','c'].map(to=>({from:'root',to}));edges.push({from:'b',to:'leaf'});
+    tidyTree(nodes, edges);
+    expect(get(nodes,'a').x - 140).toBe(70);
+    expect(get(nodes,'leaf').x - get(nodes,'b').x - 140).toBe(70);
+    expect(get(nodes,'b').y - get(nodes,'a').y - 50).toBe(35);
+    expect(get(nodes,'c').y - get(nodes,'b').y - 50).toBe(35);
+    const once=at(nodes);tidyTree(nodes,edges);expect(at(nodes)).toEqual(once);
+  });
+
+  it('reserves room for measured tall names throughout their branch without spreading other siblings', () => {
+    const nodes=[{id:'root',x:0,y:0},{id:'tall',x:340,y:-150},{id:'a',x:340,y:0},{id:'b',x:340,y:150},{id:'child',x:680,y:-150}];
+    const edges=['tall','a','b'].map(to=>({from:'root',to}));edges.push({from:'tall',to:'child'});
+    const sizes=new Map([['tall',{w:220,h:186}],['child',{w:220,h:220}]]);
+    const layout=()=>tidyTree(nodes,edges,null,n=>Number.isFinite(n.x),null,sizes);layout();
+    expect(get(nodes,'a').y-get(nodes,'tall').y).toBeGreaterThanOrEqual(186/2+50/2+35);
+    expect(get(nodes,'b').y-get(nodes,'a').y).toBe(85);
+    expect(get(nodes,'child').y).toBe(get(nodes,'tall').y);
+    expect(get(nodes,'tall').x-70-110).toBe(70);
+    const once=at(nodes);layout();expect(at(nodes)).toEqual(once);
+  });
+
+  it('keeps room for connection labels when the default horizontal gap is compact', () => {
+    const nodes=[{id:'root',x:0,y:0},{id:'child',x:340,y:0}], label='A longer connection label';
+    tidyTree(nodes,[{from:'root',to:'child',label}]);
+    expect(get(nodes,'child').x-140).toBeGreaterThanOrEqual(2*label.length*6.8+31);
+  });
+
   it('moves nothing the second time it runs', () => {
     const { nodes, edges } = gtm();
     expect(tidyTree(nodes, edges)).toBe(true);
@@ -86,10 +115,10 @@ describe('tidyTree', () => {
     const { nodes, edges } = gtm();
     tidyTree(nodes, edges);
     const who = get(nodes, 'who'), kids = ['owner', 'developer', 'founder'].map((id) => get(nodes, id));
-    expect(kids.map((k) => k.y)).toEqual([who.y - 150, who.y, who.y + 150]);
+    expect(kids.map((k) => k.y)).toEqual([who.y - 85, who.y, who.y + 85]);
     const right = nodes.filter((n) => n.x === who.x && n !== who);
     // the boxes beside Who in its column sit outside its children's rows
-    for (const n of right) expect(Math.abs(n.y - who.y)).toBeGreaterThan(150);
+    for (const n of right) expect(Math.abs(n.y - who.y)).toBeGreaterThan(85);
   });
 
   it('lays a new map out clockwise in the order it was drawn, balanced, with boxes that belong together side by side', () => {
@@ -117,7 +146,7 @@ describe('tidyTree', () => {
     const right = column(nodes, 1);
     expect(right.indexOf('discount')).toBe(-1);
     expect(nodes.find((n) => n.id === 'discount').x).toBe(get(nodes, 'offer').x);
-    expect(get(nodes, 'discount').y).toBe(get(nodes, 'offer').y + 150);
+    expect(get(nodes, 'discount').y).toBe(get(nodes, 'offer').y + 85);
     expect(column(nodes, -1)[0]).toBe('extra');
   });
 
