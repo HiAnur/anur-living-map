@@ -1,6 +1,6 @@
 ## What
 
-<!-- One or two lines -->
+<!-- One or two lines. Update CHANGELOG.md for this change, or explain why no entry is needed. -->
 
 ## Why
 
