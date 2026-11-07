@@ -32,7 +32,7 @@ The other map in this repo: one Claude Code chat as a mind map beside it, so you
 
 ## What changed
 
-Read the [Daily shipping log](CHANGELOG.md) for concise feature and fix updates, with screenshots for bigger changes.
+Read the [Shipping log](CHANGELOG.md) for concise feature and fix updates, with screenshots for bigger changes.
 
 ## Contributing
 

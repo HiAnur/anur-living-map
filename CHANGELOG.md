@@ -1,4 +1,4 @@
-# Daily shipping log
+# Shipping log
 
 What changed in Living Map, newest first. Dates use America/Los_Angeles. “Shipped” means merged into the release and verified in the running app; installed copies receive it when they update. Pending work is labelled separately.
 

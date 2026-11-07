@@ -25,9 +25,9 @@
 - Tick every Risk box that applies and say why under it; leave the rest unticked.
 - Do not wait for reviews after opening the PR. As your last step, check once for comments from people: `python3 .github/agent-tools/pr_feedback.py list <pr>`. If it lists any, follow the `addressing-pr-reviews` skill.
 
-## Daily shipping log
+## Shipping log
 
-- Before every push, review the change for the daily log in `CHANGELOG.md`. Add or update a concise entry for each user-visible feature or fix; group small layout, wording and maintenance changes into one-line bullets. A push that only corrects the log does not need another entry.
+- Before every push, review the change for the shipping log in `CHANGELOG.md`. Add or update a concise entry for each user-visible feature or fix; group small layout, wording and maintenance changes into one-line bullets. A push that only corrects the log does not need another entry.
 - Use the deployment date in America/Los_Angeles, newest day first. Say what changed for the person using the app and where to find it, in one or two sentences. Link the PR or commit. Update the existing entry for the same change instead of duplicating it on every push.
 - Draft the entry with the implementation. Label it Pending until deployment is verified, then mark it Shipped and correct the date if needed. A branch push or passing test alone is not a deployment; name the verified target if rollout is limited.
 - For a significant visual feature or interaction change, attach screenshots under `docs/shipping/` showing where it is and what changed. Prefer before and after views when available; otherwise show the result and briefly describe the previous behavior. Use a sample map without private content. Frame the feature with the nearby context that locates it, such as the selected map box and its right-hand details panel. Do not isolate a field so tightly that readers cannot tell where it lives. Trim unrelated browser chrome and controls, and keep the displayed image compact and readable. Small changes only need text.
