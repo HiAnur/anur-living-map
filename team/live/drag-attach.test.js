@@ -54,6 +54,7 @@ describe('drag attachment preview',()=>{
     h.ctx.moveTopicDrag(240,170);
     expect(h.state).toEqual(before);expect(h.ctx.drag.at).toEqual({x:240,y:170});expect(h.ctx.drag.attach.parent).toBe('new');
     expect(h.rubber.innerHTML).toContain('class="drag-source"');expect(h.rubber.innerHTML).toContain('class="drag-ghost"');expect(h.rubber.innerHTML).toContain('class="attach-box"');
+    expect(h.rubber.innerHTML.match(/class="drag-ghost-box"/g)).toHaveLength(2);expect(h.rubber.innerHTML).toContain('class="drag-ghost-label"');
     h.ctx.moveTopicDrag(1100,900);expect(h.state).toEqual(before);expect(h.ctx.drag.attach).toBeNull();
     h.ctx.cancelTopicDrag();expect(h.state).toEqual(before);expect(h.rubber.innerHTML).toBe('');
   });

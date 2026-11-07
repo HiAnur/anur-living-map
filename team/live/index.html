@@ -148,8 +148,9 @@ button,input,textarea{font:inherit;color:inherit}
 #rubber .attach-box{fill:var(--box);fill-opacity:.85;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-line{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .drag-source{fill:var(--new-tint);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
-#rubber .drag-ghost{opacity:.45}
-#rubber .drag-ghost text{fill:var(--new);font:500 13.5px var(--plex);text-anchor:middle;dominant-baseline:middle}
+#rubber .drag-ghost{opacity:.75}
+#rubber .drag-ghost-box{fill:var(--box);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
+#rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
@@ -3086,7 +3087,7 @@ function previewTopicAttach(sx, sy){
   const visible = new Set(scope().nodes.map((n) => n.id));
   const outline = drag.source.nodes.filter((n) => ids.has(n.id) && visible.has(n.id)).map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
   const at = drag.at || {x:sx,y:sy}, n = drag.n;
-  const floating = `<g class="drag-ghost">${drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id)).map((b) => { const m = drag.freeMoves?.find((m) => m.id === b.id); return `<text x="${m?.x ?? b.x+at.x-n.x}" y="${m?.y ?? b.y+at.y-n.y}">${esc(b.label)}</text>`; }).join('')}</g>`;
+  const floating = `<g class="drag-ghost">${drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id)).map((b) => { const m = drag.freeMoves?.find((m) => m.id === b.id); const x = m?.x ?? b.x+at.x-n.x, y = m?.y ?? b.y+at.y-n.y, w = W(b), h = HT(b); return `<rect class="drag-ghost-box" x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="6"/><foreignObject x="${x-w/2+12}" y="${y-h/2+8}" width="${w-24}" height="${h-16}"><div xmlns="http://www.w3.org/1999/xhtml" class="drag-ghost-label">${esc(b.label)}</div></foreignObject>`; }).join('')}</g>`;
   const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
