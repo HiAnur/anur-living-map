@@ -2622,7 +2622,9 @@ function drawRubber(){
 // id lets fast Tab/Enter sequences attach each new box to the right parent without losing keystrokes.
 const pendingRemovals = new Set();
 const pendingTopics = new Set();
+const topicIds = new Map();
 let nameSession = 0;
+let topicSaveQueue = Promise.resolve();
 async function refreshMap(){
   try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW) S = LIVE; render(); } catch {}
 }
@@ -2636,16 +2638,76 @@ function topicParent(n){
   const edge = all?.edges?.find((e) => e.to === n.id && e.from !== n.id);
   return edge ? nodeById(edge.from) : null;
 }
+// Insert into the parent's branch, then push later sibling branches down as whole units.
+// Existing columns, branch order, and the other side of the root keep their places.
+function planTopicInsert(nodes, edges, parentId, afterId, x, label = 'Sub-topic'){
+  const by = new Map(nodes.map((n) => [n.id, { ...n }])), parents = new Map(), kids = new Map();
+  for (const e of edges){
+    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || parents.has(e.to)) continue;
+    let up = e.from; while (parents.has(up) && up !== e.to) up = parents.get(up);
+    if (up !== e.to) parents.set(e.to, e.from);
+  }
+  for (const [id, parent] of parents){ if (!kids.has(parent)) kids.set(parent, []); kids.get(parent).push(id); }
+  for (const list of kids.values()) list.sort((a, b) => by.get(a).y - by.get(b).y);
+  const parent = by.get(parentId); if (!parent) return null;
+  const side = (id, p) => by.get(id).x < p.x ? -1 : 1, direction = x < parent.x ? -1 : 1;
+  const siblings = (kids.get(parentId) || []).filter((id) => side(id, parent) === direction);
+  const subtree = (id) => { const out = [id]; for (let i = 0; i < out.length; i++) out.push(...(kids.get(out[i]) || [])); return out; };
+  const top = (id) => Math.min(...subtree(id).map((k) => by.get(k).y - HT(by.get(k)) / 2));
+  const bottom = (id) => Math.max(...subtree(id).map((k) => by.get(k).y + HT(by.get(k)) / 2));
+  const previous = afterId && siblings.includes(afterId) ? afterId : siblings.at(-1);
+  const fresh = {}, node = { id: fresh, x, y: previous ? bottom(previous) + 35 + HT({label}) / 2 : parent.y, label };
+  by.set(fresh, node); parents.set(fresh, parentId);
+  const list = kids.get(parentId) || [], index = previous ? list.indexOf(previous) + 1 : list.length;
+  list.splice(index, 0, fresh); kids.set(parentId, list);
+  const center = (id) => {
+    if (!parents.has(id)) return;
+    const list = kids.get(id) || []; if (!list.length) return;
+    by.get(id).y = (by.get(list[0]).y + by.get(list.at(-1)).y) / 2;
+  };
+  let active = fresh;
+  while (parents.has(active)){
+    const up = parents.get(active), p = by.get(up), same = (kids.get(up) || []).filter((id) => side(id, p) === side(active, p));
+    let floor = bottom(active);
+    for (const id of same.slice(same.indexOf(active) + 1)){
+      const dy = Math.max(0, floor + 35 - top(id));
+      for (const k of subtree(id)) by.get(k).y += dy;
+      floor = bottom(id);
+    }
+    center(up); active = up;
+  }
+  return { x: node.x, y: Math.round(node.y), moves: nodes.filter((n) => Math.round(by.get(n.id).y) !== n.y).map((n) => ({ id: n.id, fromY: n.y, y: Math.round(by.get(n.id).y) })) };
+}
+function topicGraph(){
+  for (const n of pendingTopics) if (n.id && nodeById(n.id)) pendingTopics.delete(n);
+  const all = view === 'system' ? S : nodeById(view)?.inside || {nodes:[],edges:[]};
+  const pending = [...pendingTopics].filter((n) => n.view === view), aliases = new Map(pending.filter((n) => n.id).map((n) => [n.saved, n.id]));
+  const key = (id) => aliases.get(id) || topicIds.get(id) || id;
+  return { nodes: [...all.nodes, ...pending.filter((n) => !n.id || !nodeById(n.id)).map((n) => ({...n, id:key(n.id || n.saved)}))],
+    edges: [...(all.edges || []), ...pending.filter((n) => n.link).map((n) => ({from:key(n.link.id),to:key(n.id || n.saved)}))], key };
+}
+function moveTopicPreview(moves, undo = false){
+  for (const m of moves || []){
+    const n = nodeById(topicIds.get(m.id) || m.id) || [...pendingTopics].find((n) => n.id === m.id || n.saved === m.id);
+    if (n && n.y === (undo ? m.y : m.fromY)) n.y = undo ? m.fromY : m.y;
+  }
+}
+function updateTopicLayout(at, label = 'Sub-topic'){
+  moveTopicPreview(at.reflow, true);
+  const graph = topicGraph(), plan = planTopicInsert(graph.nodes, graph.edges, graph.key(at.link.id), graph.key(at.after), at.x, label);
+  if (!plan) return;
+  Object.assign(at, plan, {reflow:plan.moves}); moveTopicPreview(at.reflow); render();
+}
 function topicDraft(n, child){
   const parent = child ? n : (n.parent ?? topicParent(n));
-  const right = !parent || n.x >= parent.x;
-  let x = child ? n.x + (right ? 1 : -1) * (W(n) / 2 + 140) : n.x;
-  let y = child ? n.y : n.y + HT(n) + 35;
-  for (const n of pendingTopics) if (n.id && nodeById(n.id)) pendingTopics.delete(n);
-  const nodes = [...scope().nodes, ...[...pendingTopics].filter((n) => n.view === view)];
-  while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
+  const graph = topicGraph(), current = graph.nodes.find((b) => b.id === graph.key(n.id)) || n;
+  const above = child ? topicParent(current) : parent;
+  const right = !above || current.x >= above.x;
+  const children = graph.edges.filter((e) => e.from === graph.key(parent?.id)).map((e) => graph.nodes.find((b) => b.id === e.to)).filter((b) => b && (b.x >= parent.x) === right).sort((a,b) => a.y-b.y);
+  const x = child ? children[0]?.x ?? current.x + (right ? 1 : -1) * (W(current) / 2 + 140) : current.x;
+  const at = { x, y:current.y, link:parent, after:child ? null : n.id, keyboard:true, text:'Sub-topic', returnTo:n.id, returnTopic:n, view };
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
-  askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, returnTopic: n, view });
+  updateTopicLayout(at); askName(at);
 }
 function keepEditorVisible(at, width, height){
   const r = canvas.getBoundingClientRect();
@@ -2657,10 +2719,7 @@ function keepEditorVisible(at, width, height){
   cam.y += Math.max(16 + halfH, Math.min(bottom - halfH, py)) - py;
   place();
 }
-function askName(at){
-  keyboardSelection = true; renderSide(); fitPane();
-  const line = !!(at.from || at.edge);
-  naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
+function drawTopicArrow(at){
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
     const parent = nodeById(at.link.id) || at.link;
@@ -2671,6 +2730,12 @@ function askName(at){
     const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
+}
+function askName(at){
+  keyboardSelection = true; renderSide(); fitPane();
+  const line = !!(at.from || at.edge);
+  naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
+  drawTopicArrow(at);
 
   // Account for the whole zoomed editor and the controls covering the canvas.
   const width = line ? 220 : 140, height = line ? 36 : 50;
@@ -2681,6 +2746,7 @@ function askName(at){
   const i = el.querySelector('input, textarea'); i.value = at.text ?? (line ? '' : 'Topic');
   const resizeName = () => {
     if (line) return;
+    if (naming?.keyboard && naming.link){ updateTopicLayout(naming, i.value); at = naming; el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; drawTopicArrow(at); }
     const width = W({ ...nodeById(at.edit), label: i.value });
     el.style.width = `${width}px`; i.style.height = '0px';
     const height = Math.max(50, i.scrollHeight + 3);
@@ -2727,21 +2793,24 @@ function endName(keep, restore = true){
   const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
   if (!keep || (!at.from && !text)){
+    moveTopicPreview(at.reflow, true); render();
     if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
   const pending = { ...at, label: text }; if (!at.edit) pendingTopics.add(pending);
-  const saved = (async () => {
+  const saved = topicSaveQueue.then(async () => {
     const from = at.link ? await at.link.id : null;
     if (at.link && !from) throw new Error('parent');
-    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
+    const reflow = await Promise.all((at.reflow || []).map(async (m) => ({...m, id:await m.id})));
+    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(reflow.length ? {reflow} : {}), ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
-    pending.id = id;
+    pending.id = id; topicIds.set(saved, id);
+    if (naming){ for (const n of pendingTopics) moveTopicPreview(n.reflow); moveTopicPreview(naming.reflow); render(); drawTopicArrow(naming); }
     if (restore && at.session === nameSession && !naming && view === at.view){ selected = id; render(); }
     return id;
-  })().catch(() => { pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
-  pending.saved = saved; return saved;
+  }).catch(() => { moveTopicPreview(at.reflow, true); refreshMap(); pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
+  topicSaveQueue = saved; pending.saved = saved; return saved;
 }
 function selectTopic(id, fallback){
   keyboardSelection = true; selected = id; render();
@@ -3229,7 +3298,9 @@ function listen(){
     const ae = document.activeElement;
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next; render();
+    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next;
+    if (!PREVIEW){ for (const n of pendingTopics) moveTopicPreview(n.reflow); if (naming) moveTopicPreview(naming.reflow); }
+    render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (first){ first = false; fit(); }

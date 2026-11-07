@@ -106,12 +106,34 @@ describe('keyboard brainstorming',()=>{
     expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.x).toBe(first.x);expect(h.ctx.naming.y).toBeGreaterThan(first.y);
     release();await new Promise(setImmediate);expect(h.ctx.naming).not.toBeNull();expect(calls[0][1].from).toBe('root');
   });
+  it('previews lower branches moving and restores them when the new topic is cancelled',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    h.key('Tab');expect(h.ctx.naming.y).toBe(85);expect(h.ctx.nodeById('two').y).toBe(170);expect(h.ctx.nodeById('b').y).toBe(170);
+    h.edit('Escape');expect(h.ctx.nodeById('one').y).toBe(0);expect(h.ctx.nodeById('two').y).toBe(85);expect(h.ctx.nodeById('b').y).toBe(85);
+  });
+  it('saves the insertion and all shifted boxes as one add action',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'new'})};};h.key('Tab');h.blur();await new Promise(setImmediate);
+    expect(calls).toHaveLength(1);expect(calls[0][0]).toBe('add');expect(calls[0][1].reflow).toContainEqual({id:'two',fromY:85,y:170});expect(calls[0][1].reflow).toContainEqual({id:'b',fromY:85,y:170});
+  });
+  it('keeps rapid sibling insertions ordered while previous layouts are still saving',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    const state=structuredClone(h.ctx.S);let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,a)=>{await gate;calls.push(a);for(const m of a.reflow||[]){const n=state.nodes.find(n=>n.id===m.id);expect(n.y).toBe(m.fromY);n.y=m.y;}
+      const id=`new-${calls.length}`;state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});h.ctx.S=structuredClone(state);return {ok:true,json:async()=>({id})};};
+    h.key('Tab');h.edit('Enter');h.edit('Enter');h.blur();release();await new Promise(setImmediate);
+    expect(calls.map(a=>a.y)).toEqual([85,170,255]);expect(calls.map(a=>a.from)).toEqual(['one','one','one']);
+    expect(state.nodes.find(n=>n.id==='two').y).toBe(340);expect(state.nodes.find(n=>n.id==='b').y).toBe(340);
+  });
   it('arrows preserve the text editor once typing starts',()=>{
     const h=harness();h.key('Tab');h.type('Typed');const draft=h.ctx.naming;h.edit('ArrowLeft');expect(h.ctx.naming).toBe(draft);expect(h.input().value).toBe('Typed');
   });
   it('saves only entered names and discards names erased before saving',async()=>{
     const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'typed'})};};
-    h.key('Tab');h.type('Sub-topic');h.blur();await Promise.resolve();await Promise.resolve();expect(calls[0][1].label).toBe('Sub-topic');
+    h.key('Tab');h.type('Sub-topic');h.blur();await new Promise(setImmediate);expect(calls[0][1].label).toBe('Sub-topic');
     const empty=harness();empty.ctx.act=(...args)=>calls.push(args);empty.key('r');empty.type('');empty.blur();expect(calls).toHaveLength(1);
   });
   it('uses the saved branch stem for the new topic preview',()=>{
