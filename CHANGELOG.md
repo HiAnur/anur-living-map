@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>Claude's map tools work again after sign-in</strong></dt>
+<dd>
+
+The living_map_read and living_map_change tools in your Claude chats, and the map's listener, reach the map server again instead of being refused as signed out. [#147](https://github.com/HiAnur/anur-living-map/pull/147) <!-- merged-at: 2026-11-07T19:34:30Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Copy links with placeholders in map text</strong></dt>
 <dd>
 
