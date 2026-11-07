@@ -9,15 +9,21 @@ describe('pointer tool shortcut',()=>{
     let handler;const classes=new Set(['hand','grabbing','spacepan']),active=new Set();
     const ctx=vm.createContext({tool:'hand',spaceDown:true,panning:{},draft:null,PREVIEW:null,READ_ONLY:false,render(){},
       canvas:{classList:{remove(...names){names.forEach(n=>classes.delete(n));},toggle(n,on){if(on)classes.add(n);else classes.delete(n);}}},
-      document:{addEventListener(type,f){handler=f;},querySelectorAll:()=>['select','hand'].map(tool=>({dataset:{tool},classList:{toggle(n,on){if(on)active.add(tool);else active.delete(tool);}}}))},
+      document:{addEventListener(type,f){handler=f;},querySelectorAll:()=>['select','hand','box','arrow','comment'].map(tool=>({dataset:{tool},classList:{toggle(n,on){if(on)active.add(tool);else active.delete(tool);}}}))},
     });
     vm.runInContext(html.slice(html.indexOf('function setTool('),html.indexOf('\n',html.indexOf('function setTool('))),ctx);
     vm.runInContext(html.slice(html.indexOf('const TOOL_KEYS ='),html.indexOf("document.addEventListener('keydown', (e) => { if (e.key === 'Escape'){ draft")),ctx);
     handler({key:'v',code:'KeyV',metaKey:true,target:{closest:()=>false},preventDefault(){}});
     expect(ctx.tool).toBe('select');expect(ctx.spaceDown).toBe(false);expect(ctx.panning).toBeNull();expect([...active]).toEqual(['select']);expect(classes.size).toBe(0);
-    for(const key of ['a','h','c']){handler({key,metaKey:true,target:{closest:()=>false},preventDefault(){}});expect(ctx.tool).toBe({a:'arrow',h:'hand',c:'comment'}[key]);}
+    for(const key of ['r','a','h','c']){handler({key,metaKey:true,target:{closest:()=>false},preventDefault(){}});expect(ctx.tool).toBe({r:'box',a:'arrow',h:'hand',c:'comment'}[key]);}
     handler({key:'a',target:{closest:()=>false},preventDefault(){}});expect(ctx.tool).toBe('comment');
-    for(const key of ['a','c','v']){handler({key,metaKey:true,target:{closest:()=>true},preventDefault(){throw Error('Text shortcut intercepted');}});expect(ctx.tool).toBe('comment');}
+    for(const key of ['a','c','v','r']){handler({key,metaKey:true,target:{closest:()=>true},preventDefault(){throw Error('Text shortcut intercepted');}});expect(ctx.tool).toBe('comment');}
+    let prevented=0;
+    const boxKey={key:'r',code:'KeyR',metaKey:true,target:{closest:()=>false},preventDefault(){prevented++;}};
+    handler(boxKey);expect(ctx.tool).toBe('box');expect(classes.has('drawing')).toBe(true);expect([...active]).toEqual(['box']);expect(prevented).toBe(1);
+    handler({...boxKey,repeat:true});expect(ctx.tool).toBe('box');expect(prevented).toBe(2);
+    handler(boxKey);expect(ctx.tool).toBe('select');expect(classes.has('drawing')).toBe(false);
+    handler({...boxKey,metaKey:false,ctrlKey:true});expect(ctx.tool).toBe('box');
     ctx.tool='hand';handler({key:'v',code:'KeyV',metaKey:true,target:{closest:()=>true},preventDefault(){}});expect(ctx.tool).toBe('hand');
   });
 });
