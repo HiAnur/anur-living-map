@@ -365,7 +365,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       x.desc && `  ${x.desc}`, x.fact && `  Found: ${x.fact.text} (${x.fact.from})`,
       x.decided && `  Decided by ${x.decided.who} at ${x.decided.at}: ${x.decided.what}`].filter(Boolean).join('\n');
     const lines = allEdges().filter((e) => ids.has(e.from) && ids.has(e.to))
-      .map((e) => `- ${label(e.from)} -> ${label(e.to)}${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
+      .map((e) => `- ${label(e.from)} [id: ${e.from}] -> ${label(e.to)} [id: ${e.to}]${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
     const mine = (kind) => (state.memory || []).filter((m) => m.kind === kind && (!m.box || ids.has(m.box)))
       .map((m) => `- ${m.box ? `On ${label(m.box)}` : 'Whole map'}: ${m.text} (${m.by})`);
     const calls = state.calls.filter((c) => ids.has(c.node)).map((c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
@@ -479,7 +479,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   function checkAutoPlan(p, by, id) {
     const parent = nodeOf(id), sees = seesOf(by);
     if (!parent || (sees !== 'all' && parent.area !== sees)) return { status: 'dropped', ops: [], dropped: [] };
-    return { ...check(autoPlanAdditions(p, id, allNodes(), allEdges()), by), autoPlanAbout: id };
+    return { ...check(autoPlanAdditions(p, id, allNodes(), allEdges(), new Set(allNodes().filter((n) => sees === 'all' || n.area === sees).map((n) => n.id))), by), autoPlanAbout: id };
   }
   // a proposed change ({nodes, edges, remove}) checked against the map for the person it is for
   function check(p, by) {
