@@ -36,9 +36,29 @@ describe('keyboard brainstorming',()=>{
       await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);expect(h.rubber.innerHTML).toBe('');
     }
   });
-  it('does not save placeholders or make more drafts with Tab or Enter',()=>{
-    const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');const draft=h.ctx.naming;
-    h.edit('Tab');h.edit('Enter');expect(h.ctx.naming).toBe(draft);expect(calls).toEqual([]);
+  it('repeated Tab accepts default names and chains children before saves finish',async()=>{
+    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,args)=>{const id=`topic-${calls.length+1}`;calls.push([type,args]);await gate;return {ok:true,json:async()=>({id})};};
+    h.key('Tab');h.edit('Tab');h.edit('Tab');h.edit('Tab');
+    expect(h.ctx.naming.untouched).toBe(true);expect(h.input().value).toBe('Sub-topic');
+    release();expect(await h.ctx.naming.link.id).toBe('topic-3');
+    expect(calls.map(([,args])=>args.from)).toEqual(['root','topic-1','topic-2']);
+    expect(calls.every(([,args])=>args.label==='Sub-topic')).toBe(true);
+    h.edit('Backspace');await new Promise(setImmediate);expect(h.ctx.selected).toBe('topic-3');
+  });
+  it('Enter accepts an untouched draft and opens its sibling',async()=>{
+    const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'child'})};};
+    h.key('Tab');h.edit('Enter');expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.untouched).toBe(true);
+    await h.ctx.naming.returnTo;expect(calls[0][1].from).toBe('root');
+  });
+  it('arrows leave an untouched draft and select a nearby box without saving',async()=>{
+    const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');h.edit('ArrowLeft');
+    await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);
+    h.ctx.S.nodes.push({id:'below',label:'Below',x:210,y:170});h.key('Tab');h.edit('ArrowDown');
+    await Promise.resolve();expect(h.ctx.selected).toBe('below');expect(calls).toEqual([]);
+  });
+  it('arrows preserve the text editor once typing starts',()=>{
+    const h=harness();h.key('Tab');h.type('Typed');const draft=h.ctx.naming;h.edit('ArrowLeft');expect(h.ctx.naming).toBe(draft);expect(h.input().value).toBe('Typed');
   });
   it('saves only entered names and discards names erased before saving',async()=>{
     const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'typed'})};};
