@@ -30,6 +30,10 @@ Everything runs on your machine. Clone somewhere else? Set `LIVING_MAP_HOME` to 
 
 The other map in this repo: one Claude Code chat as a mind map beside it, so you see where that chat stands (what waits on you, what is open, what was decided). `/living-map` in any chat. Install and use: [docs/chat-map.md](docs/chat-map.md).
 
+## What changed
+
+Read the [Daily shipping log](CHANGELOG.md) for concise feature and fix updates, with screenshots for bigger changes.
+
 ## Contributing
 
 Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the checks every change must pass, and the code conventions, and [AGENTS.md](AGENTS.md) for how the code fits together.
