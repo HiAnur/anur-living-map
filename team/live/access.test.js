@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
-import { canAccess, changeAccess } from './access.js';
+import { canAccess, changeAccess, localTool } from './access.js';
 
 it('only owners remove members, owners keep access, and removal survives serialization', () => {
   const s = { people: [{ id: 'Duy', role: 'Admin' }, { id: 'Member' }] };
@@ -16,10 +16,23 @@ it('only owners remove members, owners keep access, and removal survives seriali
   const saved = JSON.parse(JSON.stringify(s));
   expect(canAccess(saved, 'Member', { headers: {} })).toBe(false);
   expect(canAccess(saved, 'Duy', { headers: {} })).toBe(true);
-  expect(canAccess(saved, null, { headers: { 'sec-fetch-mode': 'cors' } })).toBe(false);
+  expect(canAccess(saved, null, { headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' } })).toBe(false);
   expect(canAccess(saved, null, { headers: {} })).toBe(true);
+  expect(canAccess(saved, null, { headers: { 'sec-fetch-mode': 'cors', accept: '*/*', 'user-agent': 'node' } })).toBe(true);
   expect(changeAccess(saved, 'Duy', 'Member', true)).toBe(true);
   expect(canAccess(saved, 'Member', { headers: {} })).toBe(true);
+});
+
+it('takes a request from Node fetch or curl as a local tool, never one from a browser page', () => {
+  const headers = (h) => ({ headers: h });
+  // Node's global fetch, as mcp.js and wait.js send it: sec-fetch-mode but no sec-fetch-site
+  expect(localTool(headers({ host: 'localhost:4323', connection: 'keep-alive', accept: '*/*', 'accept-language': '*', 'sec-fetch-mode': 'cors', 'user-agent': 'node', 'accept-encoding': 'gzip, deflate' }))).toBe(true);
+  expect(localTool(headers({ host: 'localhost:4323', accept: '*/*', 'user-agent': 'curl/8.7.1' }))).toBe(true);
+  // a page's fetch: same-origin read, a signed-in read, a post with origin, a navigation
+  expect(localTool(headers({ 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', 'sec-fetch-dest': 'empty', accept: '*/*' }))).toBe(false);
+  expect(localTool(headers({ cookie: 'lm_session=abc', accept: '*/*' }))).toBe(false);
+  expect(localTool(headers({ origin: 'http://localhost:4323', 'content-type': 'application/json' }))).toBe(false);
+  expect(localTool(headers({ 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }))).toBe(false);
 });
 
 it('disconnects a removed member and blocks page, APIs, discovery and raw files after restart', async () => {
@@ -52,7 +65,8 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
     let events = ''; for (;;) { const chunk = await reader.read(); if (chunk.done) break; events += new TextDecoder().decode(chunk.value); }
     expect(events).toContain('event: access-removed');
     for (const route of ['/private/', '/private/api/state', '/private/api/events', '/private/api/file', '/private/api/history', '/private/api/outbox']) expect((await get(route)).status).toBe(403);
-    expect((await get('/private/api/state', null, { 'sec-fetch-mode': 'cors' })).status).toBe(403);
+    expect((await get('/private/api/state', null, { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' })).status).toBe(403);
+    expect((await get('/private/api/state', null)).status).toBe(200);
     expect((await get('/maps/private/state.json')).status).toBe(404);
     expect((await (await get('/api/maps')).json()).some((m) => m.name === 'private')).toBe(false);
     expect((await get('/private/api/state', 0)).status).toBe(200);

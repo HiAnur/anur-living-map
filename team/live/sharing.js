@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 
-import { managesAccess, removedFrom } from './access.js';
+import { localTool, managesAccess, removedFrom } from './access.js';
 
-export const localTool = (req) => !req.headers.origin && !req.headers['sec-fetch-mode'] && !req.headers.cookie;
+export { localTool };
 export function linkRole(state, req) {
   const token = new URL(req.url || '/', 'http://localhost').searchParams.get('share');
   const sharing = state.linkSharing;
