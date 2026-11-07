@@ -72,11 +72,58 @@ describe('Auto plan',()=>{
     expect(h.calls[0].prompt).toContain('This is Auto plan');expect(h.calls[0].prompt).not.toContain('Private budget');expect(h.calls[0].prompt).not.toContain('Private chat');
     expect(h.state.threads['@Tester>launch'][0].text).toBe(AUTO_PLAN_QUESTION);
   });
+  it('includes grandchildren and other branches when planning from either a parent or a leaf',()=>{
+    for (const selected of ['launch','pm']) {
+      const h=harness();
+      h.state.nodes.push({id:'categories',label:'Categories',area:'product'}, {id:'pm',label:'PM',sub:'Owns planning',desc:'Talk to the product lead',area:'product'}, {id:'pricing',label:'Pricing',sub:'Existing pricing research',area:'product'});
+      h.state.edges.push({from:'audience',to:'categories'},{from:'categories',to:'pm'},{from:'launch',to:'pricing'});
+      h.ask({node:selected});const prompt=h.calls[0].prompt;
+      for (const text of ['PM [id: pm] (Owns planning)','Talk to the product lead','Pricing [id: pricing] (Existing pricing research)','Categories [id: categories] -> PM [id: pm]','Launch [id: launch] -> Audience [id: audience]']) expect(prompt).toContain(text);
+      expect(prompt).toContain(`selected box (${selected}) and its entire branch`);
+      expect(prompt).not.toContain('Private budget');
+    }
+  });
+  it('keeps a suggested gap under an existing descendant through editing and Apply',()=>{
+    const h=harness();h.state.nodes.push({id:'categories',label:'Categories',area:'product'});h.state.edges.push({from:'audience',to:'categories'});
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'founder',label:'Founder',sub:'The buyer'}],edges:[{from:'categories',to:'founder'}]}));
+    const p=h.state.threads['@Tester>launch'][1].proposal;
+    expect(p.plan.edges).toEqual([{from:'categories',to:'founder',state:'new'}]);
+    h.rename({id:'founder',label:'Founder buyer'});h.describe({id:'founder',sub:'Who approves the budget'});
+    h.apply();expect(h.state.edges.at(-1)).toMatchObject({from:'categories',to:'founder'});
+    expect(h.state.nodes.at(-1)).toMatchObject({label:'Founder buyer',sub:'Who approves the budget'});
+  });
+  it('drops a destination that is removed, moved out of the branch or no longer accessible before Apply',()=>{
+    for (const change of ['removed','moved','private']) {
+      const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'founder',label:'Founder'}],edges:[{from:'audience',to:'founder'}]}));
+      if(change==='removed') h.state.nodes=h.state.nodes.filter(n=>n.id!=='audience');
+      if(change==='moved') h.state.edges=[];
+      if(change==='private') h.state.nodes[1].area='finance';
+      h.apply();expect(h.state.nodes.some(n=>n.id==='founder')).toBe(false);
+      expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');
+    }
+  });
+  it('rejects private, unrelated, ambiguous and nonexistent destinations without relocating them',()=>{
+    const h=harness();h.state.nodes.push({id:'other',label:'Other',area:'product'});
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'a',label:'A'},{id:'b',label:'B'},{id:'c',label:'C'},{id:'d',label:'D'}],edges:[{from:'private',to:'a'},{from:'other',to:'b'},{from:'missing',to:'c'},{from:'launch',to:'d'},{from:'audience',to:'d'}]}));
+    expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');
+  });
+  it('avoids duplicate names across the accessible map, including additions arriving before Apply',()=>{
+    const h=harness();h.state.nodes.push({id:'pricing',label:'Pricing',area:'product'});
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'copy',label:' pricing '},{id:'timing',label:'Timing'}]}));
+    const p=h.state.threads['@Tester>launch'][1].proposal;expect(p.plan.nodes.map(n=>n.id)).toEqual(['timing']);
+    h.state.nodes.push({id:'new-date',label:'Timing',area:'product'});h.apply();expect(p.status).toBe('dropped');
+  });
+  it('traverses cycles safely and never reaches a visible descendant through a private box',()=>{
+    const existing=[{id:'root',label:'Root'},{id:'child',label:'Child'},{id:'private',label:'Secret'},{id:'behind',label:'Behind'}];
+    const edges=[{from:'root',to:'child'},{from:'child',to:'root'},{from:'root',to:'private'},{from:'private',to:'behind'}];
+    const plan=autoPlanAdditions({nodes:[{id:'a',label:'A'},{id:'b',label:'B'}],edges:[{from:'child',to:'a'},{from:'behind',to:'b'}]},'root',existing,edges,new Set(['root','child','behind']));
+    expect(plan.edges).toEqual([{from:'child',to:'a'}]);
+  });
   it('requires an accessible selected box',()=>{
     const h=harness();expect(h.ask({node:undefined})).toBe(false);expect(h.ask({node:'private'})).toBe(false);expect(h.ask({node:'missing'})).toBe(false);expect(h.calls).toHaveLength(0);
   });
   it('only proposes new children, then adds them on Apply',()=>{
-    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'launch',label:'Overwrite'},{id:'copy',label:' audience '},{id:'timing',label:'Timing',desc:'Choose when to launch',state:'gone'}],edges:[{from:'private',to:'timing'}],remove:['audience'],start:'timing',tidy:true,memory:[{text:'An instruction'}]}));
+    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'launch',label:'Overwrite'},{id:'copy',label:' audience '},{id:'timing',label:'Timing',desc:'Choose when to launch',state:'gone'}],edges:[{from:'launch',to:'timing'}],remove:['audience'],start:'timing',tidy:true,memory:[{text:'An instruction'}]}));
     const p=h.state.threads['@Tester>launch'][1].proposal;
     expect(h.state.nodes).toHaveLength(3);expect(p.status).toBe('pending');expect(p.plan.nodes).toEqual([{id:'timing',label:'Timing',sub:'Choose when to launch',desc:'Choose when to launch',state:'new',area:'product',by:'Claude'}]);
     expect(p.plan.edges).toEqual([{from:'launch',to:'timing',state:'new'}]);expect(p.plan.remove).toEqual([]);expect(p.plan.memory).toEqual([]);expect(p.plan.start).toBeUndefined();expect(p.plan.tidy).toBeUndefined();
@@ -102,7 +149,7 @@ describe('Auto plan',()=>{
   });
   it('bounds and validates malformed suggestions and ignores model supplied operations',()=>{
     expect(autoPlanAdditions(null,'root',[],[])).toEqual({nodes:[],edges:[]});
-    const plan=autoPlanAdditions({nodes:[null,{id:{},label:'Bad'},{id:'empty',label:' '},{id:'one',label:'One'},{id:'one',label:'Other'},...Array.from({length:9},(_,i)=>({id:`n${i}`,label:`Next ${i}`}))]},'root',[],[]);
+    const plan=autoPlanAdditions({nodes:[null,{id:{},label:'Bad'},{id:'empty',label:' '},{id:'one',label:'One'},{id:'one',label:'Other'},...Array.from({length:9},(_,i)=>({id:`n${i}`,label:`Next ${i}`}))]},'root',[{id:'root',label:'Root'}],[]);
     expect(plan.nodes).toHaveLength(5);expect(plan.edges.every(e=>e.from==='root')).toBe(true);
   });
 });
