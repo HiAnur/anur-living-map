@@ -42,4 +42,23 @@ describe('branch deletion confirmation',()=>{
     const h=page();h.key('Backspace');h.key('Escape');expect(h.ctx.delAsk).toBeNull();expect(h.state.nodes).toHaveLength(3);expect(h.calls).toEqual([]);
     h.ctx.selected='child';h.key('Delete');expect(h.state.nodes.map(n=>n.id)).toEqual(['root','parent']);expect(h.calls).toHaveLength(1);
   });
+  it('deletes sibling children one by one before selecting their parent',()=>{
+    for(const key of ['Delete','Backspace']){
+      const h=page();h.state.nodes.push({id:'second',label:'Second',x:420,y:85},{id:'third',label:'Third',x:420,y:170});
+      h.state.edges.push({from:'parent',to:'second'},{from:'parent',to:'third'});h.ctx.selected='third';
+      for(const [removed,next] of [['third','second'],['second','child'],['child','parent'],['parent','root']]){
+        h.key(key);expect(h.ctx.selected).toBe(next);expect(h.ctx.delAsk).toBeNull();expect(h.state.nodes.some(n=>n.id===removed)).toBe(false);
+      }
+      expect(h.calls.map(([,a])=>a.ids)).toEqual([['third'],['second'],['child'],['parent']]);
+    }
+  });
+  it('stays with the same parent even when an unrelated box is closer',()=>{
+    const h=page();h.state.nodes.push({id:'sibling',label:'Sibling',x:420,y:500},{id:'other',label:'Other',x:421,y:0});
+    h.state.edges.push({from:'parent',to:'sibling'},{from:'root',to:'other'});h.ctx.selected='child';
+    h.key('Delete');expect(h.ctx.selected).toBe('sibling');expect(h.state.nodes.some(n=>n.id==='parent')).toBe(true);
+  });
+  it('selects a remaining sibling after a confirmed branch deletion',()=>{
+    const h=page();h.state.nodes.push({id:'other',label:'Other branch',x:210,y:200});h.state.edges.push({from:'root',to:'other'});
+    h.key('Delete');expect(h.ctx.delAsk).toBe('parent');h.key('Enter');expect(h.ctx.selected).toBe('other');expect(h.state.nodes.map(n=>n.id)).toEqual(['root','other']);
+  });
 });
