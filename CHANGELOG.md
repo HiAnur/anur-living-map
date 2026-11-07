@@ -5,21 +5,32 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Proposals stay with their branch</strong></dt>
+<dd>
+
+Proposed topics append after existing children, with the preview showing where Apply will place them. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
+
+<img src="docs/shipping/2026-11-07/appended-proposals.png" alt="A sample map with proposed topics appended under Categories, PM and Software Engineer, beside the Auto plan conversation." width="640">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Auto plan asks for your goal first</strong></dt>
+<dd>
+
+Auto plan asks what you want to achieve before using the whole map to find gaps in the selected branch. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Action boxes</strong></dt>
 <dd>
 
 On a topic, choose **Action box**, write your task, gather its map context, answer any questions, then review and **Execute** it in Claude. [#160](https://github.com/HiAnur/anur-living-map/pull/160) <!-- merged-at: 2026-11-07T23:40:19Z -->
 
 <img src="docs/shipping/2026-11-07/action-box.png" alt="A selected Action box beside its task-writing field, Gather information button, and a neighboring Execution box." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>Auto plan finds gaps across a branch</strong></dt>
-<dd>
-
-Auto plan uses the whole map, asks when your goal is unclear, and places missing topics under the relevant child or descendant. [#156](https://github.com/HiAnur/anur-living-map/pull/156), [#158](https://github.com/HiAnur/anur-living-map/pull/158) <!-- merged-at: 2026-11-07T23:25:39Z -->
 
 </dd>
 </dl>
