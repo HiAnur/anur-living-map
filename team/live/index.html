@@ -171,7 +171,9 @@ button,input,textarea{font:inherit;color:inherit}
 .d-del .ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .gb.bad{background:var(--gone);color:#fff;border-color:var(--gone)}
 /* Delete on a picked box asks right above it: Enter deletes, Esc keeps */
-.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
+.node.deleting{z-index:6;opacity:1}
+.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:max-content;max-width:300px;padding:12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px/1.4 var(--plex);color:var(--text);text-align:left;white-space:normal;cursor:default}
+.delq-actions{display:flex;justify-content:flex-end;gap:8px;white-space:nowrap}
 .delq .gb{height:26px;padding:0 8px 0 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
 /* each button carries its own key; Delete is a soft red, not a solid one */
 .delq .gb.soft{background:#fdf1f0;color:var(--gone);border-color:rgba(210,59,50,.3)}
@@ -1765,7 +1767,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
@@ -1775,8 +1777,8 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
-      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete these topics and their subtopics?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
-      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete this topic and its subtopics?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
+      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>Delete these topics and their subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>Delete this topic and its subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
