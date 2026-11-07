@@ -5,6 +5,19 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>🚀 [Major feature] Cloud sharing</strong></dt>
+<dd>
+
+With cloud sharing configured, **Share → Copy link** publishes your map so people can open it while your Mac is off; **Anyone with the link can** controls View or Edit. [#148](https://github.com/HiAnur/anur-living-map/pull/148) <!-- merged-at: 2026-11-07T19:35:22Z -->
+
+Changes sync when your Mac reconnects, and **Turn off link** revokes access.
+
+<img src="docs/shipping/2026-11-07/cloud-sharing.png" alt="The Share dialog confirms the sample map is saved in the cloud and shows Anyone with the link can edit." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Shipping log on the website</strong></dt>
 <dd>
 
@@ -91,7 +104,7 @@ Arrow keys move between boxes and keep the selection in view. [#104](https://git
 <dt><strong>🚀 [Major feature] View and edit links</strong></dt>
 <dd>
 
-In **Share**, choose **View** or **Edit** and click **Copy link** to control what the link allows on the Mac hosting the map. [#125](https://github.com/HiAnur/anur-living-map/pull/125) <!-- merged-at: 2026-11-07T05:14:56Z -->
+In **Share**, choose **View** or **Edit** and click **Copy link** to control what the link allows. [#125](https://github.com/HiAnur/anur-living-map/pull/125) <!-- merged-at: 2026-11-07T05:14:56Z -->
 
 ![The Share dialog with Copy link and the View and Edit choices visible.](docs/shipping/2026-11-06/share-link-permissions.png)
 
