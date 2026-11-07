@@ -27,7 +27,8 @@ import path from 'node:path';
 import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
-import { MIN, users } from './users.js';
+import { MIN, users, recovery } from './users.js';
+import { handleRecovery } from './recovery.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -1068,13 +1069,14 @@ const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) 
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (await handleRecovery(req, res, { users, recovery, port: PORT })) return;
   // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
   // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
   // answers on this Mac; a signed-in browser always acts as the person who signed in.
   const who = users.whoIs(cookieOf(req, 'lm_session'));
   const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
   const signIn = (name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
-  if (url.pathname === '/login') return page(res, 'login.html', who);
+  if (url.pathname === '/login') { res.setHeader('cache-control', 'no-store'); return page(res, 'login.html', who); }
   // Sign in with Google, through Living Map login (google.js); it comes back to this map's own address
   const signInError = (e) => res.writeHead(302, { location: `/login?error=${encodeURIComponent(e)}` }).end();
   if (url.pathname === '/auth/google' && req.method === 'GET') {
@@ -1096,7 +1098,7 @@ const server = http.createServer(async (req, res) => {
     // a person with no password yet: the page asks them to choose one
     if (one && !users.has(one)) return json(409, { first: one, min: MIN });
     // a password this Mac keeps, else one kept at Living Map login (someone with no Google account)
-    const name = users.check(a.name, a.password) || await passwordCheck(a.name, a.password);
+    const name = one && users.has(one) ? users.check(a.name, a.password) : await passwordCheck(a.name, a.password);
     if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(401, { error: one ? 'That password is not right.' : 'That name and password are not right.' }); }
     return signIn(name);
   }
