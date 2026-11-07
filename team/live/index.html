@@ -15,6 +15,7 @@
   /* paper, ink; hue says what the plan changes */
   --canvas:#fbfaf7; --box:#fff; --box-line:#bdb9ae; --line:#a8a49a; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
   --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#fff;
+  --action:#176B70; --action-tint:#EDF7F6; --action-line:#73AAA7;
   --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --todo:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442; --ok:#2E8B57;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -353,10 +354,10 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 .action-card .action-controls,.action-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.action-card button{height:auto;min-height:30px;white-space:normal;padding:5px 10px}
 .action-card .action-execute{background:var(--claude);color:var(--box);border-color:var(--claude)}.action-card .action-plain{border:0;background:none;color:var(--text-2);padding-left:0}
 .action-card pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;margin:8px 0}.action-card details{margin-top:8px}.action-card summary{cursor:pointer;color:var(--text-2)}
-.action-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule-2);border-top-color:var(--claude);border-radius:50%;animation:action-spin .8s linear infinite;flex-shrink:0}
+.action-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule-2);border-top-color:var(--action);border-radius:50%;animation:action-spin .8s linear infinite;flex-shrink:0}
 @keyframes action-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.action-spin{animation:none}}
-.action-tag{font-size:9px;line-height:14px;margin-bottom:3px;color:var(--claude);display:flex;justify-content:center;align-items:center;gap:5px}.node.start .action-tag{color:inherit}.action-tag .action-spin{width:9px;height:9px}
+@media(prefers-reduced-motion:reduce){.action-spin{animation-duration:2.4s}}
+.action-tag{font-size:9px;line-height:14px;margin-bottom:3px;color:var(--action);display:flex;justify-content:center;align-items:center;gap:5px}.node.start .action-tag{color:inherit}.action-tag .action-spin{width:9px;height:9px}
 
 #side .ct-r{flex-shrink:0;white-space:nowrap}
 #side .chat-h{white-space:nowrap}
@@ -731,6 +732,19 @@ body.resizing{cursor:col-resize;user-select:none}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
 .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+.node.action-node{background:var(--action-tint);border-color:var(--action-line);color:var(--text)}
+.node.action-node .n{color:var(--text)}
+.node.action-node .s{color:var(--text-2);opacity:1}
+.node.action-node .action-tag{color:var(--action)}
+.topic-actions .action-create{color:var(--action);border-color:var(--action-line);background:var(--action-tint)}
+.action-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;color:var(--action);font-size:12px;font-weight:500;flex-shrink:0}
+.action-plain{border:0;background:none;color:var(--text-2);font-size:12px;cursor:pointer;padding:4px 0}
+.action-progress{display:flex;align-items:center;gap:8px;color:var(--action)}
+#side .action-chat .action-card{background:var(--action-tint);border-color:var(--action-line);max-height:none;margin-top:16px}
+#side .action-chat .side-ask.cbox{border-color:var(--action-line)}
+#side .action-chat .side-ask.cbox:focus-within{border-color:var(--action);box-shadow:0 0 0 1px var(--action)}
+.action-chat .send,.action-chat .action-execute{background:var(--action);border-color:var(--action)}
+.action-chat .action-choices .gb{height:auto;white-space:normal;text-align:left;border-radius:14px;padding:6px 10px}
 .cbox .mdl{margin-left:auto;font-size:13px;color:var(--text);white-space:nowrap}
 .cbox .mdl span{color:var(--text-3)}
 .cbox .mdl + .send{margin-left:10px}
@@ -1876,14 +1890,15 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
+    const actionAsk = !locked(n) && n.action?.stage === 'clarify';
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', n.action && !locked(n) ? 'action-node' : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
-      ${!locked(n) && n.action ? `<div class="action-tag">${n.action.stage === 'gathering' ? '<span class="action-spin"></span>' : ''}${['ready','sent'].includes(n.action.stage) ? 'Execution box' : n.action.stage === 'clarify' ? 'Needs clarification' : 'Action box'}</div>` : ''}
+      ${!locked(n) && n.action ? `<div class="action-tag">${n.action.stage === 'gathering' ? actionSpinner(n.action) : ''}${['ready','sent'].includes(n.action.stage) ? 'Execution box' : 'Action box'}</div>` : ''}
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
+      ${actionAsk ? `<span class="mk q" title="${esc(n.action.question || '')}">Need clarify</span>` : mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
@@ -2265,7 +2280,7 @@ function renderSide(){
   }
   const calls = S.calls.filter((c) => c.node === n.id);
   // a box you just opened starts on what is open on it now
-  if (sideFor !== n.id){ sideFor = n.id; sideTab = 'box'; backTo = null; }
+  if (sideFor !== n.id){ sideFor = n.id; sideTab = n.action ? 'chat' : 'box'; backTo = null; }
   // The card answers one question: what is being decided about this box, and what each answer does.
   // Open questions sit on "This box"; once answered they move to "History", with what was picked and why.
   // An open question, short: who asks, the question, and its answers by name, as buttons when it is yours to
@@ -2316,8 +2331,9 @@ function renderSide(){
   // each time you ask, so it knows what you said there; what you say here stays on this box and never fills the main chat.
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
-  const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-      : claudes(`${md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
+  const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
+    : claudes(`${md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('');
+  const chat = n.action ? actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}</div>
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -2328,10 +2344,9 @@ function renderSide(){
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
-    ${actionCard(n)}
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h action-create" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">
     ${(() => {
       // the box at a glance, read top to bottom: what was decided, green and bold (hovering it says who decided
       // it and when), then its notes as plain lines; "Why them: …" reads "Why them? …", a catch or a risk carries
@@ -2371,29 +2386,46 @@ function renderSide(){
     </div>`}`;
   if (actionDraft?.id === n.id) { const input = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea'); if (input) { input.value = actionDraft.value; if (actionDraft.focus) { input.focus(); input.setSelectionRange(actionDraft.start, actionDraft.end); } } }
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
-  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
+  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
 
+function actionSpinner(action){
+  // A redraw keeps the spinner at the same point in its turn.
+  const elapsed = Math.max(0, Date.now() - (Number(action.since) || Date.now()));
+  return `<span class="action-spin" aria-hidden="true" style="animation-delay:-${elapsed}ms"></span>`;
+}
+function actionChat(n, previousChat){
+  const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
+  const asking = a.stage === 'draft' || a.stage === 'clarify';
+  const label = ['ready','sent'].includes(a.stage) ? 'Execution box' : 'Action box';
+  const back = mine && a.stage !== 'sent' ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
+  const turns = `${a.intent ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
+  const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
+  const current = a.stage === 'draft' ? claudes('<p>What do you want to do?</p>')
+    : a.stage === 'clarify' ? claudes(`${md(a.question)}${choices}${mine ? '' : `<p class="quiet">Waiting for ${esc(a.by)}.</p>`}`)
+    : a.stage === 'gathering' ? claudes(`<div class="action-progress">${actionSpinner(a)}<span>Gathering information…</span></div>`)
+    : actionCard(n);
+  const composer = asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
+  return `<div class="action-chat-head"><span>${label}</span>${back}</div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
+}
 function actionCard(n){
   const a = n.action; if (!a) return '';
   const mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const button = (type, label, extra = '') => mine ? `<button class="gb ${extra}" data-box-action="${type}" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">${label}</button>` : '';
-  const back = button('actioncancel', 'Back to topic', 'action-plain');
   let content = '';
-  if (a.stage === 'draft') content = `<h3>What do you want to do?</h3>${mine ? `<form data-action-start="${esc(n.id)}"><textarea aria-label="Action instructions" placeholder="For example: email Alex to invite them to try our preview…" maxlength="4000" required></textarea><p class="action-note">We’ll connect your action with this box and the whole map.</p><div class="action-controls"><button class="gb" type="submit">Gather information</button>${back.replace('<button ', '<button type="button" ')}</div></form>` : `<p class="action-note">${esc(a.by)} is writing the action.</p>`}`;
-  else if (a.stage === 'gathering') content = `<h3><span class="action-spin"></span>Gathering information…</h3><p class="action-note">Reading this box and the whole map. You can keep working elsewhere.</p><div class="action-controls">${back}</div>`;
-  else if (a.stage === 'clarify') content = `<h3>Needs clarification</h3><p>${esc(a.question)}</p>${mine ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div><form data-action-answer="${esc(n.id)}"><textarea aria-label="Clarification answer" placeholder="Your answer…" maxlength="2000" required></textarea><div class="action-controls"><button class="gb" type="submit">Continue</button>${back.replace('<button ', '<button type="button" ')}</div></form>` : `<p class="action-note">Waiting for ${esc(a.by)}.</p>`}`;
-  else if (a.stage === 'ready' || a.stage === 'sent') {
+  if (a.stage === 'ready' || a.stage === 'sent') {
     const b = a.brief;
-    content = `<h3>${a.stage === 'ready' ? 'Ready to execute' : 'Sent to Claude'}</h3><p><b>${esc(b.goal)}</b></p><details><summary>Your action</summary><p>${esc(a.intent)}</p></details><p class="action-note">${esc(b.target)}</p><ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Result:</b> ${esc(b.result)}</p>${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}${a.stage === 'ready' ? `<p class="action-note">Execute opens this task in Claude.</p><div class="action-controls">${button('actionexecute','Execute','action-execute')}${button('actionrevise','Revise')}${back}</div>` : '<p class="action-note">Continue in Claude. Task completion is reported there.</p>'}`;
-  } else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}${back}</div>`;
+    content = `<h3>${a.stage === 'ready' ? 'Ready to execute' : 'Sent to Claude'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p><ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Result:</b> ${esc(b.result)}</p>${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}${a.stage === 'ready' ? `<p class="action-note">Execute opens this task in Claude.</p><div class="action-controls">${button('actionexecute','Execute','action-execute')}${button('actionrevise','Revise')}</div>` : '<p class="action-note">Continue in Claude. Task completion is reported there.</p>'}`;
+  } else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
   return `<section class="action-card" aria-label="${a.stage === 'ready' || a.stage === 'sent' ? 'Execution box' : 'Action box'}">${content}</section>`;
 }
 async function runBoxAction(type, id, data = {}) {
   if (READ_ONLY || FILE || PREVIEW) return;
+  if (type !== 'actioncancel'){ selected = sideFor = id; sideTab = 'chat'; keyboardSelection = false; }
   const response = await act(type, {id,...data});
   if (!response?.ok) toast('Could not update this action. Refresh and try again.');
+  else if (type === 'actionbox'){ renderSide(); $('side').querySelector('[data-action-start] textarea')?.focus(); }
 }
 
 // Keep repeated clicks from starting a second request before the live reply reaches this window.
@@ -3525,7 +3557,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-box-action]')){ const b = t.closest('[data-box-action]'); runBoxAction(b.dataset.boxAction, b.dataset.actionId, {revision:b.dataset.actionRevision}); }
   else if (t.closest('[data-action-choice]')){ const b = t.closest('[data-action-choice]'); runBoxAction('actionanswer', b.dataset.actionId, {answer:b.dataset.actionChoice}); }
   else if (t.closest('[data-auto-plan]')){ autoPlanTopic(t.closest('[data-auto-plan]').dataset.autoPlan); }
-  else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('form[data-ask] textarea')?.focus(); }
+  else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('.side-ask textarea')?.focus(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words
   else if (t.closest('[data-more]')){ const k = t.closest('[data-more]').dataset.more; infoMore.has(k) ? infoMore.delete(k) : infoMore.add(k); render(); if (k.startsWith('o:') && infoMore.has(k)) $(`other-${k.slice(2)}`)?.focus(); }
@@ -3779,12 +3811,12 @@ window.addEventListener('resize', fit);
 // the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
 // input method is still composing a word); the box grows with each line
 document.addEventListener('keydown', (e) => {
-  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea');
+  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea');
   if (!t || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
   e.preventDefault(); t.form.requestSubmit();
 });
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
-document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea'); if (t) fitBox(t); });
+document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea'); if (t) fitBox(t); });
 listen();
 if (!FILE){ fetchInbox(); setInterval(fetchInbox, 8000); }
 </script>
