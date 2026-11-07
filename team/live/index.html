@@ -327,6 +327,8 @@ body.deep #queue{top:108px}
 #side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column}
+#side [data-rename-box]{cursor:text;min-width:0;overflow-wrap:anywhere}
+#side-name{min-width:0;width:100%;border:1px solid var(--new);border-radius:6px;padding:4px 6px;background:var(--card);color:var(--text);font:inherit;user-select:text}
 #side .refs{margin-top:auto;padding-bottom:4px}
 /* Claude references fold away like Claude's own "Context ▾": closed at first, a click on the heading opens them */
 #side details.refs > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
@@ -495,6 +497,10 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
 .ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
 .d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
+.info-footer{margin-top:auto;padding-top:16px;flex-shrink:0}
+.box-dates{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;margin:0;font-size:12px;line-height:1.5}
+.box-dates dt{color:var(--text-3)}
+.box-dates dd{margin:0;text-align:right;color:var(--text-2)}
 .ca-line{display:flex;align-items:center;gap:10px}
 .ca-line .ca-q{flex:1;margin:0}
 .ca-btns{display:flex;gap:6px;flex:none}
@@ -631,7 +637,7 @@ body.paned #canvas{right:calc(72px + var(--chatw))}
 body.paned #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
 body.paned #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
-body.paned.tight #tools{bottom:58px}
+body.tight #tools{bottom:58px}
 #chatgrip{position:fixed;top:44px;bottom:0;right:calc(72px + var(--chatw) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
 body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
@@ -796,6 +802,9 @@ body.previewing .node.proposed{display:none}
 .tb.on{background:#ecebe6;color:var(--text)}
 /* each tool's key, small at its lower right: V select, H pan, R box, A line, T text, C comment */
 .tb{min-width:34px}.tb .tk{position:absolute;right:3px;bottom:1px;font:500 9px/1 var(--plex);color:var(--text-3);pointer-events:none}
+.tb.history-tool{min-width:44px;border:0;background:transparent;grid-template-rows:18px 10px;gap:1px;padding:0 5px}
+.tb.history-tool:hover{background:#f3f2ee}
+.tb.history-tool .tk{position:static;white-space:nowrap}
 /* the bar is white like every other card on the map */
 .tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
 /* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
@@ -852,6 +861,9 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">A</kbd></span>
   <i class="tdiv"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">C</kbd></span>
+  <i class="tdiv"></i>
+  <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
+  <button class="tb history-tool" data-map-history="redo" title="Redo (⌘ ⇧ Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l4 4-4 4m4-4H9a5 5 0 00-5 5v3"/></svg><kbd class="tk">⌘ ⇧ Z</kbd></button>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
@@ -1994,6 +2006,31 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null, sideSeen = '';
+let sideRename = null;
+function beginSideRename(id){
+  const n = nodeById(id);
+  if (!n || locked(n)) return;
+  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  clearTimeout(tapTimer); nameSession++;
+  sideRename = { id, label:n.label }; renderSide();
+  $('side-name').focus({preventScroll:true}); $('side-name').select();
+}
+function endSideRename(keep){
+  if (!sideRename) return;
+  const {id,label:before} = sideRename, label = $('side-name')?.value.trim().slice(0,80), n = nodeById(id);
+  sideRename = null;
+  if (keep && n && label && label !== before){
+    n.label = label;
+    act('renamebox', {id,label}).then((r) => { if (!r?.ok){ toast('That name could not be saved.'); refreshMap(); } });
+  }
+  render();
+}
+document.addEventListener('dblclick', (e) => { const title = e.target.closest('[data-rename-box]'); if (title) beginSideRename(title.dataset.renameBox); });
+document.addEventListener('keydown', (e) => {
+  if (e.target.id !== 'side-name' || e.isComposing || !['Enter','Escape'].includes(e.key)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); endSideRename(e.key === 'Enter');
+});
+document.addEventListener('focusout', (e) => { if (e.target.id === 'side-name') endSideRename(true); });
 // the box whose card asks "delete?" (Delete this box, or the Delete key on a picked box)
 let delAsk = null;
 // the line picked on the map, as "from>to"; Delete or Backspace takes it off
@@ -2033,11 +2070,17 @@ function renderQueue(){
 // sections a person opened stay open when the card redraws (it redraws on every change to the map)
 const openSecs = new Set();
 document.addEventListener('toggle', (e) => { const k = e.target?.dataset?.openKey; if (k) e.target.open ? openSecs.add(k) : openSecs.delete(k); }, true);
+const boxDate = (value) => Number.isFinite(value) && value > 0
+  ? `<time datetime="${new Date(value).toISOString()}">${prose(new Date(value).toLocaleString(undefined, { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}</time>`
+  : 'Not recorded';
 function renderSide(){
   const el = $('side');
   if (keyboardSelection){ el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
+  if (sideRename && (sideRename.id !== n?.id || locked(n))) sideRename = null;
   el.classList.toggle('on', !!(n || pb));
+  // Live map changes keep the name being typed and its cursor in place.
+  if (sideRename && $('side-name')) return;
   el.classList.remove('info');
   // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
   if (pb){
@@ -2112,10 +2155,10 @@ function renderSide(){
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
-  // on Information the panel is a column, so Claude references can sit on its bottom edge
+  // Information keeps the box's dates and deletion action at the bottom of its panel.
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2150,8 +2193,11 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
+    ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}</div>
+    <div class="info-footer">
+    <dl class="box-dates"><dt>Created date</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated date</dt><dd>${boxDate(n.updatedAt)}</dd></dl>
     ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
-    ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}`}`;
+    </div>`}`;
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
@@ -2199,8 +2245,8 @@ const change = (m, key, i) => {
 let chatOpen = new URLSearchParams(location.search).has('chat'), chatSeen = 0, chatAbout = null;
 // the pane's width follows its left edge as you drag it, between 320px and leaving the map 360px; this browser remembers it
 const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320, innerWidth - 72 - 360))); document.body.style.setProperty('--chatw', `${w}px`); fitTools(); return w; };
-// the tool bar and Legend, Tidy up and Fit need about 560px side by side
-const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('paned') && $('canvas').clientWidth < 560);
+// Raise the tool bar when its actual width would overlap the map controls.
+const fitTools = () => document.body.classList.toggle('tight', $('tools').getBoundingClientRect().right + 12 > $('foot').getBoundingClientRect().left);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
 const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
@@ -2771,7 +2817,7 @@ function askName(at){
       e.preventDefault();
       const next = keyboardNeighbor(naming, e.key);
       const id = next?.id ?? (e.key === 'ArrowLeft' ? naming.link?.id : null);
-      if (id){ endName(true, false); Promise.resolve(id).then((target) => { if (target && !naming) selectTopic(target); }); }
+      if (id){ const session = nameSession; endName(true, false); Promise.resolve(id).then((target) => { if (target && !naming && session === nameSession) selectTopic(target); }); }
     }
     else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
@@ -2796,7 +2842,7 @@ function endName(keep, restore = true){
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
   if (!keep || (!at.from && !text)){
     moveTopicPreview(at.reflow, true); render();
-    if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view) selectTopic(id || null, at.returnTopic || at.link); }); return;
+    if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view && at.session === nameSession) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
   const pending = { ...at, label: text }; if (!at.edit) pendingTopics.add(pending);
@@ -2815,7 +2861,7 @@ function endName(keep, restore = true){
   topicSaveQueue = saved; pending.saved = saved; return saved;
 }
 function selectTopic(id, fallback){
-  keyboardSelection = true; selected = id; render();
+  nameSession++; keyboardSelection = true; selected = id; render();
   const n = nodeById(id) || fallback;
   if (n) keepEditorVisible(n, W(n), HT(n));
 }
@@ -2864,19 +2910,24 @@ document.addEventListener('keydown', (e) => {
 
 // Map undo leaves text fields to the browser. An untouched selected topic belongs to the map.
 let undoQueue = Promise.resolve();
-document.addEventListener('keydown', (e) => {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE) return;
-  if (e.target.closest('input, textarea, [contenteditable]') && !naming?.untouched) return;
-  e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
-  const finish = naming?.untouched ? endName(true, false) : null, direction = e.shiftKey ? 'redo' : 'undo';
+function mapUndo(direction){
+  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  const finish = naming ? endName(true, false) : null;
   undoQueue = undoQueue.then(async () => {
-    await finish; await Promise.all([...pendingTopics].map((n) => n.saved)); await Promise.all([...pendingActions]);
+    await finish; await topicSaveQueue; await Promise.all([...pendingTopics].map((n) => n.saved)); await Promise.all([...pendingActions]);
     const r = await act(direction), result = await r?.json().catch(() => ({}));
     if (!r?.ok){ toast(result?.error || 'That change could not be undone.'); return; }
     pendingRemovals.clear(); delAsk = null; group.clear(); await refreshMap();
     if (selected && !nodeById(selected)) selected = null;
     render(); toast(direction === 'undo' ? 'Undone' : 'Redone');
   }).catch(() => toast('That change could not be undone.'));
+  return undoQueue;
+}
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE) return;
+  if (e.target.closest('input, textarea, [contenteditable]') && !naming?.untouched) return;
+  e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
+  mapUndo(e.shiftKey ? 'redo' : 'undo');
 }, true);
 
 /* pan, zoom, drag */
@@ -2984,14 +3035,14 @@ canvas.addEventListener('pointermove', (e) => {
 // a double click is two taps on the same box within 350ms: the first tap
 // redraws the box, so the browser's own dblclick never sees the same element
 let lastTap = { id: null, at: 0 };
-// a box that opens on a double click waits out the second click before its card opens, so the card
-// never lands on top of the box between the two clicks
+// Select immediately so a quick Tab uses this box. Only its details card waits for a possible double click.
 const DBL = 320;
 let tapTimer = null;
 const pick = (n) => {
-  keyboardSelection = false;
   clearTimeout(tapTimer);
-  const go = () => { selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); };
+  const session = ++nameSession;
+  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = true; render();
+  const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; render(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
 canvas.addEventListener('pointerup', (e) => {
@@ -3147,7 +3198,8 @@ document.addEventListener('click', (e) => {
   // a message's box name opens that box
   else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   // a tool pressed again goes back to Select
-  else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
+  else if (t.closest('[data-map-history]')){ mapUndo(t.closest('[data-map-history]').dataset.mapHistory); }
+  else if (t.closest('[data-tool]')){ const b = t.closest('[data-tool]'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
   // Tidy up lays out what you can see: boxes folded away take no room
   else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) { const nodes = scope().nodes.filter((n) => !n.proposed); act('tidy', { view, only: nodes.map((n) => n.id), sizes: nodes.map((n) => ({id:n.id,w:W(n),h:HT(n)})) }); } }
   else if (t.id === 'fitb'){ fit(); }

@@ -28,7 +28,7 @@ import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users } from './users.js';
-import { branchIds, editHistory, editSnapshot } from './editing.js';
+import { boxDates, branchIds, editHistory, editSnapshot } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -145,6 +145,7 @@ function openMap({ project = '', name = '', home }) {
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
+  const updateBoxDates = boxDates(state, !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
   if (project || name) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
@@ -157,7 +158,7 @@ function openMap({ project = '', name = '', home }) {
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
-  const save = () => { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state); fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) send(r, 'state', state); };
 
@@ -424,6 +425,9 @@ function openMap({ project = '', name = '', home }) {
     return was?.kind === now.kind ? `its ${now.kind}: ${n(added)} added, ${n(left.length)} taken out` : `a ${now.kind} of ${n(now.items.length)}`;
   }
   function draw(p) {
+    // Creation and edit times come from this server, never from a drawing request.
+    const stripDates = (nodes) => { for (const n of nodes || []) if (n) { delete n.createdAt; delete n.updatedAt; stripDates(n.inside?.nodes); } };
+    stripDates(p.nodes);
     for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
     const merge = (list, key, items = []) => {
       for (const it of items) {
@@ -750,7 +754,9 @@ function openMap({ project = '', name = '', home }) {
     restore(a) {
       const v = history.find((h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
       if (!file || !fs.existsSync(file)) return false;
-      Object.assign(state, JSON.parse(fs.readFileSync(file, 'utf8')));
+      const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
+      boxDates(restored);
+      Object.assign(state, restored);
       tell(`${a.by} went back to the version from ${clock(v.at)}`);
       return true;
     },
@@ -1005,6 +1011,7 @@ function openMap({ project = '', name = '', home }) {
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
       const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
       if (result.ok) {
+        updateBoxDates(state);
         if (before) edits.record(a.by, before, editSnapshot(state));
         remember(a.type, a.by, big); save(); push();
       }
