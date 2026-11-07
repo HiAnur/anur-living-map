@@ -1,6 +1,6 @@
 ## What
 
-<!-- One or two lines. Update CHANGELOG.md for this change, or explain why no entry is needed. -->
+<!-- One or two lines. After this PR merges, update CHANGELOG.md in a follow-up documentation PR. Explain here if no entry is needed. -->
 
 ## Why
 
