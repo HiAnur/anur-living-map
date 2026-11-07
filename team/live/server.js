@@ -27,6 +27,7 @@ import path from 'node:path';
 import { actionBoxes, recoverAction } from './action-box.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
+import { appendProposed } from './proposal-layout.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { changeAccess } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
@@ -554,8 +555,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   function placeProposed(plan) {
     const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map(({ x, y, ...n }) => n);
+    plan.layout = [];
     if (!fresh.length) return;
-    placeNew([...state.nodes.map((n) => ({ ...n })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
+    plan.layout = appendProposed(state.nodes, state.edges, fresh, plan.edges);
+    placeNew([...state.nodes.map((n) => ({ ...n, ...plan.layout.find((m) => m.id === n.id) })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
     for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
   }
   // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
@@ -570,6 +573,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const pendingProposals = (by) => [...(state.proposals || []).filter((p) => !by || ownsChat(p.session, by)),
     ...Object.entries(state.threads || {}).filter(([k]) => !by || mineChat(k, by)).flatMap(([, t]) => t.map((m) => m?.proposal))]
     .filter((p) => p?.status === 'pending' && p.plan);
+  // Older pending offers also adopt the branch preview when their map opens.
+  for (const p of pendingProposals()) placeProposed(p.plan);
   const withoutBlock = (text) => String(text).split('```map')[0].trim();
 
   // History: every change saves itself, and each one is a version of the map you can open and go back to,
@@ -794,8 +799,18 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (boxId && (!n || (sees !== 'all' && n.area !== sees))) return false;
       // a question in a box's own chat stays on that box: Claude reads the main chat as it is now, and the main chat never sees it
       const side = Boolean((a.side || a.autoPlan) && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
-      const t = (state.threads[key] ??= []), q = a.autoPlan ? AUTO_PLAN_QUESTION : String(a.text).slice(0, 400);
-      if (a.autoPlan && t.some((m) => m.thinking)) return false;
+      const t = (state.threads[key] ??= []), answer = typeof a.text === 'string' ? a.text.trim().slice(0, 400) : '';
+      if ((a.autoPlan || t.at(-1)?.autoPlanAbout) && t.some((m) => m.thinking)) return false;
+      if (a.autoPlan && !answer) {
+        if (t.at(-1)?.autoPlanQuestion) return true;
+        for (const m of t) if (m.proposal?.status === 'pending') Object.assign(m.proposal, {status:'dropped',replaced:true});
+        t.push({who:a.by,text:AUTO_PLAN_QUESTION,at:stamp(),about:n.id},
+          {who:'Claude',text:`What should this plan help you decide or do for “${n.label}”?`,at:stamp(),about:n.id,autoPlanQuestion:true,autoPlanAbout:n.id});
+        return true;
+      }
+      if (!answer) return false;
+      const autoPlan = Boolean(a.autoPlan || (side && t.at(-1)?.autoPlanAbout === n.id && !t.at(-1)?.proposal));
+      const q = answer;
       const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
       state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: q });
@@ -810,17 +825,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         return true;
       }
       // the reply fills in as Claude writes it, pushed to every window a few times a second
-      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: a.autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(n ? { about: n.id } : {}) };
+      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(autoPlan ? {autoPlanAbout:n.id} : {}), ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
-      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, a.autoPlan),
-        onText: (text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : a.autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
+      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan),
+        onText: (text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
           clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = withoutBlock(text); msg.at = stamp();
           if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
-          const pr = proposal(text, a.by, a.autoPlan ? n.id : null);
+          const pr = proposal(text, a.by, autoPlan ? n.id : null);
           if (pr?.status === 'pending') for (const x of t) if (x !== msg && x.proposal?.status === 'pending') Object.assign(x.proposal, { status: 'dropped', replaced: true });
           if (pr) msg.proposal = pr;
           save(); push();
@@ -883,6 +898,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         Object.assign(pr, checkAutoPlan(pr.plan, a.by, pr.autoPlanAbout));
         if (pr.status !== 'pending') return true;
       }
+      if (pr.plan.layout?.some((m) => { const n = nodeOf(m.id); return !n || n.x !== m.fromX || n.y !== m.fromY; })) placeProposed(pr.plan);
+      for (const m of pr.plan.layout || []) { const n = nodeOf(m.id); if (n) { n.x = m.x; n.y = m.y; } }
       const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
       const to = fromChat ? fromChat.session : ownerOf(touched || m.about || null);
       if (pr.plan.start) state.start = pr.plan.start;

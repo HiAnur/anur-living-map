@@ -1228,7 +1228,7 @@ const scope = () => {
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
   if (view !== 'system') return unfolded(all);
   const p = proposed();
-  return unfolded(p.nodes.length || p.edges.length ? { nodes: [...all.nodes, ...p.nodes], edges: [...all.edges, ...p.edges] } : all);
+  return unfolded(p.nodes.length || p.edges.length ? { nodes: [...all.nodes.map((n) => ({ ...n, ...p.layout.find((m) => m.id === n.id) })), ...p.nodes], edges: [...all.edges, ...p.edges] } : all);
 };
 /* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
    A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
@@ -1322,6 +1322,7 @@ const proposed = () => {
   const ps = pendingPlans();
   const have = new Set(S.nodes.map((n) => n.id));
   return {
+    layout: ps.flatMap((p) => p.plan.layout || []),
     nodes: ps.flatMap((p) => p.plan.nodes.filter((n) => !have.has(n.id) && Number.isFinite(n.x)).map((n) => ({ ...n, state: 'new', proposed: true }))),
     edges: ps.flatMap((p) => p.plan.edges.map((e) => ({ ...e, state: 'new', proposed: true }))),
   };
