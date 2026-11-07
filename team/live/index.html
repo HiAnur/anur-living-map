@@ -1094,8 +1094,8 @@ const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
 // part you can see, beside the pane that opens for it, at a zoom you can read; a box inside another opens that one
-// a box opened by a click stays where it is, unless the pane that opens for it covers it; then it glides into view
-const keepInView = (id) => { const n = nodeById(id) || proposedBox(id), r = canvas.getBoundingClientRect(); if (n && (n.x + W(n) / 2) * cam.z + cam.x > r.width - 16) centerOn(id); };
+// A box opened by a click stays where it is; if its pane covers it, reveal only the hidden part.
+const keepInView = (id) => { const n = nodeById(id) || proposedBox(id); if (n) keepEditorVisible(n, W(n), HT(n)); };
 function centerOn(id){
   const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
@@ -2753,7 +2753,7 @@ function askName(at){
     el.style.height = `${height}px`; i.style.height = '100%';
     keepEditorVisible(at, width, height);
   };
-  resizeName(); i.focus();
+  resizeName(); i.focus({preventScroll:true});
   if (naming.untouched) i.classList.add('draft'); else i.select();
   const beginTyping = () => {
     if (!naming?.untouched) return;
@@ -2814,8 +2814,8 @@ function endName(keep, restore = true){
 }
 function selectTopic(id, fallback){
   keyboardSelection = true; selected = id; render();
-  const n = nodeById(id) || fallback, r = canvas.getBoundingClientRect();
-  if (n){ cam.x = r.width / 2 - n.x * cam.z; cam.y = r.height / 2 - n.y * cam.z; place(); }
+  const n = nodeById(id) || fallback;
+  if (n) keepEditorVisible(n, W(n), HT(n));
 }
 // Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
 function keyboardNeighbor(n, key){
