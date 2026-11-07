@@ -2674,7 +2674,7 @@ const topicIds = new Map();
 let nameSession = 0;
 let topicSaveQueue = Promise.resolve();
 async function refreshMap(){
-  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW) S = LIVE; render(); } catch {}
+  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); } catch {}
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
@@ -2746,6 +2746,21 @@ function updateTopicLayout(at, label = 'Sub-topic'){
   if (!plan) return;
   Object.assign(at, plan, {reflow:plan.moves}); moveTopicPreview(at.reflow); render();
 }
+// A server snapshot contains saved positions, not this editor's preview. Plan the
+// draft again so its next Tab cannot submit movements from an older layout.
+function syncTopicPreview(fresh = false){
+  if (naming?.keyboard && naming.link){
+    if (!fresh) moveTopicPreview(naming.reflow, true);
+    naming.reflow = [];
+  }
+  for (const n of pendingTopics) moveTopicPreview(n.reflow);
+  if (!naming) return;
+  if (naming.keyboard && naming.link){
+    updateTopicLayout(naming, $('newbox').querySelector('input, textarea')?.value || naming.text);
+    $('newbox').style.left = `${naming.x}px`; $('newbox').style.top = `${naming.y}px`;
+  } else moveTopicPreview(naming.reflow);
+  drawTopicArrow(naming);
+}
 function topicDraft(n, child){
   const parent = child ? n : (n.parent ?? topicParent(n));
   const graph = topicGraph(), current = graph.nodes.find((b) => b.id === graph.key(n.id)) || n;
@@ -2770,7 +2785,8 @@ function keepEditorVisible(at, width, height){
 function drawTopicArrow(at){
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
-    const parent = nodeById(at.link.id) || at.link;
+    const id = topicIds.get(at.link.id) || at.link.id;
+    const parent = nodeById(id) || [...pendingTopics].find((n) => n.id === id || n.saved === id) || at.link;
     const nodes = [...scope().nodes.filter((n) => n.id !== parent.id), parent, ghost];
     const pts = at.keyboard
       ? (view === 'system' && crossLinks() ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
@@ -2854,7 +2870,7 @@ function endName(keep, restore = true){
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
     pending.id = id; topicIds.set(saved, id);
-    if (naming){ for (const n of pendingTopics) moveTopicPreview(n.reflow); moveTopicPreview(naming.reflow); render(); drawTopicArrow(naming); }
+    if (naming){ syncTopicPreview(); render(); }
     if (restore && at.session === nameSession && !naming && view === at.view){ selected = id; render(); }
     return id;
   }).catch(() => { moveTopicPreview(at.reflow, true); refreshMap(); pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
@@ -3353,7 +3369,7 @@ function listen(){
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
     LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next;
-    if (!PREVIEW){ for (const n of pendingTopics) moveTopicPreview(n.reflow); if (naming) moveTopicPreview(naming.reflow); }
+    if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
