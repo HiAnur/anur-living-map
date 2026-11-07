@@ -1008,11 +1008,14 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'undo', 'redo']);
+const pendingActions = new Set();
 const act = (type, extra = {}) => {
   if (FILE){ toast(FILE_SAYS); return Promise.resolve(); }
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
-  return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+  const request = fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+  if (FROZEN.has(type)){ pendingActions.add(request); request.finally(() => pendingActions.delete(request)); }
+  return request;
 };
 
 let keyboardSelection = false;
@@ -1772,8 +1775,8 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
-      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete ${group.size} boxes?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
-      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
+      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete these topics and their subtopics?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete this topic and its subtopics?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
@@ -2488,22 +2491,39 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
-// A single picked box is removed immediately; its parent remains selected. History can restore it.
-// Delete removes a selection together without interrupting keyboard work.
+// A leaf disappears immediately. A branch is removed together only after confirmation.
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
-function deleteBox(id){
-  if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
-  const n = nodeById(id), parent = topicParent(n); delAsk = null;
-  const follow = selected === id;
-  if (follow) selected = parent?.id || scope().nodes.filter((b) => b.id !== id && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y))[0]?.id || null;
-  pendingRemovals.add(id); hideRemoved(S);
-  act('remove', { id }).then(async (r) => { if (!r?.ok){ pendingRemovals.delete(id); await refreshMap(); toast('The box could not be deleted. Please try again.'); } }); if (follow) selectTopic(selected); else render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+// A branch includes folded descendants and boxes inside it. Cycles are visited once.
+function branchIds(state, roots) {
+  const nodes = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+  const edges = [...(state.edges || []), ...state.nodes.flatMap((n) => n.inside?.edges || [])];
+  const ids = new Set(roots), queue = [...ids];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i], node = nodes.find((n) => n.id === id);
+    const children = [...edges.filter((e) => e.from === id).map((e) => e.to), ...(node?.inside?.nodes || []).map((n) => n.id)];
+    for (const child of children) if (!ids.has(child)) { ids.add(child); queue.push(child); }
+  }
+  return ids;
+}
+function deleteBox(id, confirmed = false){
+  const waiting = [...pendingTopics].filter((n) => !n.id);
+  if (waiting.length){ Promise.all(waiting.map((n) => n.saved)).then(refreshMap).then(() => deleteBox(id, confirmed)); return; }
+  const roots = id === '*' ? [...group] : [id], ids = branchIds(S, roots);
+  if (roots.some((root) => !nodeById(root))) return;
+  if ([...ids].some((child) => locked(nodeById(child) || {}))){ toast('This branch includes a box you cannot delete.'); return; }
+  if (ids.size > roots.length && !confirmed){ delAsk = id; render(); keepInView(id === '*' ? groupLead() : id); return; }
+  const n = nodeById(roots[0]), parent = topicParent(n), follow = ids.has(selected);
+  delAsk = null; group.clear();
+  if (follow) selected = (parent && !ids.has(parent.id) ? parent.id : null) || scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y))[0]?.id || null;
+  for (const child of ids) pendingRemovals.add(child); hideRemoved(S);
+  act('remove', { ids: roots, cascade: true }).then(async (r) => { if (!r?.ok){ for (const child of ids) pendingRemovals.delete(child); await refreshMap(); toast('The boxes could not be deleted. Please try again.'); } });
+  if (follow) selectTopic(selected); else render();
 }
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
   if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
     e.preventDefault(); e.stopImmediatePropagation();
-    if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
+    if (e.key === 'Enter') deleteBox(delAsk, true); else { delAsk = null; render(); }
     return;
   }
   if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox('*'); return; }
@@ -2601,6 +2621,8 @@ function drawRubber(){
 // Keep the next editor ready while the previous box is being saved. A promise for its server-minted
 // id lets fast Tab/Enter sequences attach each new box to the right parent without losing keystrokes.
 const pendingRemovals = new Set();
+const pendingTopics = new Set();
+let nameSession = 0;
 async function refreshMap(){
   try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW) S = LIVE; render(); } catch {}
 }
@@ -2619,7 +2641,8 @@ function topicDraft(n, child){
   const right = !parent || n.x >= parent.x;
   let x = child ? n.x + (right ? 1 : -1) * (W(n) / 2 + 140) : n.x;
   let y = child ? n.y : n.y + HT(n) + 35;
-  const nodes = scope().nodes;
+  for (const n of pendingTopics) if (n.id && nodeById(n.id)) pendingTopics.delete(n);
+  const nodes = [...scope().nodes, ...[...pendingTopics].filter((n) => n.view === view)];
   while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
   askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, returnTopic: n, view });
@@ -2637,7 +2660,7 @@ function keepEditorVisible(at, width, height){
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
   const line = !!(at.from || at.edge);
-  naming = { view, ...at, untouched: !line && !at.edit }; const el = $('newbox');
+  naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
     const parent = nodeById(at.link.id) || at.link;
@@ -2680,7 +2703,7 @@ function askName(at){
       e.preventDefault();
       const next = keyboardNeighbor(naming, e.key);
       const id = next?.id ?? (e.key === 'ArrowLeft' ? naming.link?.id : null);
-      if (id){ endName(false); Promise.resolve(id).then((target) => { if (target && !naming) selectTopic(target); }); }
+      if (id){ endName(true, false); Promise.resolve(id).then((target) => { if (target && !naming) selectTopic(target); }); }
     }
     else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
@@ -2697,26 +2720,28 @@ function askName(at){
       if (current.edit){ selected = current.edit; deleteBox(current.edit); }
     }
   });
-  i.addEventListener('blur', () => endName(true));
+  i.addEventListener('blur', () => endName(true, false));
 }
 function endName(keep, restore = true){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
-  if (!keep || at.untouched || (!at.from && !text)){
+  if (!keep || (!at.from && !text)){
     if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
+  const pending = { ...at, label: text }; if (!at.edit) pendingTopics.add(pending);
   const saved = (async () => {
     const from = at.link ? await at.link.id : null;
     if (at.link && !from) throw new Error('parent');
     const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
-    if (!naming && view === at.view){ selected = id; render(); }
+    pending.id = id;
+    if (restore && at.session === nameSession && !naming && view === at.view){ selected = id; render(); }
     return id;
-  })().catch(() => { toast('The box could not be saved. Please try again.'); return null; });
-  return saved;
+  })().catch(() => { pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
+  pending.saved = saved; return saved;
 }
 function selectTopic(id, fallback){
   keyboardSelection = true; selected = id; render();
@@ -2725,6 +2750,8 @@ function selectTopic(id, fallback){
 }
 // Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
 function keyboardNeighbor(n, key){
+  const parent = n.link || topicParent(n);
+  if (parent && key === (parent.x <= n.x ? 'ArrowLeft' : 'ArrowRight')) return parent;
   const [dx, dy] = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed)
     .map((b) => { const x = b.x - n.x, y = b.y - n.y; return { b, ahead: x * dx + y * dy, across: Math.abs(x * dy - y * dx) }; })
@@ -2764,6 +2791,23 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 
+// Map undo leaves text fields to the browser. An untouched selected topic belongs to the map.
+let undoQueue = Promise.resolve();
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE) return;
+  if (e.target.closest('input, textarea, [contenteditable]') && !naming?.untouched) return;
+  e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
+  const finish = naming?.untouched ? endName(true, false) : null, direction = e.shiftKey ? 'redo' : 'undo';
+  undoQueue = undoQueue.then(async () => {
+    await finish; await Promise.all([...pendingTopics].map((n) => n.saved)); await Promise.all([...pendingActions]);
+    const r = await act(direction), result = await r?.json().catch(() => ({}));
+    if (!r?.ok){ toast(result?.error || 'That change could not be undone.'); return; }
+    pendingRemovals.clear(); delAsk = null; group.clear(); await refreshMap();
+    if (selected && !nodeById(selected)) selected = null;
+    render(); toast(direction === 'undo' ? 'Undone' : 'Redone');
+  }).catch(() => toast('That change could not be undone.'));
+}, true);
+
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false;
 // drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
@@ -2795,7 +2839,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const cd = tool === 'select' && !PREVIEW && e.target.closest('[data-cd]');
   if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
     drawing = { from: n, dot: cd.dataset.cd, x: sx, y: sy, x0: sx, y0: sy, far: false, to: null }; canvas.setPointerCapture(e.pointerId); } return; }
-  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
+  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes, true); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
   const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
   if (ed && !PREVIEW){
@@ -3009,9 +3053,9 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
   // Delete this box on the card asks the same question as the Delete key, above the box itself
-  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); keepInView(delAsk); }
+  else if (t.closest('[data-delete]')){ deleteBox(t.closest('[data-delete]').dataset.delete); }
   else if (t.closest('[data-delete-no]')){ delAsk = null; render(); }
-  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes); }
+  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes, true); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('[data-resolve]')){
@@ -3169,6 +3213,8 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    const arrived = new Set(next.nodes.flatMap((n) => [n.id, ...(n.inside?.nodes || []).map((c) => c.id)]));
+    for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
     for (const id of pendingRemovals) if (!next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === id)) pendingRemovals.delete(id);
     hideRemoved(next);
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
