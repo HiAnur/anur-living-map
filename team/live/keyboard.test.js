@@ -9,7 +9,7 @@ const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf(
 function harness(){
   let input, handler;
   const ctx = vm.createContext({ console, Promise, Set, Map });
-  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
+  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
