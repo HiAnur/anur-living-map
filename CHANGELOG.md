@@ -4,6 +4,30 @@ What changed in Living Map, newest first. Dates use America/Los_Angeles. “Ship
 
 ## November 7, 2026
 
+### Pending · Edit topic names and line labels in place
+
+Double-click a box title or connection label on the map to edit its existing text. The box outline and description stay visible; previously, a separate editor box appeared over them. Proposed box names can also be edited on the map or in the details panel before Apply, and the change list reflects the revised name.
+
+![A selected title is edited inside its original box, with its description still visible.](docs/shipping/2026-11-07/inline-topic-editing.png)
+
+### Pending · Clearer planning progress and descriptions
+
+Auto plan and Side Chat keep a working indicator above the message field while Claude prepares changes, including after the reply text appears. It changes to “Preparing map changes…” while the proposal is being written and clears when the reply finishes; previously, it disappeared as soon as text arrived. New planned topics also include a brief description beneath their title.
+
+<img src="docs/shipping/2026-11-07/planning-progress.png" alt="The selected map box and its right-hand Side Chat, with Preparing map changes above the message field." width="640">
+
+### Pending · One preview for a group drag
+
+When dragging multiple selected boxes, one floating box follows the pointer and one green destination hint shows the proposed attachment. Previously, each selected branch added another preview; releasing still moves all selected branches together, with their children and connections intact.
+
+![Selected original boxes remain outlined, with one floating box and one green destination hint.](docs/shipping/2026-11-07/single-group-drag-preview.png)
+
+### Pending · Tidy up shortcut
+
+- Press ⌘⇧L on Mac or Ctrl+Shift+L on Windows/Linux to tidy the visible map. The orange Tidy up button shows the shortcut, and text fields keep their normal typing behavior.
+
+These changes are pending release and have been verified in the local preview on port 4323. The review link will be added when the change is submitted.
+
 ### Shipped · Editable box descriptions
 
 Select a box to see its short description directly beneath its name. Double-click the description to edit; Enter or clicking away saves, and Escape cancels. Previously it was buried under “The plan.” [Change #133](https://github.com/HiAnur/anur-living-map/pull/133)

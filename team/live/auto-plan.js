@@ -5,7 +5,7 @@ Use the selected box, its existing children, the rest of the visible map and thi
 Propose one to five specific additions, only as many as help. Avoid duplicates, generic filler and assumed facts.
 If the map is too vague to make useful suggestions, ask one short clarifying question instead of proposing boxes.
 Explain briefly why the additions belong here, then include a map block with new nodes and edges from ${id} to each new node.
-Use new lowercase ids, short labels and a short desc explaining each suggestion. Do not edit or remove existing boxes, reorganize the map or change its instructions.`;
+Use new lowercase ids, short labels, a brief sub description visible on each box, and a short desc explaining each suggestion. Do not edit or remove existing boxes, reorganize the map or change its instructions.`;
 
 // Auto plan only adds children. Rechecking at Apply also protects boxes added while a suggestion was waiting.
 export function autoPlanAdditions(plan, parent, existing, edges) {
@@ -20,7 +20,8 @@ export function autoPlanAdditions(plan, parent, existing, edges) {
     const label = n.label.trim().slice(0, 80), key = name(label);
     if (!key || labels.has(key)) continue;
     ids.add(n.id); labels.add(key);
-    nodes.push({ id: n.id, label, ...(typeof n.desc === 'string' ? { desc: n.desc.slice(0, 1000) } : {}), state: 'new' });
+    const sub = (typeof n.sub === 'string' ? n.sub : typeof n.desc === 'string' ? n.desc.split('\n')[0] : '').trim().slice(0, 160);
+    nodes.push({ id: n.id, label, ...(sub ? {sub} : {}), ...(typeof n.desc === 'string' ? { desc: n.desc.slice(0, 1000) } : {}), state: 'new' });
   }
   return { nodes, edges: nodes.map((n) => ({ from: parent, to: n.id })) };
 }

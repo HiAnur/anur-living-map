@@ -7,13 +7,13 @@ import { branchIds } from './editing.js';
 
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Map undo leaves'));
+const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Tidy shortcut'));
 const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIVE = next;'));
 const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
 function harness(){
   let input, handler, pickTimer;
   const ctx = vm.createContext({ console, Promise, Set, Map });
-  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
+  const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
@@ -234,6 +234,11 @@ describe('keyboard brainstorming',()=>{
   });
   it('keeps tool letters and text fields out of rename handling',()=>{
     const h=harness();h.key('c');expect(h.ctx.naming).toBeNull();h.key('r',{target:{closest:()=>true}});expect(h.ctx.naming).toBeNull();h.key('Tab',{isComposing:true});expect(h.ctx.naming).toBeNull();
+  });
+  it('Enter saves an existing name without creating a sibling',async()=>{
+    const h=harness(),calls=[];h.ctx.act=async(type,a)=>{calls.push([type,a]);return {ok:true,json:async()=>({id:a.id})};};
+    h.key('F2');h.type('Renamed root');h.edit('Enter');await vm.runInContext('topicSaveQueue',h.ctx);
+    expect(calls).toEqual([['renamebox',{id:'root',label:'Renamed root'}]]);expect(h.ctx.naming).toBeNull();
   });
   it('F2 selects the existing name and Escape preserves it',async()=>{
     const h=harness();h.key('F2');expect(h.input().value).toBe('Root');h.input().value='Changed';h.edit('Escape');await Promise.resolve();expect(h.ctx.S.nodes[0].label).toBe('Root');expect(h.ctx.selected).toBe('root');

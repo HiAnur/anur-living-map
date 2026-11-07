@@ -153,7 +153,7 @@ function openMap({ project = '', name = '', home }) {
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
   if (project || name) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
-  for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
+  for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
   const clients = new Set();
   const clientAccess = new Map();
@@ -384,6 +384,7 @@ function openMap({ project = '', name = '', home }) {
       'turning a line around when the flow reads better the other way. Set "start" to the id of the box the map starts from; when no box on the map',
       'can hold all the others, add one new box for the map\'s subject, with lines from it to the boxes at the top, and start from it.',
       'Then add "tidy": true, and on Apply the map places every box itself; never try to place boxes.',
+      'When planning new topics, include a short sub description on every new box explaining what it covers. Keep it to one brief sentence.',
       'A new box needs a new lowercase id and a label; giving an existing box id changes that box. Leave out x and y.',
       'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',
       'never added again under another name. A new block replaces any of your offers still waiting for Apply, so put the whole change in it.',
@@ -695,7 +696,19 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     renamebox(a) {
-      const n = nodeOf(a.id), sees = seesOf(a.by), label = String(a.label || '').trim().slice(0, 80);
+      const label = String(a.label || '').trim().slice(0, 80);
+      if (a.proposed){
+        if (!label) return false;
+        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((n) => n.id === a.id));
+        if (!p || nodeOf(a.id)) return false;
+        const plan = {...p.plan, nodes:p.plan.nodes.map((n) => n.id === a.id ? {...n,label} : {...n})};
+        const checked = p.autoPlanAbout ? checkAutoPlan(plan,a.by,p.autoPlanAbout) : check(plan,a.by);
+        if (!checked.plan?.nodes.some((n) => n.id === a.id)) return false;
+        p.plan.nodes.find((n) => n.id === a.id).label = label;
+        p.ops = checked.ops;
+        return true;
+      }
+      const n = nodeOf(a.id), sees = seesOf(a.by);
       if (!n || !label || (sees !== 'all' && n.area !== sees)) return false;
       n.label = label;
       tell(`${a.by} renamed a box to ${label}`);
@@ -756,14 +769,14 @@ function openMap({ project = '', name = '', home }) {
         return true;
       }
       // the reply fills in as Claude writes it, pushed to every window a few times a second
-      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, since: Date.now(), ...(n ? { about: n.id } : {}) };
+      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: a.autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
       askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, a.autoPlan),
-        onText: (text) => { msg.text = withoutBlock(text); soon ??= setTimeout(() => { soon = null; push(); }, 150); },
+        onText: (text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : a.autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
-          clearTimeout(soon); delete msg.thinking; delete msg.since; msg.text = withoutBlock(text); msg.at = stamp();
+          clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = withoutBlock(text); msg.at = stamp();
           if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
           const pr = proposal(text, a.by, a.autoPlan ? n.id : null);
