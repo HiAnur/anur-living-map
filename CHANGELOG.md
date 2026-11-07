@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>Copy links with placeholders in map text</strong></dt>
+<dd>
+
+**Share → Copy link** now accepts notes such as `maps/<name>/state.json` and preserves special characters in shared boxes, lines and comments. [#153](https://github.com/HiAnur/anur-living-map/pull/153) <!-- merged-at: 2026-11-07T19:55:09Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Edit descriptions on the map</strong></dt>
 <dd>
 
