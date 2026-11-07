@@ -1,6 +1,6 @@
 # Shipping log
 
-What changed in Living Map, newest first. Dates use America/Los_Angeles. “Shipped” means merged into the release and verified in the running app; installed copies receive it when they update. Pending work is labelled separately.
+Changes merged into Living Map, newest first. Dates use America/Los_Angeles. Installed copies receive these changes when they update.
 
 ## November 7, 2026
 
@@ -28,7 +28,7 @@ When dragging multiple selected boxes, one floating box follows the pointer and 
 
 These changes are pending release and have been verified in the local preview on port 4323. [Change #138](https://github.com/HiAnur/anur-living-map/pull/138) is awaiting release.
 
-### Shipped · Editable box descriptions
+### Editable box descriptions
 
 Select a box to see its short description directly beneath its name. Double-click the description to edit; Enter or clicking away saves, and Escape cancels. Previously it was buried under “The plan.” [Change #133](https://github.com/HiAnur/anur-living-map/pull/133)
 
@@ -36,13 +36,13 @@ Select a box to see its short description directly beneath its name. Double-clic
 
 _Select a box on the map; its description appears beneath the name in the right-hand panel._
 
-### Shipped · Layout fixes
+### Layout fixes
 
 - Short titles such as “Local rules and money” now fit on one line instead of leaving the last word on a second line. [#133](https://github.com/HiAnur/anur-living-map/pull/133)
 - Tidy up leaves less empty space between columns while keeping connection labels readable. [#132](https://github.com/HiAnur/anur-living-map/pull/132)
 
 ## November 6, 2026
 
-### Shipped · Box drawing shortcut restored
+### Box drawing shortcut restored
 
 Press ⌘R, then drag to draw a box. The shortcut selects the Box tool again instead of opening a topic editor. [#130](https://github.com/HiAnur/anur-living-map/pull/130)
