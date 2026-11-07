@@ -907,7 +907,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <span class="tb on" data-tool="select" title="Select (⌘ V)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg><kbd class="tk">⌘ V</kbd></span>
   <span class="tb" data-tool="hand" title="Pan: drag the map (⌘ H)"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg><kbd class="tk">⌘ H</kbd></span>
   <i class="tdiv"></i>
-  <span class="tb" data-tool="box" title="Box: drag one out, or press ⌘ R to type"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">⌘ R</kbd></span>
+  <span class="tb" data-tool="box" title="Box: drag one out (⌘ R)"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">⌘ R</kbd></span>
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (⌘ A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">⌘ A</kbd></span>
   <i class="tdiv"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (⌘ C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">⌘ C</kbd></span>
@@ -2663,7 +2663,6 @@ const TOOL_KEYS = { v: 'select', h: 'hand', r: 'box', a: 'arrow', c: 'comment' }
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || !(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey || e.target.closest('input, textarea, [contenteditable]')) return;
   const key = e.code?.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.key.toLowerCase();
-  if (key === 'r') return; // The keyboard topic handler opens a selected draft.
   const t = TOOL_KEYS[key];
   if (t){ e.preventDefault(); if (e.repeat) return; if (t !== 'select' && t !== 'hand' && PREVIEW){ toast(FROZEN_SAYS); return; } setTool(tool === t && t !== 'select' ? 'select' : t); }
 });
@@ -3041,8 +3040,7 @@ function keyboardNeighbor(n, key){
     .filter((p) => p.ahead > 0).sort((a, b) => (a.ahead + a.across * 3) - (b.ahead + b.across * 3))[0]?.b;
 }
 document.addEventListener('keydown', (e) => {
-  const boxShortcut = (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'r';
-  if (e.defaultPrevented || e.isComposing || ((e.metaKey || e.ctrlKey) && !boxShortcut) || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || READ_ONLY || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
+  if (e.defaultPrevented || e.isComposing || (e.metaKey || e.ctrlKey) || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || READ_ONLY || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
   let n = selected && nodeById(selected);
   if (!n && e.key === 'Tab' && !e.shiftKey){
     const nodes = scope().nodes.filter((b) => !locked(b) && !b.proposed);
@@ -3051,14 +3049,6 @@ document.addEventListener('keydown', (e) => {
     setTool('select');
     if (!n){ askName({ x: 0, y: 0, keyboard: true, text: 'Topic' }); return; }
     selectTopic(n.id); topicDraft(n, true); return;
-  }
-  if (boxShortcut){
-    e.preventDefault(); if (e.repeat) return;
-    setTool('select');
-    const r = canvas.getBoundingClientRect(), [x, y] = toStage(r.left + r.width / 2, r.top + r.height / 2);
-    let at = { x: n ? n.x : x, y: n ? n.y + HT(n) + 35 : y };
-    while (scope().nodes.some((b) => Math.abs(b.x - at.x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - at.y) < (HT(b) + 50) / 2 + 20)) at.y += 85;
-    askName({ ...at, keyboard: true, returnTo: n?.id, text: 'Topic' }); return;
   }
   if (tool !== 'select') return;
   if (n && !locked(n) && !n.proposed){

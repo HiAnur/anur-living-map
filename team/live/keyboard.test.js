@@ -223,14 +223,14 @@ describe('keyboard brainstorming',()=>{
   it('saves only entered names and discards names erased before saving',async()=>{
     const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'typed'})};};
     h.key('Tab');h.type('Sub-topic');h.blur();await new Promise(setImmediate);expect(calls[0][1].label).toBe('Sub-topic');
-    const empty=harness();empty.ctx.act=(...args)=>calls.push(args);empty.key('r',{metaKey:true});empty.type('');empty.blur();expect(calls).toHaveLength(1);
+    const empty=harness();empty.ctx.act=(...args)=>calls.push(args);empty.key('Tab');empty.type('');empty.blur();expect(calls).toHaveLength(1);
   });
   it('uses the saved branch stem for the new topic preview',()=>{
     const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.key('Tab');
     expect(h.rubber.innerHTML).toContain('M70 0L84 0L84 85L138 85');
   });
-  it('R makes an unconnected editable Topic even with a box selected',()=>{
-    const h=harness();h.key('r',{metaKey:true});expect(h.input().value).toBe('Topic');expect(h.ctx.naming.link).toBeUndefined();expect(h.ctx.naming.edit).toBeUndefined();
+  it('leaves Command R to the drawing tool even with a box selected',()=>{
+    const h=harness();h.key('r',{metaKey:true});expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');
   });
   it('keeps tool letters and text fields out of rename handling',()=>{
     const h=harness();h.key('c');expect(h.ctx.naming).toBeNull();h.key('r',{target:{closest:()=>true}});expect(h.ctx.naming).toBeNull();h.key('Tab',{isComposing:true});expect(h.ctx.naming).toBeNull();
@@ -255,6 +255,6 @@ describe('keyboard brainstorming',()=>{
     const empty=harness();empty.ctx.selected=null;empty.ctx.S.nodes=[];empty.key('Tab');expect(empty.input().value).toBe('Topic');
   });
   it('does not edit history or saved-file previews',()=>{
-    const h=harness();h.ctx.PREVIEW={};h.key('r',{metaKey:true});expect(h.ctx.naming).toBeNull();h.ctx.PREVIEW=null;h.ctx.FILE=true;h.key('Tab');expect(h.ctx.naming).toBeNull();
+    const h=harness();h.ctx.PREVIEW={};h.key('Tab');expect(h.ctx.naming).toBeNull();h.ctx.PREVIEW=null;h.ctx.FILE=true;h.key('Tab');expect(h.ctx.naming).toBeNull();
   });
 });
