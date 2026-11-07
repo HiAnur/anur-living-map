@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const target = process.argv[2];
+if (!target || fs.existsSync(target)) throw new Error('Choose a new build-context directory.');
+fs.mkdirSync(path.join(target, 'live'), { recursive: true });
+fs.mkdirSync(path.join(target, 'cloud'));
+for (const name of ['server.js','auto-plan.js','mirror.js','project.js','access.js','sharing.js','editing.js','cloud-client.js','cloud-data.js','index.html','seed.json','package.json']) fs.copyFileSync(path.resolve(import.meta.dirname, '../live', name), path.join(target, 'live', name));
+for (const name of ['server.js','store.js']) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(target, 'cloud', name));
+fs.copyFileSync(path.join(import.meta.dirname, 'Dockerfile'), path.join(target, 'Dockerfile'));
+fs.writeFileSync(path.join(target, 'package.json'), '{"type":"module"}\n');
