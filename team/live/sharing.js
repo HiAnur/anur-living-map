@@ -21,7 +21,7 @@ export function changeSharing(state, who, mode) {
   state.linkSharing = mode === 'restricted' ? { mode } : { mode, token: state.linkSharing?.token || crypto.randomBytes(32).toString('hex') };
   return true;
 }
-export const LINK_EDITS = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename', 'undo', 'redo', 'comment', 'reply', 'resolve', 'cursor']);
+export const LINK_EDITS = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename', 'undo', 'redo', 'comment', 'reply', 'resolve', 'cursor']);
 export function sharedState(state, owner = false, guest = false) {
   const result = { ...state, linkSharing: owner ? state.linkSharing || { mode: 'restricted' } : { mode: state.linkSharing?.mode || 'restricted' } };
   if (guest) Object.assign(result, { threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], project: undefined });

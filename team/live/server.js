@@ -609,7 +609,7 @@ function openMap({ project = '', name = '', home }) {
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory();
-  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename']);
+  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
   const ACTS = {
     reparent(a) {
       const sees = seesOf(a.by);
@@ -699,6 +699,13 @@ function openMap({ project = '', name = '', home }) {
       if (!n || !label || (sees !== 'all' && n.area !== sees)) return false;
       n.label = label;
       tell(`${a.by} renamed a box to ${label}`);
+      return true;
+    },
+    describebox(a) {
+      const n = nodeOf(a.id), sees = seesOf(a.by);
+      if (!n || typeof a.sub !== 'string' || (sees !== 'all' && n.area !== sees)) return false;
+      n.sub = a.sub.trim().slice(0, 240);
+      tell(`${a.by} changed the description of ${n.label}`);
       return true;
     },
     remove(a) {

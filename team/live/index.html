@@ -339,6 +339,9 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 #side.on.info{display:flex;flex-direction:column}
 #side [data-rename-box]{cursor:text;min-width:0;overflow-wrap:anywhere}
 #side-name{flex:1;min-width:0;width:0;border:1px solid var(--new);border-radius:6px;padding:4px 6px;background:var(--card);color:var(--text);font:inherit;user-select:text}
+#side .side-summary{margin:4px 0 12px;color:var(--text-2);font-size:13.5px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;cursor:text}
+#side .side-summary.empty{color:var(--text-3)}
+#side #side-name.side-summary-input{flex:none;width:100%;margin:4px 0 12px;min-height:60px;resize:vertical;font-size:13.5px;line-height:1.45}
 #side .ct-r{flex-shrink:0;white-space:nowrap}
 #side .chat-h{white-space:nowrap}
 #side > .ct{gap:8px}
@@ -1087,7 +1090,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'undo', 'redo']);
+const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'undo', 'redo']);
 const pendingActions = new Set();
 const act = (type, extra = {}) => {
   if (READ_ONLY){ if (type !== 'cursor') toast(VIEW_SAYS); return Promise.resolve(); }
@@ -1110,17 +1113,17 @@ const fetchInbox = () => fetch(`/api/inbox?as=${encodeURIComponent(ME)}`).then((
   .then((x) => { elsewhere = x.filter((m) => m.name !== HERE); if (S) renderInbox(); }).catch(() => {});
 const cam = { x: 0, y: 0, z: 1 };
 // A box is as big as its words and no bigger: the usual width (140, a person 110), wider for a long name up to
-// 220, where the name wraps; as tall as its lines. A box drawn big with one word in it is the usual size.
+// 220, where the name wraps; include both borders and rounding room before wrapping. As tall as its lines. A box drawn big with one word in it is the usual size.
 const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
 const W = (n) => {
   const key = `w|${n.kind}|${n.icon}|${n.label}`;
-  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.round(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 24 + (n.icon === 'db' ? 20 : 0))))); }
+  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 28 + (n.icon === 'db' ? 20 : 0))))); }
   return wraps.get(key);
 };
 // Count wrapped words, including names containing a long unbroken word.
 const nameLines = (n) => {
-  const room = W(n) - 24 - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${n.label}`;
+  const room = W(n) - 26 - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${n.label}`;
   if (!wraps.has(key)){
     ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 0;
@@ -1144,7 +1147,7 @@ document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
 // a second line too long for its box wraps, up to three lines, instead of being cut off with "…"
 const subLines = (n) => {
   if (!n.sub) return 0;
-  const room = W(n) - 24, key = `s|${room}|${n.sub}`;
+  const room = W(n) - 26, key = `s|${room}|${n.sub}`;
   if (!wraps.has(key)){
     ruler.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 1, w = 0;
@@ -2135,27 +2138,27 @@ let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null, sideSeen = '';
 let sideRename = null;
-function beginSideRename(id){
+function beginSideRename(id, field = 'label'){
   const n = nodeById(id);
   if (!n || locked(n)) return;
   if (READ_ONLY || FILE || PREVIEW){ toast(READ_ONLY ? VIEW_SAYS : FILE ? FILE_SAYS : FROZEN_SAYS); return; }
   clearTimeout(tapTimer); nameSession++;
-  sideRename = { id, label:n.label }; renderSide();
+  sideRename = { id, field, label:n[field] || '' }; renderSide();
   $('side-name').focus({preventScroll:true}); $('side-name').select();
 }
 function endSideRename(keep){
   if (!sideRename) return;
-  const {id,label:before} = sideRename, label = $('side-name')?.value.trim().slice(0,80), n = nodeById(id);
+  const {id,field,label:before} = sideRename, label = $('side-name')?.value.trim().slice(0,field === 'sub' ? 240 : 80), n = nodeById(id);
   sideRename = null;
-  if (keep && n && label && label !== before){
-    n.label = label;
-    act('renamebox', {id,label}).then((r) => { if (!r?.ok){ toast('That name could not be saved.'); refreshMap(); } });
+  if (keep && n && label !== undefined && (field === 'sub' || label) && label !== before){
+    n[field] = label;
+    act(field === 'sub' ? 'describebox' : 'renamebox', {id,[field]:label}).then((r) => { if (!r?.ok){ toast(`That ${field === 'sub' ? 'description' : 'name'} could not be saved.`); refreshMap(); } });
   }
   render();
 }
-document.addEventListener('dblclick', (e) => { const title = e.target.closest('[data-rename-box]'); if (title) beginSideRename(title.dataset.renameBox); });
+document.addEventListener('dblclick', (e) => { const title = e.target.closest('[data-rename-box]'), description = e.target.closest('[data-description-box]'); if (title) beginSideRename(title.dataset.renameBox); else if (description) beginSideRename(description.dataset.descriptionBox, 'sub'); });
 document.addEventListener('keydown', (e) => {
-  if (e.target.id !== 'side-name' || e.isComposing || !['Enter','Escape'].includes(e.key)) return;
+  if (e.target.id !== 'side-name' || e.isComposing || (e.key === 'Enter' && e.shiftKey) || !['Enter','Escape'].includes(e.key)) return;
   e.preventDefault(); e.stopImmediatePropagation(); endSideRename(e.key === 'Enter');
 });
 document.addEventListener('focusout', (e) => { if (e.target.id === 'side-name') endSideRename(true); });
@@ -2285,7 +2288,8 @@ function renderSide(){
   // Information keeps the box's dates and deletion action at the bottom of its panel.
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
+    ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ Auto plan</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
@@ -2295,7 +2299,7 @@ function renderSide(){
       // ⚠️, other lines are a list; the first 5 lines at once and the rest under More
       const done = calls.filter((c) => c.status !== 'open'), last = done.at(-1);
       const tip = last ? `✓ Decided by ${last.by}, ${last.at}` : n.decided ? `✓ Decided by ${n.decided.who}, ${n.decided.at}` : '';
-      const top = n.sub || (n.decided && !done.length ? n.decided.what : '');
+      const top = !n.sub && n.decided && !done.length ? n.decided.what : '';
       const glance = (ls, first) => { let html = '', list = [];
         const flush = () => { if (list.length) html += `<ul class="nt-list">${list.map((v) => `<li>${prose(v)}</li>`).join('')}</ul>`; list = []; };
         ls.forEach((l, i) => {
