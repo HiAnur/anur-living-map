@@ -940,6 +940,7 @@ function openMap({ project = '', name = '', home }) {
       const origin = req.headers.origin;
       if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
       let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+      if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
       if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
       save();
       if (!a.restore) {

@@ -46,6 +46,7 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
   try {
     await start();
     expect((await access(1, { person: 'Duy' })).status).toBe(403);
+    expect((await access(0, null)).status).toBe(400);
     const stream = await get('/private/api/events'); reader = stream.body.getReader(); await reader.read();
     expect((await access(0, { person: 'Member' })).status).toBe(200);
     let events = ''; for (;;) { const chunk = await reader.read(); if (chunk.done) break; events += new TextDecoder().decode(chunk.value); }
