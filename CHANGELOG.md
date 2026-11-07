@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dd>
+
+Choose **Action box**, write your task in **Side Chat**, answer clarifications with **Enter**, then review and **Execute** in Claude. Teal boxes show spinning progress or a **Need clarify** pill. [#160](https://github.com/HiAnur/anur-living-map/pull/160), [#164](https://github.com/HiAnur/anur-living-map/pull/164) <!-- merged-at: 2026-11-07T23:56:20Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="Teal Action and Execution boxes beside Side Chat, with a Need clarify pill, the question and answer history, and the reply composer." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] Proposals stay with their branch</strong></dt>
 <dd>
 
@@ -20,17 +31,6 @@ Proposed topics append after existing children, with the preview showing where A
 <dd>
 
 Auto plan asks what you want to achieve before using the whole map to find gaps in the selected branch. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Action boxes</strong></dt>
-<dd>
-
-On a topic, choose **Action box**, write your task, gather its map context, answer any questions, then review and **Execute** it in Claude. [#160](https://github.com/HiAnur/anur-living-map/pull/160) <!-- merged-at: 2026-11-07T23:40:19Z -->
-
-<img src="docs/shipping/2026-11-07/action-box.png" alt="A selected Action box beside its task-writing field, Gather information button, and a neighboring Execution box." width="640">
 
 </dd>
 </dl>
