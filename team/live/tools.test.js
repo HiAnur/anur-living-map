@@ -7,7 +7,7 @@ const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 describe('pointer tool shortcut',()=>{
   it('switches Hand to Select, clears temporary panning and updates the toolbar',()=>{
     let handler;const classes=new Set(['hand','grabbing','spacepan']),active=new Set();
-    const ctx=vm.createContext({tool:'hand',spaceDown:true,panning:{},draft:null,PREVIEW:null,render(){},
+    const ctx=vm.createContext({tool:'hand',spaceDown:true,panning:{},draft:null,PREVIEW:null,READ_ONLY:false,render(){},
       canvas:{classList:{remove(...names){names.forEach(n=>classes.delete(n));},toggle(n,on){if(on)classes.add(n);else classes.delete(n);}}},
       document:{addEventListener(type,f){handler=f;},querySelectorAll:()=>['select','hand'].map(tool=>({dataset:{tool},classList:{toggle(n,on){if(on)active.add(tool);else active.delete(tool);}}}))},
     });
@@ -25,7 +25,7 @@ describe('pointer tool shortcut',()=>{
 describe('map history controls', () => {
   function historyHarness(){
     let keydown; const calls = [];
-    const ctx = vm.createContext({ PREVIEW:null, FILE:false, naming:null, selected:null, delAsk:null,
+    const ctx = vm.createContext({ PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, selected:null, delAsk:null,
       pendingTopics:new Set(), pendingActions:new Set(), pendingRemovals:new Set(), group:new Set(), topicSaveQueue:Promise.resolve(),
       document:{addEventListener(type,fn){keydown=fn;}}, toast(){}, render(){}, refreshMap:async()=>{}, nodeById:()=>null,
       act:async direction=>{calls.push(direction);return {ok:true,json:async()=>({})};},
