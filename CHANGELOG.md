@@ -8,7 +8,7 @@ Recent changes you can use in the current release of Living Map, newest first. D
 <dt><strong>Auto plan finds gaps across a branch</strong></dt>
 <dd>
 
-Auto plan uses the whole map from any box and places missing topics under the relevant child or descendant. [#156](https://github.com/HiAnur/anur-living-map/pull/156) <!-- merged-at: 2026-11-07T23:06:05Z -->
+Auto plan uses the whole map, asks when your goal is unclear, and places missing topics under the relevant child or descendant. [#156](https://github.com/HiAnur/anur-living-map/pull/156), [#158](https://github.com/HiAnur/anur-living-map/pull/158) <!-- merged-at: 2026-11-07T23:25:39Z -->
 
 </dd>
 </dl>
