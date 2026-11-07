@@ -20,10 +20,10 @@ describe('double click topic editing',()=>{
   const node={id:'child',label:'Sub-topic',x:210,y:0};
   it('opens the existing name for replacement on the second click',()=>{
     const h=harness();h.click(node);expect(h.edits).toEqual([]);expect(h.ctx.selected).toBe('child');h.click(node);
-    expect(h.edits).toEqual([{x:210,y:0,edit:'child',text:'Sub-topic'}]);expect(h.ctx.drag).toBeNull();
+    expect(h.edits).toEqual([{x:210,y:0,edit:'child',field:'label',text:'Sub-topic'}]);expect(h.ctx.drag).toBeNull();
   });
   it('edits a proposed box before applying it',()=>{
-    const h=harness();h.click(node,true);h.click(node,true);expect(h.edits).toEqual([{x:210,y:0,edit:'child',text:'Sub-topic',proposed:true}]);
+    const h=harness();h.click(node,true);h.click(node,true);expect(h.edits).toEqual([{x:210,y:0,edit:'child',field:'label',text:'Sub-topic',proposed:true}]);
   });
   it('preserves double click navigation for boxes containing maps',()=>{
     const h=harness();const n={...node,inside:{}};h.click(n);h.click(n);expect(h.opened).toEqual(['child']);expect(h.edits).toEqual([]);

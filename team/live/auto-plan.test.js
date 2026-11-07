@@ -22,7 +22,7 @@ function harness() {
   vm.runInContext(server.slice(checkStart,checkEnd),ctx);
   vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  const withoutBlock =')),ctx);
   vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
-  return {state,calls,rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
+  return {state,calls,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 const reply = plan => `Suggested next steps.\n\`\`\`map\n${JSON.stringify(plan)}\n\`\`\``;
 
@@ -55,6 +55,15 @@ describe('Auto plan',()=>{
     expect(p.ops).toContain('Add a line Launch → Launch date');
     h.apply();expect(h.state.nodes.at(-1).label).toBe('Launch date');
     expect(h.rename({id:'timing',label:'Too late'})).toBe(false);
+  });
+  it('edits only your pending proposed description and keeps its title when applied',()=>{
+    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing',sub:'Choose a date'}]}));
+    expect(h.describe({id:'timing',sub:'Changed',by:'SomeoneElse'})).toBe(false);
+    expect(h.describe({id:'timing',sub:42})).toBe(false);
+    expect(h.describe({id:'timing',sub:'  Confirm with the team  '})).toBe(true);
+    const n=h.state.threads['@Tester>launch'][1].proposal.plan.nodes[0];expect(n).toMatchObject({label:'Timing',sub:'Confirm with the team'});
+    h.apply();expect(h.state.nodes.at(-1)).toMatchObject({label:'Timing',sub:'Confirm with the team'});
+    expect(h.describe({id:'timing',sub:'Too late'})).toBe(false);
   });
   it('uses the selected box and visible map in its side chat, once per unfinished reply',()=>{
     const h=harness();h.state.threads['@SomeoneElse']=[{who:'SomeoneElse',text:'Private chat'}];
