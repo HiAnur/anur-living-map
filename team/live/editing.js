@@ -10,6 +10,30 @@ export function branchIds(state, roots) {
   }
   return ids;
 }
+// Moving a topic to another parent is one edit: validate the whole placement before
+// changing any line or box, so a concurrent edit cannot leave half a branch moved.
+export function reparentTopic(state, a, canEdit = () => true) {
+  const all = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+  const graph = !a.view || a.view === 'system' ? state : all.find((n) => n.id === a.view)?.inside;
+  if (!graph) return false;
+  const node = graph.nodes.find((n) => n.id === a.id), parent = graph.nodes.find((n) => n.id === a.parent);
+  if (!node || !parent || !canEdit(parent)) return false;
+  const branch = branchIds(state, [node.id]);
+  if (branch.has(parent.id) || [...branch].some((id) => !all.find((n) => n.id === id && canEdit(n)))) return false;
+  const incoming = (graph.edges || []).filter((e) => e.to === node.id);
+  if (!Array.isArray(a.parents) || JSON.stringify(incoming.map((e) => e.from).sort()) !== JSON.stringify([...a.parents].sort())) return false;
+  if (incoming.some((e) => !all.find((n) => n.id === e.from && canEdit(n)))) return false;
+  const moves = a.moves;
+  if (!Array.isArray(moves) || !moves.length || moves.length > graph.nodes.length || new Set(moves.map((m) => m?.id)).size !== moves.length) return false;
+  if (graph.nodes.some((n) => branch.has(n.id) && !moves.some((m) => m?.id === n.id))) return false;
+  if (moves.some((m) => {
+    const n = graph.nodes.find((n) => n.id === m?.id);
+    return !n || !canEdit(n) || ![m.fromX, m.fromY, m.x, m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY;
+  })) return false;
+  for (const m of moves) Object.assign(graph.nodes.find((n) => n.id === m.id), { x: Math.round(m.x), y: Math.round(m.y), moved: true });
+  graph.edges = [...(graph.edges || []).filter((e) => e.to !== node.id), { from: parent.id, to: node.id }];
+  return true;
+}
 // Dates describe edits; they must not make an otherwise unchanged undo conflict.
 const content = (value) => JSON.stringify(value, (key, v) => key === 'createdAt' || key === 'updatedAt' ? undefined : v);
 const equal = (a, b) => content(a) === content(b);

@@ -30,7 +30,7 @@ import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users } from './users.js';
 import { canAccess, changeAccess } from './access.js';
-import { boxDates, branchIds, editHistory, editSnapshot } from './editing.js';
+import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -558,7 +558,7 @@ function openMap({ project = '', name = '', home }) {
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   function remember(type, by, force = false) {
@@ -601,8 +601,14 @@ function openMap({ project = '', name = '', home }) {
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory();
-  const UNDOABLE = new Set(['move', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename']);
+  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename']);
   const ACTS = {
+    reparent(a) {
+      const sees = seesOf(a.by);
+      if (!reparentTopic(state, a, (n) => sees === 'all' || n.area === sees)) return false;
+      tell(`${a.by} moved ${nodeOf(a.id).label} under ${nodeOf(a.parent).label}`);
+      return true;
+    },
     move(a) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
       if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
