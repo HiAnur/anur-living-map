@@ -22,11 +22,21 @@ function harness() {
   vm.runInContext(server.slice(checkStart,checkEnd),ctx);
   vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  const withoutBlock =')),ctx);
   vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
-  return {state,calls,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
+  return {state,calls,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 const reply = plan => `Suggested next steps.\n\`\`\`map\n${JSON.stringify(plan)}\n\`\`\``;
 
 describe('Auto plan',()=>{
+  it('always asks for the planning goal before calling Claude, and plans only after the answer',()=>{
+    const h=harness();h.ask({text:''});h.ask({text:''});
+    expect(h.calls).toHaveLength(0);expect(h.state.threads['@Tester>launch']).toHaveLength(2);
+    expect(h.state.threads['@Tester>launch'][1]).toMatchObject({autoPlanQuestion:true,autoPlanAbout:'launch'});
+    h.ask({autoPlan:false,side:true,text:'Decide who should join our pilot'});
+    expect(h.calls).toHaveLength(1);expect(h.calls[0].prompt).toContain('Decide who should join our pilot');
+    expect(h.calls[0].prompt).toContain('This is Auto plan');
+    h.calls[0].onDone(reply({nodes:[{id:'pilot',label:'Pilot participants'}],edges:[{from:'audience',to:'pilot'}]}));
+    expect(h.state.threads['@Tester>launch'][3].proposal.autoPlanAbout).toBe('launch');
+  });
   it('keeps working through visible prose and hidden map generation, then clears the status',()=>{
     const h=harness();h.ask();const m=h.state.threads['@Tester>launch'][1];
     expect(m.doing).toBe('Planning additions');
