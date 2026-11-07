@@ -28,6 +28,7 @@ import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users } from './users.js';
+import { branchIds, editHistory, editSnapshot } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -587,6 +588,8 @@ function openMap({ project = '', name = '', home }) {
     linked: state.linked || [], said: state.said || {},
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
+  const edits = editHistory();
+  const UNDOABLE = new Set(['move', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename']);
   const ACTS = {
     move(a) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
@@ -662,11 +665,14 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     remove(a) {
-      const n = nodeOf(a.id); if (!n) return false;
-      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
-      const drop = (s) => { s.nodes = s.nodes.filter((x) => x !== n); if (s.edges) s.edges = s.edges.filter((e) => e.from !== n.id && e.to !== n.id); };
-      drop(state); for (const p of state.nodes) if (p.inside) drop(p.inside);
-      tell(`${a.by} took ${n.label} off the map`);
+      const roots = Array.isArray(a.ids) ? a.ids : [a.id];
+      if (!roots.length || roots.some((id) => !nodeOf(id))) return false;
+      const ids = a.cascade ? branchIds(state, roots) : new Set(roots), sees = seesOf(a.by);
+      if ([...ids].some((id) => !nodeOf(id) || (sees !== 'all' && nodeOf(id).area !== sees))) return false;
+      const label = nodeOf(roots[0]).label;
+      const drop = (s) => { s.nodes = s.nodes.filter((n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((e) => !ids.has(e.from) && !ids.has(e.to)); };
+      drop(state); for (const n of state.nodes) if (n.inside) drop(n.inside);
+      tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
       return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
@@ -990,9 +996,13 @@ function openMap({ project = '', name = '', home }) {
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
-      const ok = !!ACTS[a.type]?.(a);
-      if (ok) { remember(a.type, a.by, big); save(); push(); }
-      res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? JSON.stringify(a.created ? { id: a.created } : {}) : '{"error":"no"}');
+      const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
+      const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
+      if (result.ok) {
+        if (before) edits.record(a.by, before, editSnapshot(state));
+        remember(a.type, a.by, big); save(); push();
+      }
+      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(result.ok ? JSON.stringify(a.created ? { id: a.created } : {}) : JSON.stringify({ error: result.error || 'That change could not be saved.' }));
       return true;
     }
     return false;

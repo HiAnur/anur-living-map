@@ -3,9 +3,11 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { branchIds } from './editing.js';
+
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('/* pan, zoom, drag */'));
+const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Map undo leaves'));
 function harness(){
   let input, handler;
   const ctx = vm.createContext({ console, Promise, Set, Map });
@@ -16,7 +18,7 @@ function harness(){
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
-    render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
+    branchIds, keepInView(){}, render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
     setTool(t){ctx.tool=t;}, toStage:(x,y)=>[x,y], locked:n=>!!n.locked,
     nodeById:id=>ctx.S.nodes.find(n=>n.id===id), scope:()=>ctx.S,
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
@@ -64,8 +66,8 @@ describe('keyboard brainstorming',()=>{
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
     const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.ctx.naming.untouched).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
   });
-  it('discards untouched drafts without saving on blur or either delete key',async()=>{
-    for (const key of ['blur','Backspace','Delete','Escape']){
+  it('cancels untouched drafts only with Delete, Backspace or Escape',async()=>{
+    for (const key of ['Backspace','Delete','Escape']){
       const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');
       if(key==='blur') h.blur();else h.edit(key);
       await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);expect(h.rubber.innerHTML).toBe('');
@@ -86,11 +88,23 @@ describe('keyboard brainstorming',()=>{
     h.key('Tab');h.edit('Enter');expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.untouched).toBe(true);
     await h.ctx.naming.returnTo;expect(calls[0][1].from).toBe('root');
   });
-  it('arrows leave an untouched draft and select a nearby box without saving',async()=>{
-    const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');h.edit('ArrowLeft');
-    await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);
-    h.ctx.S.nodes.push({id:'below',label:'Below',x:210,y:170});h.key('Tab');h.edit('ArrowDown');
-    await Promise.resolve();expect(h.ctx.selected).toBe('below');expect(calls).toEqual([]);
+  it('arrows keep an untouched topic and return to its actual parent',async()=>{
+    const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'saved'})};};
+    h.ctx.S.nodes.push({id:'unrelated',label:'Other',x:0,y:85});h.key('Tab');h.edit('ArrowLeft');
+    await new Promise(setImmediate);expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls[0][1].label).toBe('Sub-topic');
+  });
+  it('keeps the final topic after rapid Tab presses and clicking elsewhere',async()=>{
+    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,args)=>{const id=`topic-${calls.length+1}`;calls.push([type,args]);await gate;return {ok:true,json:async()=>({id})};};
+    h.key('Tab');h.edit('Tab');h.edit('Tab');h.blur();h.ctx.selected='clicked';release();await new Promise(setImmediate);
+    expect(calls.map(([,a])=>a.from)).toEqual(['root','topic-1','topic-2']);expect(h.ctx.selected).toBe('clicked');
+  });
+  it('back to a parent then Tab adds another child without overlapping an unfinished save',async()=>{
+    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);await gate;return {ok:true,json:async()=>({id:'first-child'})};};
+    h.key('Tab');const first={...h.ctx.naming};h.edit('ArrowLeft');await Promise.resolve();h.key('Tab');
+    expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.x).toBe(first.x);expect(h.ctx.naming.y).toBeGreaterThan(first.y);
+    release();await new Promise(setImmediate);expect(h.ctx.naming).not.toBeNull();expect(calls[0][1].from).toBe('root');
   });
   it('arrows preserve the text editor once typing starts',()=>{
     const h=harness();h.key('Tab');h.type('Typed');const draft=h.ctx.naming;h.edit('ArrowLeft');expect(h.ctx.naming).toBe(draft);expect(h.input().value).toBe('Typed');
