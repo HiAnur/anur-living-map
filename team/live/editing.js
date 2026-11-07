@@ -23,6 +23,10 @@ function applyEdit(state, from, to, canEdit) {
       if (equal(a.get(id), b.get(id))) continue;
       if (!equal(current.get(id), a.get(id))) return false;
       if (field === 'nodes' && [a.get(id), b.get(id)].filter(Boolean).flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => !canEdit(n))) return false;
+      if (field === 'edges') {
+        const nodes = [...state.nodes, ...from.nodes, ...to.nodes].flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+        if ([a.get(id), b.get(id)].filter(Boolean).some((e) => [e.from, e.to].some((end) => { const n = nodes.find((x) => x.id === end); return !n || !canEdit(n); }))) return false;
+      }
       if (b.has(id)) current.set(id, structuredClone(b.get(id))); else current.delete(id);
       if (field === 'nodes') changed.add(id);
     }

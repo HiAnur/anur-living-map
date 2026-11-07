@@ -26,6 +26,10 @@ describe('map editing',()=>{
     const s=map(),h=editHistory(),before=editSnapshot(s);s.nodes[1].label='New child';h.record('Duy',before,editSnapshot(s));
     expect(h.apply('Duy','undo',s,()=>false).ok).toBe(false);expect(s.nodes[1].label).toBe('New child');
   });
+  it('respects current access when undoing a line change',()=>{
+    const s=map(),h=editHistory(),before=editSnapshot(s);s.edges[0].label='New line';h.record('Duy',before,editSnapshot(s));
+    expect(h.apply('Duy','undo',s,n=>n.id!=='child').ok).toBe(false);expect(s.edges[0].label).toBe('New line');
+  });
   it('clears redo after a new edit and separates people’s undo stacks',()=>{
     const s=map(),h=editHistory(),before=editSnapshot(s);s.nodes[0].label='A';h.record('Duy',before,editSnapshot(s));expect(h.apply('Other','undo',s).ok).toBe(false);
     h.apply('Duy','undo',s);const prev=editSnapshot(s);s.nodes[0].label='B';h.record('Duy',prev,editSnapshot(s));expect(h.apply('Duy','redo',s).ok).toBe(false);
