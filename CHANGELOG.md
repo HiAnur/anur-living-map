@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Action boxes</strong></dt>
+<dd>
+
+On a topic, choose **Action box**, write your task, gather its map context, answer any questions, then review and **Execute** it in Claude. [#160](https://github.com/HiAnur/anur-living-map/pull/160) <!-- merged-at: 2026-11-07T23:40:19Z -->
+
+<img src="docs/shipping/2026-11-07/action-box.png" alt="A selected Action box beside its task-writing field, Gather information button, and a neighboring Execution box." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Auto plan finds gaps across a branch</strong></dt>
 <dd>
 
