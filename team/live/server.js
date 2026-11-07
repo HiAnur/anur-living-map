@@ -28,6 +28,7 @@ import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users } from './users.js';
+import { canAccess, changeAccess } from './access.js';
 import { boxDates, branchIds, editHistory, editSnapshot } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
@@ -589,7 +590,7 @@ function openMap({ project = '', name = '', home }) {
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
-    linked: state.linked || [], said: state.said || {},
+    linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [],
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory();
@@ -932,7 +933,22 @@ function openMap({ project = '', name = '', home }) {
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
+  const allowed = (who, req) => canAccess(state, who, req);
   async function handle(req, res, p, who = null) {
+    if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
+    if (p === '/api/access' && req.method === 'POST') {
+      const origin = req.headers.origin;
+      if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
+      let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+      if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
+      save();
+      if (!a.restore) {
+        delete cursors[a.person];
+        for (const r of clients) if (viewers.get(r) === a.person) { send(r, 'access-removed', {}); clients.delete(r); viewers.delete(r); r.end(); }
+      }
+      push(); here();
+      res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
+    }
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
     // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
     // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
@@ -1045,7 +1061,7 @@ function openMap({ project = '', name = '', home }) {
     for (const r of clients) r.end();
   }
 
-  return { handle, summary, asks, build, close };
+  return { handle, summary, asks, build, close, allowed };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -1170,6 +1186,7 @@ const server = http.createServer(async (req, res) => {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const name = String(a.name || ''), dir = path.join(DIR, 'maps', name);
     if (!/^[a-z0-9-]+$/.test(name) || projects.has(name) || !fs.existsSync(dir)) return json(400, { error: 'That map cannot be deleted here.' });
+    if (!mapCalled(name).allowed(who, req)) return json(403, { error: 'You no longer have access to this project.' });
     named.get(name)?.close(); named.delete(name);
     const bin = path.join(DIR, 'maps', '.deleted');
     fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
@@ -1191,14 +1208,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.pathname === '/api/maps') {
-    const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
+    const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // the Inbox: what waits on one person on every map, the maps with nothing for them left out
   if (url.pathname === '/api/inbox') {
     const asker = String(who || url.searchParams.get('as') || 'Duy').slice(0, 40);
     const list = (PROJECT ? everyMap() : [['', main], ...everyMap()])
-      .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
+      .filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
@@ -1219,6 +1236,8 @@ const server = http.createServer(async (req, res) => {
   const p = isMap ? rest : url.pathname;
   if (await map.handle(req, res, p, who)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who);
+  // Private map files and server sources are never browser assets.
+  if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
