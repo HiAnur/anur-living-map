@@ -13,7 +13,7 @@ const fixture = () => ({nodes:[
   {id:'lower',label:'Lower branch',x:210,y:255}, {id:'lower-child',label:'Lower child',x:420,y:255},
 ],edges:[{from:'root',to:'old'},{from:'old',to:'branch'},{from:'branch',to:'child'},{from:'root',to:'new'},{from:'new',to:'existing'},{from:'root',to:'lower'},{from:'lower',to:'lower-child'}]});
 function page(state = fixture()) {
-  const rubber = {innerHTML:''}, ctx=vm.createContext({Set,Map,Math,branchIds,W:()=>140,HT:()=>50,
+  const rubber = {innerHTML:''}, ctx=vm.createContext({Set,Map,Math,branchIds,W:n=>n.w||140,HT:n=>n.h||50,
     esc:s=>s,S:state,PREVIEW:null,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
     fanPts:()=>null,routePts:(a,b)=>[[a.x+70,a.y],[b.x-70,b.y]],render(){},canvas:{addEventListener(){}},document:{addEventListener(){}}
   });
@@ -113,5 +113,40 @@ describe('saving an attachment',()=>{
     expect(reparentTopic(state,{id:'branch',view:'container',...h.plan()})).toBe(true);
     expect(inner.edges).toContainEqual({from:'new',to:'branch'});expect(state.edges).toEqual([]);
     expect(reparentTopic(state,{id:'branch',view:'container',...h.plan(),parent:'outside'})).toBe(false);
+  });
+});
+
+describe('clear topic landings',()=>{
+  const landed = (state,moves) => state.nodes.map(n=>({...n,...moves.find(m=>m.id===n.id)}));
+  const expectClear = (state,moves) => {
+    const nodes=landed(state,moves),ids=new Set(moves.map(m=>m.id));
+    for(const a of nodes)for(const b of nodes){
+      if(a.id===b.id || (!ids.has(a.id)&&!ids.has(b.id)))continue;
+      expect(Math.abs(a.x-b.x)>=(a.w||140)/2+(b.w||140)/2+16 || Math.abs(a.y-b.y)>=(a.h||50)/2+(b.h||50)/2+16,`${a.id} overlaps ${b.id}`).toBe(true);
+    }
+  };
+  it('keeps a free drop beside its current parent clear and carries its child together',()=>{
+    const h=page(),before=structuredClone(h.state);
+    h.ctx.moveTopicDrag(210,0);
+    expect(h.ctx.drag.attach).toBeNull();
+    const moves=h.ctx.drag.freeMoves;expectClear(h.state,moves);
+    expect(moves.find(m=>m.id==='child').x-moves.find(m=>m.id==='branch').x).toBe(210);
+    expect(moves.find(m=>m.id==='child').y).toBe(moves.find(m=>m.id==='branch').y);
+    expect(h.state).toEqual(before);
+  });
+  it('checks the full group against wide, tall obstacles and finds the nearest clear gap',()=>{
+    const state={nodes:[{id:'a',x:0,y:0},{id:'b',x:210,y:85},{id:'obstacle',x:500,y:220,w:300,h:120}],edges:[]},h=page(state);
+    const moves=[{id:'a',fromX:0,fromY:0,x:400,y:210},{id:'b',fromX:210,fromY:85,x:610,y:295}];
+    const clear=h.ctx.clearTopicLanding(state,moves);expectClear(state,clear);
+    expect(clear[1].y-clear[0].y).toBe(85);expect(clear[0].x).toBe(400);
+    expect(clear[0].y).toBe(321);
+  });
+  it('does not overlap a disconnected box when attaching a branch',()=>{
+    const h=page();h.ctx.drag.source.nodes.push({id:'obstacle',label:'Wide box',x:470,y:255,w:240,h:80});
+    const plan=h.plan();expectClear(h.ctx.drag.source,plan.moves);
+  });
+  it('leaves already clear drops unchanged and refuses moving a protected descendant',()=>{
+    const h=page();h.ctx.moveTopicDrag(1000,1000);expect(h.ctx.drag.freeMoves.find(m=>m.id==='branch')).toMatchObject({x:1000,y:1000});
+    h.ctx.nodeById('child').locked=true;h.ctx.moveTopicDrag(1000,1000);expect(h.ctx.drag.freeMoves).toBeNull();
   });
 });

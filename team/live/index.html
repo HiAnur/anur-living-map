@@ -623,7 +623,7 @@ a{color:inherit;text-decoration:none}
 body.decide #legend .lc:not(.dec),body:not(.decide) #legend .lc.dec{display:none!important}
 /* Tidy up, Fit and zoom sit at the bottom right of the map, just left of the rail; Legend keeps the bottom left */
 #foot{position:fixed;right:88px;bottom:16px;display:flex;align-items:center;gap:8px;z-index:10}
-body.paned #foot,body.paned #plan{right:calc(88px + var(--pane-width))}
+body.paned #foot,body.paned #plan,body.paned #tidyb{right:calc(88px + var(--pane-width))}
 .zoom{display:flex;height:28px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;overflow:hidden}
 .zoom button{width:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--text);cursor:pointer}
 .zoom button+button{border-left:1px solid var(--rule)}
@@ -820,7 +820,7 @@ body.previewing .node.proposed{display:none}
 #tools{max-width:calc(100% - 104px);overflow-x:auto;scrollbar-width:thin}
 body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 #tools > *,#foot > *{flex-shrink:0}
-#tidyb{white-space:nowrap}
+#tidyb{position:fixed;top:calc(var(--topbar) + 16px);right:88px;z-index:10;white-space:nowrap}
 /* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
 .tbtn.share{background:var(--new);border-color:var(--new);color:#fff;font-weight:500;padding:0 14px}
 .tbtn.share:hover{filter:brightness(1.08)}
@@ -843,7 +843,7 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-face{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font:500 12px/1 var(--plex)}
 .sh-who{flex:1}.sh-who i{font-style:normal;color:var(--text-3)}
 .sh-role{font-size:13px;color:var(--text-2)}
-body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
+body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 #toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:30;pointer-events:none}
 #toast.on{opacity:1}
 /* Narrow windows keep a readable pane and put the title on its own row when needed. */
@@ -861,7 +861,7 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   #top .ver.ok{font-size:0;gap:0;padding:0 6px}
   #crumbs #renamei{max-width:100%}
   body.paned #canvas{right:72px;visibility:hidden}
-  body.paned #tools,body.paned #foot,body.paned #plan,body.paned #legend,body.paned #queue,body.paned #chatgrip{display:none}
+  body.paned #tools,body.paned #foot,body.paned #tidyb,body.paned #plan,body.paned #legend,body.paned #queue,body.paned #chatgrip{display:none}
   body.paned #toast,body.paned #histbar{left:calc((100% - 72px) / 2);max-width:calc(100% - 96px)}
   .side-tabs{overflow-x:auto;flex-shrink:0}
   .topic-actions,.sc .ct{flex-shrink:0}
@@ -901,7 +901,8 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <button class="tb history-tool" data-map-history="redo" title="Redo (⌘ ⇧ Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l4 4-4 4m4-4H9a5 5 0 00-5 5v3"/></svg><kbd class="tk">⌘ ⇧ Z</kbd></button>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
-<div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
+<button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button>
+<div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
@@ -3030,7 +3031,36 @@ function planTopicAttach(graph, id, parentId, side){
   const child = graph.edges.filter((e) => e.from === id).map((e) => graph.nodes.find((n) => n.id === e.to)).find((n) => n && n.x !== root.x);
   const mirror = child ? side * Math.sign(child.x-root.x) : 1;
   const moves = [...branch.map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:root.x+dx+(n.x-root.x)*mirror,y:n.y+dy})), ...plan.moves.map((m) => ({...m,fromX:graph.nodes.find((n) => n.id === m.id).x,x:graph.nodes.find((n) => n.id === m.id).x}))];
-  return {parent:parentId,parents:graph.edges.filter((e) => e.to === id).map((e) => e.from),moves};
+  const placed = {nodes:graph.nodes.map((n) => ({...n,...moves.find((m) => m.id === n.id)}))};
+  const cleared = clearTopicLanding(placed,moves.filter((m) => ids.has(m.id)));
+  return {parent:parentId,parents:graph.edges.filter((e) => e.to === id).map((e) => e.from),moves:[...cleared,...moves.filter((m) => !ids.has(m.id))]};
+}
+// Find the nearest clear vertical landing for the whole moving group. Intervals
+// cover every box it could hit, including wide labels and disconnected branches.
+function clearTopicLanding(graph, moves){
+  const ids = new Set(moves.map((m) => m.id)), intervals = [], gap = 16;
+  for (const m of moves){
+    const n = graph.nodes.find((n) => n.id === m.id);
+    for (const other of graph.nodes){
+      if (ids.has(other.id) || Math.abs(m.x-other.x) >= (W(n)+W(other))/2+gap) continue;
+      const space = (HT(n)+HT(other))/2+gap;
+      intervals.push([other.y-m.y-space,other.y-m.y+space]);
+    }
+  }
+  const merged = [];
+  for (const span of intervals.sort((a,b) => a[0]-b[0])){
+    const last = merged.at(-1);
+    if (last && span[0] < last[1]) last[1] = Math.max(last[1],span[1]); else merged.push([...span]);
+  }
+  const blocked = merged.find(([lo,hi]) => lo < 0 && hi > 0);
+  const dy = blocked ? (-blocked[0] < blocked[1] ? Math.floor(blocked[0]) : Math.ceil(blocked[1])) : 0;
+  return moves.map((m) => ({...m,y:m.y+dy}));
+}
+function planTopicMove(d){
+  const ids = branchIds(d.source,topicDragRoots(d)), dx = d.at.x-d.n.x, dy = d.at.y-d.n.y;
+  const carried = d.source.nodes.filter((n) => ids.has(n.id));
+  if (carried.some((n) => locked(nodeById(n.id) || n))) return null;
+  return clearTopicLanding(d.source,carried.map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:n.x+dx,y:n.y+dy})));
 }
 // A selected parent carries its selected children once, keeping their existing connections.
 function topicDragRoots(d){
@@ -3056,7 +3086,7 @@ function previewTopicAttach(sx, sy){
   const visible = new Set(scope().nodes.map((n) => n.id));
   const outline = drag.source.nodes.filter((n) => ids.has(n.id) && visible.has(n.id)).map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
   const at = drag.at || {x:sx,y:sy}, n = drag.n;
-  const floating = `<g class="drag-ghost">${drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id)).map((b) => `<text x="${b.x+at.x-n.x}" y="${b.y+at.y-n.y}">${esc(b.label)}</text>`).join('')}</g>`;
+  const floating = `<g class="drag-ghost">${drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id)).map((b) => { const m = drag.freeMoves?.find((m) => m.id === b.id); return `<text x="${m?.x ?? b.x+at.x-n.x}" y="${m?.y ?? b.y+at.y-n.y}">${esc(b.label)}</text>`; }).join('')}</g>`;
   const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
@@ -3083,7 +3113,7 @@ function cancelTopicDrag(){
 function moveTopicDrag(sx, sy){
   moved = true;
   const at = {x:Math.round(sx+drag.dx),y:Math.round(sy+drag.dy)};
-  if (drag.source) drag.at = at; else Object.assign(drag.n,at);
+  if (drag.source){ drag.at = at; drag.freeMoves = planTopicMove(drag); } else Object.assign(drag.n,at);
   render(); previewTopicAttach(sx,sy);
 }
 canvas.addEventListener('pointercancel', cancelTopicDrag);
@@ -3253,9 +3283,9 @@ canvas.addEventListener('pointerup', (e) => {
       act('reparent',{id:topicDragRoots(d)[0],...plan,view}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
       return;
     }
-    if (moved && drag.many && drag.source){
-      const d = drag, ids = branchIds(d.source,topicDragRoots(d)), dx = d.at.x-d.n.x, dy = d.at.y-d.n.y;
-      const moves = d.source.nodes.filter((n) => ids.has(n.id)).map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:n.x+dx,y:n.y+dy}));
+    if (moved && drag.source){
+      const moves = drag.freeMoves;
+      if (!moves){ cancelTopicDrag(); toast('That branch contains a box you cannot move.'); return; }
       for (const m of moves){ const n = nodeById(m.id); if (n) Object.assign(n,{x:m.x,y:m.y}); }
       drag = null; $('rubber').innerHTML = ''; render();
       act('move',{moves}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('Those boxes changed. Please try the move again.'); } }); return;
