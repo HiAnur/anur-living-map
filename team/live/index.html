@@ -108,7 +108,7 @@ button,input,textarea{font:inherit;color:inherit}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
 
-#canvas{position:absolute;inset:44px 72px 0 0;overflow:hidden;cursor:grab;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#canvas{position:absolute;inset:44px 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
@@ -136,7 +136,8 @@ button,input,textarea{font:inherit;color:inherit}
 /* drawing by hand: the Box tool drags out a box (a click makes one the usual width), the Line tool drags from one
    box to another; what is being drawn shows in blue, and the name or the words on the line are typed in place */
 #canvas.drawing,#canvas.drawing .node{cursor:crosshair}
-#canvas.hand{cursor:grab}
+#canvas.hand,#canvas.hand .node{cursor:grab}
+#canvas.grabbing,#canvas.grabbing .node{cursor:grabbing}
 #rubber{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px;pointer-events:none}
 #rubber rect{fill:var(--new-tint);stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
 #rubber path{fill:none;stroke:var(--new);stroke-width:1.5;stroke-dasharray:6 4}
@@ -160,9 +161,10 @@ button,input,textarea{font:inherit;color:inherit}
 #rubber rect.snap{fill:none;stroke:#0D99FF;stroke-width:2;stroke-dasharray:none}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
-#newbox input{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-#newbox input.draft{caret-color:transparent;user-select:none;text-align:center}
-#newbox input::placeholder{font-weight:400;color:var(--text-3)}
+#newbox input,#newbox textarea{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+#newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none;text-align:center}
+#newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
+#newbox textarea{padding:15px 10px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
@@ -194,8 +196,8 @@ button,input,textarea{font:inherit;color:inherit}
 /* a picked box: its own edge turns blue, with the dots out past its sides */
 .node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
 .node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
-/* a name longer than its box wraps to a second line, never a third, and the box grows to hold it (HT) */
-.node .nt{min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+/* Names wrap in full, and HT reserves room for every line. */
+.node .nt{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
 .node .s{font:12px/1.3 var(--plex);color:var(--text-2);overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .node.actor{width:110px;border-radius:999px;align-items:center}
@@ -1033,10 +1035,26 @@ const W = (n) => {
   if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.round(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 24 + (n.icon === 'db' ? 20 : 0))))); }
   return wraps.get(key);
 };
-// a name too long for its box wraps to two lines, measured once per name and width
-const twoLines = (n) => {
-  const room = W(n) - 24 - (n.icon === 'db' ? 20 : 0), key = `${room}|${n.label}`;
-  if (!wraps.has(key)) { ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, ruler.measureText(String(n.label || '')).width > room); }
+// Count wrapped words, including names containing a long unbroken word.
+const nameLines = (n) => {
+  const room = W(n) - 24 - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${n.label}`;
+  if (!wraps.has(key)){
+    ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
+    let lines = 0;
+    for (const paragraph of String(n.label || '').split('\n')){
+      let line = ''; lines++;
+      for (const word of paragraph.split(/\s+/).filter(Boolean)){
+        const joined = line ? `${line} ${word}` : word;
+        if (ruler.measureText(joined).width <= room){ line = joined; continue; }
+        if (line){ lines++; line = ''; }
+        for (const ch of word){
+          if (line && ruler.measureText(line + ch).width > room){ lines++; line = ''; }
+          line += ch;
+        }
+      }
+    }
+    wraps.set(key, lines);
+  }
   return wraps.get(key);
 };
 document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
@@ -1053,8 +1071,8 @@ const subLines = (n) => {
   }
   return wraps.get(key);
 };
-// boxes are as tall as their words need: taller for a name on two lines, and for each extra line of the second line
-const HT = (n) => (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + (twoLines(n) ? 17 : 0) + Math.max(0, subLines(n) - 1) * 16);
+// Boxes grow for every wrapped line in their name and subtitle.
+const HT = (n) => (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -2387,7 +2405,8 @@ document.addEventListener('input', (e) => { if (e.target.id === 'cpq'){ panelQue
 const TOOL_KEYS = { v: 'select', h: 'hand', r: 'box', a: 'arrow', c: 'comment' };
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable]')) return;
-  const t = TOOL_KEYS[e.key.toLowerCase()];
+  const key = e.code?.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.key.toLowerCase();
+  const t = TOOL_KEYS[key];
   if (t){ e.preventDefault(); if (t !== 'select' && t !== 'hand' && PREVIEW){ toast(FROZEN_SAYS); return; } setTool(tool === t && t !== 'select' ? 'select' : t); }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape'){ draft = null; openThread = null; if (['box', 'arrow', 'hand', 'comment'].includes(tool)) setTool('select'); else render(); } });
@@ -2405,7 +2424,7 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
 // A single picked box is removed immediately; its parent remains selected. History can restore it.
-// several boxes picked with a selection drag: Delete asks once, above the top one, and takes them all off ('*')
+// Delete removes a selection together without interrupting keyboard work.
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
   if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
@@ -2420,7 +2439,7 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
     return;
   }
-  if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); delAsk = '*'; render(); return; }
+  if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox('*'); return; }
   if (!['Delete', 'Backspace'].includes(e.key) || !selected) return;
   const n = nodeById(selected); if (!n || locked(n)) return;
   e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox(n.id);
@@ -2476,7 +2495,7 @@ function renderComments(){
   for (const b of [tb, document.querySelector('#rail [data-rail="comments"]')]) if (b){ b.querySelector('.dot')?.remove(); if (unread) b.insertAdjacentHTML('beforeend', '<span class="dot"></span>'); }
   canvas.classList.toggle('commenting', tool === 'comment');
 }
-function setTool(t){ tool = t; document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x.dataset.tool === t)); if (t !== 'comment') draft = null; canvas.classList.toggle('drawing', t === 'box' || t === 'arrow'); canvas.classList.toggle('hand', t === 'hand'); render(); }
+function setTool(t){ tool = t; if (t === 'select'){ spaceDown = false; panning = null; canvas.classList.remove('grabbing', 'spacepan'); } document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x.dataset.tool === t)); if (t !== 'comment') draft = null; canvas.classList.toggle('drawing', t === 'box' || t === 'arrow'); canvas.classList.toggle('hand', t === 'hand'); render(); }
 /* drawing by hand. The Box tool: press and drag out a box (a click makes one the usual width), then name it where it
    sits. The Line tool: drag from one box and let go on another, then the words on the line, or just Enter. Pan drags
    the map from anywhere. What is being drawn shows as a blue outline until the pointer lets go */
@@ -2538,6 +2557,16 @@ function topicDraft(n, child){
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
   askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, view });
 }
+function keepEditorVisible(at, width, height){
+  const r = canvas.getBoundingClientRect();
+  const controls = ['tools', 'foot'].map((id) => $(id).getBoundingClientRect()).filter((b) => b.width && b.height);
+  const bottom = Math.min(r.height, ...controls.map((b) => b.top - r.top)) - 16;
+  const halfW = width * cam.z / 2, halfH = height * cam.z / 2;
+  const px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
+  cam.x += Math.max(16 + halfW, Math.min(r.width - 16 - halfW, px)) - px;
+  cam.y += Math.max(16 + halfH, Math.min(bottom - halfH, py)) - py;
+  place();
+}
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
   const line = !!(at.from || at.edge);
@@ -2553,13 +2582,22 @@ function askName(at){
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
 
-  // Bring the editor inside the visible canvas without zooming the rest of the map.
-  const r = canvas.getBoundingClientRect(), px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
-  cam.x += Math.max(100 - px, Math.min(0, r.width - 260 - px));
-  cam.y += Math.max(60 - py, Math.min(0, r.height - 80 - py)); place();
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
-  el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off">`;
-  const i = el.querySelector('input'); i.value = at.text ?? (line ? '' : 'Topic'); i.focus();
+  // Account for the whole zoomed editor and the controls covering the canvas.
+  const width = line ? 220 : 140, height = line ? 36 : 50;
+  keepEditorVisible(at, width, height);
+  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${width}px`; el.style.height = `${height}px`; el.classList.add('on');
+  const tag = line ? 'input' : 'textarea';
+  el.innerHTML = `<${tag} maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off"${line ? '>' : ' rows="1"></textarea>'}`;
+  const i = el.querySelector('input, textarea'); i.value = at.text ?? (line ? '' : 'Topic');
+  const resizeName = () => {
+    if (line) return;
+    const width = W({ ...nodeById(at.edit), label: i.value });
+    el.style.width = `${width}px`; i.style.height = '0px';
+    const height = Math.max(50, i.scrollHeight + 3);
+    el.style.height = `${height}px`; i.style.height = '100%';
+    keepEditorVisible(at, width, height);
+  };
+  resizeName(); i.focus();
   if (naming.untouched) i.classList.add('draft'); else i.select();
   const beginTyping = () => {
     if (!naming?.untouched) return;
@@ -2567,7 +2605,7 @@ function askName(at){
   };
   i.addEventListener('beforeinput', (e) => { if (e.inputType.startsWith('insert')) beginTyping(); });
   i.addEventListener('compositionstart', beginTyping);
-  i.addEventListener('input', () => { if (naming){ naming.untouched = false; i.classList.remove('draft'); } });
+  i.addEventListener('input', () => { if (naming){ naming.untouched = false; i.classList.remove('draft'); resizeName(); } });
   i.addEventListener('keydown', (e) => {
     e.stopPropagation(); if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape'){ e.preventDefault(); endName(false); }
@@ -2596,7 +2634,7 @@ function askName(at){
 }
 function endName(keep){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
-  const el = $('newbox'), text = el.querySelector('input')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
+  const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
   if (!keep || at.untouched || (!at.from && !text)){
     Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming){ selected = id || null; render(); } }); return;
