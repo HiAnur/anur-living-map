@@ -23,13 +23,15 @@ function page(state = fixture()) {
   return {ctx,rubber,state,plan:()=>ctx.planTopicAttach(ctx.drag.source,'branch','new',1)};
 }
 describe('drag attachment preview',()=>{
-  it('previews several selected branches without moving originals or detaching a selected child',()=>{
+  it('shows one destination for several selected branches while moving them all on release',()=>{
     const h=page(),before=structuredClone(h.state);
     h.ctx.drag.many=['branch','child','lower'].map(id=>({n:h.ctx.nodeById(id)}));
     expect(h.ctx.topicDragRoots(h.ctx.drag)).toEqual(['branch','lower']);
     h.ctx.moveTopicDrag(240,170);expect(h.state).toEqual(before);
     expect(h.ctx.drag.attach.ids).toEqual(['branch','lower']);
-    expect(h.rubber.innerHTML.match(/class="attach-box"/g)).toHaveLength(2);
+    expect(h.rubber.innerHTML.match(/class="attach-box"/g)).toHaveLength(1);
+    expect(h.rubber.innerHTML.match(/class="attach-line"/g)).toHaveLength(1);
+    expect(h.rubber.innerHTML.match(/class="drag-ghost-box"/g)).toHaveLength(1);
     const history=editHistory(),old=editSnapshot(h.state);
     expect(reparentTopic(h.state,h.ctx.drag.attach)).toBe(true);
     expect(h.state.edges).toContainEqual({from:'new',to:'branch'});expect(h.state.edges).toContainEqual({from:'new',to:'lower'});
