@@ -9,13 +9,14 @@ import { branchIds } from './editing.js';
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Map undo leaves'));
 function harness(){
-  let input, handler;
+  let input, handler, pickTimer;
   const ctx = vm.createContext({ console, Promise, Set, Map });
   const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
+    setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
     branchIds, keepInView(){}, render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
@@ -25,11 +26,28 @@ function harness(){
   });
   vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
+  vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
   vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);
   const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
-  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
+  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
+  it('branches from the clicked topic immediately, before the double-click delay expires',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255},{id:'existing',label:'Existing child',x:1470,y:255});h.ctx.S.edges.push({from:'root',to:'deep'},{from:'deep',to:'existing'});
+    h.ctx.act=async(type,a)=>{calls.push(a);return {ok:true,json:async()=>({id:'new-child'})};};
+    h.pick('deep');h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');h.flushPick();expect(h.ctx.keyboardSelection).toBe(true);
+    h.blur();await new Promise(setImmediate);expect(calls[0].from).toBe('deep');expect(h.ctx.S.edges).toContainEqual({from:'deep',to:'existing'});
+  });
+  it('keeps a clicked selected topic as the parent instead of toggling back to the root',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255});h.ctx.S.edges.push({from:'root',to:'deep'});
+    h.pick('deep');h.flushPick();h.pick('deep');h.flushPick();h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');
+  });
+  it('does not let an older save replace the newly clicked parent',async()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255});h.ctx.S.edges.push({from:'root',to:'deep'});
+    let release;const gate=new Promise(resolve=>{release=resolve;});h.ctx.act=async()=>{await gate;return {ok:true,json:async()=>({id:'old-save'})};};
+    h.key('Tab');const saved=h.ctx.endName(true);h.pick('deep');h.flushPick();release();await saved;
+    expect(h.ctx.selected).toBe('deep');h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');
+  });
   it('keeps each parent visible while deleting back through a long branch',()=>{
     const h=harness();h.ctx.S.nodes=Array.from({length:31},(_,i)=>({id:`n${i}`,label:'Topic',x:i*500,y:i*85}));
     h.ctx.S.edges=Array.from({length:30},(_,i)=>({from:`n${i}`,to:`n${i+1}`}));h.ctx.selected='n30';h.ctx.cam.z=1.5;

@@ -10,7 +10,29 @@ export function branchIds(state, roots) {
   }
   return ids;
 }
-const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Dates describe edits; they must not make an otherwise unchanged undo conflict.
+const content = (value) => JSON.stringify(value, (key, v) => key === 'createdAt' || key === 'updatedAt' ? undefined : v);
+const equal = (a, b) => content(a) === content(b);
+const boxes = (state) => (state.nodes || []).flatMap((n) => [n, ...boxes(n.inside || {})]);
+const date = (value) => Number.isFinite(value) && value > 0 ? value : null;
+// Existing maps have no reliable creation time. Keep missing dates unknown until
+// an actual edit, and keep a saved creation date through undo and history restore.
+export function boxDates(state, fresh = false, now = Date.now()) {
+  for (const n of boxes(state)) {
+    n.createdAt = date(n.createdAt) ?? (fresh ? now : null);
+    n.updatedAt = date(n.updatedAt) ?? n.createdAt;
+  }
+  const snapshot = (s) => new Map(boxes(s).map((n) => [n.id, { content: content(n), createdAt: n.createdAt, updatedAt: n.updatedAt }]));
+  let previous = snapshot(state);
+  return (next, at = Date.now()) => {
+    for (const n of boxes(next)) {
+      const before = previous.get(n.id);
+      n.createdAt = before ? before.createdAt : Object.hasOwn(n, 'createdAt') ? date(n.createdAt) : at;
+      n.updatedAt = before && before.content === content(n) ? before.updatedAt : at;
+    }
+    previous = snapshot(next);
+  };
+}
 export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edges: state.edges, title: state.title, renamed: state.renamed });
 // Apply only the entities this action changed. Another person's unrelated edits stay intact;
 // a conflicting edit blocks the operation instead of being overwritten.
