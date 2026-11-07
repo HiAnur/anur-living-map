@@ -610,6 +610,11 @@ function openMap({ project = '', name = '', home }) {
       let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
       // the box keeps the size it was drawn at (the page grows it only when its words need more room)
       const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
+      // Keyboard insertion moves later branches in the same action, so undo restores their positions too.
+      const reflow = a.reflow ?? [];
+      if (!Array.isArray(reflow) || reflow.length > list.length || new Set(reflow.map((m) => m?.id)).size !== reflow.length) return false;
+      if (reflow.some((m) => { const n = list.find((n) => n.id === m?.id); return !n || !Number.isFinite(m.fromY) || !Number.isFinite(m.y) || n.y !== m.fromY || (sees !== 'all' && n.area !== sees); })) return false;
+      for (const m of reflow) list.find((n) => n.id === m.id).y = Math.round(m.y);
       list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
       const from = a.from ? nodeOf(a.from) : null;
