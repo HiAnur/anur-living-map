@@ -34,6 +34,24 @@ describe('cloud map boundary', () => {
     data.nodes[0].inside = { nodes: [{ id: 'inside', label: 'Inside', x: 0, y: 0, file: '/secret' }], edges: [] };
     const clean = JSON.stringify(mapData(data)); expect(clean).not.toMatch(/private|secret|session|threads/);
   });
+  it('publishes notes with placeholders and round-trips special text through sync', async () => {
+    const { call, route } = await start();
+    const data = base();
+    data.nodes[0].desc = '- maps/<name>/state.json holds each map\n- Budget < $100 & size > 2';
+    data.nodes[0].sub = 'A < B & C > D';
+    data.nodes[0].label = 'Plan <draft>';
+    data.edges[0].label = '<request>';
+    data.nodes[0].inside = { nodes: [{id:'nested',label:'Nested <topic>',desc:'List<T>',x:0,y:0}],edges:[] };
+    expect((await call('/api/maps', {id,data,ownerKey:owner,linkKey:link,mode:'edit'},true)).status).toBe(201);
+    const shared = await (await call(route('api/state'))).json();
+    expect(shared.nodes).toEqual(mapData(data).nodes); expect(shared.edges).toEqual(data.edges);
+    const local = structuredClone(data); local.nodes[1].label = 'Changed <locally>';
+    const result = await call(route('api/sync'), {base:data,data:local},true);
+    expect(result.status).toBe(200); expect((await result.json()).data.nodes).toEqual(mapData(local).nodes);
+    const restored = base(); installCloudData(restored, mapData(local));
+    expect(restored.nodes).toEqual(mapData(local).nodes);
+    expect(() => mapData({...base(),nodes:[{...base().nodes[0],kind:'\" onclick=bad'}]})).toThrow('style');
+  });
   it('preserves local metadata when cloud presentation changes', () => {
     const local = base(); local.nodes[0].file = '/private/file'; local.threads = { mine: ['private'] };
     const remote = base(); remote.nodes[0].label = 'Changed'; installCloudData(local, remote);
@@ -65,12 +83,13 @@ describe('cloud map boundary', () => {
     expect((await second.call(second.route('api/act'), { type: 'undo', revision: 2 })).status).toBe(200);
     expect((await (await first.call(first.route('api/state'))).json()).nodes[0].label).toBe('Parent');
   });
-  it('blocks cross-origin edits and HTML injection, and supports comments', async () => {
+  it('blocks cross-origin edits and preserves text without treating it as markup', async () => {
     const { call, publish, route } = await start(); await publish('edit');
     expect((await call(route('api/act'), { type:'renamebox',id:'a',label:'Bad',revision:1 },false,'https://evil.test')).status).toBe(403);
-    expect((await call(route('api/act'), { type:'renamebox',id:'a',label:'<img src=x onerror=alert(1)>',revision:1 })).status).toBe(400);
-    expect((await call(route('api/act'), { type:'comment',node:'a',text:'Hello',x:0,y:0,revision:1 })).status).toBe(200);
-    const data = await (await call(route('api/state'))).json(); expect(data.comments[0].msgs[0].text).toBe('Hello');
+    expect((await call(route('api/act'), { type:'renamebox',id:'a',label:'<img src=x onerror=alert(1)>',revision:1 })).status).toBe(200);
+    expect((await call(route('api/act'), { type:'comment',node:'a',text:'2 < 3 and 4 > 1',x:0,y:0,revision:2 })).status).toBe(200);
+    const data = await (await call(route('api/state'))).json(); expect(data.comments[0].msgs[0].text).toBe('2 < 3 and 4 > 1');
+    expect(data.nodes[0].label).toBe('<img src=x onerror=alert(1)>');
     const page = await call(route('')); expect(page.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
   });
   it('revokes links and merges offline changes without overwriting remote changes', async () => {
