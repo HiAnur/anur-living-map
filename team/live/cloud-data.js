@@ -8,13 +8,15 @@ const NODE = ['id', 'label', 'sub', 'desc', 'x', 'y', 'w', 'h', 'moved', 'create
 const EDGE = ['from', 'to', 'label', 'state', 'out', 'in'];
 const pick = (value, keys) => Object.fromEntries(keys.filter((k) => Object.hasOwn(value, k)).map((k) => [k, value[k]]));
 const identifier = (s) => typeof s === 'string' && /^[\w.-]{1,120}$/.test(s);
-const plain = (s, max = 16000) => typeof s === 'string' && s.length <= max && !/[<>]/.test(s);
+// Text stays unchanged in storage; the renderer escapes it where it is displayed.
+const plain = (s, max = 16000) => typeof s === 'string' && s.length <= max;
 export function mapData(input, depth = 0) {
   if (!input || depth > 8 || !Array.isArray(input.nodes) || !Array.isArray(input.edges) || input.nodes.length > 3000 || input.edges.length > 10000) throw new Error('This map is too large or is not a valid map.');
   const nodes = input.nodes.map((n) => {
     if (!n || !identifier(n.id) || !plain(n.label, 500) || !Number.isFinite(n.x) || !Number.isFinite(n.y)) throw new Error('A box has invalid text or position.');
     const out = pick(n, NODE);
     for (const k of ['sub', 'desc', 'state', 'kind', 'icon', 'area']) if (k in out && !plain(out[k])) throw new Error('A box contains unsupported text.');
+    for (const k of ['state','kind','icon']) if (k in out && !/^[\w -]*$/.test(out[k])) throw new Error('A box has an invalid style.');
     for (const k of ['x','y','w','h']) if (k in out && (!Number.isFinite(out[k]) || Math.abs(out[k]) > 1e7)) throw new Error('A box has an invalid size or position.');
     if (n.inside) out.inside = mapData(n.inside, depth + 1);
     return out;
@@ -24,7 +26,7 @@ export function mapData(input, depth = 0) {
   const edges = input.edges.map((e) => {
     if (!e || !ids.has(e.from) || !ids.has(e.to) || e.label !== undefined && !plain(e.label, 500)) throw new Error('A line has an invalid endpoint or label.');
     const out = pick(e, EDGE);
-    for (const k of ['state','out','in']) if (k in out && !plain(out[k], 40)) throw new Error('A line is invalid.');
+    for (const k of ['state','out','in']) if (k in out && (!plain(out[k], 40) || !/^[\w -]*$/.test(out[k]))) throw new Error('A line is invalid.');
     return out;
   });
   const title = String(input.title || 'Shared map'), desc = String(input.desc || '');

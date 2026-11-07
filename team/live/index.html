@@ -1294,7 +1294,7 @@ function foldSide(n, at){
 function foldButton(n, at){
   const side = foldSide(n, at); if (!side) return '';
   const shut = folded.has(n.id), hid = fold.hides.get(n.id)?.length || 0;
-  return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${n.label}` : `Fold: hide the boxes under ${n.label}`}">${shut ? hid || '+' : '−'}</span>`;
+  return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${esc(n.label)}` : `Fold: hide the boxes under ${esc(n.label)}`}">${shut ? hid || '+' : '−'}</span>`;
 }
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
 // and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
@@ -1849,7 +1849,7 @@ function render(){
     }
   }
   for (const L of placeWords(labels, lines, nodes))
-    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central"${naming?.edge === L.id ? ' style="visibility:hidden"' : ''}>${L.text}</text>`;
+    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central"${naming?.edge === L.id ? ' style="visibility:hidden"' : ''}>${esc(L.text)}</text>`;
   // a picked line that is gone (deleted, or folded away) lets go
   if (!pickSeen) pickedLine = null;
   edgesEl.innerHTML = defsHtml + svg + hits + words;
@@ -1867,11 +1867,11 @@ function render(){
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
     const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
-      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
+      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${n.label}: what is inside it">Expand ›</span>`
+      ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
@@ -2110,8 +2110,8 @@ function renderTop(){
   if (!$('renamei')) $('crumbs').innerHTML = db
     ? `${where} <span class="sep">›</span> <b>${esc(db.label)}</b>`
     : fb
-    ? `${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${inside.label}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
-    : `${where}${inside ? ` <span class="sep">›</span> <b>${inside.label}</b>` : ''}`;
+    ? `${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${esc(inside.label)}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
+    : `${where}${inside ? ` <span class="sep">›</span> <b>${esc(inside.label)}</b>` : ''}`;
   // inside a box, a flow or a diagram, Back sits at the top left above your answers, where the eye starts
   const up = db && S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === db.id)), back = $('backb'), deep = Boolean(db || fb || inside);
   back.classList.toggle('on', deep); document.body.classList.toggle('deep', deep);
@@ -2199,7 +2199,7 @@ const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded ===
     ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
     : c.status !== 'open' ? `<span class="ca-done">${ans(c)}</span>` : ''}</div>
   ${withButtons && c.status === 'open' && c.options?.length ? `<div class="ca-opts">${c.options.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}" title="${o.means || ''}">${o.label}</span>`).join('')}<span class="gb" data-other-pick="${c.id}">Other…</span></div>` : ''}
-  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${nodeById(c.node)?.label || c.node}<span class="ca-more">${expanded === c.id ? 'Less' : 'Why?'}</span></div>
+  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${esc(nodeById(c.node)?.label || c.node)}<span class="ca-more">${expanded === c.id ? 'Less' : 'Why?'}</span></div>
   ${expanded === c.id ? `<div class="ca-x">
     ${c.plain || c.context ? `<p>${c.plain || c.context}</p>` : ''}
     ${c.options?.length ? c.options.map((o) => `<div class="ca-if"><span>${o.label}${o.means ? `: ${o.means}` : ''}</span></div>`).join('')
@@ -2239,14 +2239,14 @@ function renderSide(){
   if (pb){
     el.innerHTML = `<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(pb.id)}" title="Double-click to rename">${prose(pb.label)}</span>`}<span class="ct-r"><span class="x" data-close>×</span></span></div>
       <div class="d-prop">Proposed. It joins the map when you press Apply.</div>
-      ${pb.sub ? `<div class="d-sub">${pb.sub}</div>` : ''}${notes(pb.desc && pb.desc !== pb.sub ? pb.desc : '')}${proposalOf(pb.id)}`;
+      ${pb.sub ? `<div class="d-sub">${esc(pb.sub)}</div>` : ''}${notes(pb.desc && pb.desc !== pb.sub ? pb.desc : '')}${proposalOf(pb.id)}`;
     return;
   }
   if (!n) return;
   if (locked(n)){
     const admin = S.people.find((p) => p.role === 'Admin')?.id || 'an admin';
-    el.innerHTML = `<div class="ct"><span>${n.label}</span><span class="x" data-close>×</span></div>
-      <div class="nope">${ICON.lock}<div><b>You don't have access to ${n.label}.</b><br>Your access covers ${me().sees}. Ask ${admin} to open this one.</div></div>`;
+    el.innerHTML = `<div class="ct"><span>${esc(n.label)}</span><span class="x" data-close>×</span></div>
+      <div class="nope">${ICON.lock}<div><b>You don't have access to ${esc(n.label)}.</b><br>Your access covers ${me().sees}. Ask ${admin} to open this one.</div></div>`;
     return;
   }
   const calls = S.calls.filter((c) => c.node === n.id);
@@ -2304,7 +2304,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
-    ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
+    ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   // Information keeps the box's dates and deletion action at the bottom of its panel.
@@ -2345,7 +2345,7 @@ function renderSide(){
     ${n.warn ? `<div class="d-warn"><b>⚠ ${prose(n.warn)}</b>${n.why ? `<span>${prose(n.why)}</span>` : ''}</div>` : ''}
     ${memOf(n.id)}
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
-    ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
+    ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${esc(n.label)} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
     ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}</div>
     <div class="info-footer">
@@ -2546,11 +2546,11 @@ function renderChat(){
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Chat history" aria-label="Chat history">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
-        ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
+        ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${esc(nodeById(m.about).label)}">${esc(nodeById(m.about).label)}</span>` : '')
         : claudes(`${md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
-    ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
+    ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${esc(nodeById(chatAbout).label)}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
     ${chatHist ? '' : replyProgress(thread)}${chatHist ? '' : composer(chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map', false)}`;
   // a new message scrolls the chat to the bottom; any other redraw keeps where you were
   const box = el.querySelector('.msgs'), n = thread.map((m) => m.text).join('').length + thread.length;
@@ -2634,7 +2634,7 @@ function renderDecs(){
   // opened: why it was asked, and the way into the box, where its History has the choices
   const detail = (c) => `<div class="dl-x">
       ${c.plain || c.context ? `<div class="h">Why Claude asked</div><p>${c.plain || c.context}</p>` : ''}
-      ${nodeById(c.node) ? `<button class="gb" data-about-h="${c.node}">Go to ${nodeById(c.node).label} ›</button>` : ''}
+      ${nodeById(c.node) ? `<button class="gb" data-about-h="${c.node}">Go to ${esc(nodeById(c.node).label)} ›</button>` : ''}
     </div>`;
   el.innerHTML = `<div class="ct"><span>Decisions${all.length ? ` · ${all.length}` : ''}</span><span class="x" data-close-rail>×</span></div>
     <div class="dl-sub">Every question answered on this map, newest first. Click one for why it was asked.</div>
@@ -2663,7 +2663,7 @@ function renderInbox(){
   b.classList.toggle('on', inboxOpen);
   const el = $('inbox'); el.classList.toggle('on', inboxOpen); if (!inboxOpen) return;
   el.style.left = `${Math.max(16, Math.min(b.getBoundingClientRect().left, innerWidth - 396))}px`;
-  const here = (c) => `<div class="ib-row" data-goto="${c.id}"><div>${prose(c.msgs.at(-1).text)}</div><div class="on">${c.msgs.at(-1).who} wrote${c.node ? ` · ${nodeById(c.node)?.label || c.node}` : ''}</div></div>`;
+  const here = (c) => `<div class="ib-row" data-goto="${c.id}"><div>${prose(c.msgs.at(-1).text)}</div><div class="on">${esc(c.msgs.at(-1).who)} wrote${c.node ? ` · ${esc(nodeById(c.node)?.label || c.node)}` : ''}</div></div>`;
   const far = (m, it) => `<a class="ib-row" href="${m.href}?as=${encodeURIComponent(ME)}"><div>${prose(it.text)}</div><div class="on">${it.kind === 'call' ? `${it.from} asks you` : `${it.from} wrote`}${it.on ? ` · ${prose(it.on)}` : ''}</div></a>`;
   el.innerHTML = `<div class="ct"><span>Inbox${n ? ` <span class="ca-n">${n}</span>` : ''}</span><span class="x" data-close-inbox>×</span></div>
     ${n ? '' : '<div class="quiet">Nobody is asking you anything.</div>'}
@@ -2673,7 +2673,7 @@ function renderInbox(){
 
 function renderPrs(){
   const el = $('prs'); el.classList.toggle('on', prsOpen); if (!prsOpen) return;
-  el.innerHTML = `<div class="ct"><span>Pull requests on ${S.title}</span><span class="x" data-close-prs>×</span></div>` + S.prs.map((p) => `<div class="pr">${p.url ? `<a class="id" href="${esc(p.url)}" target="_blank" rel="noopener">${p.id}</a>` : `<span class="id">${p.id}</span>`} ${p.title}<div class="st">${p.agent}, ${p.by} · ${p.status}</div>
+  el.innerHTML = `<div class="ct"><span>Pull requests on ${esc(S.title)}</span><span class="x" data-close-prs>×</span></div>` + S.prs.map((p) => `<div class="pr">${p.url ? `<a class="id" href="${esc(p.url)}" target="_blank" rel="noopener">${p.id}</a>` : `<span class="id">${p.id}</span>`} ${p.title}<div class="st">${p.agent}, ${p.by} · ${p.status}</div>
     ${p.checks.map((c) => `<div class="chk ${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✕'} ${c.name}${c.detail ? `<span class="d">${c.detail}</span>` : ''}</div>`).join('')}
     <div class="mono" style="margin-top:6px">${p.files.join(' · ')}</div></div>`).join('');
 }
@@ -2758,12 +2758,12 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox(n.id);
 }, true);
 const ago = (t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
-const av = (who) => `<span class="av" style="background:${pcol(who)}">${who[0]}</span>`;
-const mention = (t) => t.replace(/@(\w+)/g, '<span class="at">$1</span>');
+const av = (who) => `<span class="av" style="background:${pcol(who)}">${esc(who[0] || "")}</span>`;
+const mention = (t) => esc(t).replace(/@(\w+)/g, '<span class="at">$1</span>');
 // a resolved comment leaves the map, as in Figma; the panel keeps it behind "Show resolved"
 const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.resolved || showResolved) && (!c.node || (!locked(nodeById(c.node) || {}) && !foldedAway(c.node))));
 function renderComments(){
-  const pins = visibleComments().map((c) => `<div class="pinc ${openThread === c.id ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${c.msgs[0].who[0]}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`);
+  const pins = visibleComments().map((c) => `<div class="pinc ${openThread === c.id ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${esc(c.msgs[0].who[0] || "")}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`);
   if (draft) pins.push(`<div class="pinc on" style="left:${draft.x}px;top:${draft.y}px"><i style="background:${pcol(ME)}">${ME[0]}</i></div>`);
   $('pins').innerHTML = pins.join('');
   // the open thread, or the box for a new one, beside its pin
@@ -2774,7 +2774,7 @@ function renderComments(){
     const p = c || draft;
     th.classList.toggle('draft', !c);
     th.innerHTML = c ? `<div class="th-head">Comment<span class="sp"></span><span class="ib ${c.resolved ? 'done' : ''}" data-resolve="${c.id}" title="${c.resolved ? 'Reopen' : 'Resolve'}">✓</span><span class="ib" data-close-th title="Close">✕</span></div>
-      <div class="th-body">${c.msgs.map((m) => `<div class="th-msg">${av(m.who)}<div><span class="who">${m.who}</span><span class="ago">${ago(m.at)}</span><div class="tx">${mention(m.text)}</div></div></div>`).join('')}</div>
+      <div class="th-body">${c.msgs.map((m) => `<div class="th-msg">${av(m.who)}<div><span class="who">${esc(m.who)}</span><span class="ago">${ago(m.at)}</span><div class="tx">${mention(m.text)}</div></div></div>`).join('')}</div>
       <form class="th-reply" data-reply="${c.id}">${av(ME)}<input placeholder="Reply" autocomplete="off"><button type="submit" title="Send">↑</button></form>`
       // a new comment is one row beside its pin, the way Figma opens it
       : `<form class="th-reply" data-new><input placeholder="Add a comment" autocomplete="off"><button type="submit" title="Post">↑</button></form>`;
@@ -2798,8 +2798,8 @@ function renderComments(){
       ${nResolved ? `<label class="cp-res"><input type="checkbox" id="cpres" ${showResolved ? 'checked' : ''}> Show resolved (${nResolved})</label>` : ''}
       <div class="cp-list">${all.length ? all.map((x) => `<div class="cp-item ${openThread === x.id ? 'on' : ''} ${x.resolved ? 'done' : ''}" data-goto="${x.id}">
         <div class="cp-top">${av(x.msgs[0].who)}<span class="cp-acts"><span class="ib" data-resolve="${x.id}" title="${x.resolved ? 'Reopen' : 'Resolve'}"><svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="8.25"/><path d="M7.6 11.2l2.4 2.4 4.4-4.8"/></svg></span></span></div>
-        <div class="meta">#${x.id} · ${x.node ? nodeById(x.node)?.label || x.node : x.view === 'system' ? 'System' : nodeById(x.view)?.label}${x.resolved ? ' · resolved' : ''}</div>
-        <div class="by"><span class="who">${x.msgs[0].who}</span><span class="ago">${ago(x.msgs[0].at)}</span></div><div class="tx">${mention(x.msgs[0].text)}</div>
+        <div class="meta">#${x.id} · ${esc(x.node ? nodeById(x.node)?.label || x.node : x.view === 'system' ? 'System' : nodeById(x.view)?.label || '')}${x.resolved ? ' · resolved' : ''}</div>
+        <div class="by"><span class="who">${esc(x.msgs[0].who)}</span><span class="ago">${ago(x.msgs[0].at)}</span></div><div class="tx">${mention(x.msgs[0].text)}</div>
         ${x.msgs.length > 1 ? `<div class="rp">${x.msgs.length - 1} repl${x.msgs.length === 2 ? 'y' : 'ies'}</div>` : ''}</div>`).join('') : '<div class="cp-empty">No comments yet. Pick the comment tool and click anywhere on the map.</div>'}</div>`;
   }
   // a red dot on the tool while any thread is open and unresolved
