@@ -37,6 +37,8 @@ Tidy up uses compact topic spacing: 70px between columns and 35px between short 
 
 Trackpad pinch zoom follows the gesture distance, calibrated to a 4% zoom-in change per pixel of wheel delta, with smaller fractional movements and a cap on large jumps. Zoom stays anchored under the pointer. Two-finger scrolling pans the map.
 
+Share → Copy link copies the current map address and confirms when it is on the clipboard. The address keeps existing access rules and opens this local server on this Mac; it does not publish the map. Saved map files omit Copy link because they do not have a hosted address.
+
 Share → Export image downloads a PNG of the full current view, including off-screen boxes and lines. The image preserves wrapped names and map colors, omits editing controls and selection highlights, and keeps the current folding and level. Large maps are scaled down to keep the image within browser limits.
 
 While waiting for a reply, the main chat and side chats say “Claude is working…” beside the elapsed time. Linked chat activity keeps its specific step description when one is available.
