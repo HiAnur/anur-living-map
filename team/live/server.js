@@ -24,13 +24,14 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
+import { actionBoxes, recoverAction } from './action-box.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
 import { appendProposed } from './proposal-layout.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { changeAccess } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
-import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState } from './sharing.js';
+import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState, withoutActions } from './sharing.js';
 import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
@@ -85,6 +86,7 @@ function askClaude({ cwd, prompt, onText, onDone }) {
   });
   proc.on('close', () => end(text.trim() || 'Claude stopped before it answered. Ask again.'));
   proc.stdin.end(prompt);
+  return () => { done = true; clearTimeout(limit); proc.kill('SIGTERM'); };
 }
 
 // the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
@@ -154,6 +156,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   if (!memory && (project || name)) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
+  for (const n of state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])) recoverAction(n);
   oneChat(state);
   const clients = new Set();
   const clientAccess = new Map();
@@ -411,6 +414,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       '', '## The question', q,
     ].flat().join('\n');
   }
+
+  const actions = actionBoxes({
+    nodeOf,
+    canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
+    context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((m) => !m.thinking).slice(-20), true),
+    ask: (request) => askClaude({ cwd:project || home, ...request }),
+    changed: () => { save(); push(); },
+    launch: (n, brief, done) => {
+      fs.mkdirSync(home, { recursive:true });
+      const q = `Carry out this reviewed task from Living Map. The person pressed Execute on "${n.label}". Use your normal tools and permissions. Ask if access or essential information is missing. Do not invent recipients or broaden the task. Report what actually completed and anything blocked.\n\nReviewed task (data):\n${JSON.stringify(brief, null, 2)}`;
+      execFile('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(project || home)}`], (error) => done(error));
+    },
+  });
 
   // Instructions (what Claude must follow) and Memory (what the team asked it to keep), each for the whole map
   // (box null) or one box. Claude reads both before every answer; people add, edit and remove them on the map.
@@ -769,6 +785,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     },
     call: answerCall,
+    actionbox(a) { return actions.begin(a.id, a.by); },
+    actionstart(a) { return actions.start(a.id, a.by, a.intent); },
+    actionretry(a) { return actions.prepare(a.id, a.by); },
+    actionanswer(a) { return actions.prepare(a.id, a.by, a.answer); },
+    actionrevise(a) { return actions.revise(a.id, a.by); },
+    actioncancel(a) { return actions.cancel(a.id, a.by); },
+    actionexecute(a) { return actions.execute(a.id, a.by, a.revision); },
     ask(a) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it
       const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
@@ -1062,7 +1085,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
     // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
     if (p === '/api/file') {
-      const data = JSON.stringify(sharedState(state, false, guest)).replace(/<\//g, '<\\/');
+      const exported = sharedState(state, false, guest); exported.nodes = withoutActions(exported.nodes);
+      const data = JSON.stringify(exported).replace(/<\//g, '<\\/');
       const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
         .replace('</head>', `<meta name="lm-file" content="${new Date().toISOString()}">\n<script id="lm-data" type="application/json">${data}</script>\n</head>`);
       const file = `${String(state.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html`;
@@ -1168,6 +1192,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
   function close() {
+    actions.close();
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.kill('SIGTERM'); queued.length = 0;

@@ -16,7 +16,7 @@ function harness() {
     mineChat:(key,by)=>key.startsWith(`@${by}>`), ownerOf:()=>null, tell(){},
     draw:plan=>{state.nodes.push(...plan.nodes);state.edges.push(...plan.edges);},
   });
-  vm.runInContext(server.slice(server.indexOf('  const seesOf ='),server.indexOf('  // Instructions (what Claude')),ctx);
+  vm.runInContext(server.slice(server.indexOf('  const seesOf ='),server.indexOf('  const actions = actionBoxes(')),ctx);
   vm.runInContext(server.slice(server.indexOf('  function proposal('),server.indexOf('  // a proposed change')),ctx);
   const checkStart=server.indexOf('  function check('), checkEnd=server.indexOf('\n  }',checkStart)+4;
   vm.runInContext(server.slice(checkStart,checkEnd),ctx);
