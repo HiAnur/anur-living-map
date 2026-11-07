@@ -164,7 +164,7 @@ button,input,textarea{font:inherit;color:inherit}
 #newbox input,#newbox textarea{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 #newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none;text-align:center}
 #newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
-#newbox textarea{padding:15px 10px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
+#newbox textarea{text-align:center;padding:15px 10px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
@@ -2428,9 +2428,11 @@ document.addEventListener('keydown', (e) => {
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
 function deleteBox(id){
   if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
-  const n = nodeById(id), parent = topicParent(n); delAsk = null; if (selected === id) selected = parent?.id || null;
+  const n = nodeById(id), parent = topicParent(n); delAsk = null;
+  const follow = selected === id;
+  if (follow) selected = parent?.id || scope().nodes.filter((b) => b.id !== id && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y))[0]?.id || null;
   pendingRemovals.add(id); hideRemoved(S);
-  act('remove', { id }).then(async (r) => { if (!r?.ok){ pendingRemovals.delete(id); await refreshMap(); toast('The box could not be deleted. Please try again.'); } }); render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+  act('remove', { id }).then(async (r) => { if (!r?.ok){ pendingRemovals.delete(id); await refreshMap(); toast('The box could not be deleted. Please try again.'); } }); if (follow) selectTopic(selected); else render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
 }
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
@@ -2555,7 +2557,7 @@ function topicDraft(n, child){
   const nodes = scope().nodes;
   while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
-  askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, view });
+  askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, returnTopic: n, view });
 }
 function keepEditorVisible(at, width, height){
   const r = canvas.getBoundingClientRect();
@@ -2626,18 +2628,18 @@ function askName(at){
       topicDraft({ ...current, id, label, parent }, e.key === 'Tab' || !parent);
     } else if (e.key === 'Enter'){ e.preventDefault(); endName(true); }
     else if (!line && (naming.untouched || !i.value) && ['Backspace', 'Delete'].includes(e.key)){
-      e.preventDefault(); const current = naming; endName(false);
-      if (current.edit){ const parent = topicParent(nodeById(current.edit)); deleteBox(current.edit); Promise.resolve().then(() => { selected = parent?.id || null; render(); }); }
+      e.preventDefault(); const current = naming; endName(false, !current.edit);
+      if (current.edit){ selected = current.edit; deleteBox(current.edit); }
     }
   });
   i.addEventListener('blur', () => endName(true));
 }
-function endName(keep){
+function endName(keep, restore = true){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
   if (!keep || at.untouched || (!at.from && !text)){
-    Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming){ selected = id || null; render(); } }); return;
+    if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
   const saved = (async () => {
@@ -2651,9 +2653,9 @@ function endName(keep){
   })().catch(() => { toast('The box could not be saved. Please try again.'); return null; });
   return saved;
 }
-function selectTopic(id){
+function selectTopic(id, fallback){
   keyboardSelection = true; selected = id; render();
-  const n = nodeById(id), r = canvas.getBoundingClientRect();
+  const n = nodeById(id) || fallback, r = canvas.getBoundingClientRect();
   if (n){ cam.x = r.width / 2 - n.x * cam.z; cam.y = r.height / 2 - n.y * cam.z; place(); }
 }
 // Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
