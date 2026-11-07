@@ -23,10 +23,32 @@ function harness(){
   });
   vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
+  vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);
   const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
 }
 describe('keyboard brainstorming',()=>{
+  it('keeps each parent centered while deleting back through a long branch',()=>{
+    const h=harness();h.ctx.S.nodes=Array.from({length:31},(_,i)=>({id:`n${i}`,label:'Topic',x:i*500,y:i*85}));
+    h.ctx.S.edges=Array.from({length:30},(_,i)=>({from:`n${i}`,to:`n${i+1}`}));h.ctx.selected='n30';h.ctx.cam.z=1.5;
+    for(let i=30;i>0;i--){
+      h.ctx.deleteBox(`n${i}`);expect(h.ctx.selected).toBe(`n${i-1}`);
+      const n=h.ctx.nodeById(h.ctx.selected);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBe(600);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBe(400);expect(h.ctx.cam.z).toBe(1.5);
+    }
+  });
+  it('selects a remaining standalone box and handles deleting the last box',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'other',label:'Other',x:2000,y:1000});h.ctx.deleteBox('root');expect(h.ctx.selected).toBe('other');expect(h.ctx.cam.x).toBe(-1400);
+    h.ctx.deleteBox('other');expect(h.ctx.selected).toBeNull();
+  });
+  it('centers the parent when deleting an empty edited name without restoring the deleted box',async()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:2000,y:1000});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.selected='child';
+    h.key('F2');h.type('');h.edit('Backspace');await new Promise(setImmediate);
+    expect(h.ctx.selected).toBe('root');expect(h.ctx.cam.x).toBe(600);expect(h.ctx.cam.y).toBe(400);
+  });
+  it('brings a draft parent into view even before its saved node arrives',async()=>{
+    const h=harness();h.ctx.topicDraft({id:Promise.resolve('pending'),label:'Parent',x:3000,y:1000},true);h.edit('Backspace');await new Promise(setImmediate);
+    expect(h.ctx.selected).toBe('pending');expect(h.ctx.cam.x).toBe(-2400);expect(h.ctx.cam.y).toBe(-600);
+  });
   it('keeps the full zoomed editor above the toolbar and inside the canvas',()=>{
     const h=harness();h.ctx.cam.z=2.5;h.ctx.askName({x:460,y:300});
     expect(460*2.5+h.ctx.cam.x+175).toBeLessThanOrEqual(1184);
