@@ -832,7 +832,19 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-head b{flex:1;font-weight:500}
 .sh-head .x{font-size:20px}
 .sh-link{border:0;background:none;padding:0;font:inherit;display:inline-flex;align-items:center;gap:6px;color:var(--new);font-size:13.5px;cursor:pointer}
+.view-only #tools [data-tool="box"],.view-only #tools [data-tool="arrow"],.view-only #tools [data-tool="comment"],.view-only .history-tool,.view-only #tidyb,.view-only #savew,.view-only [data-hrestore],.view-only .topic-actions,.link-guest #bot,.link-guest #inboxb,.link-guest #rail [data-rail="memory"],.link-guest #rail [data-rail="sidechats"],.link-guest .topic-actions,.view-only .cd,.link-guest #verb,.link-guest #savew,.link-guest #side [data-side-tab="chat"],.view-only #side .d-del,.view-only #thread form,.view-only [data-resolve]{display:none}
 .sh-link svg,.sh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.sh-permission{position:relative;flex-shrink:0}
+.sh-access{display:inline-flex;align-items:center;justify-content:space-between;gap:16px;min-width:90px;height:34px;padding:0 11px;border:1px solid var(--rule-2);border-radius:8px;background:var(--card);font:inherit;cursor:pointer}
+.sh-access:hover,.sh-access[aria-expanded="true"]{background:var(--canvas);border-color:var(--box-line)}
+.sh-access:focus-visible,.sh-permission-menu button:focus-visible{outline:2px solid var(--new);outline-offset:2px}
+.sh-access svg{display:block;width:14px;height:14px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;color:var(--text-2)}
+.sh-permission-menu{position:absolute;top:calc(100% + 6px);right:0;z-index:2;width:144px;padding:5px;border:1px solid var(--rule);border-radius:10px;background:var(--card);box-shadow:0 8px 24px var(--rule-2)}
+.sh-permission-menu button{display:flex;align-items:center;justify-content:space-between;width:100%;height:36px;padding:0 10px;border:0;border-radius:6px;background:transparent;text-align:left;cursor:pointer}
+.sh-permission-menu button:hover,.sh-permission-menu button:focus-visible{background:var(--new-tint)}
+.sh-permission-menu button[aria-checked="true"]{color:var(--new);font-weight:500}
+.sh-permission-menu svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sh-access:disabled{opacity:.6;cursor:wait}
 .sh-body{padding:16px 20px 12px}
 .sh-invite{display:flex;gap:8px}
 .sh-invite input{flex:1;min-width:0;height:38px;border:1px solid transparent;border-radius:8px;background:#f3f2ee;padding:0 12px}
@@ -845,7 +857,7 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-who{flex:1}.sh-who i{font-style:normal;color:var(--text-3)}
 .sh-role{font-size:13px;color:var(--text-2)}
 body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
-#toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:30;pointer-events:none}
+#toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:60;pointer-events:none}
 #toast.on{opacity:1}
 /* Narrow windows keep a readable pane and put the title on its own row when needed. */
 @media(max-width:1100px){
@@ -928,7 +940,16 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
 const $ = (id) => document.getElementById(id);
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
-const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+const LINK = new URLSearchParams(location.search).get('share') || '';
+const SHARED = !!document.querySelector('meta[name="lm-shared"]');
+const READ_ONLY = document.querySelector('meta[name="lm-access"]')?.content === 'view';
+const VIEW_SAYS = 'You can view this map. Ask the owner for an edit link to change it.';
+const ME = SHARED ? 'Guest' : SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+document.body.classList.toggle('view-only', READ_ONLY);
+document.body.classList.toggle('link-guest', SHARED);
+// Keep the link's permission on map requests without sending it to other sites or maps.
+const mapURL = (path) => { const url = new URL(path, location.href); if (LINK) url.searchParams.set('share', LINK); return url.href; };
+const fetch = (input, init) => window.fetch(typeof input === 'string' && input.startsWith('api/') ? mapURL(input) : input, init);
 // A saved file: this same page with the map's data written into it (Share as a file). It draws that data and
 // nothing else; no server is asked, and nothing on it changes until it is loaded into Living Map.
 const FILE = document.querySelector('meta[name="lm-file"]')?.content || '';
@@ -1066,6 +1087,7 @@ const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the ma
 const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'undo', 'redo']);
 const pendingActions = new Set();
 const act = (type, extra = {}) => {
+  if (READ_ONLY){ if (type !== 'cursor') toast(VIEW_SAYS); return Promise.resolve(); }
   if (FILE){ toast(FILE_SAYS); return Promise.resolve(); }
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
   const request = fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
@@ -1847,7 +1869,7 @@ function render(){
 }
 
 // Share: copy this map's address, manage access, or download it. Invites are not wired up yet.
-let shareOpen = false, peopleOpen = false;
+let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false;
 // the Save menu: Save now, and the Auto-save switch, on unless someone turned it off for this map
 let saveOpen = false;
 function renderSave(){
@@ -1859,19 +1881,71 @@ function renderSave(){
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
+  const activePermission = document.activeElement?.closest('.sh-permission') ? document.activeElement : null;
+  const restorePermissionFocus = activePermission?.dataset.linkMode ? `[data-link-mode="${activePermission.dataset.linkMode}"]` : activePermission ? '[data-link-menu]' : null;
   const canManage = !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>Copy link</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
-      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team${S.removedPeople?.length ? '<i> · except removed people</i>' : ''}</span><span class="sh-role">can edit</span></div>
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
+      ${!FILE && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : 'Edit'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
     </div>`;
+  if (restorePermissionFocus) document.querySelector(restorePermissionFocus)?.focus({ preventScroll: true });
 }
+function shareAddress(){
+  const url = new URL(location.pathname, location.origin);
+  const token = S.linkSharing?.token || LINK;
+  if (token && ['view', 'edit'].includes(S.linkSharing?.mode)) url.searchParams.set('share', token);
+  return url.href;
+}
+async function copyMapLink(){
+  try {
+    if (!S.linkSharing?.token && !LINK && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin')){
+      const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'view' }) });
+      if (!response.ok) throw new Error();
+      S.linkSharing = await response.json(); renderShare();
+    }
+    toast(await copyText(shareAddress()) ? 'Link copied.' : 'Could not copy. Try Copy link again.');
+  } catch { toast('The link could not be created. Try again.'); }
+}
+async function setLinkRole(mode){
+  if (linkSaving) return;
+  linkMenuOpen = false; linkSaving = true; renderShare();
+  try {
+    const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode }) });
+    if (!response.ok) throw new Error();
+    S.linkSharing = await response.json();
+    toast(`Anyone with the link can ${mode}.`);
+  } catch { toast('Link access could not be changed.'); }
+  linkSaving = false; renderShare(); document.querySelector('[data-link-menu]')?.focus();
+}
+function closeLinkMenu(){ linkMenuOpen = false; renderShare(); document.querySelector('[data-link-menu]')?.focus(); }
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-link-menu]')){
+    linkMenuOpen = !linkMenuOpen; renderShare();
+    document.querySelector(linkMenuOpen ? '[data-link-mode][aria-checked="true"]' : '[data-link-menu]')?.focus();
+  } else if (e.target.closest('[data-link-mode]')) setLinkRole(e.target.closest('[data-link-mode]').dataset.linkMode);
+  else if (linkMenuOpen && !e.target.closest('.sh-permission')){ linkMenuOpen = false; renderShare(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (!e.target.closest('.sh-permission')) return;
+  e.stopImmediatePropagation();
+  if (e.key === 'Escape'){ e.preventDefault(); closeLinkMenu(); }
+  else if (e.key === 'Tab'){ if (linkMenuOpen) closeLinkMenu(); }
+  else if (['ArrowDown','ArrowUp','Home','End'].includes(e.key)){
+    e.preventDefault();
+    const old = e.target.dataset.linkMode;
+    if (!linkMenuOpen){ linkMenuOpen = true; renderShare(); }
+    const options = [...document.querySelectorAll('[data-link-mode]')], index = options.findIndex((b) => b.dataset.linkMode === old);
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? options.length - 1 : index < 0 ? (e.key === 'ArrowUp' ? options.length - 1 : 0) : (index + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+    options[next]?.focus();
+  }
+}, true);
 let imageExportBusy = false, imageFontCSS;
 async function updatePersonAccess(person){
   try {
@@ -1938,17 +2012,17 @@ async function downloadMapImage(){
     const blob = await new Promise((resolve) => output.toBlob(resolve, 'image/png')); if (!blob) throw new Error('image');
     const url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = `${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
-    shareOpen = false; renderShare(); toast('Saving the map image to your downloads.');
+    shareOpen = false; linkMenuOpen = false; renderShare(); toast('Saving the map image to your downloads.');
   } catch { toast('The image could not be exported. Please try again.'); }
   finally { imageExportBusy = false; renderShare(); }
 }
 // the map as one file (Share as a file): this page with the map's data inside, so it opens on its own anywhere
 // and Load a map file brings it back here exactly; the server builds it at api/file and names it <map name>.html
 function downloadMap(){
-  const a = document.createElement('a'); a.href = 'api/file'; a.download = ''; a.click();
+  const a = document.createElement('a'); a.href = mapURL('api/file'); a.download = ''; a.click();
   toast(`Saving ${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html to your downloads.`);
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; linkMenuOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
 // The plan's code, top right beside the people: where it stands at every step, so nobody has to ask.
 // Before Execute nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
@@ -2061,7 +2135,7 @@ let sideRename = null;
 function beginSideRename(id){
   const n = nodeById(id);
   if (!n || locked(n)) return;
-  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  if (READ_ONLY || FILE || PREVIEW){ toast(READ_ONLY ? VIEW_SAYS : FILE ? FILE_SAYS : FROZEN_SAYS); return; }
   clearTimeout(tapTimer); nameSession++;
   sideRename = { id, label:n.label }; renderSide();
   $('side-name').focus({preventScroll:true}); $('side-name').select();
@@ -2209,7 +2283,7 @@ function renderSide(){
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || FILE || PREVIEW ? 'disabled' : ''}>✳ Auto plan</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ Auto plan</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2257,7 +2331,7 @@ function renderSide(){
 // Keep repeated clicks from starting a second request before the live reply reaches this window.
 const autoPlanning = new Set();
 async function autoPlanTopic(id) {
-  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  if (READ_ONLY || FILE || PREVIEW){ toast(READ_ONLY ? VIEW_SAYS : FILE ? FILE_SAYS : FROZEN_SAYS); return; }
   const n = nodeById(id), key = `@${ME}>${id}`;
   if (!n || locked(n) || autoPlanning.has(id) || S.threads?.[key]?.some((m) => m.thinking)) return;
   autoPlanning.add(id); selected = sideFor = id; sideTab = 'chat'; keyboardSelection = false; render();
@@ -2594,6 +2668,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape'){ draft = n
 // Delete or Backspace on a picked box asks the same question as Delete this box on its card
 // a picked line goes at once on Delete: nothing hangs off a line, and History brings it back
 function deleteLine(id){
+  if (READ_ONLY){ toast(VIEW_SAYS); return; }
   const [from, to] = id.split('>'), a = nodeById(from), b = nodeById(to);
   pickedLine = null; act('unlink', { from, to }); render();
   toast(`The line ${a?.label || from} → ${b?.label || to} is off the map. History can bring it back.`);
@@ -2602,7 +2677,7 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea')) return;
   if (group.size && e.key === 'Escape'){ group.clear(); render(); return; }
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
-  if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
+  if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW && !READ_ONLY){ e.preventDefault(); deleteLine(pickedLine); }
 });
 // A leaf disappears immediately. A branch is removed together only after confirmation.
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
@@ -2619,6 +2694,7 @@ function branchIds(state, roots) {
   return ids;
 }
 function deleteBox(id, confirmed = false){
+  if (READ_ONLY){ toast(VIEW_SAYS); return; }
   const waiting = [...pendingTopics].filter((n) => !n.id);
   if (waiting.length){ Promise.all(waiting.map((n) => n.saved)).then(refreshMap).then(() => deleteBox(id, confirmed)); return; }
   const roots = id === '*' ? [...group] : [id], ids = branchIds(S, roots);
@@ -2638,7 +2714,7 @@ function deleteBox(id, confirmed = false){
   if (follow) selectTopic(selected); else render();
 }
 document.addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
+  if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || READ_ONLY) return;
   if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.key === 'Enter') deleteBox(delAsk, true); else { delAsk = null; render(); }
@@ -2700,7 +2776,7 @@ function renderComments(){
   for (const b of [tb, document.querySelector('#rail [data-rail="comments"]')]) if (b){ b.querySelector('.dot')?.remove(); if (unread) b.insertAdjacentHTML('beforeend', '<span class="dot"></span>'); }
   canvas.classList.toggle('commenting', tool === 'comment');
 }
-function setTool(t){ tool = t; if (t === 'select'){ spaceDown = false; panning = null; canvas.classList.remove('grabbing', 'spacepan'); } document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x.dataset.tool === t)); if (t !== 'comment') draft = null; canvas.classList.toggle('drawing', t === 'box' || t === 'arrow'); canvas.classList.toggle('hand', t === 'hand'); render(); }
+function setTool(t){ if (READ_ONLY && !['select', 'hand'].includes(t)){ toast(VIEW_SAYS); return; } tool = t; if (t === 'select'){ spaceDown = false; panning = null; canvas.classList.remove('grabbing', 'spacepan'); } document.querySelectorAll('.tb').forEach((x) => x.classList.toggle('on', x.dataset.tool === t)); if (t !== 'comment') draft = null; canvas.classList.toggle('drawing', t === 'box' || t === 'arrow'); canvas.classList.toggle('hand', t === 'hand'); render(); }
 /* drawing by hand. The Box tool: press and drag out a box (a click makes one the usual width), then name it where it
    sits. The Line tool: drag from one box and let go on another, then the words on the line, or just Enter. Pan drags
    the map from anywhere. What is being drawn shows as a blue outline until the pointer lets go */
@@ -2963,7 +3039,7 @@ function keyboardNeighbor(n, key){
 }
 document.addEventListener('keydown', (e) => {
   const boxShortcut = (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'r';
-  if (e.defaultPrevented || e.isComposing || ((e.metaKey || e.ctrlKey) && !boxShortcut) || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
+  if (e.defaultPrevented || e.isComposing || ((e.metaKey || e.ctrlKey) && !boxShortcut) || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || READ_ONLY || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
   let n = selected && nodeById(selected);
   if (!n && e.key === 'Tab' && !e.shiftKey){
     const nodes = scope().nodes.filter((b) => !locked(b) && !b.proposed);
@@ -2999,7 +3075,7 @@ document.addEventListener('keydown', (e) => {
 // Map undo leaves text fields to the browser. An untouched selected topic belongs to the map.
 let undoQueue = Promise.resolve();
 function mapUndo(direction){
-  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  if (READ_ONLY || FILE || PREVIEW){ toast(READ_ONLY ? VIEW_SAYS : FILE ? FILE_SAYS : FROZEN_SAYS); return; }
   const finish = naming ? endName(true, false) : null;
   undoQueue = undoQueue.then(async () => {
     await finish; await topicSaveQueue; await Promise.all([...pendingTopics].map((n) => n.saved)); await Promise.all([...pendingActions]);
@@ -3012,7 +3088,7 @@ function mapUndo(direction){
   return undoQueue;
 }
 document.addEventListener('keydown', (e) => {
-  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE) return;
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE || READ_ONLY) return;
   if (e.target.closest('input, textarea, [contenteditable]') && !naming?.untouched) return;
   e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
   mapUndo(e.shiftKey ? 'redo' : 'undo');
@@ -3039,7 +3115,7 @@ function planTopicAttach(graph, id, parentId, side){
   return {parent:parentId,parents:graph.edges.filter((e) => e.to === id).map((e) => e.from),moves};
 }
 function previewTopicAttach(sx, sy){
-  if (!drag?.source || drag.many || PREVIEW || FILE) return;
+  if (!drag?.source || drag.many || PREVIEW || FILE || READ_ONLY) return;
   drag.attach = null; $('rubber').innerHTML = '';
   const ids = branchIds(drag.source, [drag.n.id]);
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
@@ -3093,13 +3169,13 @@ canvas.addEventListener('pointerdown', (e) => {
   const fo = e.target.closest('.fold');
   if (fo){ toggleFold(fo.dataset.fold); return; }
   // picking a line with the Select tool (a click on a line picks it, a second click lets go)
-  const cd = tool === 'select' && !PREVIEW && e.target.closest('[data-cd]');
+  const cd = tool === 'select' && !READ_ONLY && !PREVIEW && e.target.closest('[data-cd]');
   if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
     drawing = { from: n, dot: cd.dataset.cd, x: sx, y: sy, x0: sx, y0: sy, far: false, to: null }; canvas.setPointerCapture(e.pointerId); } return; }
   if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes, true); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
   const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
-  if (ed && !PREVIEW){
+  if (ed && !PREVIEW && !READ_ONLY){
     const id = ed.dataset.edge || ed.dataset.edgeLabel, now = Date.now();
     if (lineTap.id === id && now - lineTap.at < 350){
       lineTap = { id: null, at: 0 }; pickedLine = null;
@@ -3115,7 +3191,7 @@ canvas.addEventListener('pointerdown', (e) => {
   moved = false;
   if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
   if (tool === 'box' || tool === 'arrow'){
-    if (PREVIEW){ toast(FROZEN_SAYS); return; }
+    if (PREVIEW || READ_ONLY){ toast(READ_ONLY ? VIEW_SAYS : FROZEN_SAYS); return; }
     if (view.startsWith('flow:') || view.startsWith('diagram:')){ toast('Draw on the map itself, not inside a flow or a diagram.'); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY);
     if (tool === 'box'){ if (nd) return; drawing = { box: true, x0: sx, y0: sy, x1: sx, y1: sy }; }
@@ -3143,7 +3219,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
-    if (locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
+    if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy };
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
       const all = view === 'system' ? S : nodeById(view)?.inside;
@@ -3318,9 +3394,9 @@ document.addEventListener('click', (e) => {
   }
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
-  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
+  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; linkMenuOpen = false; renderShare(); }
   else if (t.closest('[data-copy-link]')){
-    copyText(location.origin + location.pathname).then((ok) => toast(ok ? 'Link copied.' : 'Could not copy. Copy the address from your browser.'));
+    copyMapLink();
   }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
   else if (t.closest('[data-remove-person]')){ updatePersonAccess(t.closest('[data-remove-person]').dataset.removePerson); }
@@ -3372,6 +3448,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-chathist]')){ chatHist = !chatHist; chatSeen = -1; render(); }
   else if (t.closest('[data-openchat]')){ const k = t.closest('[data-openchat]').dataset.openchat; if (k !== `@${ME}`) act('openchat', { chat: k }); chatHist = false; chatSeen = -1; render(); }
   else if (t.closest('[data-rename]')){
+    if (READ_ONLY){ toast(VIEW_SAYS); return; }
     t.closest('[data-rename]').outerHTML = `<input id="renamei" value="${esc(S.title)}" maxlength="60" aria-label="Map name" autocomplete="off">`;
     renaming = true; $('renamei').focus(); $('renamei').select();
   }
@@ -3483,9 +3560,10 @@ let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.
 /* follow the server */
 function listen(){
   if (FILE){ LIVE = S = FILE_DATA; renderHistBar(); render(); fit(); return; }
-  const es = new EventSource('api/events');
+  const es = new EventSource(mapURL('api/events'));
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
+  es.addEventListener('access-changed', () => { es.close(); location.reload(); });
   es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
   let first = true;
   es.addEventListener('state', (m) => {

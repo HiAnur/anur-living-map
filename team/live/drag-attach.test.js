@@ -14,7 +14,7 @@ const fixture = () => ({nodes:[
 ],edges:[{from:'root',to:'old'},{from:'old',to:'branch'},{from:'branch',to:'child'},{from:'root',to:'new'},{from:'new',to:'existing'},{from:'root',to:'lower'},{from:'lower',to:'lower-child'}]});
 function page(state = fixture()) {
   const rubber = {innerHTML:''}, ctx=vm.createContext({Set,Map,Math,branchIds,W:()=>140,HT:()=>50,
-    S:state,PREVIEW:null,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
+    S:state,PREVIEW:null,READ_ONLY:false,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
     fanPts:()=>null,routePts:(a,b)=>[[a.x+70,a.y],[b.x-70,b.y]],render(){},canvas:{addEventListener(){}},document:{addEventListener(){}}
   });
   vm.runInContext(html.slice(html.indexOf('function planTopicInsert('),html.indexOf('function topicGraph(')),ctx);

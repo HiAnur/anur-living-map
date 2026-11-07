@@ -16,7 +16,7 @@ function harness(){
   const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
@@ -34,6 +34,12 @@ function harness(){
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
+  it('does not create, rename, or delete topics through a view link',()=>{
+    const h=harness();h.ctx.READ_ONLY=true;h.ctx.VIEW_SAYS='View only';
+    for(const key of ['Tab','Enter','F2','x']) h.key(key);
+    expect(h.ctx.naming).toBeNull();
+    h.ctx.deleteBox('root');expect(h.ctx.S.nodes.map(n=>n.id)).toEqual(['root']);
+  });
   it('branches from the clicked topic immediately, before the double-click delay expires',async()=>{
     const h=harness(),calls=[];h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255},{id:'existing',label:'Existing child',x:1470,y:255});h.ctx.S.edges.push({from:'root',to:'deep'},{from:'deep',to:'existing'});
     h.ctx.act=async(type,a)=>{calls.push(a);return {ok:true,json:async()=>({id:'new-child'})};};

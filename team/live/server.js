@@ -30,7 +30,8 @@ import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users, recovery } from './users.js';
 import { handleRecovery } from './recovery.js';
-import { canAccess, changeAccess } from './access.js';
+import { changeAccess } from './access.js';
+import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState } from './sharing.js';
 import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
@@ -155,6 +156,7 @@ function openMap({ project = '', name = '', home }) {
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
   const clients = new Set();
+  const clientAccess = new Map();
   const cursors = {}; // by name: {x, y, view, at}; never saved
   // who has this map open right now: each signed-in window, told to every window as people come and go
   const viewers = new Map();
@@ -163,7 +165,12 @@ function openMap({ project = '', name = '', home }) {
   // a named map gets its folder the first time something is written to it
   const save = () => { updateBoxDates(state); fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
-  const push = () => { for (const r of clients) send(r, 'state', state); };
+  const push = () => { for (const r of clients) {
+    const c = clientAccess.get(r), role = permission(state, c.who, c.req);
+    if (!role || role !== c.role) {
+      send(r, role ? 'access-changed' : 'access-removed', {}); clients.delete(r); clientAccess.delete(r); r.end();
+    } else send(r, 'state', sharedState(state, role === 'owner', c.guest));
+  } };
 
   // The Claude pane, synced: the Claude Code chat linked last (state.linked[0]) is followed through its
   // transcript, and its owner's windows get it as a "mirror" event: that chat's messages, what the owner
@@ -598,7 +605,7 @@ function openMap({ project = '', name = '', home }) {
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
-    linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [],
+    linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory();
@@ -953,9 +960,20 @@ function openMap({ project = '', name = '', home }) {
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
-  const allowed = (who, req) => canAccess(state, who, req);
+  const access = (who, req) => permission(state, who, req);
+  const allowed = (who, req) => !!access(who, req);
   async function handle(req, res, p, who = null) {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
+    const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
+    const deny = () => { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This link does not allow that change.' })); return true; };
+    if (guest && !(req.method === 'GET' && (['/', '/index.html', '/editing.js', '/api/state', '/api/events', '/api/file', '/api/history'].includes(p) || /^\/api\/history\/\w+$/.test(p))) && !(p === '/api/act' && req.method === 'POST' && role === 'edit')) return deny();
+    if (p === '/api/sharing' && req.method === 'POST') {
+      if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
+      let a; try { a = JSON.parse(await body(req)); } catch {}
+      if (!changeSharing(state, who, a?.mode)) return deny();
+      save(); push();
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state.linkSharing)); return true;
+    }
     if (p === '/api/access' && req.method === 'POST') {
       const origin = req.headers.origin;
       if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
@@ -970,11 +988,11 @@ function openMap({ project = '', name = '', home }) {
       push(); here();
       res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
     }
-    if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
+    if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(sharedState(state, role === 'owner', guest))); return true; }
     // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
     // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
     if (p === '/api/file') {
-      const data = JSON.stringify(state).replace(/<\//g, '<\\/');
+      const data = JSON.stringify(sharedState(state, false, guest)).replace(/<\//g, '<\\/');
       const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
         .replace('</head>', `<meta name="lm-file" content="${new Date().toISOString()}">\n<script id="lm-data" type="application/json">${data}</script>\n</head>`);
       const file = `${String(state.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html`;
@@ -1021,20 +1039,22 @@ function openMap({ project = '', name = '', home }) {
     }
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', state); send(res, 'cursors', cursors);
-      if (who) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
-      clients.add(res); req.on('close', () => clients.delete(res));
+      send(res, 'state', sharedState(state, role === 'owner', guest)); send(res, 'cursors', cursors);
+      if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
+      clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
       // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any
-      if (who && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
-      if (who) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
+      if (who && !guest && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
+      if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
     }
     if (p === '/api/act' && req.method === 'POST') {
       let a = {};
       try { a = JSON.parse(await body(req)); } catch {}
-      // a signed-in browser always acts as the person who signed in
-      a.by = String(who || a.by || 'You').slice(0, 40);
+      if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end(); return true; }
+      if (guest && (!LINK_EDITS.has(a.type) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
+      // A link cannot impersonate a member or start Claude on this Mac.
+      a.by = guest ? 'Guest' : String(who || a.by || 'You').slice(0, 40);
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -1082,7 +1102,7 @@ function openMap({ project = '', name = '', home }) {
     for (const r of clients) r.end();
   }
 
-  return { handle, summary, asks, build, close, allowed };
+  return { handle, summary, asks, build, close, allowed, access };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -1121,9 +1141,9 @@ const everyMap = () => {
 };
 
 // a page, with the signed-in person written into it for the page's own script
-const page = (res, file, who) => res.writeHead(200, { 'content-type': 'text/html' })
+const page = (res, file, who, access = 'edit', shared = false) => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
-    googleOn() && '<meta name="lm-google" content="1">', '</head>'].filter(Boolean).join('\n')));
+    googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
 
 const server = http.createServer(async (req, res) => {
@@ -1175,7 +1195,9 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/claude-login' && req.method === 'POST') return who ? json(200, { ok: await claudeLogin() }) : json(401, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
-  if (isPage && !who) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
+  if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
+  const rootLinkAPI = !PROJECT && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && main.access(who, req);
+  if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(401, { error: 'Sign in first.' });
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
   // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
@@ -1195,6 +1217,7 @@ const server = http.createServer(async (req, res) => {
     if (!who) return json(401, { error: 'Sign in first.' });
     let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch {}
     if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
+    delete s.linkSharing;
     const name = freeName(String(s.title || 'map'));
     const dir = path.join(DIR, 'maps', name);
     fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));
@@ -1208,7 +1231,7 @@ const server = http.createServer(async (req, res) => {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const name = String(a.name || ''), dir = path.join(DIR, 'maps', name);
     if (!/^[a-z0-9-]+$/.test(name) || projects.has(name) || !fs.existsSync(dir)) return json(400, { error: 'That map cannot be deleted here.' });
-    if (!mapCalled(name).allowed(who, req)) return json(403, { error: 'You no longer have access to this project.' });
+    if (mapCalled(name).access(who, req) !== 'owner') return json(403, { error: 'You no longer have access to this project.' });
     named.get(name)?.close(); named.delete(name);
     const bin = path.join(DIR, 'maps', '.deleted');
     fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
@@ -1257,7 +1280,7 @@ const server = http.createServer(async (req, res) => {
   const map = !isMap ? main : own || mapCalled(first);
   const p = isMap ? rest : url.pathname;
   if (await map.handle(req, res, p, who)) return;
-  if (p === '/' || p === '/index.html') return page(res, 'index.html', who);
+  if (p === '/' || p === '/index.html') return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
   // Private map files and server sources are never browser assets.
   if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
