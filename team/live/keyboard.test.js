@@ -11,7 +11,7 @@ const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf(
 function harness(){
   let input, handler;
   const ctx = vm.createContext({ console, Promise, Set, Map });
-  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
+  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
@@ -30,26 +30,26 @@ function harness(){
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
 }
 describe('keyboard brainstorming',()=>{
-  it('keeps each parent centered while deleting back through a long branch',()=>{
+  it('keeps each parent visible while deleting back through a long branch',()=>{
     const h=harness();h.ctx.S.nodes=Array.from({length:31},(_,i)=>({id:`n${i}`,label:'Topic',x:i*500,y:i*85}));
     h.ctx.S.edges=Array.from({length:30},(_,i)=>({from:`n${i}`,to:`n${i+1}`}));h.ctx.selected='n30';h.ctx.cam.z=1.5;
     for(let i=30;i>0;i--){
       h.ctx.deleteBox(`n${i}`);expect(h.ctx.selected).toBe(`n${i-1}`);
-      const n=h.ctx.nodeById(h.ctx.selected);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBe(600);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBe(400);expect(h.ctx.cam.z).toBe(1.5);
+      const n=h.ctx.nodeById(h.ctx.selected);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBeGreaterThanOrEqual(121);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBeLessThanOrEqual(1079);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBeGreaterThanOrEqual(53.5);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBeLessThanOrEqual(686.5);expect(h.ctx.cam.z).toBe(1.5);
     }
   });
   it('selects a remaining standalone box and handles deleting the last box',()=>{
-    const h=harness();h.ctx.S.nodes.push({id:'other',label:'Other',x:2000,y:1000});h.ctx.deleteBox('root');expect(h.ctx.selected).toBe('other');expect(h.ctx.cam.x).toBe(-1400);
+    const h=harness();h.ctx.S.nodes.push({id:'other',label:'Other',x:2000,y:1000});h.ctx.deleteBox('root');expect(h.ctx.selected).toBe('other');expect(h.ctx.cam.x).toBe(-886);
     h.ctx.deleteBox('other');expect(h.ctx.selected).toBeNull();
   });
-  it('centers the parent when deleting an empty edited name without restoring the deleted box',async()=>{
+  it('reveals the parent when deleting an empty edited name without restoring the deleted box',async()=>{
     const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:2000,y:1000});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.selected='child';
     h.key('F2');h.type('');h.edit('Backspace');await new Promise(setImmediate);
-    expect(h.ctx.selected).toBe('root');expect(h.ctx.cam.x).toBe(600);expect(h.ctx.cam.y).toBe(400);
+    expect(h.ctx.selected).toBe('root');expect(h.ctx.cam.x).toBe(86);expect(h.ctx.cam.y).toBe(41);
   });
   it('brings a draft parent into view even before its saved node arrives',async()=>{
     const h=harness();h.ctx.topicDraft({id:Promise.resolve('pending'),label:'Parent',x:3000,y:1000},true);h.edit('Backspace');await new Promise(setImmediate);
-    expect(h.ctx.selected).toBe('pending');expect(h.ctx.cam.x).toBe(-2400);expect(h.ctx.cam.y).toBe(-600);
+    expect(h.ctx.selected).toBe('pending');expect(h.ctx.cam.x).toBe(-2096);expect(h.ctx.cam.y).toBe(-301);
   });
   it('keeps the full zoomed editor above the toolbar and inside the canvas',()=>{
     const h=harness();h.ctx.cam.z=2.5;h.ctx.askName({x:460,y:300});
@@ -62,6 +62,29 @@ describe('keyboard brainstorming',()=>{
   });
   it('does not pan an editor already clear of the controls',()=>{
     const h=harness();h.ctx.askName({x:400,y:300});expect(h.ctx.cam).toEqual({x:0,y:0,z:1});
+    expect(h.input().focusOptions).toEqual({preventScroll:true});
+  });
+  it('keeps visible arrow selections and cancelling a draft in place',async()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.cam={x:300,y:300,z:1};
+    h.key('ArrowRight');expect(h.ctx.selected).toBe('child');expect(h.ctx.cam).toEqual({x:300,y:300,z:1});
+    h.key('Tab');h.edit('Escape');await new Promise(setImmediate);expect(h.ctx.cam).toEqual({x:300,y:300,z:1});
+  });
+  it('Tab with no selection uses the visible previous topic without centering it',()=>{
+    const h=harness();h.ctx.selected=null;h.ctx.cam={x:250,y:300,z:1};h.key('Tab');
+    expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.cam).toEqual({x:250,y:300,z:1});
+  });
+  it('repeated Tab pans only at the right edge and keeps the vertical position and zoom',()=>{
+    const h=harness();h.ctx.cam={x:120,y:300,z:1};
+    for(let i=1;i<=12;i++){
+      const before={...h.ctx.cam};if(i===1)h.key('Tab');else h.edit('Tab');
+      const expected=Math.min(before.x,1184-70-h.ctx.naming.x);
+      expect(h.ctx.cam).toEqual({x:expected,y:300,z:1});
+    }
+  });
+  it('reveals an offscreen selection at the nearest edge without centering or zooming',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'left',label:'Left',x:-2000,y:300},{id:'right',label:'Right',x:2000,y:300});
+    h.ctx.selectTopic('left');expect(h.ctx.cam).toEqual({x:2086,y:0,z:1});
+    h.ctx.selectTopic('right');expect(h.ctx.cam).toEqual({x:-886,y:0,z:1});
   });
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
     const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.ctx.naming.untouched).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
