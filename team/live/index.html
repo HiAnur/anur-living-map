@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
+  --topbar:44px;
   --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif; --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
   --ease:cubic-bezier(.2,.7,.2,1);
   /* paper, ink; hue says what the plan changes */
@@ -19,9 +20,11 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex);overflow:hidden;user-select:none}
 button,input,textarea{font:inherit;color:inherit}
-#top{position:fixed;left:0;right:0;top:0;height:44px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
-/* the map's folder and name sit in the middle of the top bar, like a file name in Figma */
-#crumbs{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;color:var(--text-2)}
+#top{position:fixed;left:0;right:0;top:0;height:var(--topbar);display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
+/* The title takes the space between the controls and truncates before it can overlap them. */
+#top > :not(#crumbs):not(#ticket){flex-shrink:0}
+#crumbs{min-width:0;flex:1;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--text-2)}
+#crumbs b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #crumbs b{font-weight:500;color:var(--text);cursor:pointer}
 #crumbs b:last-child{cursor:default}
 #crumbs .back{margin-right:6px;padding:0 9px 0 7px}
@@ -46,7 +49,7 @@ button,input,textarea{font:inherit;color:inherit}
 #top .sw.on::after{transform:translateX(12px)}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
 #crumbs .sep{color:var(--text-3)}
-#ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1;display:flex;align-items:center;justify-content:flex-end;gap:8px}
+#ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:240px;display:flex;align-items:center;justify-content:flex-end;gap:8px}
 /* the plan's line in the top bar: its pull request, and Execute, which turns on once nothing waits on anyone */
 .prchip{display:inline-block;height:24px;line-height:22px;max-width:320px;padding:0 10px;border:1px solid var(--rule-2);border-radius:999px;background:#fff;font:500 11.5px var(--plex);color:var(--text-2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prchip.draft{border-style:dashed}
@@ -108,7 +111,7 @@ button,input,textarea{font:inherit;color:inherit}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
 
-#canvas{position:absolute;inset:44px 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#canvas{position:absolute;inset:var(--topbar) 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
@@ -318,13 +321,13 @@ button,input,textarea{font:inherit;color:inherit}
 
 /* cards over the map */
 .panel{position:fixed;background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08);z-index:15;font-size:13.5px}
-#queue{left:16px;top:60px;width:360px;padding:12px 14px}
+#queue{left:16px;top:calc(var(--topbar) + 16px);width:360px;max-width:calc(100% - 104px);padding:12px 14px}
 /* Back, inside a box, a flow or a diagram: top left, above your answers, which move down to make room */
-#backb{left:16px;top:60px;display:none;padding:8px 14px;font:500 13.5px var(--plex);color:var(--text);cursor:pointer}
+#backb{left:16px;top:calc(var(--topbar) + 16px);display:none;padding:8px 14px;font:500 13.5px var(--plex);color:var(--text);cursor:pointer}
 #backb.on{display:block}
 #backb:hover{border-color:var(--text-2)}
-body.deep #queue{top:108px}
-#side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+body.deep #queue{top:calc(var(--topbar) + 64px)}
+#side{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column}
 #side [data-rename-box]{cursor:text;min-width:0;overflow-wrap:anywhere}
@@ -371,7 +374,7 @@ body.deep #queue{top:108px}
 .th-reply input{flex:1;height:36px;border:1px solid var(--rule-2);border-radius:18px;padding:0 14px;background:#f8f7f3}
 .th-reply input:focus{outline:none;border-color:#7C3AED;background:#fff}
 .th-reply button{width:30px;height:30px;border-radius:50%;border:0;background:#7C3AED;color:#fff;cursor:pointer}
-#cpanel{right:72px;top:44px;bottom:0;width:var(--chatw);display:none;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#cpanel{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);display:none;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #cpanel.on{display:flex;flex-direction:column}
 .cp-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--rule)}
 .cp-head input{flex:1;height:32px;border:0;border-radius:8px;background:#f3f2ee;padding:0 10px}
@@ -492,6 +495,7 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .side-back{display:inline-block;margin:-4px 0 8px;font-size:12.5px;font-weight:500;color:var(--new);cursor:pointer}
 .side-back:hover{text-decoration:underline}
 .side-tabs{display:flex;gap:2px;margin:-2px 0 12px;border-bottom:1px solid var(--rule)}
+.topic-actions{display:flex;gap:8px;margin:4px 0 12px}.topic-actions button:disabled{opacity:.5;cursor:wait}
 .ct-r{display:flex;align-items:center;gap:8px}.chat-h{height:26px;padding:0 9px;font-size:12px;color:var(--claude)}.chat-h:hover{border-color:var(--claude)}
 .side-tabs span{padding:6px 10px;font-size:12.5px;white-space:nowrap;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
@@ -610,7 +614,7 @@ a{color:inherit;text-decoration:none}
 body.decide #legend .lc:not(.dec),body:not(.decide) #legend .lc.dec{display:none!important}
 /* Tidy up, Fit and zoom sit at the bottom right of the map, just left of the rail; Legend keeps the bottom left */
 #foot{position:fixed;right:88px;bottom:16px;display:flex;align-items:center;gap:8px;z-index:10}
-body.paned #foot,body.paned #plan{right:calc(88px + var(--chatw))}
+body.paned #foot,body.paned #plan{right:calc(88px + var(--pane-width))}
 .zoom{display:flex;height:28px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;overflow:hidden}
 .zoom button{width:30px;border:0;background:none;font-size:16px;line-height:1;color:var(--text);cursor:pointer}
 .zoom button+button{border-left:1px solid var(--rule)}
@@ -631,14 +635,15 @@ body.paned #foot,body.paned #plan{right:calc(88px + var(--chatw))}
 /* Claude's pane takes the whole height beside the rail, the way Descript docks Underlord, and the map makes room for it;
    so do a box's card, Decisions and Comments, one pane at a time (body.paned) */
 /* its width is --chatw, shared by every pane: drag the pane's left edge to change it, the way Descript's divider moves */
-body{--chatw:400px}
-#chat{right:72px;top:44px;bottom:0;width:var(--chatw);display:none;flex-direction:column;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
-body.paned #canvas{right:calc(72px + var(--chatw))}
-body.paned #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
+body{--chatw:400px;--pane-width:min(var(--chatw), max(320px, calc(100vw - 432px)))}
+#chat{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);display:none;flex-direction:column;padding:0;overflow:hidden;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+body.paned #canvas{right:calc(72px + var(--pane-width))}
+body.paned #toast{left:calc((100% - 72px - var(--pane-width)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
-body.paned #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
+body.paned #tools{left:calc((100% - 72px - var(--pane-width)) / 2)}
 body.tight #tools{bottom:58px}
-#chatgrip{position:fixed;top:44px;bottom:0;right:calc(72px + var(--chatw) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
+body.tight #plan,body.tight #legend{bottom:112px}
+#chatgrip{position:fixed;top:var(--topbar);bottom:0;right:calc(72px + var(--pane-width) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
 body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
 body.resizing{cursor:col-resize;user-select:none}
@@ -719,23 +724,23 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .att .x{margin-left:auto;cursor:pointer}
 #chat .att + .ask{border-top:0}
 /* the rail down the right edge: a button per extra panel, icon over its name; Claude sits at the foot */
-#rail{position:fixed;right:0;top:44px;bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15}
+#rail{position:fixed;right:0;top:var(--topbar);bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15}
 #rail .ri{position:relative;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
 #rail .ri svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 #rail .ri:hover{background:#f3f2ee;color:var(--text)}
 #rail .ri.on{background:#efeee9;color:var(--text)}
 #rail .ri .dot{position:absolute;top:6px;right:17px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
 /* the Decisions panel: every answer and applied change on the map, newest first */
-#decs{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#decs{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #decs.on{display:block}
 /* the History panel: every version of the map, newest first; the one you are looking at is lit */
-#hist{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#hist{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #hist.on{display:block}
 /* Memory: Instructions (Claude follows them) and Memory (Claude keeps them in mind), the whole map first, then by box */
-#mem{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#mem{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #mem.on{display:block}
 /* Side Chats: your side chats, one row a box, newest first */
-#scs{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#scs{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #scs.on{display:block}
 #scs .sc-r{display:block;width:100%;text-align:left;margin:0;padding:10px 8px;border:0;border-top:1px solid var(--rule);border-radius:8px;background:none;cursor:pointer}
 #scs .sc-r:hover{background:#fafaf7}
@@ -764,7 +769,7 @@ body.resizing{cursor:col-resize;user-select:none}
 #histbar button{flex:none;height:28px;padding:0 10px;border:0;border-radius:7px;background:rgba(255,255,255,.14);color:#fff;font:inherit;font-size:12.5px;cursor:pointer}
 #histbar button:hover{background:rgba(255,255,255,.24)}
 #histbar button.go{background:#fff;color:#141413}
-body.paned #histbar{left:calc((100% - 72px - var(--chatw)) / 2);max-width:calc(100% - 72px - var(--chatw) - 24px)}
+body.paned #histbar{left:calc((100% - 72px - var(--pane-width)) / 2);max-width:calc(100% - 72px - var(--pane-width) - 24px)}
 body.previewing .node.proposed{display:none}
 #decs .dl-sub{font-size:12.5px;color:var(--text-2);margin:-2px 0 10px}
 #decs .dl{margin:0 -8px;padding:11px 8px 12px;border-top:1px solid var(--rule);border-radius:8px;cursor:pointer}
@@ -795,7 +800,7 @@ body.previewing .node.proposed{display:none}
 .prop.mini{display:flex;gap:8px;align-items:baseline;padding:5px 10px;font-size:12px;font-weight:500;white-space:nowrap}
 .prop.mini.applied{color:var(--ok)}.prop.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:400;color:var(--text-2)}
 /* the tools dock: Select, Pan, Box and Line do what they say; Text is a look only so far */
-#tools{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+#tools{position:fixed;left:calc((100% - 72px) / 2);bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
 .tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:var(--text);cursor:pointer}
 .tb:hover{background:#f3f2ee}
 .tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
@@ -807,6 +812,10 @@ body.previewing .node.proposed{display:none}
 .tb.history-tool .tk{position:static;white-space:nowrap}
 /* the bar is white like every other card on the map */
 .tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
+#tools{max-width:calc(100% - 104px);overflow-x:auto;scrollbar-width:thin}
+body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
+#tools > *,#foot > *{flex-shrink:0}
+#tidyb{white-space:nowrap}
 /* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
 .tbtn.share{background:var(--new);border-color:var(--new);color:#fff;font-weight:500;padding:0 14px}
 .tbtn.share:hover{filter:brightness(1.08)}
@@ -832,6 +841,27 @@ body.previewing .node.proposed{display:none}
 body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 #toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:30;pointer-events:none}
 #toast.on{opacity:1}
+/* Narrow windows keep a readable pane and put the title on its own row when needed. */
+@media(max-width:1100px){
+  #ticket{display:none}
+  #crumbs .dir,#crumbs .slash{display:none}
+}
+@media(max-width:720px){
+  body{--topbar:80px;--pane-width:calc(100vw - 72px)}
+  #top{flex-wrap:wrap;align-content:center;gap:6px;padding:6px 8px}
+  #crumbs{order:10;flex-basis:100%;height:28px;justify-content:flex-start}
+  #top .mapb,#top .ib{font-size:0;gap:0;padding:0 8px}
+  #top .ib svg{margin:0}
+  #top .faces{margin-left:auto}
+  #top .ver.ok{font-size:0;gap:0;padding:0 6px}
+  #crumbs #renamei{max-width:100%}
+  body.paned #canvas{right:72px;visibility:hidden}
+  body.paned #tools,body.paned #foot,body.paned #plan,body.paned #legend,body.paned #queue,body.paned #chatgrip{display:none}
+  body.paned #toast,body.paned #histbar{left:calc((100% - 72px) / 2);max-width:calc(100% - 96px)}
+  .side-tabs{overflow-x:auto;flex-shrink:0}
+  .topic-actions,.sc .ct{flex-shrink:0}
+  #rail{overflow-y:auto}
+}
 </style>
 </head>
 <body>
@@ -1408,9 +1438,10 @@ function fit(){
   const r = canvas.getBoundingClientRect();
   // the map takes whichever is bigger: the space beside the queue, or the full width under it
   const q = $('queue').getBoundingClientRect();
-  const right = ($('side').classList.contains('on') || prsOpen) ? 440 : 40, bottom = 60;
+  // Docked panes already reduce the canvas width. Only the floating pull-request card needs extra room.
+  const right = prsOpen ? Math.min(440, r.width / 2) : 24, bottom = 160;
   const under = Math.max(30, q.bottom - r.top + 16);
-  const fitIn = (left, top) => Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY));
+  const fitIn = (left, top) => Math.max(.1, Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY)));
   const beside = fitIn(q.width + 48, 30), below = fitIn(40, under);
   const [left, top, z] = below >= beside ? [40, under, below] : [q.width + 48, 30, beside];
   cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = top + ((r.height - top - bottom) - (maxY - minY) * z) / 2 - minY * z;
@@ -2152,13 +2183,13 @@ function renderSide(){
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
       : claudes(`${m.thinking && !m.text ? workStatus(null, m.since) : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
-  // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
-  // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
+  // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   // Information keeps the box's dates and deletion action at the bottom of its panel.
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || FILE || PREVIEW ? 'disabled' : ''}>✳ Auto plan</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2201,6 +2232,19 @@ function renderSide(){
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
+}
+
+// Keep repeated clicks from starting a second request before the live reply reaches this window.
+const autoPlanning = new Set();
+async function autoPlanTopic(id) {
+  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  const n = nodeById(id), key = `@${ME}>${id}`;
+  if (!n || locked(n) || autoPlanning.has(id) || S.threads?.[key]?.some((m) => m.thinking)) return;
+  autoPlanning.add(id); selected = sideFor = id; sideTab = 'chat'; keyboardSelection = false; render();
+  try {
+    const response = await act('ask', { node: id, side: true, autoPlan: true });
+    if (!response?.ok) toast('Could not start Auto plan. Try again.');
+  } finally { autoPlanning.delete(id); renderSide(); }
 }
 
 // the change a proposed box comes with, as its Apply card: from your chats on the map, or the Claude Code chat linked for you
@@ -3168,6 +3212,7 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
+  else if (t.closest('[data-auto-plan]')){ autoPlanTopic(t.closest('[data-auto-plan]').dataset.autoPlan); }
   else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('form[data-ask] textarea')?.focus(); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }
   // "Other…" on a question in the corner opens its box, ready for your own words

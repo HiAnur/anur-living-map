@@ -6,7 +6,7 @@
   "bin": { "anur-living-map": "bin.js" },
   "scripts": { "start": "node server.js" },
   "engines": { "node": ">=22" },
-  "files": ["bin.js", "server.js", "mcp.js", "mirror.js", "project.js", "google.js", "users.js", "wait.js", "index.html", "chat-rules.md", "login.html", "maps.html", "seed.json", "plan.json", "README.md"],
+  "files": ["bin.js", "server.js", "auto-plan.js", "editing.js", "mcp.js", "mirror.js", "project.js", "google.js", "users.js", "wait.js", "index.html", "chat-rules.md", "login.html", "maps.html", "seed.json", "plan.json", "README.md"],
   "repository": { "type": "git", "url": "git+https://github.com/HiAnur/anur-living-map.git", "directory": "team/live" },
   "homepage": "https://hianur.com",
   "license": "MIT",
