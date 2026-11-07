@@ -355,7 +355,7 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 .action-card pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;margin:8px 0}.action-card details{margin-top:8px}.action-card summary{cursor:pointer;color:var(--text-2)}
 .action-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule-2);border-top-color:var(--claude);border-radius:50%;animation:action-spin .8s linear infinite;flex-shrink:0}
 @keyframes action-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.action-spin{animation:none}}
+@media(prefers-reduced-motion:reduce){.action-spin{animation-duration:2.4s}}
 .action-tag{font-size:9px;line-height:14px;margin-bottom:3px;color:var(--claude);display:flex;justify-content:center;align-items:center;gap:5px}.node.start .action-tag{color:inherit}.action-tag .action-spin{width:9px;height:9px}
 
 #side .ct-r{flex-shrink:0;white-space:nowrap}
@@ -1876,14 +1876,15 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
+    const actionAsk = !locked(n) && n.action?.stage === 'clarify';
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
     const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
-      ${!locked(n) && n.action ? `<div class="action-tag">${n.action.stage === 'gathering' ? '<span class="action-spin"></span>' : ''}${['ready','sent'].includes(n.action.stage) ? 'Execution box' : n.action.stage === 'clarify' ? 'Needs clarification' : 'Action box'}</div>` : ''}
+      ${!locked(n) && n.action ? `<div class="action-tag">${n.action.stage === 'gathering' ? actionSpinner(n.action) : ''}${['ready','sent'].includes(n.action.stage) ? 'Execution box' : 'Action box'}</div>` : ''}
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
+      ${actionAsk ? `<span class="mk q" title="${esc(n.action.question || '')}">Need clarify</span>` : mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
@@ -2375,6 +2376,11 @@ function renderSide(){
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
 
+function actionSpinner(action){
+  // A redraw keeps the spinner at the same point in its turn.
+  const elapsed = Math.max(0, Date.now() - (Number(action.since) || Date.now()));
+  return `<span class="action-spin" aria-hidden="true" style="animation-delay:-${elapsed}ms"></span>`;
+}
 function actionCard(n){
   const a = n.action; if (!a) return '';
   const mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
@@ -2382,7 +2388,7 @@ function actionCard(n){
   const back = button('actioncancel', 'Back to topic', 'action-plain');
   let content = '';
   if (a.stage === 'draft') content = `<h3>What do you want to do?</h3>${mine ? `<form data-action-start="${esc(n.id)}"><textarea aria-label="Action instructions" placeholder="For example: email Alex to invite them to try our preview…" maxlength="4000" required></textarea><p class="action-note">We’ll connect your action with this box and the whole map.</p><div class="action-controls"><button class="gb" type="submit">Gather information</button>${back.replace('<button ', '<button type="button" ')}</div></form>` : `<p class="action-note">${esc(a.by)} is writing the action.</p>`}`;
-  else if (a.stage === 'gathering') content = `<h3><span class="action-spin"></span>Gathering information…</h3><p class="action-note">Reading this box and the whole map. You can keep working elsewhere.</p><div class="action-controls">${back}</div>`;
+  else if (a.stage === 'gathering') content = `<h3>${actionSpinner(a)}Gathering information…</h3><p class="action-note">Reading this box and the whole map. You can keep working elsewhere.</p><div class="action-controls">${back}</div>`;
   else if (a.stage === 'clarify') content = `<h3>Needs clarification</h3><p>${esc(a.question)}</p>${mine ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div><form data-action-answer="${esc(n.id)}"><textarea aria-label="Clarification answer" placeholder="Your answer…" maxlength="2000" required></textarea><div class="action-controls"><button class="gb" type="submit">Continue</button>${back.replace('<button ', '<button type="button" ')}</div></form>` : `<p class="action-note">Waiting for ${esc(a.by)}.</p>`}`;
   else if (a.stage === 'ready' || a.stage === 'sent') {
     const b = a.brief;
@@ -3779,7 +3785,7 @@ window.addEventListener('resize', fit);
 // the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
 // input method is still composing a word); the box grows with each line
 document.addEventListener('keydown', (e) => {
-  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea');
+  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea');
   if (!t || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
   e.preventDefault(); t.form.requestSubmit();
 });
