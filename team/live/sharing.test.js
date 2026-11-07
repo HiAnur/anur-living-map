@@ -63,7 +63,7 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
     const data = await (await request('/shared/api/state', { token })).text();
     expect(data).not.toContain(token); expect(data).not.toContain('private-chat-marker');
     const file = await (await request('/shared/api/file', { token })).text(); expect(file).not.toContain(token);
-    for (const type of ['add', 'remove', 'rename', 'cursor', 'reset']) expect((await request('/shared/api/act', { token, data: { type, label: 'Blocked', x: 10, y: 10 } })).status).toBe(403);
+    for (const type of ['add', 'remove', 'rename', 'describebox', 'cursor', 'reset']) expect((await request('/shared/api/act', { token, data: { type, label: 'Blocked', x: 10, y: 10 } })).status).toBe(403);
     expect((await request('/shared/api/outbox', { token })).status).toBe(403);
     expect((await request('/api/maps', { token })).status).toBe(401);
     expect((await request('/other/api/state', { token })).status).toBe(403);
@@ -72,9 +72,15 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
     const added = await request('/shared/api/act', { token, data: { type: 'add', by: 'Duy', label: 'From link', x: 20, y: 20 } }); expect(added.status).toBe(200);
     const { id } = await added.json();
     const next = await (await request('/shared/api/state', { token })).json(); expect(next.nodes.find((n) => n.id === id).by).toBe('Guest');
+    const description = async () => (await (await request('/shared/api/state', { token })).json()).nodes.find((n) => n.id === id).sub || '';
+    expect((await request('/shared/api/act', { token, data: { type: 'describebox', id, sub: 'A clearer description' } })).status).toBe(200);
+    expect(await description()).toBe('A clearer description');
+    await request('/shared/api/act', { token, data: { type: 'undo' } }); expect(await description()).toBe('');
+    await request('/shared/api/act', { token, data: { type: 'redo' } }); expect(await description()).toBe('A clearer description');
     for (const type of ['reset', 'ask', 'plan', 'execute', 'link']) expect((await request('/shared/api/act', { token, data: { type } })).status).toBe(403);
     expect((await request('/shared/api/sharing', { token, data: { mode: 'edit' } })).status).toBe(403);
     await stop(); await start();
+    expect(await description()).toBe('A clearer description');
     expect((await request('/shared/api/state', { token })).status).toBe(200);
     await stream(token); await change('view'); expect(await end()).toContain('access-changed');
     expect((await request('/shared/api/act', { token, data: { type: 'remove', id } })).status).toBe(403);
