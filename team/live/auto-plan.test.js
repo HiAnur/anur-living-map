@@ -140,8 +140,21 @@ describe('Auto plan',()=>{
       expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');expect(h.state.nodes).toHaveLength(3);
     }
   });
-  it('allows a clarifying question without inventing an empty plan',()=>{
-    const h=harness();h.ask();h.calls[0].onDone('What are you launching?');expect(h.state.threads['@Tester>launch'][1].proposal).toBeUndefined();expect(h.state.nodes).toHaveLength(3);
+  it('asks about unclear intent without proposing boxes, then carries the answer into continued planning',()=>{
+    const h=harness();h.ask();
+    expect(h.calls[0].prompt).toContain('Before looking for gaps, establish what the person wants to achieve');
+    expect(h.calls[0].prompt).toContain('Do not guess, propose boxes, or include a map block in that reply.');
+    const question='Is this launch for an internal pilot or paying customers?';
+    h.calls[0].onDone(question);
+    expect(h.state.threads['@Tester>launch'][1].proposal).toBeUndefined();expect(h.state.nodes).toHaveLength(3);
+    h.ask({autoPlan:false,side:true,text:'An internal pilot with the support team.'});
+    const prompt=h.calls[1].prompt;
+    expect(prompt).toContain(question);expect(prompt).toContain('An internal pilot with the support team.');
+    expect(prompt).toContain('continue the original request using their clarification');
+    expect(prompt).toContain('Audience [id: audience]');
+    h.calls[1].onDone(reply({nodes:[{id:'pilot',label:'Support pilot',sub:'Try with the support team'}],edges:[{from:'launch',to:'pilot'}]}));
+    expect(h.state.threads['@Tester>launch'][3].proposal.status).toBe('pending');
+    expect(h.state.nodes).toHaveLength(3);
   });
   it('keeps ordinary Side Chat questions unchanged',()=>{
     const h=harness();h.ask({autoPlan:false,side:true,text:'Which audience should we consider?'});

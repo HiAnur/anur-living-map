@@ -3,9 +3,10 @@ export const AUTO_PLAN_QUESTION = 'Find what is missing in this topic and its ch
 export const autoPlanPrompt = (id) => `This is Auto plan for the selected box (${id}) and its entire branch.
 Read the entire accessible map below, not just the selected box or what is currently on screen. This applies equally when the selected box is a parent or a leaf.
 Follow the lines by id to inspect all children and deeper descendants, their descriptions, and the selected box's ancestors, siblings and related topics elsewhere on the map. Use the map's questions, decisions, memory and this side chat too.
+Before looking for gaps, establish what the person wants to achieve from the map and this conversation. If their intended outcome, scope or meaning is unclear and different interpretations would lead to different plans, ask one short, specific clarifying question and wait for their answer. Offer two or three concrete choices when useful. Do not guess, propose boxes, or include a map block in that reply. After they answer, use their clarification with the whole map to continue planning. Do not ask again for information they already gave.
 Find meaningful gaps in the selected branch in that whole-map context. Check what is already covered anywhere on the map before suggesting additions; do not duplicate it under a different name.
 Propose one to five specific additions, only as many as help. Avoid generic filler and assumed facts. If nothing useful is missing, say so without a map block.
-If the map is too vague to make useful suggestions, ask one short clarifying question instead of proposing boxes.
+If the map lacks information needed for a useful plan, ask for that information first, even if the selected box already has children.
 Explain briefly what is missing and where each addition belongs, then include a map block with new nodes and one edge to each new node.
 Attach each addition to the most relevant EXISTING box in the selected branch: ${id} or any of its descendants. For example, a missing role belongs under an existing Categories child, not automatically under ${id}.
 Other branches are context: mention a related gap there if useful, but only propose additions inside the selected branch.

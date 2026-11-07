@@ -377,6 +377,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       side ? `${by}${person?.role ? ` (${person.role})` : ''} asked in the side chat on the box "${n.label}", where they brainstorm and refine that box from what is on the map.`
         : `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
       'Lead with the answer, in plain words and at most about 120 words: no headings, no tables, no file paths unless asked.',
+      'If the person\'s intended outcome, scope or meaning is unclear and different interpretations would change your answer or plan, ask one short, specific clarifying question and wait. Offer two or three concrete choices when useful. Do not guess their intent or include a map block while asking. Use the map and earlier conversation first; do not ask for information already provided. When they answer your question, continue the original request using their clarification.',
       project ? 'Read the project files in your working folder when the question needs them.' : 'Answer from the map below.',
       'You cannot change any file, and you never change the map yourself. When the person asks for a change to the map, say it in one line,',
       'then end your reply with one block the page shows them with an Apply button; nothing changes until they press it:',
