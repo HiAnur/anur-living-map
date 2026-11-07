@@ -1823,19 +1823,28 @@ function renderSave(){
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
+  const canManage = !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b><span class="sh-link"><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>Copy link</span><span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
-      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team</span><span class="sh-role">can edit ›</span></div>
-      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
+      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team${S.removedPeople?.length ? '<i> · except removed people</i>' : ''}</span><span class="sh-role">can edit</span></div>
+      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
+      ${canManage && S.removedPeople?.length ? `<details><summary class="sh-h">Removed people (${S.removedPeople.length})</summary>${S.removedPeople.map((id) => `<div class="sh-row"><span class="sh-who">${esc(id)}</span><button class="gb" data-restore-person="${esc(id)}" aria-label="Restore ${esc(id)} access">Restore access</button></div>`).join('')}</details>` : ''}
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
     </div>`;
 }
 let imageExportBusy = false, imageFontCSS;
+async function updatePersonAccess(person, restore = false){
+  try {
+    const r = await fetch('api/access', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person, restore }) });
+    if (!r.ok) throw new Error();
+    toast(restore ? `${person} can open this project again.` : `${person} no longer has access to this project.`);
+  } catch { toast('Access could not be changed. Only an owner can remove or restore a member.'); }
+}
 function imageExportSize(width, height){
   const scale = Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16000000 / (width * height)));
   return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
@@ -1953,6 +1962,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderTop(){
+  renderShare();
   const fb = flowBox();
   const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
@@ -3259,6 +3269,8 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
+  else if (t.closest('[data-remove-person]')){ updatePersonAccess(t.closest('[data-remove-person]').dataset.removePerson); }
+  else if (t.closest('[data-restore-person]')){ updatePersonAccess(t.closest('[data-restore-person]').dataset.restorePerson, true); }
   else if (t.closest('[data-share-image]')){ downloadMapImage(); }
   else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
@@ -3421,6 +3433,7 @@ function listen(){
   const es = new EventSource('api/events');
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
+  es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
