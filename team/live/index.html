@@ -1808,8 +1808,72 @@ function renderShare(){
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team</span><span class="sh-role">can edit ›</span></div>
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
       <div class="sh-h">Or send the map itself</div>
+      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
     </div>`;
+}
+let imageExportBusy = false, imageFontCSS;
+function imageExportSize(width, height){
+  const scale = Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16000000 / (width * height)));
+  return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+}
+const blobDataURL = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob);
+});
+// Reuse the page's font assets so wrapped names retain their layout in the image.
+async function mapImageFonts(){
+  if (!imageFontCSS) imageFontCSS = (async () => {
+    const link = document.querySelector('link[href*="fonts.googleapis.com/css"]');
+    if (!link) return '';
+    try {
+      const response = await fetch(link.href); if (!response.ok) return '';
+      let css = await response.text();
+      const urls = [...new Set([...css.matchAll(/url\((https:\/\/[^)]+)\)/g)].map((m) => m[1]))];
+      const fonts = await Promise.all(urls.map(async (url) => { const r = await fetch(url); if (!r.ok) throw new Error('font'); return [url, await blobDataURL(await r.blob())]; }));
+      for (const [url, data] of fonts) css = css.split(url).join(data);
+      return css;
+    } catch { return ''; }
+  })();
+  return imageFontCSS;
+}
+async function downloadMapImage(){
+  if (imageExportBusy || !S) return;
+  imageExportBusy = true; renderShare();
+  try {
+    await document.fonts?.ready;
+    const fonts = await mapImageFonts(), origin = stage.getBoundingClientRect();
+    const nodes = nodesEl.cloneNode(true), edges = edgesEl.cloneNode(true);
+    nodes.querySelectorAll('.cd,.delq,.file').forEach((el) => el.remove());
+    nodes.querySelectorAll('.sel').forEach((el) => el.classList.remove('sel'));
+    edges.querySelectorAll('.hit').forEach((el) => el.remove());
+    edges.querySelectorAll('.pick').forEach((el) => el.classList.remove('pick'));
+    const bounds = [...nodesEl.children].filter((el) => !el.matches('.file') && el.getClientRects().length).map((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: (r.left - origin.left) / cam.z, y: (r.top - origin.top) / cam.z, width: r.width / cam.z, height: r.height / cam.z };
+    });
+    const edgeBounds = edgesEl.getBBox(); if (edgeBounds.width || edgeBounds.height) bounds.push(edgeBounds);
+    if (!bounds.length){ toast('Add a box before exporting an image.'); return; }
+    const left = Math.min(...bounds.map((b) => b.x)) - 32, top = Math.min(...bounds.map((b) => b.y)) - 32;
+    const width = Math.ceil(Math.max(...bounds.map((b) => b.x + b.width)) - left + 32);
+    const height = Math.ceil(Math.max(...bounds.map((b) => b.y + b.height)) - top + 32);
+    const size = imageExportSize(width, height), ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg'); svg.setAttribute('width', size.width); svg.setAttribute('height', size.height); svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    const foreign = document.createElementNS(ns, 'foreignObject'); foreign.setAttribute('width', width); foreign.setAttribute('height', height);
+    const root = document.createElement('div'); root.className = `export-root ${document.body.className}`;
+    root.style.cssText = `position:relative;width:${width}px;height:${height}px;overflow:hidden;background:${getComputedStyle(canvas).backgroundColor};`;
+    const style = document.createElement('style');
+    style.textContent = [...document.querySelectorAll('style')].map((el) => el.textContent).join('\n').replace(/\bbody\b/g, '.export-root') + '\n' + fonts + '\n.export-root *{animation:none!important;transition:none!important}.export-root .node{outline:none!important;box-shadow:none!important}.export-root .fold,.export-root .expand{display:none!important}';
+    const map = document.createElement('div'); map.id = 'stage'; map.style.transform = `translate(${-left}px,${-top}px)`; map.append(edges, nodes); root.append(style, map); foreign.append(root); svg.append(foreign);
+    const source = new XMLSerializer().serializeToString(svg), img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`; });
+    const output = document.createElement('canvas'); output.width = size.width; output.height = size.height;
+    output.getContext('2d').drawImage(img, 0, 0, size.width, size.height);
+    const blob = await new Promise((resolve) => output.toBlob(resolve, 'image/png')); if (!blob) throw new Error('image');
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = `${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.png`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    shareOpen = false; renderShare(); toast('Saving the map image to your downloads.');
+  } catch { toast('The image could not be exported. Please try again.'); }
+  finally { imageExportBusy = false; renderShare(); }
 }
 // the map as one file (Share as a file): this page with the map's data inside, so it opens on its own anywhere
 // and Load a map file brings it back here exactly; the server builds it at api/file and names it <map name>.html
@@ -2038,7 +2102,7 @@ function renderSide(){
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
   const chat = `<div class="sc-msgs">${sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-      : claudes(`${m.thinking && !m.text ? `<span class="spark" title="Reading the map">✳</span>${secs(m.since)}` : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
+      : claudes(`${m.thinking && !m.text ? workStatus(null, m.since) : md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('')}</div>
     <form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${n.label}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
@@ -2202,7 +2266,8 @@ const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat
 // while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
 // way the Claude app does; a turn quiet for ten minutes was stopped, not working
 const busy = () => !!MIRROR?.status?.working && Date.now() - MIRROR.status.at < 10 * 60_000;
-const working = (doing, since) => claudes(`<div class="doing"><span class="spark">✳</span><span>${esc(doing || 'Working')}…</span>${secs(since)}</div>`);
+const workStatus = (doing, since) => `<div class="doing"><span class="spark">✳</span><span role="status">${esc(doing || 'Claude is working')}…</span>${secs(since)}</div>`;
+const working = (doing, since) => claudes(workStatus(doing, since));
 // how long Claude has been at it, the way the Claude app counts it: 12s, then 1m 05s; ticked once a second in place
 const took = (since) => { const t = Math.max(0, Math.floor((Date.now() - since) / 1000)); return t < 60 ? `${t}s` : `${Math.floor(t / 60)}m ${String(t % 60).padStart(2, '0')}s`; };
 const secs = (since) => since ? `<span class="secs" data-since="${since}">${took(since)}</span>` : '';
@@ -2260,7 +2325,7 @@ function renderChat(){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${nodeById(m.about).label}">${nodeById(m.about).label}</span>` : '')
-        : claudes(`${m.thinking && !m.text ? `<span class="spark" title="Reading the map">✳</span>${secs(m.since)}` : md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
+        : claudes(`${m.thinking && !m.text ? workStatus(null, m.since) : md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${nodeById(chatAbout).label}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
@@ -2940,6 +3005,7 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
+  else if (t.closest('[data-share-image]')){ downloadMapImage(); }
   else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
   // Delete this box on the card asks the same question as the Delete key, above the box itself
