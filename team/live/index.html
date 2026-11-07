@@ -648,7 +648,7 @@ body.paned #toast{left:calc((100% - 72px - var(--pane-width)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
 body.paned #tools{left:calc((100% - 72px - var(--pane-width)) / 2)}
 body.tight #tools{bottom:58px}
-body.tight #plan,body.tight #legend{bottom:112px}
+body.tight #plan,body.tight #legend{bottom:122px}
 #chatgrip{position:fixed;top:var(--topbar);bottom:0;right:calc(72px + var(--pane-width) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
 body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
@@ -805,19 +805,15 @@ body.previewing .node.proposed{display:none}
 .prop.dropped{border-color:var(--rule-2);background:#fff;color:var(--text-2)}
 .prop.mini{display:flex;gap:8px;align-items:baseline;padding:5px 10px;font-size:12px;font-weight:500;white-space:nowrap}
 .prop.mini.applied{color:var(--ok)}.prop.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:400;color:var(--text-2)}
-/* the tools dock: Select, Pan, Box and Line do what they say; Text is a look only so far */
+/* Icons and shortcuts share a baseline across drawing and history tools. */
 #tools{position:fixed;left:calc((100% - 72px) / 2);bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
-.tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+.tb{height:42px;min-width:38px;padding:4px 5px;border:0;border-radius:7px;background:transparent;display:grid;grid-template-rows:20px 12px;align-content:center;justify-items:center;gap:2px;color:var(--text);cursor:pointer}
 .tb:hover{background:#f3f2ee}
-.tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tb:focus-visible{outline:2px solid var(--new);outline-offset:1px}
+.tb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .tb.on{background:#ecebe6;color:var(--text)}
-/* each tool's key, small at its lower right: V select, H pan, R box, A line, T text, C comment */
-.tb{min-width:38px;position:relative}.tb .tk{position:absolute;right:3px;bottom:1px;font:500 9px/1 var(--plex);color:var(--text-3);pointer-events:none}
-.tb.history-tool{min-width:44px;border:0;background:transparent;grid-template-rows:18px 10px;gap:1px;padding:0 5px}
-.tb.history-tool:hover{background:#f3f2ee}
-.tb.history-tool .tk{position:static;white-space:nowrap}
-/* the bar is white like every other card on the map */
-.tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
+.tb .tk{font:500 10px/12px var(--plex);color:var(--text-2);white-space:nowrap;pointer-events:none}
+.tdiv{width:1px;height:24px;background:var(--rule);margin:0 3px}
 #tools{max-width:calc(100% - 104px);overflow-x:auto;scrollbar-width:thin}
 body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 #tools > *,#foot > *{flex-shrink:0}
