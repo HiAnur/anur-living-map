@@ -1,0 +1,64 @@
+import { execFileSync, spawn } from 'node:child_process';
+import fs from 'node:fs';
+import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
+
+import { expect, it } from 'vitest';
+
+import { canAccess, changeAccess } from './access.js';
+
+it('only owners remove members, owners keep access, and removal survives serialization', () => {
+  const s = { people: [{ id: 'Duy', role: 'Admin' }, { id: 'Member' }] };
+  expect(changeAccess(s, 'Member', 'Duy')).toBe(false);
+  expect(changeAccess(s, 'Duy', 'Duy')).toBe(false);
+  expect(changeAccess(s, 'Duy', 'Member')).toBe(true);
+  const saved = JSON.parse(JSON.stringify(s));
+  expect(canAccess(saved, 'Member', { headers: {} })).toBe(false);
+  expect(canAccess(saved, 'Duy', { headers: {} })).toBe(true);
+  expect(canAccess(saved, null, { headers: { 'sec-fetch-mode': 'cors' } })).toBe(false);
+  expect(canAccess(saved, null, { headers: {} })).toBe(true);
+  expect(changeAccess(saved, 'Duy', 'Member', true)).toBe(true);
+  expect(canAccess(saved, 'Member', { headers: {} })).toBe(true);
+});
+
+it('disconnects a removed member and blocks page, APIs, discovery and raw files after restart', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-access-'));
+  const source = import.meta.dirname;
+  for (const name of fs.readdirSync(source)) if (/\.(js|json|html|md)$/.test(name) && fs.statSync(path.join(source, name)).isFile()) fs.copyFileSync(path.join(source, name), path.join(root, name));
+  const state = JSON.parse(fs.readFileSync(path.join(source, 'seed.json'), 'utf8'));
+  state.people = [{ id: 'Duy', role: 'Admin', joined: 'test' }, { id: 'Member', joined: 'test' }];
+  fs.mkdirSync(path.join(root, 'maps', 'private'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'maps', 'private', 'state.json'), JSON.stringify(state));
+  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
+  const cookies = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(JSON.stringify([users.start('Duy'),users.start('Member')]))"], { cwd: root, env, encoding: 'utf8' }));
+  const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', r)); const port = reserve.address().port; await new Promise((r) => reserve.close(r));
+  const origin = `http://localhost:${port}`; let child;
+  const start = async () => {
+    child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env, stdio: 'ignore' });
+    for (let i = 0; i < 60; i++) { try { if ((await fetch(origin + '/api/version')).ok) return; } catch {} await new Promise((r) => setTimeout(r, 50)); }
+    throw new Error('Test server did not start');
+  };
+  const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
+  const get = (route, actor = 1, headers = {}) => fetch(origin + route, { headers: { ...(actor === null ? {} : { cookie: `lm_session=${cookies[actor]}` }), ...headers }, redirect: 'manual' });
+  const access = (actor, data) => fetch(origin + '/private/api/access', { method: 'POST', headers: { cookie: `lm_session=${cookies[actor]}`, origin, 'content-type': 'application/json' }, body: JSON.stringify(data) });
+  let reader;
+  try {
+    await start();
+    expect((await access(1, { person: 'Duy' })).status).toBe(403);
+    expect((await access(0, null)).status).toBe(400);
+    const stream = await get('/private/api/events'); reader = stream.body.getReader(); await reader.read();
+    expect((await access(0, { person: 'Member' })).status).toBe(200);
+    let events = ''; for (;;) { const chunk = await reader.read(); if (chunk.done) break; events += new TextDecoder().decode(chunk.value); }
+    expect(events).toContain('event: access-removed');
+    for (const route of ['/private/', '/private/api/state', '/private/api/events', '/private/api/file', '/private/api/history', '/private/api/outbox']) expect((await get(route)).status).toBe(403);
+    expect((await get('/private/api/state', null, { 'sec-fetch-mode': 'cors' })).status).toBe(403);
+    expect((await get('/maps/private/state.json')).status).toBe(404);
+    expect((await (await get('/api/maps')).json()).some((m) => m.name === 'private')).toBe(false);
+    expect((await get('/private/api/state', 0)).status).toBe(200);
+    await stop(); await start();
+    expect((await get('/private/api/state')).status).toBe(403);
+    expect((await access(0, { person: 'Member', restore: true })).status).toBe(200);
+    expect((await get('/private/api/state')).status).toBe(200);
+  } finally { await reader?.cancel().catch(() => {}); await stop(); fs.rmSync(root, { recursive: true, force: true }); }
+}, 15000);
