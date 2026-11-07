@@ -11,8 +11,9 @@ function harness(){
   const ctx = vm.createContext({ console, Promise, Set, Map });
   const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
+  const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
-    document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:rubber,
+    document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
     render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
@@ -26,6 +27,18 @@ function harness(){
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
 }
 describe('keyboard brainstorming',()=>{
+  it('keeps the full zoomed editor above the toolbar and inside the canvas',()=>{
+    const h=harness();h.ctx.cam.z=2.5;h.ctx.askName({x:460,y:300});
+    expect(460*2.5+h.ctx.cam.x+175).toBeLessThanOrEqual(1184);
+    expect(300*2.5+h.ctx.cam.y+62.5).toBeLessThanOrEqual(724);
+    h.ctx.askName({x:-400,y:-300});
+    expect(-400*2.5+h.ctx.cam.x-175).toBeGreaterThanOrEqual(16);
+    expect(-300*2.5+h.ctx.cam.y-62.5).toBeGreaterThanOrEqual(16);
+    expect(h.ctx.cam.z).toBe(2.5);
+  });
+  it('does not pan an editor already clear of the controls',()=>{
+    const h=harness();h.ctx.askName({x:400,y:300});expect(h.ctx.cam).toEqual({x:0,y:0,z:1});
+  });
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
     const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.ctx.naming.untouched).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
   });

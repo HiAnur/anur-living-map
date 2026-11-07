@@ -2538,6 +2538,16 @@ function topicDraft(n, child){
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
   askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, view });
 }
+function keepEditorVisible(at, width, height){
+  const r = canvas.getBoundingClientRect();
+  const controls = ['tools', 'foot'].map((id) => $(id).getBoundingClientRect()).filter((b) => b.width && b.height);
+  const bottom = Math.min(r.height, ...controls.map((b) => b.top - r.top)) - 16;
+  const halfW = width * cam.z / 2, halfH = height * cam.z / 2;
+  const px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
+  cam.x += Math.max(16 + halfW, Math.min(r.width - 16 - halfW, px)) - px;
+  cam.y += Math.max(16 + halfH, Math.min(bottom - halfH, py)) - py;
+  place();
+}
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
   const line = !!(at.from || at.edge);
@@ -2553,11 +2563,10 @@ function askName(at){
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
 
-  // Bring the editor inside the visible canvas without zooming the rest of the map.
-  const r = canvas.getBoundingClientRect(), px = at.x * cam.z + cam.x, py = at.y * cam.z + cam.y;
-  cam.x += Math.max(100 - px, Math.min(0, r.width - 260 - px));
-  cam.y += Math.max(60 - py, Math.min(0, r.height - 80 - py)); place();
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${line ? 220 : 140}px`; el.style.height = `${line ? 36 : 50}px`; el.classList.add('on');
+  // Account for the whole zoomed editor and the controls covering the canvas.
+  const width = line ? 220 : 140, height = line ? 36 : 50;
+  keepEditorVisible(at, width, height);
+  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${width}px`; el.style.height = `${height}px`; el.classList.add('on');
   el.innerHTML = `<input maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off">`;
   const i = el.querySelector('input'); i.value = at.text ?? (line ? '' : 'Topic'); i.focus();
   if (naming.untouched) i.classList.add('draft'); else i.select();
