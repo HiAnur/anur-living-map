@@ -618,6 +618,12 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     move(a) {
+      if (Array.isArray(a.moves)){
+        const sees = seesOf(a.by), moves = a.moves;
+        if (!moves.length || new Set(moves.map((m) => m?.id)).size !== moves.length || moves.some((m) => { const n = nodeOf(m?.id); return !n || (sees !== 'all' && n.area !== sees) || ![m.fromX,m.fromY,m.x,m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY; })) return false;
+        for (const m of moves) Object.assign(nodeOf(m.id),{x:Math.round(m.x),y:Math.round(m.y),moved:true});
+        return true;
+      }
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
       if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
       // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)

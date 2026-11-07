@@ -147,6 +147,9 @@ button,input,textarea{font:inherit;color:inherit}
 #rubber .attach-target{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-box{fill:var(--box);fill-opacity:.85;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-line{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
+#rubber .drag-source{fill:var(--new-tint);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
+#rubber .drag-ghost{opacity:.45}
+#rubber .drag-ghost text{fill:var(--new);font:500 13.5px var(--plex);text-anchor:middle;dominant-baseline:middle}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
@@ -648,7 +651,7 @@ body.paned #toast{left:calc((100% - 72px - var(--pane-width)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
 body.paned #tools{left:calc((100% - 72px - var(--pane-width)) / 2)}
 body.tight #tools{bottom:58px}
-body.tight #plan,body.tight #legend{bottom:112px}
+body.tight #plan,body.tight #legend{bottom:122px}
 #chatgrip{position:fixed;top:var(--topbar);bottom:0;right:calc(72px + var(--pane-width) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
 body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
@@ -805,19 +808,15 @@ body.previewing .node.proposed{display:none}
 .prop.dropped{border-color:var(--rule-2);background:#fff;color:var(--text-2)}
 .prop.mini{display:flex;gap:8px;align-items:baseline;padding:5px 10px;font-size:12px;font-weight:500;white-space:nowrap}
 .prop.mini.applied{color:var(--ok)}.prop.mini span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:400;color:var(--text-2)}
-/* the tools dock: Select, Pan, Box and Line do what they say; Text is a look only so far */
+/* Icons and shortcuts share a baseline across drawing and history tools. */
 #tools{position:fixed;left:calc((100% - 72px) / 2);bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:2px;padding:5px;z-index:10;background:#fff;border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
-.tb{height:30px;min-width:30px;border-radius:7px;display:grid;place-items:center;color:var(--text);cursor:pointer}
+.tb{height:42px;min-width:38px;padding:4px 5px;border:0;border-radius:7px;background:transparent;display:grid;grid-template-rows:20px 12px;align-content:center;justify-items:center;gap:2px;color:var(--text);cursor:pointer}
 .tb:hover{background:#f3f2ee}
-.tb svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.tb:focus-visible{outline:2px solid var(--new);outline-offset:1px}
+.tb svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .tb.on{background:#ecebe6;color:var(--text)}
-/* each tool's key, small at its lower right: V select, H pan, R box, A line, T text, C comment */
-.tb{min-width:38px;position:relative}.tb .tk{position:absolute;right:3px;bottom:1px;font:500 9px/1 var(--plex);color:var(--text-3);pointer-events:none}
-.tb.history-tool{min-width:44px;border:0;background:transparent;grid-template-rows:18px 10px;gap:1px;padding:0 5px}
-.tb.history-tool:hover{background:#f3f2ee}
-.tb.history-tool .tk{position:static;white-space:nowrap}
-/* the bar is white like every other card on the map */
-.tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
+.tb .tk{font:500 10px/12px var(--plex);color:var(--text-2);white-space:nowrap;pointer-events:none}
+.tdiv{width:1px;height:24px;background:var(--rule);margin:0 3px}
 #tools{max-width:calc(100% - 104px);overflow-x:auto;scrollbar-width:thin}
 body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 #tools > *,#foot > *{flex-shrink:0}
@@ -3114,12 +3113,34 @@ function planTopicAttach(graph, id, parentId, side){
   const moves = [...branch.map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:root.x+dx+(n.x-root.x)*mirror,y:n.y+dy})), ...plan.moves.map((m) => ({...m,fromX:graph.nodes.find((n) => n.id === m.id).x,x:graph.nodes.find((n) => n.id === m.id).x}))];
   return {parent:parentId,parents:graph.edges.filter((e) => e.to === id).map((e) => e.from),moves};
 }
+// A selected parent carries its selected children once, keeping their existing connections.
+function topicDragRoots(d){
+  const picked = d.many ? d.many.map((m) => m.n.id) : [d.n.id];
+  const roots = picked.filter((id) => !picked.some((other) => other !== id && branchIds(d.source,[other]).has(id)));
+  return (roots.length ? roots : [picked[0]]).sort((a,b) => d.source.nodes.find((n) => n.id === a).y-d.source.nodes.find((n) => n.id === b).y);
+}
+function planGroupAttach(graph, roots, parent, side){
+  const work = {nodes:graph.nodes.map((n) => ({...n})),edges:graph.edges.map((e) => ({...e}))};
+  for (const id of roots){
+    const plan = planTopicAttach(work,id,parent,side); if (!plan) return null;
+    for (const m of plan.moves) Object.assign(work.nodes.find((n) => n.id === m.id),{x:m.x,y:m.y});
+    work.edges = [...work.edges.filter((e) => e.to !== id),{from:parent,to:id}];
+  }
+  const carried = branchIds(graph,roots);
+  const moves = graph.nodes.flatMap((n) => { const to = work.nodes.find((b) => b.id === n.id); return carried.has(n.id) || n.x !== to.x || n.y !== to.y ? [{id:n.id,fromX:n.x,fromY:n.y,x:to.x,y:to.y}] : []; });
+  return {ids:roots,parent,parentsById:Object.fromEntries(roots.map((id) => [id,graph.edges.filter((e) => e.to === id).map((e) => e.from)])),moves};
+}
 function previewTopicAttach(sx, sy){
-  if (!drag?.source || drag.many || PREVIEW || FILE || READ_ONLY) return;
-  drag.attach = null; $('rubber').innerHTML = '';
-  const ids = branchIds(drag.source, [drag.n.id]);
+  if (!drag?.source || PREVIEW || FILE || READ_ONLY) return;
+  drag.attach = null;
+  const roots = topicDragRoots(drag), ids = branchIds(drag.source, roots);
+  const visible = new Set(scope().nodes.map((n) => n.id));
+  const outline = drag.source.nodes.filter((n) => ids.has(n.id) && visible.has(n.id)).map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
+  const at = drag.at || {x:sx,y:sy}, n = drag.n;
+  const floating = `<g class="drag-ghost">${drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id)).map((b) => `<text x="${b.x+at.x-n.x}" y="${b.y+at.y-n.y}">${esc(b.label)}</text>`).join('')}</g>`;
+  const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
-  const parents = new Set(drag.source.edges.filter((e) => e.to === drag.n.id).map((e) => e.from));
+  const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
   let target = null, gap = 28 / cam.z;
   for (const n of scope().nodes){
     if (ids.has(n.id) || parents.has(n.id) || locked(n) || n.proposed) continue;
@@ -3127,22 +3148,27 @@ function previewTopicAttach(sx, sy){
     if (distance < gap){ gap = distance; target = n; }
   }
   if (!target) return;
-  const plan = planTopicAttach(drag.source, drag.n.id, target.id, sx < target.x ? -1 : 1);
+  const plan = roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, sx < target.x ? -1 : 1) : planTopicAttach(drag.source, roots[0], target.id, sx < target.x ? -1 : 1);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
   drag.attach = plan;
   const placed = drag.source.nodes.map((n) => ({...n,...plan.moves.find((m) => m.id === n.id)}));
-  const parent = placed.find((n) => n.id === target.id), ghost = placed.find((n) => n.id === drag.n.id);
-  const points = fanPts(parent, ghost, placed) || routePts(parent, ghost, null, placed);
-  $('rubber').innerHTML = `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/><path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-HT(ghost)/2}" width="${W(ghost)}" height="${HT(ghost)}" rx="6"/>`;
+  const parent = target;
+  const landings = roots.map((id) => { const ghost = placed.find((n) => n.id === id), points = fanPts(parent, ghost, placed) || routePts(parent, ghost, null, placed); return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-HT(ghost)/2}" width="${W(ghost)}" height="${HT(ghost)}" rx="6"/>`; }).join('');
+  $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/>${landings}`;
 }
 function cancelTopicDrag(){
-  if (!drag?.source || drag.many) return;
-  const original = drag.source.nodes.find((n) => n.id === drag.n.id);
-  if (original) Object.assign(drag.n,{x:original.x,y:original.y});
+  if (!drag?.source) return;
   drag = null; $('rubber').innerHTML = ''; render();
 }
+// Keep the real branch and its old lines still until release. Only the ghost follows the pointer.
+function moveTopicDrag(sx, sy){
+  moved = true;
+  const at = {x:Math.round(sx+drag.dx),y:Math.round(sy+drag.dy)};
+  if (drag.source) drag.at = at; else Object.assign(drag.n,at);
+  render(); previewTopicAttach(sx,sy);
+}
 canvas.addEventListener('pointercancel', cancelTopicDrag);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drag?.source && !drag.many){ e.preventDefault(); e.stopImmediatePropagation(); cancelTopicDrag(); } }, true);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drag?.source){ e.preventDefault(); e.stopImmediatePropagation(); cancelTopicDrag(); } }, true);
 // drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
 // the view moves with the trackpad, the Hand tool, or by holding Space while dragging
 let group = new Set(), marquee = null, spaceDown = false;
@@ -3242,8 +3268,8 @@ canvas.addEventListener('pointermove', (e) => {
     if (moved){ const m = marquee; group = new Set(marqueeHits(m)); selected = null; pickedLine = null; render();
       $('rubber').innerHTML = `<rect class="mq" x="${Math.min(m.x0, m.x1)}" y="${Math.min(m.y0, m.y1)}" width="${Math.abs(m.x1 - m.x0)}" height="${Math.abs(m.y1 - m.y0)}"/>`; }
     return; }
-  if (drag?.many){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
-  else if (drag){ moved = true; drag.n.x = Math.round(sx + drag.dx); drag.n.y = Math.round(sy + drag.dy); render(); previewTopicAttach(sx,sy); }
+  if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
+  else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
@@ -3293,7 +3319,7 @@ canvas.addEventListener('pointerup', (e) => {
     if (group.size === 1){ const [id] = group; group.clear(); selected = id; }
     render(); return;
   }
-  if (drag?.many){
+  if (drag?.many && !drag.source){
     if (moved){ for (const m of drag.many) act('move', { id: m.n.id, x: m.n.x, y: m.n.y }); drag = null; return; }
     group.clear();
   }
@@ -3302,12 +3328,20 @@ canvas.addEventListener('pointerup', (e) => {
       const d = drag, plan = d.attach; drag = null; $('rubber').innerHTML = '';
       const all = view === 'system' ? S : nodeById(view)?.inside;
       for (const m of plan.moves){ const n = all?.nodes.find((n) => n.id === m.id); if (n) Object.assign(n,{x:Math.round(m.x),y:Math.round(m.y)}); }
-      if (all) all.edges = [...all.edges.filter((e) => e.to !== d.n.id),{from:plan.parent,to:d.n.id}];
+      const roots = plan.ids || topicDragRoots(d);
+      if (all) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
       folded.delete(plan.parent); saveFolds(); selected = d.n.id; keyboardSelection = true; render();
-      act('reparent',{id:d.n.id,...plan,view}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
+      act('reparent',{id:topicDragRoots(d)[0],...plan,view}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
       return;
     }
-    if (moved){ $('rubber').innerHTML = ''; act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y }); }
+    if (moved && drag.many && drag.source){
+      const d = drag, ids = branchIds(d.source,topicDragRoots(d)), dx = d.at.x-d.n.x, dy = d.at.y-d.n.y;
+      const moves = d.source.nodes.filter((n) => ids.has(n.id)).map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:n.x+dx,y:n.y+dy}));
+      for (const m of moves){ const n = nodeById(m.id); if (n) Object.assign(n,{x:m.x,y:m.y}); }
+      drag = null; $('rubber').innerHTML = ''; render();
+      act('move',{moves}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('Those boxes changed. Please try the move again.'); } }); return;
+    }
+    if (moved){ if (drag.at) Object.assign(drag.n,drag.at); $('rubber').innerHTML = ''; act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y }); render(); }
     // a proposed box you click, not drag, opens its card
     else if (drag.proposed){
       // a double click on a proposed box with a diagram shows the diagram before anyone presses Apply
