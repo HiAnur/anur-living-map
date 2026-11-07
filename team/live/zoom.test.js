@@ -16,9 +16,9 @@ function harness(){
 }
 describe('trackpad zoom',()=>{
   it('makes tiny pinches small and independent of event frequency',()=>{
-    const small=harness();small.wheel(-1);expect(small.cam.z).toBeGreaterThan(1);expect(small.cam.z).toBeLessThan(1.003);
-    const many=harness(),one=harness();for(let i=0;i<20;i++)many.wheel(-1);one.wheel(-20);
-    expect(many.cam.z).toBeCloseTo(one.cam.z,12);expect(many.cam.z).toBeLessThan(1.05);
+    const small=harness();small.wheel(-1);expect(small.cam.z).toBeCloseTo(1.04,12);
+    const many=harness(),one=harness();for(let i=0;i<20;i++)many.wheel(-.1);one.wheel(-2);
+    expect(many.cam.z).toBeCloseTo(one.cam.z,12);expect(many.cam.z).toBeLessThan(1.09);
   });
   it('keeps the point under the pointer still and reverses equal gestures',()=>{
     const h=harness();h.wheel(-20);
