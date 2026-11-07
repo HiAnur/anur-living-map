@@ -350,7 +350,8 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // when it unfolds. False, and nothing moves, when no single box reaches them all.
 // Room: 35px clear between branches; a taller box reserves more room for its whole branch. The page supplies
 // its measured box sizes when tidying. Across, 70px between a column's widest box and the next, or more when the
-// words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
+// words on the lines into that column need it. The shared stem sits 14px outside the column, so reserve one
+// label width plus 32px for the stem, arrow and padding, not twice the label width.
 // `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
 // a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press. `start` is the
 // box the map starts from, when one was chosen.
@@ -368,7 +369,7 @@ export function tidyTree(nodes, edges, shown = null, chosen = placed, start = nu
     if (e.label && r && ring.get(e.from) === r - 1) words[r] = Math.max(words[r] || 0, String(e.label).length * CHAR);
   }
   const reach = [0];
-  for (let r = 1; r < wide.length; r++) reach[r] = reach[r - 1] + wide[r - 1] / 2 + Math.max(GAP, 2 * (words[r] || 0) + 32) + wide[r] / 2;
+  for (let r = 1; r < wide.length; r++) reach[r] = reach[r - 1] + wide[r - 1] / 2 + Math.max(GAP, (words[r] || 0) + 32) + wide[r] / 2;
   const vis = (n) => !shown || shown.has(n.id);
   const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
   const weight = (list, every) => list.reduce((s, c) => s + leaves(c, every), 0);

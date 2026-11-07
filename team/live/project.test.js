@@ -48,10 +48,18 @@ describe('tidyTree', () => {
     const once=at(nodes);layout();expect(at(nodes)).toEqual(once);
   });
 
-  it('keeps room for connection labels when the default horizontal gap is compact', () => {
-    const nodes=[{id:'root',x:0,y:0},{id:'child',x:340,y:0}], label='A longer connection label';
-    tidyTree(nodes,[{from:'root',to:'child',label}]);
-    expect(get(nodes,'child').x-140).toBeGreaterThanOrEqual(2*label.length*6.8+31);
+  it('fits labels on a compact fan without doubling their space, on either side', () => {
+    for (const side of [-1,1]) {
+      const nodes=[{id:'root',x:0,y:0},{id:'child',x:side*700,y:-100},{id:'other',x:side*700,y:100}];
+      const label='Adds the unboxing as part of the offer';
+      const edges=[{from:'root',to:'child',label},{from:'root',to:'other'}];
+      tidyTree(nodes,edges);
+      const gap=Math.abs(get(nodes,'child').x)-140;
+      // The last stretch starts after the 14px shared stem and ends 2px before the box.
+      expect(gap-16).toBeGreaterThanOrEqual(label.length*6.8+15);
+      expect(gap).toBeLessThan(label.length*6.8+34);
+      const once=at(nodes);tidyTree(nodes,edges);expect(at(nodes)).toEqual(once);
+    }
   });
 
   it('moves nothing the second time it runs', () => {
