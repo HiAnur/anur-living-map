@@ -2571,10 +2571,18 @@ function askName(at){
   i.addEventListener('keydown', (e) => {
     e.stopPropagation(); if (e.isComposing || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape'){ e.preventDefault(); endName(false); }
+    else if (naming.untouched && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)){
+      e.preventDefault();
+      const next = keyboardNeighbor(naming, e.key);
+      const id = next?.id ?? (e.key === 'ArrowLeft' ? naming.link?.id : null);
+      if (id){ endName(false); Promise.resolve(id).then((target) => { if (target && !naming) selectTopic(target); }); }
+    }
     else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
       const current = naming, label = i.value.trim();
-      if (!label || current.untouched) return;
+      if (!label) return;
+      // Continuing the branch accepts the default name without requiring a rename.
+      current.untouched = false;
       const id = endName(true);
       const parent = current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null);
       topicDraft({ ...current, id, label, parent }, e.key === 'Tab' || !parent);
