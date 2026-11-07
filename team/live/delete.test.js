@@ -16,3 +16,49 @@ describe('delete selected boxes',()=>{
     }
   });
 });
+
+describe('branch deletion confirmation',()=>{
+  function page(){
+    const calls=[],state={nodes:[{id:'root',label:'Root',x:0,y:0},{id:'parent',label:'Parent',x:210,y:0},{id:'child',label:'Child',x:420,y:0}],edges:[{from:'root',to:'parent'},{from:'parent',to:'child'}]};let handler;
+    const ctx=vm.createContext({Set,Map,S:state,group:new Set(),selected:'parent',delAsk:null,PREVIEW:null,FILE:false,pendingRemovals:new Set(),pendingTopics:new Set(),keyboardSelection:true,
+      nodeById:id=>state.nodes.find(n=>n.id===id),scope:()=>state,locked:()=>false,topicParent:n=>state.nodes.find(x=>state.edges.some(e=>e.from===x.id&&e.to===n.id)),
+      render(){},keepInView(){},selectTopic:id=>{ctx.selected=id;},toast(){},refreshMap:async()=>{},
+      hideRemoved:s=>{s.nodes=s.nodes.filter(n=>!ctx.pendingRemovals.has(n.id));s.edges=s.edges.filter(e=>!ctx.pendingRemovals.has(e.from)&&!ctx.pendingRemovals.has(e.to));},
+      act:async(type,args)=>{calls.push([type,args]);return {ok:true};},document:{addEventListener(type,f){handler=f;}}
+    });
+    vm.runInContext(html.slice(html.indexOf('function branchIds('),html.indexOf('const ago =',start)),ctx);
+    return {ctx,state,calls,key:key=>handler({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}})};
+  }
+  it('keeps a parent and children until Enter confirms, then removes them together',()=>{
+    const h=page();h.key('Delete');expect(h.ctx.delAsk).toBe('parent');expect(h.calls).toEqual([]);expect(h.state.nodes).toHaveLength(3);
+    h.key('Enter');expect(h.state.nodes.map(n=>n.id)).toEqual(['root']);expect(h.ctx.selected).toBe('root');expect(h.calls).toEqual([['remove',{ids:['parent'],cascade:true}]]);
+  });
+  it('waits for pending children before asking to delete the branch',async()=>{
+    const h=page();let release;const pending={saved:new Promise(resolve=>{release=resolve;})};h.ctx.pendingTopics.add(pending);
+    h.key('Delete');expect(h.ctx.delAsk).toBeNull();expect(h.calls).toEqual([]);
+    pending.id='saved';release();await new Promise(setImmediate);expect(h.ctx.delAsk).toBe('parent');expect(h.calls).toEqual([]);
+  });
+  it('Escape keeps a branch and leaves leaf deletion immediate',()=>{
+    const h=page();h.key('Backspace');h.key('Escape');expect(h.ctx.delAsk).toBeNull();expect(h.state.nodes).toHaveLength(3);expect(h.calls).toEqual([]);
+    h.ctx.selected='child';h.key('Delete');expect(h.state.nodes.map(n=>n.id)).toEqual(['root','parent']);expect(h.calls).toHaveLength(1);
+  });
+  it('deletes sibling children one by one before selecting their parent',()=>{
+    for(const key of ['Delete','Backspace']){
+      const h=page();h.state.nodes.push({id:'second',label:'Second',x:420,y:85},{id:'third',label:'Third',x:420,y:170});
+      h.state.edges.push({from:'parent',to:'second'},{from:'parent',to:'third'});h.ctx.selected='third';
+      for(const [removed,next] of [['third','second'],['second','child'],['child','parent'],['parent','root']]){
+        h.key(key);expect(h.ctx.selected).toBe(next);expect(h.ctx.delAsk).toBeNull();expect(h.state.nodes.some(n=>n.id===removed)).toBe(false);
+      }
+      expect(h.calls.map(([,a])=>a.ids)).toEqual([['third'],['second'],['child'],['parent']]);
+    }
+  });
+  it('stays with the same parent even when an unrelated box is closer',()=>{
+    const h=page();h.state.nodes.push({id:'sibling',label:'Sibling',x:420,y:500},{id:'other',label:'Other',x:421,y:0});
+    h.state.edges.push({from:'parent',to:'sibling'},{from:'root',to:'other'});h.ctx.selected='child';
+    h.key('Delete');expect(h.ctx.selected).toBe('sibling');expect(h.state.nodes.some(n=>n.id==='parent')).toBe(true);
+  });
+  it('selects a remaining sibling after a confirmed branch deletion',()=>{
+    const h=page();h.state.nodes.push({id:'other',label:'Other branch',x:210,y:200});h.state.edges.push({from:'root',to:'other'});
+    h.key('Delete');expect(h.ctx.delAsk).toBe('parent');h.key('Enter');expect(h.ctx.selected).toBe('other');expect(h.state.nodes.map(n=>n.id)).toEqual(['root','other']);
+  });
+});

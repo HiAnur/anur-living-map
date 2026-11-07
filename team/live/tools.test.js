@@ -18,3 +18,33 @@ describe('pointer tool shortcut',()=>{
     ctx.tool='hand';handler({key:'v',code:'KeyV',target:{closest:()=>true},preventDefault(){}});expect(ctx.tool).toBe('hand');
   });
 });
+
+describe('map history controls', () => {
+  function historyHarness(){
+    let keydown; const calls = [];
+    const ctx = vm.createContext({ PREVIEW:null, FILE:false, naming:null, selected:null, delAsk:null,
+      pendingTopics:new Set(), pendingActions:new Set(), pendingRemovals:new Set(), group:new Set(), topicSaveQueue:Promise.resolve(),
+      document:{addEventListener(type,fn){keydown=fn;}}, toast(){}, render(){}, refreshMap:async()=>{}, nodeById:()=>null,
+      act:async direction=>{calls.push(direction);return {ok:true,json:async()=>({})};},
+    });
+    vm.runInContext(html.slice(html.indexOf('// Map undo leaves'),html.indexOf('/* pan, zoom, drag */')),ctx);
+    return {ctx,calls,keydown};
+  }
+  it('waits for a name save and runs rapid undo and redo clicks in order', async () => {
+    const h=historyHarness(); let finish;
+    h.ctx.topicSaveQueue=new Promise(resolve=>{finish=resolve;});
+    const undo=h.ctx.mapUndo('undo'),redo=h.ctx.mapUndo('redo');
+    await new Promise(setImmediate);expect(h.calls).toEqual([]);
+    finish();await Promise.all([undo,redo]);expect(h.calls).toEqual(['undo','redo']);
+  });
+  it('uses the same history for shortcuts while keeping normal text undo', async () => {
+    const h=historyHarness();
+    const key=(shiftKey,typing)=>({key:'z',metaKey:true,shiftKey,target:{closest:()=>typing},preventDefault(){},stopImmediatePropagation(){}});
+    h.keydown(key(false,true));await new Promise(setImmediate);expect(h.calls).toEqual([]);
+    h.keydown(key(false,false));h.keydown(key(true,false));await new Promise(setImmediate);expect(h.calls).toEqual(['undo','redo']);
+  });
+  it('finishes a selected draft before undoing it', async () => {
+    const h=historyHarness();h.ctx.naming={untouched:true};h.ctx.endName=()=>{h.calls.push('save');h.ctx.naming=null;};
+    await h.ctx.mapUndo('undo');expect(h.calls).toEqual(['save','undo']);
+  });
+});

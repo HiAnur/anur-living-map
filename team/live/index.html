@@ -171,7 +171,9 @@ button,input,textarea{font:inherit;color:inherit}
 .d-del .ask{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .gb.bad{background:var(--gone);color:#fff;border-color:var(--gone)}
 /* Delete on a picked box asks right above it: Enter deletes, Esc keeps */
-.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px var(--plex);color:var(--text);white-space:nowrap;cursor:default}
+.node.deleting{z-index:6;opacity:1}
+.delq{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:max-content;max-width:300px;padding:12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 4px 16px rgba(20,20,19,.12);font:13px/1.4 var(--plex);color:var(--text);text-align:left;white-space:normal;cursor:default}
+.delq-actions{display:flex;justify-content:flex-end;gap:8px;white-space:nowrap}
 .delq .gb{height:26px;padding:0 8px 0 10px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px}
 /* each button carries its own key; Delete is a soft red, not a solid one */
 .delq .gb.soft{background:#fdf1f0;color:var(--gone);border-color:rgba(210,59,50,.3)}
@@ -325,6 +327,8 @@ body.deep #queue{top:108px}
 #side{right:72px;top:44px;bottom:0;width:var(--chatw);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column}
+#side [data-rename-box]{cursor:text;min-width:0;overflow-wrap:anywhere}
+#side-name{min-width:0;width:100%;border:1px solid var(--new);border-radius:6px;padding:4px 6px;background:var(--card);color:var(--text);font:inherit;user-select:text}
 #side .refs{margin-top:auto;padding-bottom:4px}
 /* Claude references fold away like Claude's own "Context ▾": closed at first, a click on the heading opens them */
 #side details.refs > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
@@ -493,6 +497,10 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
 .ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
 .d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
+.info-footer{margin-top:auto;padding-top:16px;flex-shrink:0}
+.box-dates{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;margin:0;font-size:12px;line-height:1.5}
+.box-dates dt{color:var(--text-3)}
+.box-dates dd{margin:0;text-align:right;color:var(--text-2)}
 .ca-line{display:flex;align-items:center;gap:10px}
 .ca-line .ca-q{flex:1;margin:0}
 .ca-btns{display:flex;gap:6px;flex:none}
@@ -629,7 +637,7 @@ body.paned #canvas{right:calc(72px + var(--chatw))}
 body.paned #toast{left:calc((100% - 72px - var(--chatw)) / 2)}
 /* centred on what is left of the map; when that is too narrow for it beside Legend, Tidy up and Fit, it sits above them */
 body.paned #tools{left:calc((100% - 72px - var(--chatw)) / 2)}
-body.paned.tight #tools{bottom:58px}
+body.tight #tools{bottom:58px}
 #chatgrip{position:fixed;top:44px;bottom:0;right:calc(72px + var(--chatw) - 4px);width:8px;cursor:col-resize;z-index:17;display:none}
 body.paned #chatgrip{display:block}
 #chatgrip:hover,#chatgrip.on{background:linear-gradient(90deg,transparent 3px,var(--claude) 3px,var(--claude) 5px,transparent 5px)}
@@ -794,6 +802,9 @@ body.previewing .node.proposed{display:none}
 .tb.on{background:#ecebe6;color:var(--text)}
 /* each tool's key, small at its lower right: V select, H pan, R box, A line, T text, C comment */
 .tb{min-width:34px}.tb .tk{position:absolute;right:3px;bottom:1px;font:500 9px/1 var(--plex);color:var(--text-3);pointer-events:none}
+.tb.history-tool{min-width:44px;border:0;background:transparent;grid-template-rows:18px 10px;gap:1px;padding:0 5px}
+.tb.history-tool:hover{background:#f3f2ee}
+.tb.history-tool .tk{position:static;white-space:nowrap}
 /* the bar is white like every other card on the map */
 .tdiv{width:1px;height:18px;background:var(--rule);margin:0 4px}
 /* Share, Figma style: a filled button at the far right of the top bar, and a window of who has access */
@@ -850,6 +861,9 @@ body.rec #foot,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{disp
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">A</kbd></span>
   <i class="tdiv"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">C</kbd></span>
+  <i class="tdiv"></i>
+  <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
+  <button class="tb history-tool" data-map-history="redo" title="Redo (⌘ ⇧ Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l4 4-4 4m4-4H9a5 5 0 00-5 5v3"/></svg><kbd class="tk">⌘ ⇧ Z</kbd></button>
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <div id="foot"><span class="zoom levels" id="levels"></span><button class="tbtn" id="tidyb" title="Lay out the boxes showing now, so the lines run straight, for everyone">Tidy up</button><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
@@ -1008,11 +1022,14 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox']);
+const FROZEN = new Set(['move', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'undo', 'redo']);
+const pendingActions = new Set();
 const act = (type, extra = {}) => {
   if (FILE){ toast(FILE_SAYS); return Promise.resolve(); }
   if (PREVIEW && FROZEN.has(type)){ toast(FROZEN_SAYS); return Promise.resolve(); }
-  return fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+  const request = fetch('api/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type, by: ME, ...extra }) }).catch(() => {});
+  if (FROZEN.has(type)){ pendingActions.add(request); request.finally(() => pendingActions.delete(request)); }
+  return request;
 };
 
 let keyboardSelection = false;
@@ -1091,8 +1108,8 @@ const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
 // part you can see, beside the pane that opens for it, at a zoom you can read; a box inside another opens that one
-// a box opened by a click stays where it is, unless the pane that opens for it covers it; then it glides into view
-const keepInView = (id) => { const n = nodeById(id) || proposedBox(id), r = canvas.getBoundingClientRect(); if (n && (n.x + W(n) / 2) * cam.z + cam.x > r.width - 16) centerOn(id); };
+// A box opened by a click stays where it is; if its pane covers it, reveal only the hidden part.
+const keepInView = (id) => { const n = nodeById(id) || proposedBox(id); if (n) keepEditorVisible(n, W(n), HT(n)); };
 function centerOn(id){
   const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
@@ -1762,7 +1779,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
@@ -1772,8 +1789,8 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
-      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq">Delete ${group.size} boxes?<button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
-      ${delAsk === n.id && !locked(n) ? `<div class="delq">Delete ${esc(n.label)}?<button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div>` : ''}
+      ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>Delete these topics and their subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
+      ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>Delete this topic and its subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
@@ -1800,19 +1817,28 @@ function renderSave(){
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
+  const canManage = !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b><span class="sh-link"><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>Copy link</span><span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
-      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team</span><span class="sh-role">can edit ›</span></div>
-      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span></div>`).join('')}
+      <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="4" y="3" width="8" height="14" rx="1"/><path d="M12 8h3.2a.8.8 0 0 1 .8.8V17h-4M6.8 6.5h2.4M6.8 9.5h2.4M6.8 12.5h2.4"/></svg></span><span class="sh-who">Anyone on the Anur team${S.removedPeople?.length ? '<i> · except removed people</i>' : ''}</span><span class="sh-role">can edit</span></div>
+      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
+      ${canManage && S.removedPeople?.length ? `<details><summary class="sh-h">Removed people (${S.removedPeople.length})</summary>${S.removedPeople.map((id) => `<div class="sh-row"><span class="sh-who">${esc(id)}</span><button class="gb" data-restore-person="${esc(id)}" aria-label="Restore ${esc(id)} access">Restore access</button></div>`).join('')}</details>` : ''}
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
     </div>`;
 }
 let imageExportBusy = false, imageFontCSS;
+async function updatePersonAccess(person, restore = false){
+  try {
+    const r = await fetch('api/access', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person, restore }) });
+    if (!r.ok) throw new Error();
+    toast(restore ? `${person} can open this project again.` : `${person} no longer has access to this project.`);
+  } catch { toast('Access could not be changed. Only an owner can remove or restore a member.'); }
+}
 function imageExportSize(width, height){
   const scale = Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16000000 / (width * height)));
   return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
@@ -1930,6 +1956,7 @@ document.addEventListener('click', (e) => {
 });
 
 function renderTop(){
+  renderShare();
   const fb = flowBox();
   const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
@@ -1989,6 +2016,31 @@ const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answ
 let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null, sideSeen = '';
+let sideRename = null;
+function beginSideRename(id){
+  const n = nodeById(id);
+  if (!n || locked(n)) return;
+  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  clearTimeout(tapTimer); nameSession++;
+  sideRename = { id, label:n.label }; renderSide();
+  $('side-name').focus({preventScroll:true}); $('side-name').select();
+}
+function endSideRename(keep){
+  if (!sideRename) return;
+  const {id,label:before} = sideRename, label = $('side-name')?.value.trim().slice(0,80), n = nodeById(id);
+  sideRename = null;
+  if (keep && n && label && label !== before){
+    n.label = label;
+    act('renamebox', {id,label}).then((r) => { if (!r?.ok){ toast('That name could not be saved.'); refreshMap(); } });
+  }
+  render();
+}
+document.addEventListener('dblclick', (e) => { const title = e.target.closest('[data-rename-box]'); if (title) beginSideRename(title.dataset.renameBox); });
+document.addEventListener('keydown', (e) => {
+  if (e.target.id !== 'side-name' || e.isComposing || !['Enter','Escape'].includes(e.key)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); endSideRename(e.key === 'Enter');
+});
+document.addEventListener('focusout', (e) => { if (e.target.id === 'side-name') endSideRename(true); });
 // the box whose card asks "delete?" (Delete this box, or the Delete key on a picked box)
 let delAsk = null;
 // the line picked on the map, as "from>to"; Delete or Backspace takes it off
@@ -2028,11 +2080,17 @@ function renderQueue(){
 // sections a person opened stay open when the card redraws (it redraws on every change to the map)
 const openSecs = new Set();
 document.addEventListener('toggle', (e) => { const k = e.target?.dataset?.openKey; if (k) e.target.open ? openSecs.add(k) : openSecs.delete(k); }, true);
+const boxDate = (value) => Number.isFinite(value) && value > 0
+  ? `<time datetime="${new Date(value).toISOString()}">${prose(new Date(value).toLocaleString(undefined, { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}</time>`
+  : 'Not recorded';
 function renderSide(){
   const el = $('side');
   if (keyboardSelection){ el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
+  if (sideRename && (sideRename.id !== n?.id || locked(n))) sideRename = null;
   el.classList.toggle('on', !!(n || pb));
+  // Live map changes keep the name being typed and its cursor in place.
+  if (sideRename && $('side-name')) return;
   el.classList.remove('info');
   // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
   if (pb){
@@ -2107,10 +2165,10 @@ function renderSide(){
   // three tabs: Information (what the box is and what is open on it), Side Chat, and Decision history (what was
   // answered); ✳ Side Chat beside × opens the Side Chat tab, ready to type
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
-  // on Information the panel is a column, so Claude references can sit on its bottom edge
+  // Information keeps the box's dates and deletion action at the bottom of its panel.
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct"><span>${n.label}</span><span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r"><button class="gb chat-h" data-chat-box title="Side chat about ${n.label}">✳ Side Chat</button><span class="x" data-close>×</span></span></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2145,8 +2203,11 @@ function renderSide(){
     ${calls.filter((c) => c.status === 'open').map(decision).join('')}
     ${n.inside || flowOf(n) || n.diagram ? `<div class="h">Go deeper</div><div class="btns">${n.inside ? `<button class="gb" data-enter="${n.id}">Open ${n.label} ›</button>` : ''}${flowOf(n) ? `<button class="gb" data-flow="${flowOf(n).id}">See the payment flow ›</button>` : ''}${n.diagram ? `<button class="gb" data-diagram="${n.id}">${n.diagram.title ? prose(n.diagram.title) : `Open the ${n.diagram.kind}`} ›</button>` : ''}</div>` : ''}
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
+    ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}</div>
+    <div class="info-footer">
+    <dl class="box-dates"><dt>Created date</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated date</dt><dd>${boxDate(n.updatedAt)}</dd></dl>
     ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
-    ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}`}`;
+    </div>`}`;
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
@@ -2194,8 +2255,8 @@ const change = (m, key, i) => {
 let chatOpen = new URLSearchParams(location.search).has('chat'), chatSeen = 0, chatAbout = null;
 // the pane's width follows its left edge as you drag it, between 320px and leaving the map 360px; this browser remembers it
 const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320, innerWidth - 72 - 360))); document.body.style.setProperty('--chatw', `${w}px`); fitTools(); return w; };
-// the tool bar and Legend, Tidy up and Fit need about 560px side by side
-const fitTools = () => document.body.classList.toggle('tight', document.body.classList.contains('paned') && $('canvas').clientWidth < 560);
+// Raise the tool bar when its actual width would overlap the map controls.
+const fitTools = () => document.body.classList.toggle('tight', $('tools').getBoundingClientRect().right + 12 > $('foot').getBoundingClientRect().left);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
 const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
@@ -2488,22 +2549,44 @@ document.addEventListener('keydown', (e) => {
   if (pickedLine && e.key === 'Escape'){ pickedLine = null; render(); return; }
   if (pickedLine && ['Delete', 'Backspace'].includes(e.key) && !PREVIEW){ e.preventDefault(); deleteLine(pickedLine); }
 });
-// A single picked box is removed immediately; its parent remains selected. History can restore it.
-// Delete removes a selection together without interrupting keyboard work.
+// A leaf disappears immediately. A branch is removed together only after confirmation.
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
-function deleteBox(id){
-  if (id === '*'){ const ids = [...group]; group.clear(); delAsk = null; for (const g of ids) act('remove', { id: g }); render(); toast(`${ids.length} boxes are off the map. History can bring them back.`); return; }
-  const n = nodeById(id), parent = topicParent(n); delAsk = null;
-  const follow = selected === id;
-  if (follow) selected = parent?.id || scope().nodes.filter((b) => b.id !== id && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y))[0]?.id || null;
-  pendingRemovals.add(id); hideRemoved(S);
-  act('remove', { id }).then(async (r) => { if (!r?.ok){ pendingRemovals.delete(id); await refreshMap(); toast('The box could not be deleted. Please try again.'); } }); if (follow) selectTopic(selected); else render(); toast(`${n?.label || 'The box'} is off the map. History can bring it back.`);
+// A branch includes folded descendants and boxes inside it. Cycles are visited once.
+function branchIds(state, roots) {
+  const nodes = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+  const edges = [...(state.edges || []), ...state.nodes.flatMap((n) => n.inside?.edges || [])];
+  const ids = new Set(roots), queue = [...ids];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i], node = nodes.find((n) => n.id === id);
+    const children = [...edges.filter((e) => e.from === id).map((e) => e.to), ...(node?.inside?.nodes || []).map((n) => n.id)];
+    for (const child of children) if (!ids.has(child)) { ids.add(child); queue.push(child); }
+  }
+  return ids;
+}
+function deleteBox(id, confirmed = false){
+  const waiting = [...pendingTopics].filter((n) => !n.id);
+  if (waiting.length){ Promise.all(waiting.map((n) => n.saved)).then(refreshMap).then(() => deleteBox(id, confirmed)); return; }
+  const roots = id === '*' ? [...group] : [id], ids = branchIds(S, roots);
+  if (roots.some((root) => !nodeById(root))) return;
+  if ([...ids].some((child) => locked(nodeById(child) || {}))){ toast('This branch includes a box you cannot delete.'); return; }
+  if (ids.size > roots.length && !confirmed){ delAsk = id; render(); keepInView(id === '*' ? groupLead() : id); return; }
+  const n = nodeById(roots[0]), parent = topicParent(n), follow = ids.has(selected);
+  delAsk = null; group.clear();
+  if (follow){
+    const remaining = scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y));
+    // Repeated Delete finishes the children before returning to their parent.
+    const sibling = parent && remaining.find((b) => topicParent(b)?.id === parent.id);
+    selected = sibling?.id || (parent && !ids.has(parent.id) ? parent.id : null) || remaining[0]?.id || null;
+  }
+  for (const child of ids) pendingRemovals.add(child); hideRemoved(S);
+  act('remove', { ids: roots, cascade: true }).then(async (r) => { if (!r?.ok){ for (const child of ids) pendingRemovals.delete(child); await refreshMap(); toast('The boxes could not be deleted. Please try again.'); } });
+  if (follow) selectTopic(selected); else render();
 }
 document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE) return;
   if (delAsk && (e.key === 'Enter' || e.key === 'Escape')){
     e.preventDefault(); e.stopImmediatePropagation();
-    if (e.key === 'Enter') deleteBox(delAsk); else { delAsk = null; render(); }
+    if (e.key === 'Enter') deleteBox(delAsk, true); else { delAsk = null; render(); }
     return;
   }
   if (['Delete', 'Backspace'].includes(e.key) && group.size > 1){ e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox('*'); return; }
@@ -2601,8 +2684,12 @@ function drawRubber(){
 // Keep the next editor ready while the previous box is being saved. A promise for its server-minted
 // id lets fast Tab/Enter sequences attach each new box to the right parent without losing keystrokes.
 const pendingRemovals = new Set();
+const pendingTopics = new Set();
+const topicIds = new Map();
+let nameSession = 0;
+let topicSaveQueue = Promise.resolve();
 async function refreshMap(){
-  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW) S = LIVE; render(); } catch {}
+  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); } catch {}
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
@@ -2614,15 +2701,91 @@ function topicParent(n){
   const edge = all?.edges?.find((e) => e.to === n.id && e.from !== n.id);
   return edge ? nodeById(edge.from) : null;
 }
+// Insert into the parent's branch, then push later sibling branches down as whole units.
+// Existing columns, branch order, and the other side of the root keep their places.
+function planTopicInsert(nodes, edges, parentId, afterId, x, label = 'Sub-topic'){
+  const by = new Map(nodes.map((n) => [n.id, { ...n }])), parents = new Map(), kids = new Map();
+  for (const e of edges){
+    if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || parents.has(e.to)) continue;
+    let up = e.from; while (parents.has(up) && up !== e.to) up = parents.get(up);
+    if (up !== e.to) parents.set(e.to, e.from);
+  }
+  for (const [id, parent] of parents){ if (!kids.has(parent)) kids.set(parent, []); kids.get(parent).push(id); }
+  for (const list of kids.values()) list.sort((a, b) => by.get(a).y - by.get(b).y);
+  const parent = by.get(parentId); if (!parent) return null;
+  const side = (id, p) => by.get(id).x < p.x ? -1 : 1, direction = x < parent.x ? -1 : 1;
+  const siblings = (kids.get(parentId) || []).filter((id) => side(id, parent) === direction);
+  const subtree = (id) => { const out = [id]; for (let i = 0; i < out.length; i++) out.push(...(kids.get(out[i]) || [])); return out; };
+  const top = (id) => Math.min(...subtree(id).map((k) => by.get(k).y - HT(by.get(k)) / 2));
+  const bottom = (id) => Math.max(...subtree(id).map((k) => by.get(k).y + HT(by.get(k)) / 2));
+  const previous = afterId && siblings.includes(afterId) ? afterId : siblings.at(-1);
+  const fresh = {}, node = { id: fresh, x, y: previous ? bottom(previous) + 35 + HT({label}) / 2 : parent.y, label };
+  by.set(fresh, node); parents.set(fresh, parentId);
+  const list = kids.get(parentId) || [], index = previous ? list.indexOf(previous) + 1 : list.length;
+  list.splice(index, 0, fresh); kids.set(parentId, list);
+  const center = (id) => {
+    if (!parents.has(id)) return;
+    const list = kids.get(id) || []; if (!list.length) return;
+    by.get(id).y = (by.get(list[0]).y + by.get(list.at(-1)).y) / 2;
+  };
+  let active = fresh;
+  while (parents.has(active)){
+    const up = parents.get(active), p = by.get(up), same = (kids.get(up) || []).filter((id) => side(id, p) === side(active, p));
+    let floor = bottom(active);
+    for (const id of same.slice(same.indexOf(active) + 1)){
+      const dy = Math.max(0, floor + 35 - top(id));
+      for (const k of subtree(id)) by.get(k).y += dy;
+      floor = bottom(id);
+    }
+    center(up); active = up;
+  }
+  return { x: node.x, y: Math.round(node.y), moves: nodes.filter((n) => Math.round(by.get(n.id).y) !== n.y).map((n) => ({ id: n.id, fromY: n.y, y: Math.round(by.get(n.id).y) })) };
+}
+function topicGraph(){
+  for (const n of pendingTopics) if (n.id && nodeById(n.id)) pendingTopics.delete(n);
+  const all = view === 'system' ? S : nodeById(view)?.inside || {nodes:[],edges:[]};
+  const pending = [...pendingTopics].filter((n) => n.view === view), aliases = new Map(pending.filter((n) => n.id).map((n) => [n.saved, n.id]));
+  const key = (id) => aliases.get(id) || topicIds.get(id) || id;
+  return { nodes: [...all.nodes, ...pending.filter((n) => !n.id || !nodeById(n.id)).map((n) => ({...n, id:key(n.id || n.saved)}))],
+    edges: [...(all.edges || []), ...pending.filter((n) => n.link).map((n) => ({from:key(n.link.id),to:key(n.id || n.saved)}))], key };
+}
+function moveTopicPreview(moves, undo = false){
+  for (const m of moves || []){
+    const n = nodeById(topicIds.get(m.id) || m.id) || [...pendingTopics].find((n) => n.id === m.id || n.saved === m.id);
+    if (n && n.y === (undo ? m.y : m.fromY)) n.y = undo ? m.fromY : m.y;
+  }
+}
+function updateTopicLayout(at, label = 'Sub-topic'){
+  moveTopicPreview(at.reflow, true);
+  const graph = topicGraph(), plan = planTopicInsert(graph.nodes, graph.edges, graph.key(at.link.id), graph.key(at.after), at.x, label);
+  if (!plan) return;
+  Object.assign(at, plan, {reflow:plan.moves}); moveTopicPreview(at.reflow); render();
+}
+// A server snapshot contains saved positions, not this editor's preview. Plan the
+// draft again so its next Tab cannot submit movements from an older layout.
+function syncTopicPreview(fresh = false){
+  if (naming?.keyboard && naming.link){
+    if (!fresh) moveTopicPreview(naming.reflow, true);
+    naming.reflow = [];
+  }
+  for (const n of pendingTopics) moveTopicPreview(n.reflow);
+  if (!naming) return;
+  if (naming.keyboard && naming.link){
+    updateTopicLayout(naming, $('newbox').querySelector('input, textarea')?.value || naming.text);
+    $('newbox').style.left = `${naming.x}px`; $('newbox').style.top = `${naming.y}px`;
+  } else moveTopicPreview(naming.reflow);
+  drawTopicArrow(naming);
+}
 function topicDraft(n, child){
   const parent = child ? n : (n.parent ?? topicParent(n));
-  const right = !parent || n.x >= parent.x;
-  let x = child ? n.x + (right ? 1 : -1) * (W(n) / 2 + 140) : n.x;
-  let y = child ? n.y : n.y + HT(n) + 35;
-  const nodes = scope().nodes;
-  while (nodes.some((b) => Math.abs(b.x - x) < (W(b) + 140) / 2 + 24 && Math.abs(b.y - y) < (HT(b) + 50) / 2 + 20)) y += 85;
+  const graph = topicGraph(), current = graph.nodes.find((b) => b.id === graph.key(n.id)) || n;
+  const above = child ? topicParent(current) : parent;
+  const right = !above || current.x >= above.x;
+  const children = graph.edges.filter((e) => e.from === graph.key(parent?.id)).map((e) => graph.nodes.find((b) => b.id === e.to)).filter((b) => b && (b.x >= parent.x) === right).sort((a,b) => a.y-b.y);
+  const x = child ? children[0]?.x ?? current.x + (right ? 1 : -1) * (W(current) / 2 + 140) : current.x;
+  const at = { x, y:current.y, link:parent, after:child ? null : n.id, keyboard:true, text:'Sub-topic', returnTo:n.id, returnTopic:n, view };
   if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
-  askName({ x, y, link: parent, keyboard: true, text: 'Sub-topic', returnTo: n.id, returnTopic: n, view });
+  updateTopicLayout(at); askName(at);
 }
 function keepEditorVisible(at, width, height){
   const r = canvas.getBoundingClientRect();
@@ -2634,13 +2797,11 @@ function keepEditorVisible(at, width, height){
   cam.y += Math.max(16 + halfH, Math.min(bottom - halfH, py)) - py;
   place();
 }
-function askName(at){
-  keyboardSelection = true; renderSide(); fitPane();
-  const line = !!(at.from || at.edge);
-  naming = { view, ...at, untouched: !line && !at.edit }; const el = $('newbox');
+function drawTopicArrow(at){
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
-    const parent = nodeById(at.link.id) || at.link;
+    const id = topicIds.get(at.link.id) || at.link.id;
+    const parent = nodeById(id) || [...pendingTopics].find((n) => n.id === id || n.saved === id) || at.link;
     const nodes = [...scope().nodes.filter((n) => n.id !== parent.id), parent, ghost];
     const pts = at.keyboard
       ? (view === 'system' && crossLinks() ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
@@ -2648,6 +2809,12 @@ function askName(at){
     const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
+}
+function askName(at){
+  keyboardSelection = true; renderSide(); fitPane();
+  const line = !!(at.from || at.edge);
+  naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
+  drawTopicArrow(at);
 
   // Account for the whole zoomed editor and the controls covering the canvas.
   const width = line ? 220 : 140, height = line ? 36 : 50;
@@ -2658,13 +2825,14 @@ function askName(at){
   const i = el.querySelector('input, textarea'); i.value = at.text ?? (line ? '' : 'Topic');
   const resizeName = () => {
     if (line) return;
+    if (naming?.keyboard && naming.link){ updateTopicLayout(naming, i.value); at = naming; el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; drawTopicArrow(at); }
     const width = W({ ...nodeById(at.edit), label: i.value });
     el.style.width = `${width}px`; i.style.height = '0px';
     const height = Math.max(50, i.scrollHeight + 3);
     el.style.height = `${height}px`; i.style.height = '100%';
     keepEditorVisible(at, width, height);
   };
-  resizeName(); i.focus();
+  resizeName(); i.focus({preventScroll:true});
   if (naming.untouched) i.classList.add('draft'); else i.select();
   const beginTyping = () => {
     if (!naming?.untouched) return;
@@ -2680,7 +2848,7 @@ function askName(at){
       e.preventDefault();
       const next = keyboardNeighbor(naming, e.key);
       const id = next?.id ?? (e.key === 'ArrowLeft' ? naming.link?.id : null);
-      if (id){ endName(false); Promise.resolve(id).then((target) => { if (target && !naming) selectTopic(target); }); }
+      if (id){ const session = nameSession; endName(true, false); Promise.resolve(id).then((target) => { if (target && !naming && session === nameSession) selectTopic(target); }); }
     }
     else if (!line && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
@@ -2697,34 +2865,41 @@ function askName(at){
       if (current.edit){ selected = current.edit; deleteBox(current.edit); }
     }
   });
-  i.addEventListener('blur', () => endName(true));
+  i.addEventListener('blur', () => endName(true, false));
 }
 function endName(keep, restore = true){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); return; }
-  if (!keep || at.untouched || (!at.from && !text)){
-    if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view) selectTopic(id || null, at.returnTopic || at.link); }); return;
+  if (!keep || (!at.from && !text)){
+    moveTopicPreview(at.reflow, true); render();
+    if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view && at.session === nameSession) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
   if (at.from) return act('connect', { from: at.from.id, to: at.to.id, label: text, view: at.view });
-  const saved = (async () => {
+  const pending = { ...at, label: text }; if (!at.edit) pendingTopics.add(pending);
+  const saved = topicSaveQueue.then(async () => {
     const from = at.link ? await at.link.id : null;
     if (at.link && !from) throw new Error('parent');
-    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
+    const reflow = await Promise.all((at.reflow || []).map(async (m) => ({...m, id:await m.id})));
+    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text } : { label: text, x: at.x, y: at.y, ...(reflow.length ? {reflow} : {}), ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
-    if (!naming && view === at.view){ selected = id; render(); }
+    pending.id = id; topicIds.set(saved, id);
+    if (naming){ syncTopicPreview(); render(); }
+    if (restore && at.session === nameSession && !naming && view === at.view){ selected = id; render(); }
     return id;
-  })().catch(() => { toast('The box could not be saved. Please try again.'); return null; });
-  return saved;
+  }).catch(() => { moveTopicPreview(at.reflow, true); refreshMap(); pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
+  topicSaveQueue = saved; pending.saved = saved; return saved;
 }
 function selectTopic(id, fallback){
-  keyboardSelection = true; selected = id; render();
-  const n = nodeById(id) || fallback, r = canvas.getBoundingClientRect();
-  if (n){ cam.x = r.width / 2 - n.x * cam.z; cam.y = r.height / 2 - n.y * cam.z; place(); }
+  nameSession++; keyboardSelection = true; selected = id; render();
+  const n = nodeById(id) || fallback;
+  if (n) keepEditorVisible(n, W(n), HT(n));
 }
 // Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
 function keyboardNeighbor(n, key){
+  const parent = n.link || topicParent(n);
+  if (parent && key === (parent.x <= n.x ? 'ArrowLeft' : 'ArrowRight')) return parent;
   const [dx, dy] = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed)
     .map((b) => { const x = b.x - n.x, y = b.y - n.y; return { b, ahead: x * dx + y * dy, across: Math.abs(x * dy - y * dx) }; })
@@ -2764,6 +2939,28 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 
+// Map undo leaves text fields to the browser. An untouched selected topic belongs to the map.
+let undoQueue = Promise.resolve();
+function mapUndo(direction){
+  if (FILE || PREVIEW){ toast(FILE ? FILE_SAYS : FROZEN_SAYS); return; }
+  const finish = naming ? endName(true, false) : null;
+  undoQueue = undoQueue.then(async () => {
+    await finish; await topicSaveQueue; await Promise.all([...pendingTopics].map((n) => n.saved)); await Promise.all([...pendingActions]);
+    const r = await act(direction), result = await r?.json().catch(() => ({}));
+    if (!r?.ok){ toast(result?.error || 'That change could not be undone.'); return; }
+    pendingRemovals.clear(); delAsk = null; group.clear(); await refreshMap();
+    if (selected && !nodeById(selected)) selected = null;
+    render(); toast(direction === 'undo' ? 'Undone' : 'Redone');
+  }).catch(() => toast('That change could not be undone.'));
+  return undoQueue;
+}
+document.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey) || e.altKey || e.isComposing || e.key.toLowerCase() !== 'z' || PREVIEW || FILE) return;
+  if (e.target.closest('input, textarea, [contenteditable]') && !naming?.untouched) return;
+  e.preventDefault(); e.stopImmediatePropagation(); if (e.repeat) return;
+  mapUndo(e.shiftKey ? 'redo' : 'undo');
+}, true);
+
 /* pan, zoom, drag */
 let drag = null, panning = null, moved = false;
 // drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
@@ -2795,7 +2992,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const cd = tool === 'select' && !PREVIEW && e.target.closest('[data-cd]');
   if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
     drawing = { from: n, dot: cd.dataset.cd, x: sx, y: sy, x0: sx, y0: sy, far: false, to: null }; canvas.setPointerCapture(e.pointerId); } return; }
-  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
+  if (e.target.closest('.delq')){ const y = e.target.closest('[data-delete-yes]'); if (y) deleteBox(y.dataset.deleteYes, true); else if (e.target.closest('[data-delete-no]')){ delAsk = null; render(); } return; }
   // two taps on the same line within 350ms rename it: the first tap redraws the line, so the browser's dblclick never fires
   const ed = tool === 'select' && e.target.closest('[data-edge], [data-edge-label]');
   if (ed && !PREVIEW){
@@ -2869,14 +3066,14 @@ canvas.addEventListener('pointermove', (e) => {
 // a double click is two taps on the same box within 350ms: the first tap
 // redraws the box, so the browser's own dblclick never sees the same element
 let lastTap = { id: null, at: 0 };
-// a box that opens on a double click waits out the second click before its card opens, so the card
-// never lands on top of the box between the two clicks
+// Select immediately so a quick Tab uses this box. Only its details card waits for a possible double click.
 const DBL = 320;
 let tapTimer = null;
 const pick = (n) => {
-  keyboardSelection = false;
   clearTimeout(tapTimer);
-  const go = () => { selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); };
+  const session = ++nameSession;
+  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = true; render();
+  const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; render(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
 canvas.addEventListener('pointerup', (e) => {
@@ -3005,13 +3202,15 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; renderShare(); }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
+  else if (t.closest('[data-remove-person]')){ updatePersonAccess(t.closest('[data-remove-person]').dataset.removePerson); }
+  else if (t.closest('[data-restore-person]')){ updatePersonAccess(t.closest('[data-restore-person]').dataset.restorePerson, true); }
   else if (t.closest('[data-share-image]')){ downloadMapImage(); }
   else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
   // Delete this box on the card asks the same question as the Delete key, above the box itself
-  else if (t.closest('[data-delete]')){ delAsk = t.closest('[data-delete]').dataset.delete; render(); keepInView(delAsk); }
+  else if (t.closest('[data-delete]')){ deleteBox(t.closest('[data-delete]').dataset.delete); }
   else if (t.closest('[data-delete-no]')){ delAsk = null; render(); }
-  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes); }
+  else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes, true); }
   else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
   else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('[data-resolve]')){
@@ -3032,9 +3231,10 @@ document.addEventListener('click', (e) => {
   // a message's box name opens that box
   else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   // a tool pressed again goes back to Select
-  else if (t.closest('.tb')){ const b = t.closest('.tb'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
+  else if (t.closest('[data-map-history]')){ mapUndo(t.closest('[data-map-history]').dataset.mapHistory); }
+  else if (t.closest('[data-tool]')){ const b = t.closest('[data-tool]'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
   // Tidy up lays out what you can see: boxes folded away take no room
-  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) act('tidy', { view, only: scope().nodes.filter((n) => !n.proposed).map((n) => n.id) }); }
+  else if (t.id === 'tidyb'){ if (!view.startsWith('flow:')) { const nodes = scope().nodes.filter((n) => !n.proposed); act('tidy', { view, only: nodes.map((n) => n.id), sizes: nodes.map((n) => ({id:n.id,w:W(n),h:HT(n)})) }); } }
   else if (t.id === 'fitb'){ fit(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
@@ -3166,9 +3366,12 @@ function listen(){
   const es = new EventSource('api/events');
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
+  es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    const arrived = new Set(next.nodes.flatMap((n) => [n.id, ...(n.inside?.nodes || []).map((c) => c.id)]));
+    for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
     for (const id of pendingRemovals) if (!next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === id)) pendingRemovals.delete(id);
     hideRemoved(next);
     if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
@@ -3183,7 +3386,9 @@ function listen(){
     const ae = document.activeElement;
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next; render();
+    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next;
+    if (!PREVIEW) syncTopicPreview(true);
+    render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (first){ first = false; fit(); }

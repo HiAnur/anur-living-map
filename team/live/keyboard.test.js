@@ -3,51 +3,73 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { branchIds } from './editing.js';
+
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('/* pan, zoom, drag */'));
+const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Map undo leaves'));
+const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIVE = next;'));
+const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
 function harness(){
-  let input, handler;
+  let input, handler, pickTimer;
   const ctx = vm.createContext({ console, Promise, Set, Map });
-  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(){}, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
+  const editor = { style: {}, classList: { add(){}, remove(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
+    setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
-    render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
+    branchIds, keepInView(){}, render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
     setTool(t){ctx.tool=t;}, toStage:(x,y)=>[x,y], locked:n=>!!n.locked,
     nodeById:id=>ctx.S.nodes.find(n=>n.id===id), scope:()=>ctx.S,
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
   });
   vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
+  vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
   vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);
   const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
-  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur()};
+  return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
-  it('keeps each parent centered while deleting back through a long branch',()=>{
+  it('branches from the clicked topic immediately, before the double-click delay expires',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255},{id:'existing',label:'Existing child',x:1470,y:255});h.ctx.S.edges.push({from:'root',to:'deep'},{from:'deep',to:'existing'});
+    h.ctx.act=async(type,a)=>{calls.push(a);return {ok:true,json:async()=>({id:'new-child'})};};
+    h.pick('deep');h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');h.flushPick();expect(h.ctx.keyboardSelection).toBe(true);
+    h.blur();await new Promise(setImmediate);expect(calls[0].from).toBe('deep');expect(h.ctx.S.edges).toContainEqual({from:'deep',to:'existing'});
+  });
+  it('keeps a clicked selected topic as the parent instead of toggling back to the root',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255});h.ctx.S.edges.push({from:'root',to:'deep'});
+    h.pick('deep');h.flushPick();h.pick('deep');h.flushPick();h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');
+  });
+  it('does not let an older save replace the newly clicked parent',async()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255});h.ctx.S.edges.push({from:'root',to:'deep'});
+    let release;const gate=new Promise(resolve=>{release=resolve;});h.ctx.act=async()=>{await gate;return {ok:true,json:async()=>({id:'old-save'})};};
+    h.key('Tab');const saved=h.ctx.endName(true);h.pick('deep');h.flushPick();release();await saved;
+    expect(h.ctx.selected).toBe('deep');h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');
+  });
+  it('keeps each parent visible while deleting back through a long branch',()=>{
     const h=harness();h.ctx.S.nodes=Array.from({length:31},(_,i)=>({id:`n${i}`,label:'Topic',x:i*500,y:i*85}));
     h.ctx.S.edges=Array.from({length:30},(_,i)=>({from:`n${i}`,to:`n${i+1}`}));h.ctx.selected='n30';h.ctx.cam.z=1.5;
     for(let i=30;i>0;i--){
       h.ctx.deleteBox(`n${i}`);expect(h.ctx.selected).toBe(`n${i-1}`);
-      const n=h.ctx.nodeById(h.ctx.selected);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBe(600);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBe(400);expect(h.ctx.cam.z).toBe(1.5);
+      const n=h.ctx.nodeById(h.ctx.selected);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBeGreaterThanOrEqual(121);expect(n.x*h.ctx.cam.z+h.ctx.cam.x).toBeLessThanOrEqual(1079);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBeGreaterThanOrEqual(53.5);expect(n.y*h.ctx.cam.z+h.ctx.cam.y).toBeLessThanOrEqual(686.5);expect(h.ctx.cam.z).toBe(1.5);
     }
   });
   it('selects a remaining standalone box and handles deleting the last box',()=>{
-    const h=harness();h.ctx.S.nodes.push({id:'other',label:'Other',x:2000,y:1000});h.ctx.deleteBox('root');expect(h.ctx.selected).toBe('other');expect(h.ctx.cam.x).toBe(-1400);
+    const h=harness();h.ctx.S.nodes.push({id:'other',label:'Other',x:2000,y:1000});h.ctx.deleteBox('root');expect(h.ctx.selected).toBe('other');expect(h.ctx.cam.x).toBe(-886);
     h.ctx.deleteBox('other');expect(h.ctx.selected).toBeNull();
   });
-  it('centers the parent when deleting an empty edited name without restoring the deleted box',async()=>{
+  it('reveals the parent when deleting an empty edited name without restoring the deleted box',async()=>{
     const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:2000,y:1000});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.selected='child';
     h.key('F2');h.type('');h.edit('Backspace');await new Promise(setImmediate);
-    expect(h.ctx.selected).toBe('root');expect(h.ctx.cam.x).toBe(600);expect(h.ctx.cam.y).toBe(400);
+    expect(h.ctx.selected).toBe('root');expect(h.ctx.cam.x).toBe(86);expect(h.ctx.cam.y).toBe(41);
   });
   it('brings a draft parent into view even before its saved node arrives',async()=>{
     const h=harness();h.ctx.topicDraft({id:Promise.resolve('pending'),label:'Parent',x:3000,y:1000},true);h.edit('Backspace');await new Promise(setImmediate);
-    expect(h.ctx.selected).toBe('pending');expect(h.ctx.cam.x).toBe(-2400);expect(h.ctx.cam.y).toBe(-600);
+    expect(h.ctx.selected).toBe('pending');expect(h.ctx.cam.x).toBe(-2096);expect(h.ctx.cam.y).toBe(-301);
   });
   it('keeps the full zoomed editor above the toolbar and inside the canvas',()=>{
     const h=harness();h.ctx.cam.z=2.5;h.ctx.askName({x:460,y:300});
@@ -60,12 +82,35 @@ describe('keyboard brainstorming',()=>{
   });
   it('does not pan an editor already clear of the controls',()=>{
     const h=harness();h.ctx.askName({x:400,y:300});expect(h.ctx.cam).toEqual({x:0,y:0,z:1});
+    expect(h.input().focusOptions).toEqual({preventScroll:true});
+  });
+  it('keeps visible arrow selections and cancelling a draft in place',async()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0});h.ctx.S.edges.push({from:'root',to:'child'});h.ctx.cam={x:300,y:300,z:1};
+    h.key('ArrowRight');expect(h.ctx.selected).toBe('child');expect(h.ctx.cam).toEqual({x:300,y:300,z:1});
+    h.key('Tab');h.edit('Escape');await new Promise(setImmediate);expect(h.ctx.cam).toEqual({x:300,y:300,z:1});
+  });
+  it('Tab with no selection uses the visible previous topic without centering it',()=>{
+    const h=harness();h.ctx.selected=null;h.ctx.cam={x:250,y:300,z:1};h.key('Tab');
+    expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.cam).toEqual({x:250,y:300,z:1});
+  });
+  it('repeated Tab pans only at the right edge and keeps the vertical position and zoom',()=>{
+    const h=harness();h.ctx.cam={x:120,y:300,z:1};
+    for(let i=1;i<=12;i++){
+      const before={...h.ctx.cam};if(i===1)h.key('Tab');else h.edit('Tab');
+      const expected=Math.min(before.x,1184-70-h.ctx.naming.x);
+      expect(h.ctx.cam).toEqual({x:expected,y:300,z:1});
+    }
+  });
+  it('reveals an offscreen selection at the nearest edge without centering or zooming',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'left',label:'Left',x:-2000,y:300},{id:'right',label:'Right',x:2000,y:300});
+    h.ctx.selectTopic('left');expect(h.ctx.cam).toEqual({x:2086,y:0,z:1});
+    h.ctx.selectTopic('right');expect(h.ctx.cam).toEqual({x:-886,y:0,z:1});
   });
   it('opens a selected Sub-topic and draws its parent arrow before saving',()=>{
     const h=harness();h.key('Tab');expect(h.input().value).toBe('Sub-topic');expect(h.ctx.naming.untouched).toBe(true);expect(h.rubber.innerHTML).toContain('marker-end');expect(h.ctx.naming.link.id).toBe('root');
   });
-  it('discards untouched drafts without saving on blur or either delete key',async()=>{
-    for (const key of ['blur','Backspace','Delete','Escape']){
+  it('cancels untouched drafts only with Delete, Backspace or Escape',async()=>{
+    for (const key of ['Backspace','Delete','Escape']){
       const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');
       if(key==='blur') h.blur();else h.edit(key);
       await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);expect(h.rubber.innerHTML).toBe('');
@@ -81,23 +126,97 @@ describe('keyboard brainstorming',()=>{
     expect(calls.every(([,args])=>args.label==='Sub-topic')).toBe(true);
     h.edit('Backspace');await new Promise(setImmediate);expect(h.ctx.selected).toBe('topic-3');
   });
+  it('chains rapid children beside an existing lower branch without stale reflow positions',async()=>{
+    const h=harness(),calls=[],failures=[];
+    h.ctx.S.nodes=[{id:'root',label:'Root',x:0,y:100},{id:'branch',label:'Sub-topic',x:210,y:85},{id:'existing',label:'Sub-topic',x:420,y:85},{id:'lower',label:'Sub-topic',x:210,y:255},{id:'lower-child',label:'Sub-topic',x:420,y:255},{id:'lower-top',label:'Sub-topic',x:630,y:170},{id:'lower-mid',label:'Sub-topic',x:630,y:255},{id:'lower-bottom',label:'Sub-topic',x:630,y:340}];
+    h.ctx.S.edges=[{from:'root',to:'branch'},{from:'branch',to:'existing'},{from:'root',to:'lower'},{from:'lower',to:'lower-child'},...['lower-top','lower-mid','lower-bottom'].map(to=>({from:'lower-child',to}))];
+    h.ctx.selected='branch';const state=structuredClone(h.ctx.S);
+    const broadcast=()=>{h.ctx.S=structuredClone(state);vm.runInContext(livePreview,h.ctx);};
+    h.ctx.act=async(type,a)=>{
+      calls.push(a);for(const m of a.reflow||[]){const n=state.nodes.find(n=>n.id===m.id);if(n?.y!==m.fromY)failures.push({id:m.id,expected:m.fromY,actual:n?.y});}
+      if(failures.length)return {ok:false};
+      for(const m of a.reflow||[])state.nodes.find(n=>n.id===m.id).y=m.y;
+      const id=`created-${calls.length}`;state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});broadcast();return {ok:true,json:async()=>({id})};
+    };
+    h.key('Tab');h.edit('Tab');h.edit('Tab');h.blur();await new Promise(setImmediate);
+    expect(failures).toEqual([]);expect(calls.map(a=>a.from)).toEqual(['branch','created-1','created-2']);
+    expect(state.nodes.filter(n=>n.id.startsWith('created')).map(n=>n.y)).toEqual([170,170,170]);
+  });
+  it('rebases an open child draft when a live layout update arrives before the next Tab',async()=>{
+    const h=harness(), calls=[], failures=[];
+    h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    const state=structuredClone(h.ctx.S);
+    h.ctx.act=async(type,a)=>{calls.push(a);for(const m of a.reflow||[]){const n=state.nodes.find(n=>n.id===m.id);if(n?.y!==m.fromY)failures.push(m.id);}
+      if(failures.length)return {ok:false};
+      for(const m of a.reflow||[])state.nodes.find(n=>n.id===m.id).y=m.y;
+      const id=`created-${calls.length}`;state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});h.ctx.S=structuredClone(state);return {ok:true,json:async()=>({id})};};
+    h.key('Tab');
+    state.nodes.find(n=>n.id==='two').y=105;state.nodes.find(n=>n.id==='b').y=105;
+    h.ctx.S=structuredClone(state);
+    vm.runInContext(livePreview,h.ctx);
+    h.edit('Tab');h.blur();await new Promise(setImmediate);
+    expect(failures).toEqual([]);expect(calls.map(a=>a.from)).toEqual(['one','created-1']);
+  });
+  it('keeps typed text through live updates and cancellation restores the latest saved positions',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'});h.ctx.selected='one';
+    const state=structuredClone(h.ctx.S);h.key('Tab');h.type('Keep these words');
+    state.nodes.find(n=>n.id==='two').y=105;h.ctx.S=structuredClone(state);vm.runInContext(livePreview,h.ctx);
+    expect(h.input().value).toBe('Keep these words');expect(h.ctx.nodeById('two').y).toBeGreaterThan(105);
+    h.edit('Escape');expect(h.ctx.S.nodes).toEqual(state.nodes);
+  });
   it('Enter accepts an untouched draft and opens its sibling',async()=>{
     const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'child'})};};
     h.key('Tab');h.edit('Enter');expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.untouched).toBe(true);
     await h.ctx.naming.returnTo;expect(calls[0][1].from).toBe('root');
   });
-  it('arrows leave an untouched draft and select a nearby box without saving',async()=>{
-    const h=harness(), calls=[];h.ctx.act=(...args)=>calls.push(args);h.key('Tab');h.edit('ArrowLeft');
-    await Promise.resolve();expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls).toEqual([]);
-    h.ctx.S.nodes.push({id:'below',label:'Below',x:210,y:170});h.key('Tab');h.edit('ArrowDown');
-    await Promise.resolve();expect(h.ctx.selected).toBe('below');expect(calls).toEqual([]);
+  it('arrows keep an untouched topic and return to its actual parent',async()=>{
+    const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'saved'})};};
+    h.ctx.S.nodes.push({id:'unrelated',label:'Other',x:0,y:85});h.key('Tab');h.edit('ArrowLeft');
+    await new Promise(setImmediate);expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls[0][1].label).toBe('Sub-topic');
+  });
+  it('keeps the final topic after rapid Tab presses and clicking elsewhere',async()=>{
+    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,args)=>{const id=`topic-${calls.length+1}`;calls.push([type,args]);await gate;return {ok:true,json:async()=>({id})};};
+    h.key('Tab');h.edit('Tab');h.edit('Tab');h.blur();h.ctx.selected='clicked';release();await new Promise(setImmediate);
+    expect(calls.map(([,a])=>a.from)).toEqual(['root','topic-1','topic-2']);expect(h.ctx.selected).toBe('clicked');
+  });
+  it('back to a parent then Tab adds another child without overlapping an unfinished save',async()=>{
+    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);await gate;return {ok:true,json:async()=>({id:'first-child'})};};
+    h.key('Tab');const first={...h.ctx.naming};h.edit('ArrowLeft');await Promise.resolve();h.key('Tab');
+    expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.x).toBe(first.x);expect(h.ctx.naming.y).toBeGreaterThan(first.y);
+    release();await new Promise(setImmediate);expect(h.ctx.naming).not.toBeNull();expect(calls[0][1].from).toBe('root');
+  });
+  it('previews lower branches moving and restores them when the new topic is cancelled',()=>{
+    const h=harness();h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    h.key('Tab');expect(h.ctx.naming.y).toBe(85);expect(h.ctx.nodeById('two').y).toBe(170);expect(h.ctx.nodeById('b').y).toBe(170);
+    h.edit('Escape');expect(h.ctx.nodeById('one').y).toBe(0);expect(h.ctx.nodeById('two').y).toBe(85);expect(h.ctx.nodeById('b').y).toBe(85);
+  });
+  it('saves the insertion and all shifted boxes as one add action',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'new'})};};h.key('Tab');h.blur();await new Promise(setImmediate);
+    expect(calls).toHaveLength(1);expect(calls[0][0]).toBe('add');expect(calls[0][1].reflow).toContainEqual({id:'two',fromY:85,y:170});expect(calls[0][1].reflow).toContainEqual({id:'b',fromY:85,y:170});
+  });
+  it('keeps rapid sibling insertions ordered while previous layouts are still saving',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
+    h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
+    const state=structuredClone(h.ctx.S);let release;const gate=new Promise(resolve=>{release=resolve;});
+    h.ctx.act=async(type,a)=>{await gate;calls.push(a);for(const m of a.reflow||[]){const n=state.nodes.find(n=>n.id===m.id);expect(n.y).toBe(m.fromY);n.y=m.y;}
+      const id=`new-${calls.length}`;state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});h.ctx.S=structuredClone(state);return {ok:true,json:async()=>({id})};};
+    h.key('Tab');h.edit('Enter');h.edit('Enter');h.blur();release();await new Promise(setImmediate);
+    expect(calls.map(a=>a.y)).toEqual([85,170,255]);expect(calls.map(a=>a.from)).toEqual(['one','one','one']);
+    expect(state.nodes.find(n=>n.id==='two').y).toBe(340);expect(state.nodes.find(n=>n.id==='b').y).toBe(340);
   });
   it('arrows preserve the text editor once typing starts',()=>{
     const h=harness();h.key('Tab');h.type('Typed');const draft=h.ctx.naming;h.edit('ArrowLeft');expect(h.ctx.naming).toBe(draft);expect(h.input().value).toBe('Typed');
   });
   it('saves only entered names and discards names erased before saving',async()=>{
     const h=harness(), calls=[];h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:'typed'})};};
-    h.key('Tab');h.type('Sub-topic');h.blur();await Promise.resolve();await Promise.resolve();expect(calls[0][1].label).toBe('Sub-topic');
+    h.key('Tab');h.type('Sub-topic');h.blur();await new Promise(setImmediate);expect(calls[0][1].label).toBe('Sub-topic');
     const empty=harness();empty.ctx.act=(...args)=>calls.push(args);empty.key('r');empty.type('');empty.blur();expect(calls).toHaveLength(1);
   });
   it('uses the saved branch stem for the new topic preview',()=>{

@@ -206,7 +206,7 @@ function placeInTree(nodes, edges, start) {
   const sat = nodes.filter((n) => n !== root && placed(n));
   if (sat.filter((n) => n.x === twin.get(n.id).x).length * 2 < sat.length) return false;
   if (!placed(root)) { root.x = 90; root.y = 150; }
-  const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (BW(o) + BW(n)) / 2 + 20 && Math.abs(o.y - y) < SLOT / 2);
+  const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (BW(o) + BW(n)) / 2 + 20 && Math.abs(o.y - y) < BH + ROW_GAP);
   const fresh = nodes.filter((n) => !placed(n)).sort((a, b) => ring.get(a.id) - ring.get(b.id) || twin.get(a.id).y - twin.get(b.id).y);
   for (const n of fresh) {
     const t = twin.get(n.id), sibs = kids.get(parent.get(n.id)).filter((s) => s !== n && placed(s) && Math.sign(twin.get(s.id).x - root.x) === Math.sign(t.x - root.x));
@@ -348,21 +348,21 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs. Only the boxes in
 // `shown` (all, without it) take room; what is folded away under a showing box lines up beside it, ready for
 // when it unfolds. False, and nothing moves, when no single box reaches them all.
-// Room: a box per 150px down (100px clear between two boxes, 83px under a two-line name, so a line's words
-// sit between them with air); across, 200px between a column's widest box and the next, or more when the
+// Room: 35px clear between branches; a taller box reserves more room for its whole branch. The page supplies
+// its measured box sizes when tidying. Across, 70px between a column's widest box and the next, or more when the
 // words on the lines into that column need it (the page writes them on the line's last stretch, half the gap wide).
 // `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
 // a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press. `start` is the
 // box the map starts from, when one was chosen.
-const SLOT = 150, GAP = 200, CHAR = 6.8;
-export function tidyTree(nodes, edges, shown = null, chosen = placed, start = null) {
+const ROW_GAP = 35, SLOT = BH + ROW_GAP, GAP = 70, CHAR = 6.8;
+export function tidyTree(nodes, edges, shown = null, chosen = placed, start = null, sizes = new Map()) {
   const tree = treeOf(nodes, edges, start);
   if (!tree || (shown && !shown.has(tree.root.id))) return false;
   const { root, kids, ring, out } = tree;
   if (!placed(root)) return false;
   // how far out each ring's column sits from the first box
   const wide = [], words = [];
-  for (const n of nodes) { const r = ring.get(n.id); wide[r] = Math.max(wide[r] || 0, BW(n)); }
+  for (const n of nodes) { const r = ring.get(n.id); wide[r] = Math.max(wide[r] || 0, sizes.get(n.id)?.w || BW(n)); }
   for (const e of edges) {
     const r = ring.get(e.to);
     if (e.label && r && ring.get(e.from) === r - 1) words[r] = Math.max(words[r] || 0, String(e.label).length * CHAR);
@@ -372,14 +372,23 @@ export function tidyTree(nodes, edges, shown = null, chosen = placed, start = nu
   const vis = (n) => !shown || shown.has(n.id);
   const leaves = (n, every) => { const k = (kids.get(n.id) || []).filter((c) => every || vis(c)); return k.length ? k.reduce((s, c) => s + leaves(c, every), 0) : 1; };
   const weight = (list, every) => list.reduce((s, c) => s + leaves(c, every), 0);
+  const spans = [new Map(), new Map()];
+  const span = (n, every) => {
+    const cache = spans[every ? 1 : 0];
+    if (!cache.has(n.id)) {
+      const children = (kids.get(n.id) || []).filter((c) => every || vis(c));
+      cache.set(n.id, Math.max((sizes.get(n.id)?.h || BH) + ROW_GAP, children.reduce((s, c) => s + span(c, every), 0)));
+    }
+    return cache.get(n.id);
+  };
   const drawnIn = (from) => { const ks = kids.get(from) || []; return (n) => ks.indexOf(n); };
   // a box's children in the next column out, stacked top to bottom in `seq` order, centred on it
   const stack = (n, seq, side, every) => {
-    let top = n.y - (weight(seq, every) - 1) * SLOT / 2;
+    let top = n.y - seq.reduce((s, c) => s + span(c, every), 0) / 2;
     for (const c of seq) {
-      const l = leaves(c, every), ks = kids.get(c.id) || [], open = ks.filter(vis), all = every || !open.length, list = all ? ks : open;
+      const height = span(c, every), ks = kids.get(c.id) || [], open = ks.filter(vis), all = every || !open.length, list = all ? ks : open;
       const next = arrange(list, groupsOf(list, c.id, edges, out), drawnIn(c.id), false, chosen);
-      c.x = Math.round(root.x + side * reach[ring.get(c.id)]); c.y = Math.round(top + (l - 1) * SLOT / 2); top += l * SLOT;
+      c.x = Math.round(root.x + side * reach[ring.get(c.id)]); c.y = Math.round(top + height / 2); top += height;
       stack(c, next, side, all);
     }
   };

@@ -29,6 +29,8 @@ import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
 import { MIN, users, recovery } from './users.js';
 import { handleRecovery } from './recovery.js';
+import { canAccess, changeAccess } from './access.js';
+import { boxDates, branchIds, editHistory, editSnapshot } from './editing.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -145,6 +147,7 @@ function openMap({ project = '', name = '', home }) {
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
+  const updateBoxDates = boxDates(state, !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
   if (project || name) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
@@ -157,7 +160,7 @@ function openMap({ project = '', name = '', home }) {
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
-  const save = () => { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state); fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) send(r, 'state', state); };
 
@@ -424,6 +427,9 @@ function openMap({ project = '', name = '', home }) {
     return was?.kind === now.kind ? `its ${now.kind}: ${n(added)} added, ${n(left.length)} taken out` : `a ${now.kind} of ${n(now.items.length)}`;
   }
   function draw(p) {
+    // Creation and edit times come from this server, never from a drawing request.
+    const stripDates = (nodes) => { for (const n of nodes || []) if (n) { delete n.createdAt; delete n.updatedAt; stripDates(n.inside?.nodes); } };
+    stripDates(p.nodes);
     for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
     const merge = (list, key, items = []) => {
       for (const it of items) {
@@ -585,9 +591,11 @@ function openMap({ project = '', name = '', home }) {
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
-    linked: state.linked || [], said: state.said || {},
+    linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [],
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
+  const edits = editHistory();
+  const UNDOABLE = new Set(['move', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'rename']);
   const ACTS = {
     move(a) {
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
@@ -608,6 +616,11 @@ function openMap({ project = '', name = '', home }) {
       let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
       // the box keeps the size it was drawn at (the page grows it only when its words need more room)
       const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
+      // Keyboard insertion moves later branches in the same action, so undo restores their positions too.
+      const reflow = a.reflow ?? [];
+      if (!Array.isArray(reflow) || reflow.length > list.length || new Set(reflow.map((m) => m?.id)).size !== reflow.length) return false;
+      if (reflow.some((m) => { const n = list.find((n) => n.id === m?.id); return !n || !Number.isFinite(m.fromY) || !Number.isFinite(m.y) || n.y !== m.fromY || (sees !== 'all' && n.area !== sees); })) return false;
+      for (const m of reflow) list.find((n) => n.id === m.id).y = Math.round(m.y);
       list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
       const from = a.from ? nodeOf(a.from) : null;
@@ -663,11 +676,14 @@ function openMap({ project = '', name = '', home }) {
       return true;
     },
     remove(a) {
-      const n = nodeOf(a.id); if (!n) return false;
-      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
-      const drop = (s) => { s.nodes = s.nodes.filter((x) => x !== n); if (s.edges) s.edges = s.edges.filter((e) => e.from !== n.id && e.to !== n.id); };
-      drop(state); for (const p of state.nodes) if (p.inside) drop(p.inside);
-      tell(`${a.by} took ${n.label} off the map`);
+      const roots = Array.isArray(a.ids) ? a.ids : [a.id];
+      if (!roots.length || roots.some((id) => !nodeOf(id))) return false;
+      const ids = a.cascade ? branchIds(state, roots) : new Set(roots), sees = seesOf(a.by);
+      if ([...ids].some((id) => !nodeOf(id) || (sees !== 'all' && nodeOf(id).area !== sees))) return false;
+      const label = nodeOf(roots[0]).label;
+      const drop = (s) => { s.nodes = s.nodes.filter((n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((e) => !ids.has(e.from) && !ids.has(e.to)); };
+      drop(state); for (const n of state.nodes) if (n.inside) drop(n.inside);
+      tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
       return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
@@ -677,8 +693,9 @@ function openMap({ project = '', name = '', home }) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
+      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((s) => [s.id, {w:s.w, h:s.h}]));
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start)) tidy(list, edges, only);
+      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start, sizes)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },
@@ -739,7 +756,9 @@ function openMap({ project = '', name = '', home }) {
     restore(a) {
       const v = history.find((h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
       if (!file || !fs.existsSync(file)) return false;
-      Object.assign(state, JSON.parse(fs.readFileSync(file, 'utf8')));
+      const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
+      boxDates(restored);
+      Object.assign(state, restored);
       tell(`${a.by} went back to the version from ${clock(v.at)}`);
       return true;
     },
@@ -915,7 +934,23 @@ function openMap({ project = '', name = '', home }) {
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
+  const allowed = (who, req) => canAccess(state, who, req);
   async function handle(req, res, p, who = null) {
+    if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
+    if (p === '/api/access' && req.method === 'POST') {
+      const origin = req.headers.origin;
+      if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
+      let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+      if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
+      if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
+      save();
+      if (!a.restore) {
+        delete cursors[a.person];
+        for (const r of clients) if (viewers.get(r) === a.person) { send(r, 'access-removed', {}); clients.delete(r); viewers.delete(r); r.end(); }
+      }
+      push(); here();
+      res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
+    }
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state)); return true; }
     // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
     // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
@@ -991,9 +1026,14 @@ function openMap({ project = '', name = '', home }) {
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
-      const ok = !!ACTS[a.type]?.(a);
-      if (ok) { remember(a.type, a.by, big); save(); push(); }
-      res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' }).end(ok ? JSON.stringify(a.created ? { id: a.created } : {}) : '{"error":"no"}');
+      const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
+      const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
+      if (result.ok) {
+        updateBoxDates(state);
+        if (before) edits.record(a.by, before, editSnapshot(state));
+        remember(a.type, a.by, big); save(); push();
+      }
+      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(result.ok ? JSON.stringify(a.created ? { id: a.created } : {}) : JSON.stringify({ error: result.error || 'That change could not be saved.' }));
       return true;
     }
     return false;
@@ -1023,7 +1063,7 @@ function openMap({ project = '', name = '', home }) {
     for (const r of clients) r.end();
   }
 
-  return { handle, summary, asks, build, close };
+  return { handle, summary, asks, build, close, allowed };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
@@ -1149,6 +1189,7 @@ const server = http.createServer(async (req, res) => {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const name = String(a.name || ''), dir = path.join(DIR, 'maps', name);
     if (!/^[a-z0-9-]+$/.test(name) || projects.has(name) || !fs.existsSync(dir)) return json(400, { error: 'That map cannot be deleted here.' });
+    if (!mapCalled(name).allowed(who, req)) return json(403, { error: 'You no longer have access to this project.' });
     named.get(name)?.close(); named.delete(name);
     const bin = path.join(DIR, 'maps', '.deleted');
     fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
@@ -1170,14 +1211,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.pathname === '/api/maps') {
-    const list = everyMap().map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
+    const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // the Inbox: what waits on one person on every map, the maps with nothing for them left out
   if (url.pathname === '/api/inbox') {
     const asker = String(who || url.searchParams.get('as') || 'Duy').slice(0, 40);
     const list = (PROJECT ? everyMap() : [['', main], ...everyMap()])
-      .map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
+      .filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
@@ -1198,6 +1239,8 @@ const server = http.createServer(async (req, res) => {
   const p = isMap ? rest : url.pathname;
   if (await map.handle(req, res, p, who)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who);
+  // Private map files and server sources are never browser assets.
+  if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
