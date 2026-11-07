@@ -26,7 +26,7 @@ When dragging multiple selected boxes, one floating box follows the pointer and 
 
 - Press ⌘⇧L on Mac or Ctrl+Shift+L on Windows/Linux to tidy the visible map. The orange Tidy up button shows the shortcut, and text fields keep their normal typing behavior.
 
-These changes are pending release and have been verified in the local preview on port 4323. The review link will be added when the change is submitted.
+These changes are pending release and have been verified in the local preview on port 4323. [Change #138](https://github.com/HiAnur/anur-living-map/pull/138) is awaiting release.
 
 ### Shipped · Editable box descriptions
 
