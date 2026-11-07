@@ -8,7 +8,7 @@ What changed in Living Map, newest first. Dates use America/Los_Angeles. “Ship
 
 Select a box to see its short description directly beneath its name. Double-click the description to edit; Enter or clicking away saves, and Escape cancels. Previously it was buried under “The plan.” [Change #133](https://github.com/HiAnur/anur-living-map/pull/133)
 
-![Box selected on the map, with its name and editable short description at the top of the right-hand panel.](docs/shipping/2026-11-07/box-description.png)
+![Box name with its short description open for editing directly underneath.](docs/shipping/2026-11-07/box-description.png)
 
 ### Shipped · Layout fixes
 
