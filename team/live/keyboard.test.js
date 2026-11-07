@@ -16,7 +16,7 @@ function harness(){
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '' };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
@@ -239,6 +239,31 @@ describe('keyboard brainstorming',()=>{
     const h=harness(),calls=[];h.ctx.act=async(type,a)=>{calls.push([type,a]);return {ok:true,json:async()=>({id:a.id})};};
     h.key('F2');h.type('Renamed root');h.edit('Enter');await vm.runInContext('topicSaveQueue',h.ctx);
     expect(calls).toEqual([['renamebox',{id:'root',label:'Renamed root'}]]);expect(h.ctx.naming).toBeNull();
+  });
+  it('double-clicks edit only the text area clicked, including after switching areas',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes[0].sub='Original description';
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:args.id})};};
+    h.ctx.tapTopic(h.ctx.S.nodes[0],'label');h.ctx.tapTopic(h.ctx.S.nodes[0],'sub');expect(h.ctx.naming).toBeNull();
+    h.ctx.tapTopic(h.ctx.S.nodes[0],'sub');expect(h.input().value).toBe('Original description');expect(h.input().selected).toBe(true);
+    h.type('Changed description');h.edit('Enter');await vm.runInContext('topicSaveQueue',h.ctx);
+    expect(calls).toEqual([['describebox',{id:'root',sub:'Changed description'}]]);expect(h.ctx.S.nodes[0].label).toBe('Root');
+    h.ctx.tapTopic(h.ctx.S.nodes[0],'label');h.ctx.tapTopic(h.ctx.S.nodes[0],'label');expect(h.input().value).toBe('Root');
+    h.type('Changed name');h.edit('Enter');await vm.runInContext('topicSaveQueue',h.ctx);
+    expect(calls.at(-1)).toEqual(['renamebox',{id:'root',label:'Changed name'}]);
+  });
+  it('clearing a description keeps the box, and Tab saves without creating a child',async()=>{
+    const h=harness(),calls=[];h.ctx.S.nodes[0].sub='Description';
+    h.ctx.act=async(type,args)=>{calls.push([type,args]);return {ok:true,json:async()=>({id:args.id})};};
+    h.ctx.askName({x:0,y:0,edit:'root',field:'sub',text:'Description'});h.type('');h.edit('Backspace');
+    expect(h.ctx.S.nodes).toHaveLength(1);expect(h.ctx.naming.field).toBe('sub');
+    h.edit('Tab');await vm.runInContext('topicSaveQueue',h.ctx);
+    expect(calls).toEqual([['describebox',{id:'root',sub:''}]]);expect(h.ctx.naming).toBeNull();
+  });
+  it('cancels description edits and keeps read-only double-clicks from opening an editor',()=>{
+    const h=harness();h.ctx.S.nodes[0].sub='Keep this';
+    h.ctx.askName({x:0,y:0,edit:'root',field:'sub',text:'Keep this'});h.type('Discard this');h.edit('Escape');
+    expect(h.ctx.S.nodes[0].sub).toBe('Keep this');expect(h.ctx.naming).toBeNull();
+    for(const mode of ['READ_ONLY','FILE','PREVIEW']){h.ctx[mode]=true;h.ctx.tapTopic(h.ctx.S.nodes[0],'sub');h.ctx.tapTopic(h.ctx.S.nodes[0],'sub');expect(h.ctx.naming).toBeNull();h.ctx[mode]=false;}
   });
   it('F2 selects the existing name and Escape preserves it',async()=>{
     const h=harness();h.key('F2');expect(h.input().value).toBe('Root');h.input().value='Changed';h.edit('Escape');await Promise.resolve();expect(h.ctx.S.nodes[0].label).toBe('Root');expect(h.ctx.selected).toBe('root');

@@ -720,6 +720,18 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     },
     describebox(a) {
+      if (a.proposed){
+        if (typeof a.sub !== 'string') return false;
+        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((n) => n.id === a.id));
+        if (!p || nodeOf(a.id)) return false;
+        const sub = a.sub.trim().slice(0, 240);
+        const plan = {...p.plan, nodes:p.plan.nodes.map((n) => n.id === a.id ? {...n,sub} : {...n})};
+        const checked = p.autoPlanAbout ? checkAutoPlan(plan,a.by,p.autoPlanAbout) : check(plan,a.by);
+        if (!checked.plan?.nodes.some((n) => n.id === a.id)) return false;
+        p.plan.nodes.find((n) => n.id === a.id).sub = sub;
+        p.ops = checked.ops;
+        return true;
+      }
       const n = nodeOf(a.id), sees = seesOf(a.by);
       if (!n || typeof a.sub !== 'string' || (sees !== 'all' && n.area !== sees)) return false;
       n.sub = a.sub.trim().slice(0, 240);

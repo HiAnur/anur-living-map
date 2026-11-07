@@ -173,7 +173,7 @@ button,input,textarea{font:inherit;color:inherit}
 #newbox.on{display:block}
 #newbox.inline input,#newbox.inline textarea{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;text-align:center;line-height:1.25}
 #newbox.line input{font:12px var(--plex);color:var(--text-2);background:var(--canvas)}
-.node.editing .nt{visibility:hidden}
+.node.editing-name .nt,.node.editing-description .s{visibility:hidden}
 .reply-progress{flex:none;padding:10px 16px}
 #newbox input,#newbox textarea{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
 #newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none;text-align:center}
@@ -1670,8 +1670,11 @@ function simplePts(a, b, dup, others = [], port = { from: 0, to: 0 }){
 function fanPts(a, b, nodes){
   const dir = Math.sign(b.x - a.x); if (!dir) return null;
   const col = Math.max(...nodes.filter((n) => Math.abs(n.x - a.x) < 1).map(W));
-  const sx = a.x + dir * W(a) / 2, stem = a.x + dir * (col / 2 + 14), tx = b.x - dir * (W(b) / 2 + 2);
-  if ((tx - stem) * dir < 14) return null;
+  const sx = a.x + dir * W(a) / 2, tx = b.x - dir * (W(b) / 2 + 2);
+  // Keep one stem for the column even when a wider child leaves less room for the turn.
+  const target = Math.min(...nodes.filter((n) => Math.abs(n.x - b.x) < 1).map((n) => dir * n.x - W(n) / 2 - 2));
+  const stem = dir * Math.min(dir * a.x + col / 2 + 14, target - 14);
+  if ((stem - sx) * dir < 14 || (tx - stem) * dir < 14) return null;
   const pts = Math.abs(b.y - a.y) < 2 ? [[sx, a.y], [tx, b.y]] : [[sx, a.y], [stem, a.y], [stem, b.y], [tx, b.y]];
   const through = pts.slice(1).some(([x2, y2], i) => { const [x1, y1] = pts[i];
     return nodes.some((n) => n !== a && n !== b && Math.max(x1, x2) > n.x - W(n) / 2 - 4 && Math.min(x1, x2) < n.x + W(n) / 2 + 4
@@ -1790,7 +1793,7 @@ function render(){
   if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
-  if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,label:naming.draftText || ' '} : n);
+  if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
   // the lines' words go in after every line, so no other line runs across them
@@ -1862,7 +1865,7 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? 'editing' : '', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${n.label}</span></div>${n.sub && !locked(n) ? `<div class="s">${n.sub}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
@@ -2971,21 +2974,21 @@ function drawTopicArrow(at){
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
   }
 }
-// The editor covers only the existing words; the original box and its description stay visible.
+// Cover only the text being edited, keeping the other field and box outline visible.
 function positionInlineName(){
   if (!naming?.edit) return;
-  const node = [...nodesEl.querySelectorAll('.node')].find((n) => n.dataset.id === naming.edit), title = node?.querySelector('.nt');
+  const node = [...nodesEl.querySelectorAll('.node')].find((n) => n.dataset.id === naming.edit), title = node?.querySelector(naming.field === 'sub' ? '.s' : '.nt');
   if (!title) return;
   const rect = title.getBoundingClientRect(), [x,y] = toStage(rect.x + rect.width / 2, rect.y + rect.height / 2);
   const el = $('newbox'), input = el.querySelector('textarea');
   el.style.left = `${x}px`; el.style.top = `${y}px`;
-  el.style.width = `${Math.max(20, (node.clientWidth - 24 - (node.querySelector('.n svg') ? 20 : 0)))}px`;
+  el.style.width = `${Math.max(20, (node.clientWidth - 24 - (naming.field !== 'sub' && node.querySelector('.n svg') ? 20 : 0)))}px`;
   el.style.height = `${Math.max(17, rect.height / cam.z)}px`;
-  if (input) input.style.color = getComputedStyle(title).color;
+  if (input){ const style = getComputedStyle(title); input.style.color = style.color; input.style.font = style.font; input.style.opacity = style.opacity; }
 }
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
-  const line = !!(at.from || at.edge);
+  const line = !!(at.from || at.edge), description = at.field === 'sub';
   naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
   drawTopicArrow(at);
 
@@ -2994,7 +2997,7 @@ function askName(at){
   keepEditorVisible(at, width, height);
   el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${width}px`; el.style.height = `${height}px`; el.classList.add('on'); el.classList.toggle('inline', line || !!at.edit); el.classList.toggle('line', line);
   const tag = line ? 'input' : 'textarea';
-  el.innerHTML = `<${tag} maxlength="${line ? 40 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : 'Name the box'}" aria-label="${line ? 'Words on the line' : 'Name of the box'}" autocomplete="off"${line ? '>' : ' rows="1"></textarea>'}`;
+  el.innerHTML = `<${tag} maxlength="${line ? 40 : description ? 240 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : description ? 'Describe the box' : 'Name the box'}" aria-label="${line ? 'Words on the line' : description ? 'Description of the box' : 'Name of the box'}" autocomplete="off"${line ? '>' : ' rows="1"></textarea>'}`;
   const i = el.querySelector('input, textarea'); i.value = at.text ?? (line ? '' : 'Topic');
   const resizeName = () => {
     if (line){ ruler.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; el.style.width = `${Math.max(24, ruler.measureText(i.value || i.placeholder).width + 8)}px`; el.style.height = '18px'; return; }
@@ -3024,7 +3027,7 @@ function askName(at){
       const id = next?.id ?? (e.key === 'ArrowLeft' ? naming.link?.id : null);
       if (id){ const session = nameSession; endName(true, false); Promise.resolve(id).then((target) => { if (target && !naming && session === nameSession) selectTopic(target); }); }
     }
-    else if (!line && !at.proposed && (!at.edit || e.key === 'Tab') && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
+    else if (!line && !description && !at.proposed && (!at.edit || e.key === 'Tab') && (e.key === 'Tab' || e.key === 'Enter') && !e.shiftKey){
       e.preventDefault(); if (e.repeat) return;
       const current = naming, label = i.value.trim();
       if (!label) return;
@@ -3033,8 +3036,9 @@ function askName(at){
       const id = endName(true);
       const parent = current.link ?? (current.edit ? topicParent(nodeById(current.edit)) : null);
       topicDraft({ ...current, id, label, parent }, e.key === 'Tab' || !parent);
-    } else if (e.key === 'Enter'){ e.preventDefault(); endName(true); }
-    else if (!line && (naming.untouched || !i.value) && ['Backspace', 'Delete'].includes(e.key)){
+    } else if (e.key === 'Enter' && !(description && e.shiftKey)){ e.preventDefault(); endName(true); }
+    else if (description && e.key === 'Tab'){ e.preventDefault(); endName(true); }
+    else if (!line && !description && (naming.untouched || !i.value) && ['Backspace', 'Delete'].includes(e.key)){
       e.preventDefault(); const current = naming; endName(false, !current.edit);
       if (current.edit){ selected = current.edit; deleteBox(current.edit); }
     }
@@ -3045,7 +3049,7 @@ function endName(keep, restore = true){
   const at = naming; if (!at) return; naming = null; $('rubber').innerHTML = '';
   const el = $('newbox'), text = el.querySelector('input, textarea')?.value.trim() || ''; el.classList.remove('on'); el.innerHTML = '';
   if (at.edge){ const [from, to] = at.edge.split('>'); if (keep && text !== at.text) act('relabel', { from, to, label: text, view: at.view }); render(); return; }
-  if (!keep || (!at.from && !text)){
+  if (!keep || (!at.from && !text && at.field !== 'sub')){
     moveTopicPreview(at.reflow, true); render();
     if (restore) Promise.resolve(at.edit || at.returnTo || at.link?.id).then((id) => { if (!naming && view === at.view && at.session === nameSession) selectTopic(id || null, at.returnTopic || at.link); }); return;
   }
@@ -3055,7 +3059,7 @@ function endName(keep, restore = true){
     const from = at.link ? await at.link.id : null;
     if (at.link && !from) throw new Error('parent');
     const reflow = await Promise.all((at.reflow || []).map(async (m) => ({...m, id:await m.id})));
-    const r = await act(at.edit ? 'renamebox' : 'add', at.edit ? { id: at.edit, label: text, ...(at.proposed ? {proposed:true} : {}) } : { label: text, x: at.x, y: at.y, ...(reflow.length ? {reflow} : {}), ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
+    const r = await act(at.edit ? (at.field === 'sub' ? 'describebox' : 'renamebox') : 'add', at.edit ? { id: at.edit, [at.field || 'label']: text, ...(at.proposed ? {proposed:true} : {}) } : { label: text, x: at.x, y: at.y, ...(reflow.length ? {reflow} : {}), ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
     pending.id = id; topicIds.set(saved, id);
@@ -3289,6 +3293,7 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   if (ed){ const id = ed.dataset.edge || ed.dataset.edgeLabel; pickedLine = pickedLine === id ? null : id; selected = null; delAsk = null; render(); return; }
   const nd = e.target.closest('.node');
+  const field = e.target.closest('.s') ? 'sub' : e.target.closest('.nt') ? 'label' : null;
   moved = false;
   if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
   if (tool === 'box' || tool === 'arrow'){
@@ -3314,14 +3319,14 @@ canvas.addEventListener('pointerdown', (e) => {
   // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);
-    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy, proposed: true }; canvas.setPointerCapture(e.pointerId); }
+    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, proposed: true }; canvas.setPointerCapture(e.pointerId); }
     return;
   }
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
     if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
-    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, dx: n.x - sx, dy: n.y - sy };
+    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy };
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
       const all = view === 'system' ? S : nodeById(view)?.inside;
       if (all) drag.source = structuredClone({nodes:all.nodes,edges:all.edges || []});
@@ -3361,6 +3366,18 @@ const pick = (n) => {
   const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; render(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
+function tapTopic(n, field = null, proposed = false){
+  const now = Date.now(), twice = lastTap.id === n.id && lastTap.field === field && now - lastTap.at < DBL;
+  lastTap = { id:n.id, field, at:now };
+  if (twice && !locked(n) && !field && (n.inside || n.diagram || (!proposed && diagramChange(n.id)))){
+    clearTimeout(tapTimer); if (n.inside) enter(n.id); else openDiagram(n.id); return;
+  }
+  if (twice && !locked(n) && !PREVIEW && !FILE && !READ_ONLY){
+    clearTimeout(tapTimer); const key = field || 'label';
+    askName({ x:n.x, y:n.y, edit:n.id, field:key, text:n[key] || '', ...(proposed ? {proposed:true} : {}) }); return;
+  }
+  pick(n);
+}
 canvas.addEventListener('pointerup', (e) => {
   if (drawing){
     const d = drawing; drawing = null; drawRubber();
@@ -3417,22 +3434,7 @@ canvas.addEventListener('pointerup', (e) => {
       act('move',{moves}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('Those boxes changed. Please try the move again.'); } }); return;
     }
     if (moved){ if (drag.at) Object.assign(drag.n,drag.at); $('rubber').innerHTML = ''; act('move', { id: drag.n.id, x: drag.n.x, y: drag.n.y }); render(); }
-    // a proposed box you click, not drag, opens its card
-    else if (drag.proposed){
-      // a double click on a proposed box with a diagram shows the diagram before anyone presses Apply
-      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < DBL;
-      lastTap = { id: n.id, at: Date.now() };
-      if (twice && n.diagram){ clearTimeout(tapTimer); drag = null; openDiagram(n.id); return; }
-      if (twice && !locked(n) && !PREVIEW && !FILE && !READ_ONLY){ clearTimeout(tapTimer); drag = null; askName({ x:n.x, y:n.y, edit:n.id, text:n.label, proposed:true }); return; }
-      pick(n);
-    }
-    else {
-      const n = drag.n, twice = lastTap.id === n.id && Date.now() - lastTap.at < DBL;
-      lastTap = { id: n.id, at: Date.now() };
-      if (twice && (n.inside || n.diagram || diagramChange(n.id)) && !locked(n)){ clearTimeout(tapTimer); drag = null; if (n.inside) enter(n.id); else openDiagram(n.id); return; }
-      if (twice && !locked(n) && !PREVIEW && !FILE){ clearTimeout(tapTimer); drag = null; askName({ x: n.x, y: n.y, edit: n.id, text: n.label }); return; }
-      pick(n);
-    }
+    else tapTopic(drag.n, drag.field, !!drag.proposed);
     drag = null;
   }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; pickedLine = null; render(); } }
