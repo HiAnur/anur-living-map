@@ -2834,7 +2834,14 @@ canvas.addEventListener('pointerup', (e) => {
 canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
-  if (e.ctrlKey || e.metaKey){ const z = Math.min(2.5, Math.max(.3, cam.z * (e.deltaY < 0 ? 1.08 : .92))); const [sx, sy] = toStage(e.clientX, e.clientY), r = canvas.getBoundingClientRect(); cam.x = e.clientX - r.left - sx * z; cam.y = e.clientY - r.top - sy * z; cam.z = z; }
+  if (e.ctrlKey || e.metaKey){
+    // Trackpads emit many small deltas; scale by their distance, not event count.
+    const r = canvas.getBoundingClientRect();
+    const delta = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? r.height : 1);
+    const z = Math.min(2.5, Math.max(.3, cam.z * Math.exp(-Math.max(-80, Math.min(80, delta)) * .002)));
+    const [sx, sy] = toStage(e.clientX, e.clientY);
+    cam.x = e.clientX - r.left - sx * z; cam.y = e.clientY - r.top - sy * z; cam.z = z;
+  }
   else { cam.x -= e.deltaX; cam.y -= e.deltaY; }
   place();
 }, { passive: false });
