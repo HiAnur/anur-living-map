@@ -87,10 +87,11 @@ function applyEdit(state, from, to, canEdit) {
   if (next.edges.some((e) => (changed.has(e.from) || changed.has(e.to)) && (!ids.has(e.from) || !ids.has(e.to)))) return false;
   Object.assign(state, next); return true;
 }
-export function editHistory() {
-  const people = new Map();
+export function editHistory(saved = []) {
+  const people = new Map(structuredClone(saved));
   const stacks = (by) => { if (!people.has(by)) people.set(by, { undo: [], redo: [] }); return people.get(by); };
   return {
+    snapshot: () => structuredClone([...people]),
     record(by, before, after) {
       if (equal(before, after)) return;
       const s = stacks(by); s.undo.push({ before, after }); if (s.undo.length > 100) s.undo.shift(); s.redo = [];

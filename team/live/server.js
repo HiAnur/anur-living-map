@@ -27,10 +27,8 @@ import path from 'node:path';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
-import { googleFinish, googleOn, googleStart, passwordCheck } from './google.js';
-import { MIN, users, recovery } from './users.js';
-import { handleRecovery } from './recovery.js';
 import { changeAccess } from './access.js';
+import { cloudMirror, installCloudData } from './cloud-client.js';
 import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState } from './sharing.js';
 import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 
@@ -97,6 +95,7 @@ const DIR = import.meta.dirname;
 // remembered in projects.json so they are still listed after a restart
 const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
+const mapName = (folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 // how a chat answers what the map sends it, sent with every message, so a chat that started before an update
@@ -106,7 +105,7 @@ const chatRules = (base) => { try { return fs.readFileSync(path.join(DIR, 'chat-
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
-function openMap({ project = '', name = '', home }) {
+export function openMap({ project = '', name = '', home, initialState, undoState, memory = false }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
@@ -148,10 +147,10 @@ function openMap({ project = '', name = '', home }) {
   }
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
-  let state = fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
-  const updateBoxDates = boxDates(state, !fs.existsSync(STATE));
+  let state = initialState ? structuredClone(initialState) : fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
+  const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
-  if (project || name) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
+  if (!memory && (project || name)) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
   oneChat(state);
@@ -163,7 +162,7 @@ function openMap({ project = '', name = '', home }) {
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state); fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state); if (memory) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -171,6 +170,11 @@ function openMap({ project = '', name = '', home }) {
       send(r, role ? 'access-changed' : 'access-removed', {}); clients.delete(r); clientAccess.delete(r); r.end();
     } else send(r, 'state', sharedState(state, role === 'owner', c.guest));
   } };
+
+  const cloud = !memory ? cloudMirror({ home, read: () => state,
+    write: (data) => { installCloudData(state, data); save(); push(); },
+    notify: () => { for (const r of clients) if (clientAccess.get(r)?.role === 'owner') send(r, 'cloud', cloud.status()); }
+  }) : null;
 
   // The Claude pane, synced: the Claude Code chat linked last (state.linked[0]) is followed through its
   // transcript, and its owner's windows get it as a "mirror" event: that chat's messages, what the owner
@@ -194,7 +198,7 @@ function openMap({ project = '', name = '', home }) {
     mirror?.f.stop(); mirror = null;
     if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror, { anyUser: !!l.built }) };
   }
-  startMirror();
+  if (!memory) startMirror();
 
   // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
   // here, headless, in the map's folder: claude -p in auto mode with nobody to ask, so anything auto mode would stop
@@ -288,7 +292,7 @@ function openMap({ project = '', name = '', home }) {
   // said: the id of what the owner wrote in the pane, marked handed once a listener takes it
   const tell = (text, to = '', said = '') => {
     told = text;
-    fs.mkdirSync(home, { recursive: true }); fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`);
+    if (!memory) { fs.mkdirSync(home, { recursive: true }); fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`); }
     if (to) { state.forChats = [...(state.forChats || []), { to, text, at: stamp(), ...(said ? { said } : {}) }].slice(-50); setTimeout(wake); }
   };
   // hand each waiting chat what is meant for it; "*" goes to the chat that started listening last
@@ -560,6 +564,7 @@ function openMap({ project = '', name = '', home }) {
   const clock = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
   function keepVersion(v, json) {
+    if (memory) return;
     fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
     history = [v, ...history.filter((h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
     for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch {}
@@ -609,7 +614,7 @@ function openMap({ project = '', name = '', home }) {
     linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
-  const edits = editHistory();
+  const edits = editHistory(undoState);
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
   const ACTS = {
     reparent(a) {
@@ -993,12 +998,21 @@ function openMap({ project = '', name = '', home }) {
     const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
     const deny = () => { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This link does not allow that change.' })); return true; };
     if (guest && !(req.method === 'GET' && (['/', '/index.html', '/editing.js', '/api/state', '/api/events', '/api/file', '/api/history'].includes(p) || /^\/api\/history\/\w+$/.test(p))) && !(p === '/api/act' && req.method === 'POST' && role === 'edit')) return deny();
+    if (p === '/api/cloud' && req.method === 'GET') {
+      if (role !== 'owner') return deny();
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cloud?.status() || { configured: false })); return true;
+    }
     if (p === '/api/sharing' && req.method === 'POST') {
       if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
       let a; try { a = JSON.parse(await body(req)); } catch {}
+      if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
+      if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
+        try { await cloud.publish(a.mode); }
+        catch (e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
+      }
       if (!changeSharing(state, who, a?.mode)) return deny();
       save(); push();
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(state.linkSharing)); return true;
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...state.linkSharing, cloud: cloud?.status() })); return true;
     }
     if (p === '/api/access' && req.method === 'POST') {
       const origin = req.headers.origin;
@@ -1066,6 +1080,7 @@ function openMap({ project = '', name = '', home }) {
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       send(res, 'state', sharedState(state, role === 'owner', guest)); send(res, 'cursors', cursors);
+      if (role === 'owner' && cloud) send(res, 'cloud', cloud.status());
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
       // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any
@@ -1123,21 +1138,34 @@ function openMap({ project = '', name = '', home }) {
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
   function close() {
+    cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.kill('SIGTERM'); queued.length = 0;
     for (const r of clients) r.end();
   }
 
-  return { handle, summary, asks, build, close, allowed, access };
+  // Cloud requests use the same editing rules without local files, processes, or routes.
+  function editShared(a) {
+    if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
+    const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
+    const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!ACTS[a.type]?.(a) };
+    if (result.ok) { updateBoxDates(state); if (before) edits.record(a.by, before, editSnapshot(state)); }
+    return { ...result, ...(a.created ? { id: a.created } : {}) };
+  }
+  return { handle, summary, asks, build, close, allowed, access, editShared,
+    snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
 const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename) {
+const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
+const { MIN, users, recovery } = await import('./users.js');
+const { handleRecovery } = await import('./recovery.js');
 const main = openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 // every code folder this server draws, by folder name: the one it started with, then each added since
 // a map's address is its folder's name in lowercase letters, digits and dashes (AnurWebApp -> /anurwebapp/)
-const mapName = (folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const projects = new Map(PROJECT ? [[mapName(PROJECT), main]] : []);
 const folders = new Map(PROJECT ? [[mapName(PROJECT), PROJECT]] : []);
 const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
@@ -1375,3 +1403,5 @@ server.listen(PORT, '127.0.0.1', async () => {
   if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
   keepCurrent(); setInterval(keepCurrent, EVERY).unref();
 });
+
+}

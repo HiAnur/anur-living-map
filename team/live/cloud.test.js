@@ -1,0 +1,111 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createCloudServer } from '../cloud/server.js';
+import { mapData, mergeMap, signedLink } from './cloud-data.js';
+import { cloudMirror, installCloudData } from './cloud-client.js';
+
+const base = () => ({ title: 'Sample map', desc: '', nodes: [{ id: 'a', label: 'Parent', x: 0, y: 0 }, { id: 'b', label: 'Child', x: 200, y: 0 }], edges: [{ from: 'a', to: 'b' }], comments: [] });
+const publisher = '1'.repeat(64), owner = '2'.repeat(64), link = '3'.repeat(64), id = '4'.repeat(32), visitor = '5'.repeat(32);
+class MemoryStore {
+  records = new Map();
+  async get(id) { return structuredClone(this.records.get(id) || null); }
+  async put(id, value, version) {
+    if ((this.records.get(id)?.version || null) !== version) throw Object.assign(new Error('Conflict'), { status: 409 });
+    const record = { value: structuredClone(value), version: String(Number(version) + 1) }; this.records.set(id, record); return structuredClone(record);
+  }
+  async delete(id) { this.records.delete(id); }
+}
+const servers = [], mirrors = [], homes = [];
+afterEach(() => { for (const m of mirrors.splice(0)) m.close(); for (const h of homes.splice(0)) fs.rmSync(h, { recursive: true, force: true }); });
+afterEach(async () => { for (const s of servers.splice(0)) { s.closeAllConnections(); await new Promise((r) => s.close(r)); } });
+async function start(store = new MemoryStore()) {
+  const server = createCloudServer({ store, publishKey: publisher, publicUrl: 'http://localhost:4498' });
+  servers.push(server); await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const call = (route, data, auth = false, origin = 'http://localhost:4498') => fetch(url + route, { method: data ? 'POST' : 'GET', headers: { 'content-type': 'application/json', origin, ...(auth ? { authorization: `Bearer ${publisher}`, 'x-map-owner': owner } : { cookie: `lm_cloud_guest=${visitor}` }) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  const publish = async (mode = 'view') => { const r = await call('/api/maps', { id, data: base(), ownerKey: owner, linkKey: link, mode }, true); expect(r.status).toBe(201); };
+  const route = (suffix) => `/m/${id}/${suffix}?share=${signedLink(id, link, publisher)}`;
+  return { call, publish, route, store, url };
+}
+describe('cloud map boundary', () => {
+  it('uploads only the map and strips local metadata recursively', () => {
+    const data = base(); data.linked = [{ file: '/private/chat' }]; data.threads = { private: ['secret'] }; data.nodes[0].file = '/private/repo'; data.nodes[0].session = 'private';
+    data.nodes[0].inside = { nodes: [{ id: 'inside', label: 'Inside', x: 0, y: 0, file: '/secret' }], edges: [] };
+    const clean = JSON.stringify(mapData(data)); expect(clean).not.toMatch(/private|secret|session|threads/);
+  });
+  it('preserves local metadata when cloud presentation changes', () => {
+    const local = base(); local.nodes[0].file = '/private/file'; local.threads = { mine: ['private'] };
+    const remote = base(); remote.nodes[0].label = 'Changed'; installCloudData(local, remote);
+    expect(local.nodes[0]).toMatchObject({ label: 'Changed', file: '/private/file' }); expect(local.threads.mine).toEqual(['private']);
+  });
+  it('merges independent changes but rejects overlapping edits and dangling lines', () => {
+    const original = base(), local = base(), remote = base(); local.nodes[0].label = 'Local'; remote.nodes[1].label = 'Remote';
+    expect(mergeMap(original, local, remote).nodes.map((n) => n.label)).toEqual(['Local','Remote']);
+    remote.nodes[0].label = 'Conflict'; expect(() => mergeMap(original, local, remote)).toThrow('both places');
+    expect(() => mapData({ ...base(), nodes: [] })).toThrow('endpoint');
+  });
+  it('requires publisher credentials, blocks missing links and protects view links', async () => {
+    const { call, publish, route } = await start();
+    expect((await call('/api/maps', { data: base() })).status).toBe(401);
+    await publish();
+    expect((await call(`/m/${id}/api/state`)).status).toBe(403);
+    expect((await call(route('api/state'))).status).toBe(200);
+    expect((await call(route('api/act'), { type: 'renamebox', id: 'a', label: 'No', revision: 1 })).status).toBe(403);
+    expect((await call(route('api/outbox'))).status).toBe(404);
+    expect((await call(route('api/act'), { type: 'ask', text: 'run Claude', revision: 1 })).status).toBe(403);
+  });
+  it('persists edits and undo across server instances and rejects stale edits', async () => {
+    const first = await start(); await first.publish('edit');
+    const edit = { type: 'renamebox', id: 'a', label: 'Changed', revision: 1 };
+    expect((await first.call(first.route('api/act'), edit)).status).toBe(200);
+    expect((await first.call(first.route('api/act'), edit)).status).toBe(409);
+    const second = await start(first.store);
+    const snapshot = await (await second.call(second.route('api/state'))).json(); expect(snapshot.nodes[0].label).toBe('Changed');
+    expect((await second.call(second.route('api/act'), { type: 'undo', revision: 2 })).status).toBe(200);
+    expect((await (await first.call(first.route('api/state'))).json()).nodes[0].label).toBe('Parent');
+  });
+  it('blocks cross-origin edits and HTML injection, and supports comments', async () => {
+    const { call, publish, route } = await start(); await publish('edit');
+    expect((await call(route('api/act'), { type:'renamebox',id:'a',label:'Bad',revision:1 },false,'https://evil.test')).status).toBe(403);
+    expect((await call(route('api/act'), { type:'renamebox',id:'a',label:'<img src=x onerror=alert(1)>',revision:1 })).status).toBe(400);
+    expect((await call(route('api/act'), { type:'comment',node:'a',text:'Hello',x:0,y:0,revision:1 })).status).toBe(200);
+    const data = await (await call(route('api/state'))).json(); expect(data.comments[0].msgs[0].text).toBe('Hello');
+    const page = await call(route('')); expect(page.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+  });
+  it('revokes links and merges offline changes without overwriting remote changes', async () => {
+    const { call, publish, route } = await start(); await publish('edit');
+    await call(route('api/act'), { type:'renamebox',id:'a',label:'Cloud',revision:1 });
+    const local = base(); local.nodes[1].label = 'Offline';
+    const result = await call(route('api/sync'), { base:base(), data:local },true); expect(result.status).toBe(200);
+    expect((await result.json()).data.nodes.map((n)=>n.label)).toEqual(['Cloud','Offline']);
+    expect((await call(route('api/sharing'), { mode:'restricted' },true)).status).toBe(200);
+    expect((await call(route('api/state'))).status).toBe(403);
+  });
+});
+
+it('syncs a published local map, survives restart, and revokes even with a conflict', async () => {
+  const app = await start();
+  fs.mkdirSync('cache', { recursive: true });
+  const home = fs.mkdtempSync(path.resolve('cache/cloud-mirror-')); homes.push(home);
+  const local = base(); local.threads = { mine: ['private'] }; local.nodes[0].file = '/private/file';
+  const options = { home, read: () => local, write: (data) => installCloudData(local, data), notify(){}, config: { url: app.url, publishKey: publisher } };
+  let mirror = cloudMirror(options); mirrors.push(mirror);
+  await mirror.publish('edit');
+  const saved = JSON.parse(fs.readFileSync(path.join(home, 'cloud.json')));
+  const route = (p) => `/m/${saved.id}/${p}?share=${signedLink(saved.id, saved.linkKey, publisher)}`;
+  expect((await app.call(route('api/act'), { type:'renamebox', id:'a', label:'Cloud', revision:1 })).status).toBe(200);
+  local.nodes[1].label = 'Local';
+  await mirror.sync();
+  expect(local.nodes.map(n=>n.label)).toEqual(['Cloud','Local']); expect(local.threads.mine).toEqual(['private']); expect(local.nodes[0].file).toBe('/private/file');
+  mirror.close();
+  mirror = cloudMirror(options); mirrors.push(mirror);
+  const state = await (await app.call(route('api/state'))).json();
+  await app.call(route('api/act'), {type:'renamebox',id:'a',label:'Cloud again',revision:state.cloudRevision});
+  local.nodes[0].label = 'Local conflict';
+  await mirror.sync(); expect(mirror.status().error).toContain('both places'); expect(local.nodes[0].label).toBe('Local conflict');
+  await mirror.publish('restricted'); expect((await app.call(route('api/state'))).status).toBe(403);
+  const old = saved.linkKey; await mirror.publish('view');
+  const next = JSON.parse(fs.readFileSync(path.join(home, 'cloud.json'))); expect(next.linkKey).not.toBe(old);
+  expect((await app.call(route('api/state'))).status).toBe(403);
+});
