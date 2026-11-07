@@ -4,29 +4,29 @@ What changed in Living Map, newest first. Dates use America/Los_Angeles. “Ship
 
 ## November 7, 2026
 
-### Pending · Edit topic names and line labels in place
+### Shipped · Edit topic names and line labels in place
 
-Double-click a box title or connection label on the map to edit its existing text. The box outline and description stay visible; previously, a separate editor box appeared over them. Proposed box names can also be edited on the map or in the details panel before Apply, and the change list reflects the revised name.
+Double-click a box title or connection label on the map to edit its existing text while keeping the box outline and description visible, instead of opening a separate editor box. Proposed box names can also be edited on the map or in the details panel before Apply, and the change list reflects the revised name. [#138](https://github.com/HiAnur/anur-living-map/pull/138)
 
 ![A selected title is edited inside its original box, with its description still visible.](docs/shipping/2026-11-07/inline-topic-editing.png)
 
-### Pending · Clearer planning progress and descriptions
+### Shipped · Clearer planning progress and descriptions
 
-Auto plan and Side Chat keep a working indicator above the message field while Claude prepares changes, including after the reply text appears. It changes to “Preparing map changes…” while the proposal is being written and clears when the reply finishes; previously, it disappeared as soon as text arrived. New planned topics also include a brief description beneath their title.
+Auto plan and Side Chat keep a working indicator above the message field while Claude prepares changes, including after the reply text appears. It changes to “Preparing map changes…” while the proposal is being written and clears when the reply finishes; previously, it disappeared as soon as text arrived. New planned topics also include a brief description beneath their title. [#138](https://github.com/HiAnur/anur-living-map/pull/138)
 
 <img src="docs/shipping/2026-11-07/planning-progress.png" alt="The selected map box and its right-hand Side Chat, with Preparing map changes above the message field." width="640">
 
-### Pending · One preview for a group drag
+### Shipped · One preview for a group drag
 
-When dragging multiple selected boxes, one floating box follows the pointer and one green destination hint shows the proposed attachment. Previously, each selected branch added another preview; releasing still moves all selected branches together, with their children and connections intact.
+When dragging multiple selected boxes, one floating box follows the pointer and one green destination hint shows the proposed attachment. Previously, each selected branch added another preview; releasing still moves all selected branches together, with their children and connections intact. [#138](https://github.com/HiAnur/anur-living-map/pull/138)
 
 ![Selected original boxes remain outlined, with one floating box and one green destination hint.](docs/shipping/2026-11-07/single-group-drag-preview.png)
 
-### Pending · Tidy up shortcut
+### Shipped · Tidy up shortcut
 
-- Press ⌘⇧L on Mac or Ctrl+Shift+L on Windows/Linux to tidy the visible map. The orange Tidy up button shows the shortcut, and text fields keep their normal typing behavior.
+- Press ⌘⇧L on Mac or Ctrl+Shift+L on Windows/Linux to tidy the visible map. The orange Tidy up button shows the shortcut, and text fields keep their normal typing behavior. [#138](https://github.com/HiAnur/anur-living-map/pull/138)
 
-These changes are pending release and have been verified in the local preview on port 4323. [Change #138](https://github.com/HiAnur/anur-living-map/pull/138) is awaiting release.
+Verified after release in the installed Mac app on port 4323 at commit `708a210`. Other installed copies receive these changes when they update.
 
 ### Shipped · Editable box descriptions
 
