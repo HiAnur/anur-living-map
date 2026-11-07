@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living Map · Sign in</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,6 +29,11 @@ a.google:hover{background:#f6f5f1}
 .or{display:none;margin:16px 0 0;font-size:12px;color:var(--text-2);text-align:center}
 form.google a.google{display:flex}
 form.google .or{display:block}
+[hidden]{display:none!important}
+button.link{height:auto;margin-top:12px;background:transparent;color:var(--text-2);font-size:12.5px;text-decoration:underline}
+.notice{margin-top:14px;font-size:13px}
+.err:empty{min-height:0}
+
 </style>
 </head>
 <body>
@@ -42,7 +48,19 @@ form.google .or{display:block}
   <input id="pw" type="password" autocomplete="current-password" required>
   <div class="again"><label for="pw2">Password again</label><input id="pw2" type="password" autocomplete="new-password"></div>
   <button id="go" type="submit">Sign in</button>
-  <div class="err" id="err"></div>
+  <div class="err" id="err" role="alert"></div>
+  <button class="link" type="button" data-recover="forgot">Forgot password?</button>
+  <button class="link" type="button" data-recover="email">Set up recovery email</button>
+</form>
+<form id="recovery" hidden>
+  <h1 id="rh"></h1><p class="sub" id="rsub"></p>
+  <div id="rname-wrap"><label for="rname">Username</label><input id="rname" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="80"></div>
+  <div id="remail-wrap"><label for="remail">Recovery email</label><input id="remail" type="email" autocomplete="email" maxlength="254"></div>
+  <div id="rpw-wrap"><label for="rpw" id="rpwl">Current password</label><input id="rpw" type="password" maxlength="1024"></div>
+  <div id="ragain-wrap"><label for="ragain">New password again</label><input id="ragain" type="password" autocomplete="new-password" maxlength="1024"></div>
+  <button id="rgo" type="submit"></button>
+  <div class="err" id="rerr" role="alert"></div><p class="notice" id="rnotice" role="status"></p>
+  <button class="link" type="button" id="rback">Back to sign in</button>
 </form>
 <script>
 // Sign in, then go back to the page that asked; only an address on this server counts as "back".
@@ -53,8 +71,44 @@ const back = next.startsWith('/') && !next.startsWith('//') ? next : '/';
 if (document.querySelector('meta[name="lm-google"]')) { $('f').classList.add('google'); $('google').href = `/auth/google?next=${encodeURIComponent(back)}`; }
 if (q.get('error')) $('err').textContent = q.get('error');
 let first = null;
+let recoveryMode = '', recoveryToken = '';
+const recoveryText = {
+  forgot: ['Forgot your password?', 'Enter your username. We will send a reset link to your verified recovery email.', 'Send reset email'],
+  email: ['Set up recovery email', 'Confirm your current password, then verify your email. This recovers the password kept on this Mac.', 'Send verification email'],
+  verify: ['Verify your recovery email', 'Confirm this email address for password recovery.', 'Verify email'],
+  reset: ['Choose a new password', 'Use at least 8 characters. Your other signed-in browsers will be signed out.', 'Reset password'],
+};
+function showRecovery(mode) {
+  recoveryMode = mode; $('f').hidden = true; $('recovery').hidden = false;
+  const [heading, description, action] = recoveryText[mode];
+  $('rh').textContent = heading; $('rsub').textContent = description; $('rgo').textContent = action; $('rgo').disabled = false; $('rgo').hidden = false;
+  $('rerr').textContent = ''; $('rnotice').textContent = '';
+  for (const [id, show] of [['rname', mode === 'forgot' || mode === 'email'], ['remail', mode === 'email'], ['rpw', mode === 'email' || mode === 'reset'], ['ragain', mode === 'reset']]) {
+    $(id === 'ragain' ? 'ragain-wrap' : id + '-wrap').hidden = !show; $(id).disabled = !show; $(id).required = show;
+  }
+  $('rpwl').textContent = mode === 'reset' ? 'New password' : 'Current password'; $('rpw').autocomplete = mode === 'reset' ? 'new-password' : 'current-password';
+  $('rpw').minLength = mode === 'reset' ? 8 : 1; $('rpw').value = ''; $('ragain').value = '';
+  $('rname').value = $('name').value; $(mode === 'verify' ? 'rgo' : mode === 'reset' ? 'rpw' : 'rname').focus();
+}
+document.querySelectorAll('[data-recover]').forEach((b) => b.addEventListener('click', () => showRecovery(b.dataset.recover)));
+$('rback').addEventListener('click', () => { recoveryToken = ''; $('rpw').value = ''; $('ragain').value = ''; $('recovery').hidden = true; $('f').hidden = false; $('name').focus(); });
+const fragment = new URLSearchParams(location.hash.slice(1));
+for (const kind of ['verify', 'reset']) if (fragment.has(kind)) { recoveryToken = fragment.get(kind); history.replaceState(null, '', location.pathname + location.search); showRecovery(kind); break; }
+if (!recoveryMode && q.get('recovery') === 'email') showRecovery('email');
 const post = (to, data) => fetch(to, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }).catch(() => null);
-$('f').addEventListener('submit', async (e) => {
+$('recovery').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('rerr').textContent = ''; $('rnotice').textContent = '';
+  if (recoveryMode === 'reset' && $('rpw').value !== $('ragain').value) { $('rerr').textContent = 'The two passwords differ.'; return; }
+  $('rgo').disabled = true;
+  const r = await post(`/api/recovery/${recoveryMode}`, { name: $('rname').value, email: $('remail').value, password: $('rpw').value, token: recoveryToken });
+  const d = r ? await r.json().catch(() => ({})) : null;
+  if (r?.ok) {
+    $('rnotice').textContent = d.message; $('rgo').hidden = true; $('rpw').value = ''; $('ragain').value = '';
+    if (recoveryMode === 'verify' || recoveryMode === 'reset') recoveryToken = '';
+  } else $('rerr').textContent = d?.error || 'The map server is not answering.';
+  $('rgo').disabled = false;
+});
+$('f').addEventListener('submit' , async (e) => {
   e.preventDefault();
   $('go').disabled = true; $('err').textContent = '';
   const name = $('name').value, password = $('pw').value;

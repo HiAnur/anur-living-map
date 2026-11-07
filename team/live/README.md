@@ -39,6 +39,11 @@ Share → Export image downloads a PNG of the full current view, including off-s
 
 While waiting for a reply, the main chat and side chats say “Claude is working…” beside the elapsed time. Linked chat activity keeps its specific step description when one is available.
 
+
+Password recovery: on the sign-in page, **Set up recovery email** asks for your current local password and sends a verification link. You can also reach it from the people menu. After verifying, **Forgot password?** sends a one-use reset link, valid for 15 minutes. Open email links on the Mac running this map. Changing the password signs out existing browsers and invalidates outstanding recovery links. Recovery applies to passwords kept on this Mac; Google and centrally managed passwords keep their own sign-in paths.
+
+Email delivery uses Resend, with a separate sender configured by `RESEND_API_KEY` and `LIVING_MAP_MAIL_FROM`, or a private `~/.living-map-2/mail.json` containing `key` and `from` (permissions `0600`). `LIVING_MAP_MAIL_CONFIG` can select another private file. Use an address on a verified sending domain. Never put credentials in the checkout. Until a sender is configured, the recovery form explains that email recovery is not set up. Recovery addresses, hashed expiring tokens and request limits live beside passwords in `users.db`; unknown and unverified usernames receive the same reset-request message.
+
 Each box's Information tab shows Created date and Updated date in your local time, together with Delete this box at the bottom of the panel. Creation stays fixed; changing a box's text, size, position, or other stored details updates its edit date, including changes from Claude and undo or redo. Opening a box or saving unrelated chat activity does not change its dates. Dates persist with the map. Older boxes without recorded dates show “Not recorded”; their next edit records Updated date without inventing a creation date.
 
 Undo and Redo buttons sit in the bottom toolbar, with ⌘ Z and ⌘ ⇧ Z beneath their icons. They use the same map history as the shortcuts and wait for any name being saved. The toolbar moves above the other map controls when there is not enough room beside them.

@@ -1,6 +1,6 @@
 // Who may sign in to the team map: a person from the map's people (seed.json) and a password, kept
 // scrambled with scrypt in one SQLite file outside the repo, ~/.living-map-2/users.db. A person chooses
-// their password the first time they sign in; after that only this command changes it. Signing in gives
+// their password the first time they sign in; later they can recover it through a verified email. Signing in gives
 // the browser a cookie; the session behind it is kept in the same file, so a server restart keeps you in.
 // Both scrypt and SQLite are built into Node: nothing to install.
 //
@@ -14,6 +14,8 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
+
+import { recoveryStore } from './recovery.js';
 
 const FILE = process.env.LIVING_MAP_USERS || path.join(os.homedir(), '.living-map-2', 'users.db');
 const DAYS = 30;
@@ -35,14 +37,16 @@ const setPassword = (who, password) => {
   db.prepare(`INSERT INTO users (name, salt, hash) VALUES (?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET salt = excluded.salt, hash = excluded.hash, set_at = datetime('now')`).run(who, salt, scramble(password, salt));
   db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
+  db.prepare('DELETE FROM recovery_tokens WHERE name = ?').run(who);
 };
 export const MIN = 8;
+export const recovery = recoveryStore(db, setPassword);
 
 export const users = {
   person,
   // whether this person has chosen a password yet
   has: (who) => !!db.prepare('SELECT 1 FROM users WHERE name = ?').get(who),
-  // a person's first password, chosen on the sign-in page; changing one later is node users.js set
+  // a person's first password, chosen on the sign-in page
   first(name, password) {
     const who = person(name);
     if (!who || users.has(who) || String(password || '').length < MIN) return null;
@@ -77,6 +81,7 @@ if (import.meta.main) {
     console.log(rows.length ? rows.map((r) => `${r.name}  (set ${r.set_at} UTC)`).join('\n') : 'No one has a password yet. Each person chooses one the first time they sign in.');
   } else if (cmd === 'remove' && who) {
     db.prepare('DELETE FROM users WHERE name = ?').run(who); db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
+    recovery.clear(who); db.prepare('DELETE FROM recovery_emails WHERE name = ?').run(who);
     console.log(`${who} has no password now and is signed out.`);
   } else if (cmd === 'set' && who) {
     const [one, two] = await askTwice(`New password for ${who}: `, 'Again: ');
