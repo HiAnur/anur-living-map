@@ -49,6 +49,11 @@ describe('action boxes',()=>{
   it('cancels preparation and ignores late replies',()=>{
     const h=harness();h.start();expect(h.api.cancel('form','Duy')).toBe(true);h.ready();expect(h.node.action).toBeUndefined();expect(h.stops).toHaveLength(1);
   });
+  it('keeps a replacement request cancellable if a cancelled request replies late',()=>{
+    const h=harness();h.start();const old=h.requests[0];h.api.cancel('form','Duy');h.start();
+    old.onDone(reply({status:'ready',brief}));expect(h.node.action.stage).toBe('gathering');
+    h.api.cancel('form','Duy');expect(h.stops).toHaveLength(2);
+  });
   it('ignores a completed request after deletion or access removal',()=>{
     for(const change of ['remove','revoke']){const h=harness();h.start();const before=h.changes;h[change]();h.ready();expect(h.changes).toBe(before+(change==='revoke'?1:0));if(change==='revoke')expect(h.node.action.stage).toBe('error');expect(h.launches).toHaveLength(0);}
   });

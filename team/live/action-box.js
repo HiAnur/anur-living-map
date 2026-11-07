@@ -67,7 +67,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, launch }) {
     jobs.set(id, null); changed();
     try {
       const stop = ask({ prompt, onText() {}, onDone(reply) {
-        jobs.delete(id);
+        if (nodeOf(id)?.action === current) jobs.delete(id);
         if (!active()) {
           if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); delete current.since; changed(); }
           return;
