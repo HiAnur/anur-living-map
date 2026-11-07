@@ -2562,7 +2562,12 @@ function deleteBox(id, confirmed = false){
   if (ids.size > roots.length && !confirmed){ delAsk = id; render(); keepInView(id === '*' ? groupLead() : id); return; }
   const n = nodeById(roots[0]), parent = topicParent(n), follow = ids.has(selected);
   delAsk = null; group.clear();
-  if (follow) selected = (parent && !ids.has(parent.id) ? parent.id : null) || scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y))[0]?.id || null;
+  if (follow){
+    const remaining = scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y));
+    // Repeated Delete finishes the children before returning to their parent.
+    const sibling = parent && remaining.find((b) => topicParent(b)?.id === parent.id);
+    selected = sibling?.id || (parent && !ids.has(parent.id) ? parent.id : null) || remaining[0]?.id || null;
+  }
   for (const child of ids) pendingRemovals.add(child); hideRemoved(S);
   act('remove', { ids: roots, cascade: true }).then(async (r) => { if (!r?.ok){ for (const child of ids) pendingRemovals.delete(child); await refreshMap(); toast('The boxes could not be deleted. Please try again.'); } });
   if (follow) selectTopic(selected); else render();
