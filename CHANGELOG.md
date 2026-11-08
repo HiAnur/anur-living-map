@@ -5,10 +5,34 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Know when your map is shared online</strong></dt>
+<dd>
+
+Share shows **Local only** or **Shared online**, with a compact confirmation before uploading a cloud copy and copying its link. [#176](https://github.com/HiAnur/anur-living-map/pull/176), [#188](https://github.com/HiAnur/anur-living-map/pull/188) <!-- merged-at: 2026-11-08T02:25:30Z -->
+
+<img src="docs/shipping/2026-11-07/share-confirmation.png" alt="Compact upload confirmation explains cloud access and private chats, with Keep local and Upload and copy link buttons." width="540">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] Your profile on the home page</strong></dt>
 <dd>
 
 Your avatar and name appear in the home page’s top-right corner so you can see who you’re signed in as. [#187](https://github.com/HiAnur/anur-living-map/pull/187) <!-- merged-at: 2026-11-08T02:25:00Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Delete the online copy</strong></dt>
+<dd>
+
+Use the neutral **Delete online copy** button to the right of **Shared online**, then confirm to remove the hosted map and disable its shared link while keeping your local map; sharing again creates a new copy and link. [#180](https://github.com/HiAnur/anur-living-map/pull/180), [#185](https://github.com/HiAnur/anur-living-map/pull/185) <!-- merged-at: 2026-11-08T02:22:44Z -->
+
+<img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a neutral Delete online copy button to the right of Shared online." width="640">
+
+<img src="docs/shipping/2026-11-07/delete-online-confirmation.png" alt="Compact confirmation explains that the local map stays and the shared link stops working, with Cancel and Delete online copy." width="540">
 
 </dd>
 </dl>
@@ -31,28 +55,6 @@ Choose **Action box** on a topic, then **Execute** beneath its amber box. Replie
 On the **home page**, choose a map in **All brain** to browse its boxes, decisions and memories with expandable details. [#178](https://github.com/HiAnur/anur-living-map/pull/178), [#183](https://github.com/HiAnur/anur-living-map/pull/183) <!-- merged-at: 2026-11-08T02:16:16Z -->
 
 <img src="docs/shipping/2026-11-07/all-brain-home.png" alt="The Living Map home page shows the map list on the left and All brain on the right, with a chosen map's boxes, decisions and memories." width="760">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Delete the online copy</strong></dt>
-<dd>
-
-In **Share → Delete online copy**, confirm to remove the hosted map and disable its shared link while keeping your local map; sharing again creates a new copy and link. [#180](https://github.com/HiAnur/anur-living-map/pull/180) <!-- merged-at: 2026-11-08T02:11:24Z -->
-
-<img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a Delete online copy button beneath the Shared online status." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Know when your map is shared online</strong></dt>
-<dd>
-
-Share shows **Local only** or **Shared online** and asks before uploading a map to create its first cloud link. [#176](https://github.com/HiAnur/anur-living-map/pull/176) <!-- merged-at: 2026-11-08T01:52:59Z -->
-
-<img src="docs/shipping/2026-11-07/share-confirmation.png" alt="Share dialog shows Local only and asks whether to host the map online, with Keep local and Upload and copy link buttons." width="580">
 
 </dd>
 </dl>
