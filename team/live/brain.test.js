@@ -3,7 +3,7 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
-const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('./maps.html', import.meta.url), 'utf8');
 const ctx = vm.createContext({});
 vm.runInContext(html.slice(html.indexOf('function brainObjects('), html.indexOf('let brainMaps =')), ctx);
 describe('All brain objects', () => {
