@@ -870,6 +870,15 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-head{display:flex;align-items:center;gap:14px;padding:16px 20px;border-bottom:1px solid var(--rule)}
 .sh-head b{flex:1;font-weight:500}
 .sh-head .x{font-size:20px}
+.sh-storage{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--rule)}
+.sh-storage strong{display:inline-flex;align-items:center;gap:7px;font-weight:500;font-size:14px}
+.sh-storage strong::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-3)}
+.sh-storage strong.online::before{background:var(--new)}
+.sh-storage p,.sh-confirm p{margin-top:7px;font-size:13px;line-height:1.5;color:var(--text-2)}
+.sh-storage .sh-sync-error{color:var(--gone)}
+.sh-confirm>strong{font-weight:500;font-size:16px}
+.sh-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;flex-wrap:wrap}
+.sh-confirm .sh-publish{background:var(--new);border-color:var(--new);color:var(--box)}
 .sh-link{border:0;background:none;padding:0;font:inherit;display:inline-flex;align-items:center;gap:6px;color:var(--new);font-size:13.5px;cursor:pointer}
 .view-only #tools [data-tool="box"],.view-only #tools [data-tool="arrow"],.view-only #tools [data-tool="comment"],.view-only .history-tool,.view-only #tidyb,.view-only #savew,.view-only [data-hrestore],.view-only .topic-actions,.link-guest #bot,.link-guest #inboxb,.link-guest #rail [data-rail="memory"],.link-guest #rail [data-rail="sidechats"],.link-guest .topic-actions,.view-only .cd,.link-guest #verb,.link-guest #savew,.link-guest #side [data-side-tab="chat"],.view-only #side .d-del,.view-only #thread form,.view-only [data-resolve]{display:none}
 .sh-link svg,.sh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
@@ -2027,7 +2036,7 @@ function render(){
 }
 
 // Share: copy this map's address, manage access, or download it. Invites are not wired up yet.
-let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false, cloudPublishing = false;
+let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false, cloudPublishing = false, cloudPublishConfirm = false;
 // the Save menu: Save now, and the Auto-save switch, on unless someone turned it off for this map
 let saveOpen = false;
 function renderSave(){
@@ -2036,16 +2045,33 @@ function renderSave(){
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
 }
+// Storage and link access are separate: revoking a link does not delete the hosted copy.
+function sharingLocation(status, {cloud = false, file = false, uploading = false} = {}){
+  if (file) return {label:'Downloaded file', detail:'You are viewing a saved file. Its original map may also be shared online.'};
+  if (cloud || status?.published){
+    if (status?.mode === 'restricted') return {label:'In cloud · link off', detail:'Link access is off. A cloud copy of this map is still stored.', online:true};
+    return {label:'Shared online', detail:'A cloud copy is available through the shared link, even when this Mac is off.', online:true};
+  }
+  if (uploading) return {label:'Uploading to cloud…', detail:'Creating the shared copy. Your private chats stay on this Mac.'};
+  if (!status) return {label:'Checking sharing status…', detail:'Confirming whether this map has a cloud copy.'};
+  return {label:'Local only', detail:status.configured ? 'Stored on this Mac. Sharing a link uploads a cloud copy; your private chats stay here.' : 'Stored on this Mac. Cloud sharing is not set up.'};
+}
+function cancelCloudPublish(){
+  cloudPublishConfirm = false; renderShare(); document.querySelector('[data-copy-link]')?.focus();
+}
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
   const activePermission = document.activeElement?.closest('.sh-permission') ? document.activeElement : null;
   const restorePermissionFocus = activePermission?.dataset.linkMode ? `[data-link-mode="${activePermission.dataset.linkMode}"]` : activePermission ? '[data-link-menu]' : null;
   const canManage = !CLOUD && !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
+  const storage = sharingLocation(CLOUD_STATUS, {cloud:CLOUD,file:FILE,uploading:cloudPublishing});
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
-      ${!FILE ? `<p class="sh-h">${CLOUD ? 'This map is saved in the cloud.' : CLOUD_STATUS?.published ? CLOUD_STATUS.error ? esc(CLOUD_STATUS.error) : 'Saved in the cloud. Available even when this Mac is off.' : CLOUD_STATUS?.configured ? 'Copy link uploads this map to the cloud. Anyone with the link can open it. Your private chats stay on this Mac.' : 'This map is on this Mac. Cloud sharing is not set up yet.'}</p>` : ''}
+      <div class="sh-storage" role="status"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
+      ${cloudPublishConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="share-confirm-title" aria-describedby="share-confirm-detail"><strong id="share-confirm-title">Share this map online?</strong><p id="share-confirm-detail">To let others open this link, Living Map needs to upload and host a copy of this map. It will no longer be local only. Your private chats stay on this Mac.</p><div><button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-confirm-publish>Upload and copy link</button></div></div>` : ''}
+      <div ${cloudPublishConfirm ? 'hidden' : ''}>
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
@@ -2053,6 +2079,7 @@ function renderShare(){
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
+      </div>
     </div>`;
   if (restorePermissionFocus) document.querySelector(restorePermissionFocus)?.focus({ preventScroll: true });
 }
@@ -2063,12 +2090,21 @@ function shareAddress(){
   if (token && ['view', 'edit'].includes(S.linkSharing?.mode)) url.searchParams.set('share', token);
   return url.href;
 }
-async function copyMapLink(){
+async function copyMapLink(confirmed = false){
   if (cloudPublishing) return;
+  const owner = !CLOUD && !LINK && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
+  if (owner && !CLOUD_STATUS){
+    try { const response = await fetch('api/cloud'); if (!response.ok) throw new Error(); CLOUD_STATUS = await response.json(); }
+    catch { toast('Could not check sharing status. Please try again.'); return; }
+  }
+  if (owner && CLOUD_STATUS?.configured && !CLOUD_STATUS.published && !confirmed){
+    cloudPublishConfirm = true; renderShare(); document.querySelector('[data-keep-local]')?.focus(); return;
+  }
+  cloudPublishConfirm = false;
   cloudPublishing = true; renderShare();
   try {
     if (!CLOUD && (!S.linkSharing?.token || CLOUD_STATUS?.configured && !CLOUD_STATUS.published) && !LINK && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin')){
-      const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: S.linkSharing?.mode === 'edit' ? 'edit' : 'view', publish: true }) });
+      const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: S.linkSharing?.mode === 'edit' ? 'edit' : 'view', publish: confirmed && !!CLOUD_STATUS?.configured }) });
       if (!response.ok) throw new Error((await response.json()).error || 'The link could not be created.');
       const got = await response.json(); S.linkSharing = got; CLOUD_STATUS = got.cloud || CLOUD_STATUS; renderShare();
     }
@@ -2185,7 +2221,7 @@ function downloadMap(){
   const a = document.createElement('a'); a.href = mapURL('api/file'); a.download = ''; a.click();
   toast(`Saving ${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html to your downloads.`);
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ shareOpen = false; linkMenuOpen = false; renderShare(); } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ if (cloudPublishConfirm) cancelCloudPublish(); else { shareOpen = false; linkMenuOpen = false; renderShare(); } } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
 // The plan's code, top right beside the people: where it stands at every step, so nobody has to ask.
 // Before Execute nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
@@ -3684,8 +3720,10 @@ document.addEventListener('click', (e) => {
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
-  else if (t.id === 'shareb'){ shareOpen = true; renderShare(); }
-  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; linkMenuOpen = false; renderShare(); }
+  else if (t.id === 'shareb'){ shareOpen = true; cloudPublishConfirm = false; renderShare(); }
+  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; cloudPublishConfirm = false; linkMenuOpen = false; renderShare(); }
+  else if (t.closest('[data-keep-local]')){ cancelCloudPublish(); }
+  else if (t.closest('[data-confirm-publish]')){ copyMapLink(true); }
   else if (t.closest('[data-copy-link]')){
     copyMapLink();
   }
