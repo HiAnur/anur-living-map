@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dd>
+
+Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get an **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195) <!-- merged-at: 2026-11-08T03:11:21Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with an Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Box metadata</strong></dt>
 <dd>
 
@@ -42,17 +53,6 @@ Use the neutral **Delete online copy** button to the right of **Shared online**,
 <img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a neutral Delete online copy button to the right of Shared online." width="640">
 
 <img src="docs/shipping/2026-11-07/delete-online-confirmation.png" alt="Compact confirmation explains that the local map stays and the shared link stops working, with Cancel and Delete online copy." width="540">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
-<dd>
-
-Choose **Action box** on a topic, then **Execute** beneath its amber box. Replies stay in **Side Chat**, where **Continue** resumes the same chat. [#182](https://github.com/HiAnur/anur-living-map/pull/182) <!-- merged-at: 2026-11-08T02:16:53Z -->
-
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A plum Action box and an amber Execution box with Execute beneath it, beside the task review in Side Chat." width="640">
 
 </dd>
 </dl>
