@@ -532,9 +532,15 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
 .d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
 .info-footer{margin-top:auto;padding-top:16px;flex-shrink:0}
+.box-meta-button{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--text-2);cursor:pointer}
+.box-meta-button:hover,.box-meta-button:has(+ :popover-open){background:var(--canvas);color:var(--text)}
+.box-meta-button:focus-visible{outline:2px solid var(--new);outline-offset:1px}
+.box-meta{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:min(280px,calc(100vw - 24px));padding:12px 14px;border:1px solid var(--rule-2);border-radius:10px;background:var(--card);color:var(--text);box-shadow:0 8px 28px var(--rule-2)}
+.box-meta .source-link{font:inherit;color:var(--new);border:0;background:transparent;padding:0;cursor:pointer;text-decoration:underline}
+.box-meta h3{margin:0 0 8px;font-size:13px;font-weight:600}
 .box-dates{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;margin:0;font-size:12px;line-height:1.5}
 .box-dates dt{color:var(--text-3)}
-.box-dates dd{margin:0;text-align:right;color:var(--text-2)}
+.box-dates dd{margin:0;text-align:right;color:var(--text-2);overflow-wrap:anywhere}
 .ca-line{display:flex;align-items:center;gap:10px}
 .ca-line .ca-q{flex:1;margin:0}
 .ca-btns{display:flex;gap:6px;flex:none}
@@ -2444,9 +2450,38 @@ document.addEventListener('toggle', (e) => { const k = e.target?.dataset?.openKe
 const boxDate = (value) => Number.isFinite(value) && value > 0
   ? `<time datetime="${new Date(value).toISOString()}">${prose(new Date(value).toLocaleString(undefined, { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}</time>`
   : 'Not recorded';
+function boxSource(source) {
+  const labels = { map:'Added on the map', plan:'Chat plan', proposal:'Claude proposal', side:'Side Chat proposal', edit:'Map edit' };
+  const label = labels[source?.kind] || 'Not recorded';
+  if (READ_ONLY || FILE || PREVIEW) return label;
+  const linked = source?.session && S.linked?.find((chat) => chat.session === source.session && chat.owner === ME);
+  if (linked) return `<button type="button" class="source-link" data-box-source-chat="${esc(linked.session)}">${label}</button>`;
+  const box = source?.kind === 'side' && source.owner === ME && nodeById(source.box);
+  return box && !locked(box) && S.threads?.[`@${ME}>${box.id}`]?.length
+    ? `<button type="button" class="source-link" data-scopen="${esc(box.id)}">${label}</button>` : label;
+}
+function boxMetadata(n) {
+  const container = S.nodes.find((box) => box.inside?.nodes.some((child) => child.id === n.id));
+  return `<button type="button" class="box-meta-button" popovertarget="box-metadata" title="Box metadata" aria-label="Box metadata"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7m-7 4h7m-7 4h4"/></svg></button>
+  <div id="box-metadata" class="box-meta" popover="auto" data-box="${esc(n.id)}"><h3>Box metadata</h3>
+    <dl class="box-dates"><dt>Created by</dt><dd>${n.by ? esc(n.by) : 'Not recorded'}</dd><dt>Created</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated</dt><dd>${boxDate(n.updatedAt)}</dd><dt>Last edited by</dt><dd>${n.updatedBy ? esc(n.updatedBy) : 'Not recorded'}</dd><dt>Source</dt><dd>${boxSource(n.source)}</dd>${container && !locked(container) ? `<dt>Inside</dt><dd>${esc(container.label)}</dd>` : ''}<dt>Box ID</dt><dd><code>${esc(n.id)}</code></dd></dl></div>`;
+}
+document.addEventListener('beforetoggle', (e) => {
+  if (e.target.id !== 'box-metadata' || e.newState !== 'open') return;
+  const bounds = e.target.previousElementSibling.getBoundingClientRect();
+  const width = Math.min(280, window.innerWidth - 24);
+  e.target.style.left = `${Math.max(12, bounds.right - width)}px`;
+  e.target.style.top = `${bounds.bottom + 6}px`;
+}, true);
+document.addEventListener('keydown', (e) => {
+  const popup = $('box-metadata');
+  if (e.key !== 'Escape' || !popup?.matches(':popover-open')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  popup.hidePopover(); popup.previousElementSibling.focus();
+}, true);
 function renderSide(){
   const el = $('side');
-  if (keyboardSelection){ el.classList.remove('on'); return; }
+  if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
   if (sideRename && (sideRename.id !== (n || pb)?.id || locked(n || pb))) sideRename = null;
   el.classList.toggle('on', !!(n || pb));
@@ -2460,7 +2495,7 @@ function renderSide(){
       ${pb.sub ? `<div class="d-sub">${esc(pb.sub)}</div>` : ''}${notes(pb.desc && pb.desc !== pb.sub ? pb.desc : '')}${proposalOf(pb.id)}`;
     return;
   }
-  if (!n) return;
+  if (!n) { $('box-metadata')?.hidePopover(); return; }
   if (locked(n)){
     const admin = S.people.find((p) => p.role === 'Admin')?.id || 'an admin';
     el.innerHTML = `<div class="ct"><span>${esc(n.label)}</span><span class="x" data-close>×</span></div>
@@ -2526,12 +2561,14 @@ function renderSide(){
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
-  // Information keeps the box's dates and deletion action at the bottom of its panel.
+  const openMetadata = el.querySelector('#box-metadata:popover-open');
+  const restoreMetadata = openMetadata?.dataset.box === n.id;
+  const metadataFocused = openMetadata?.previousElementSibling === document.activeElement;
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
   const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea');
   const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart || actionInput.closest('form').dataset.actionContinue,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h action-create" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
@@ -2570,9 +2607,12 @@ function renderSide(){
     ${n.file ? `<div class="d-file">${n.file}</div>` : ''}
     ${n.fact ? `<details class="refs" data-open-key="refs" ${openSecs.has('refs') ? 'open' : ''}><summary class="h">Claude references</summary><div class="fact">${n.fact.text}<span class="from">${n.fact.from}</span></div></details>` : ''}</div>
     <div class="info-footer">
-    <dl class="box-dates"><dt>Created date</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated date</dt><dd>${boxDate(n.updatedAt)}</dd></dl>
     ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
     </div>`}`;
+  if (restoreMetadata) {
+    const popup = $('box-metadata'); popup.showPopover();
+    if (metadataFocused) popup.previousElementSibling.focus();
+  }
   if (actionDraft?.id === n.id) { const input = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea'); if (input) { input.value = actionDraft.value; if (actionDraft.focus) { input.focus(); input.setSelectionRange(actionDraft.start, actionDraft.end); } } }
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}:${n.action?.turns?.length || 0}:${n.action?.progress?.length || 0}`, msgs = el.querySelector('.sc-msgs');
@@ -3836,7 +3876,15 @@ document.addEventListener('click', (e) => {
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
-  else if (t.closest('[data-scopen]')){ const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'chat'; backTo = 'sidechats'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; centerOn(id); } }
+  else if (t.closest('[data-box-source-chat]')){
+    const session = t.closest('[data-box-source-chat]').dataset.boxSourceChat;
+    const linked = S.linked?.find((chat) => chat.session === session && chat.owner === ME);
+    if (linked){
+      if (S.linked[0] !== linked) act('link', { session, file: linked.file });
+      selected = null; railTab = null; chatOpen = true; chatHist = false; chatSeen = -1; render();
+    }
+  }
+  else if (t.closest('[data-scopen]')){ t.closest('#box-metadata')?.hidePopover(); const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'chat'; backTo = 'sidechats'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; centerOn(id); } }
   else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; render(); $('mem-in')?.focus(); }
   else if (t.closest('[data-forget]')){ act('forget', { id: t.closest('[data-forget]').dataset.forget }); }
   // a box's name in Decisions opens that box on its History tab
