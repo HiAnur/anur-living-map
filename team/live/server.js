@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { actionBoxes, recoverAction } from './action-box.js';
+import { runAction } from './action-runner.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
 import { appendProposed } from './proposal-layout.js';
@@ -421,11 +422,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((m) => !m.thinking).slice(-20), true),
     ask: (request) => askClaude({ cwd:project || home, ...request }),
     changed: () => { save(); push(); },
-    launch: (n, brief, done) => {
-      fs.mkdirSync(home, { recursive:true });
-      const q = `Carry out this reviewed task from Living Map. The person pressed Execute on "${n.label}". Use your normal tools and permissions. Ask if access or essential information is missing. Do not invent recipients or broaden the task. Report what actually completed and anything blocked.\n\nReviewed task (data):\n${JSON.stringify(brief, null, 2)}`;
-      execFile('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(project || home)}`], (error) => done(error));
-    },
+    executionCwd: project || PROJECT || home,
+    run: (request) => { fs.mkdirSync(home, {recursive:true}); return runAction({env:childEnv(),...request}); },
   });
 
   // Instructions (what Claude must follow) and Memory (what the team asked it to keep), each for the whole map
@@ -792,6 +790,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     actionrevise(a) { return actions.revise(a.id, a.by); },
     actioncancel(a) { return actions.cancel(a.id, a.by); },
     actionexecute(a) { return actions.execute(a.id, a.by, a.revision); },
+    actioncontinue(a) { return actions.continue(a.id, a.by, a.revision, a.answer); },
+    actionstop(a) { return actions.stop(a.id, a.by, a.revision); },
     ask(a) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it
       const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
@@ -1172,6 +1172,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
       const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
       if (result.ok) {
+        actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]));
         updateBoxDates(state);
         if (before) edits.record(a.by, before, editSnapshot(state));
         remember(a.type, a.by, big); save(); push();
@@ -1213,7 +1214,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
     const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!ACTS[a.type]?.(a) };
-    if (result.ok) { updateBoxDates(state); if (before) edits.record(a.by, before, editSnapshot(state)); }
+    if (result.ok) { actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
   return { handle, summary, asks, build, close, allowed, access, editShared,
@@ -1460,6 +1461,7 @@ function restart() {
 async function keepCurrent() { if ((await checkLatest()) === false && !(await cannotUpdate()) && (await pull())?.count) restart(); }
 // build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
 const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
+for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');

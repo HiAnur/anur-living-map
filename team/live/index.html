@@ -15,7 +15,7 @@
   /* paper, ink; hue says what the plan changes */
   --canvas:#fbfaf7; --box:#fff; --box-line:#bdb9ae; --line:#a8a49a; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
   --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#fff;
-  --action:#784861; --action-tint:#F8F0F5; --action-line:#BE92AA;
+  --action:#784861; --action-tint:#F8F0F5; --action-line:#BE92AA;--execution:#875512;--execution-tint:#FFF4DB;--execution-line:#C9A661;
   --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --todo:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442; --ok:#2E8B57;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -732,6 +732,10 @@ body.resizing{cursor:col-resize;user-select:none}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
 .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
+.execution-node,.execution-chat{--action:var(--execution);--action-tint:var(--execution-tint);--action-line:var(--execution-line)}
+.node .map-execute{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);height:24px;padding:0 12px;border:1px solid var(--action);border-radius:7px;background:var(--action);color:#fff;font:500 12px var(--plex);cursor:pointer;white-space:nowrap}
+.map-execute:focus-visible{outline:2px solid var(--action);outline-offset:3px}
+.action-chat .continue-send{width:auto;padding:0 12px;font:500 13px var(--plex)}
 .node.action-node{background:var(--action-tint);border-color:var(--action-line);color:var(--text)}
 .node.action-node.sel,.node.action-node:has(.cd):hover:not(.sel){outline-color:var(--action)}
 .node.action-node .cd{border-color:var(--action);background:var(--action-tint)}
@@ -1232,6 +1236,7 @@ const subLines = (n) => {
   return wraps.get(key);
 };
 // Boxes grow for every wrapped line in their name and subtitle.
+const executionBox = (a) => a && (['ready','sent'].includes(a.stage) || !!a.session);
 const HT = (n) => (n.action ? 18 : 0) + (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
@@ -2010,9 +2015,9 @@ function render(){
     const actionAsk = !locked(n) && n.action?.stage === 'clarify';
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', n.action && !locked(n) ? 'action-node' : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', n.action && !locked(n) ? `action-node${executionBox(n.action) ? ' execution-node' : ''}` : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
-      ${!locked(n) && n.action ? `<div class="action-tag">${n.action.stage === 'gathering' ? actionSpinner(n.action) : ''}${['ready','sent'].includes(n.action.stage) ? 'Execution box' : 'Action box'}</div>` : ''}
+      ${!locked(n) && n.action ? `<div class="action-tag">${['gathering','running'].includes(n.action.stage) ? actionSpinner(n.action) : ''}${executionBox(n.action) ? 'Execution box' : 'Action box'}</div>` : ''}
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${actionAsk ? `<span class="mk q" title="${esc(n.action.question || '')}">Need clarify</span>` : mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
@@ -2020,6 +2025,7 @@ function render(){
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
+      ${!locked(n) && n.action?.stage === 'ready' && n.action.by === ME && !READ_ONLY && !FILE && !PREVIEW ? `<button class="map-execute" data-box-action="actionexecute" data-action-id="${esc(n.id)}" data-action-revision="${esc(n.action.id)}" aria-label="Execute ${esc(n.label)}">Execute</button>` : ''}
       ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>Delete these topics and their subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>Delete this topic and its subtopics?</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
@@ -2222,7 +2228,7 @@ async function downloadMapImage(){
     const root = document.createElement('div'); root.className = `export-root ${document.body.className}`;
     root.style.cssText = `position:relative;width:${width}px;height:${height}px;overflow:hidden;background:${getComputedStyle(canvas).backgroundColor};`;
     const style = document.createElement('style');
-    style.textContent = [...document.querySelectorAll('style')].map((el) => el.textContent).join('\n').replace(/\bbody\b/g, '.export-root') + '\n' + fonts + '\n.export-root *{animation:none!important;transition:none!important}.export-root .node{outline:none!important;box-shadow:none!important}.export-root .fold,.export-root .expand{display:none!important}';
+    style.textContent = [...document.querySelectorAll('style')].map((el) => el.textContent).join('\n').replace(/\bbody\b/g, '.export-root') + '\n' + fonts + '\n.export-root *{animation:none!important;transition:none!important}.export-root .node{outline:none!important;box-shadow:none!important}.export-root .fold,.export-root .expand,.export-root .map-execute{display:none!important}';
     const map = document.createElement('div'); map.id = 'stage'; map.style.transform = `translate(${-left}px,${-top}px)`; map.append(edges, nodes); root.append(style, map); foreign.append(root); svg.append(foreign);
     const source = new XMLSerializer().serializeToString(svg), img = new Image();
     await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`; });
@@ -2502,14 +2508,14 @@ function renderSide(){
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   // Information keeps the box's dates and deletion action at the bottom of its panel.
   el.classList.toggle('info', sideTab !== 'history' && sideTab !== 'chat'); el.classList.toggle('sc', sideTab === 'chat');
-  const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea');
-  const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
+  const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea');
+  const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart || actionInput.closest('form').dataset.actionContinue,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="x" data-close>×</span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h action-create" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ` action-chat${executionBox(n.action) ? ' execution-chat' : ''}` : ''}">${chat}</div>` : `<div class="info-body">
     ${(() => {
       // the box at a glance, read top to bottom: what was decided, green and bold (hovering it says who decided
       // it and when), then its notes as plain lines; "Why them: …" reads "Why them? …", a catch or a risk carries
@@ -2547,9 +2553,9 @@ function renderSide(){
     <dl class="box-dates"><dt>Created date</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated date</dt><dd>${boxDate(n.updatedAt)}</dd></dl>
     ${locked(n) ? '' : `<div class="d-del"><span class="d-more" data-delete="${n.id}">${delAsk === n.id ? 'Confirm above the box: Enter deletes, Esc keeps' : 'Delete this box'}</span></div>`}
     </div>`}`;
-  if (actionDraft?.id === n.id) { const input = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea'); if (input) { input.value = actionDraft.value; if (actionDraft.focus) { input.focus(); input.setSelectionRange(actionDraft.start, actionDraft.end); } } }
+  if (actionDraft?.id === n.id) { const input = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea'); if (input) { input.value = actionDraft.value; if (actionDraft.focus) { input.focus(); input.setSelectionRange(actionDraft.start, actionDraft.end); } } }
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
-  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}`, msgs = el.querySelector('.sc-msgs');
+  const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}:${n.action?.turns?.length || 0}:${n.action?.progress?.length || 0}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
 
@@ -2561,15 +2567,17 @@ function actionSpinner(action){
 function actionChat(n, previousChat){
   const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const asking = a.stage === 'draft' || a.stage === 'clarify';
-  const label = ['ready','sent'].includes(a.stage) ? 'Execution box' : 'Action box';
-  const back = mine && a.stage !== 'sent' ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
+  const label = executionBox(a) ? 'Execution box' : 'Action box';
+  const back = mine && !a.session && a.stage !== 'sent' ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
   const turns = `${a.intent ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
   const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
   const current = a.stage === 'draft' ? claudes('<p>What do you want to do?</p>')
     : a.stage === 'clarify' ? claudes(`${md(a.question)}${choices}${mine ? '' : `<p class="quiet">Waiting for ${esc(a.by)}.</p>`}`)
     : a.stage === 'gathering' ? claudes(`<div class="action-progress">${actionSpinner(a)}<span>Gathering information…</span></div>`)
+    : a.session ? `${(a.turns || []).map((t) => t.who === 'Claude' ? claudes(md(t.text)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
     : actionCard(n);
-  const composer = asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
+  const continuing = a.session && ['finished','blocked'].includes(a.stage);
+  const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
   return `<div class="action-chat-head"><span>${label}</span>${back}</div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
 }
 function actionCard(n){
@@ -2579,7 +2587,7 @@ function actionCard(n){
   let content = '';
   if (a.stage === 'ready' || a.stage === 'sent') {
     const b = a.brief;
-    content = `<h3>${a.stage === 'ready' ? 'Ready to execute' : 'Sent to Claude'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p><ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Result:</b> ${esc(b.result)}</p>${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}${a.stage === 'ready' ? `<p class="action-note">Execute opens this task in Claude.</p><div class="action-controls">${button('actionexecute','Execute','action-execute')}${button('actionrevise','Revise')}</div>` : '<p class="action-note">Continue in Claude. Task completion is reported there.</p>'}`;
+    content = `<h3>${a.stage === 'ready' ? 'Ready to execute' : 'Sent to Claude'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p><ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Expected result:</b> ${esc(b.result)}</p>${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}${a.stage === 'ready' ? `<p class="action-note">Execute runs this task and replies here.</p><div class="action-controls">${button('actionexecute','Execute','action-execute')}${button('actionrevise','Revise')}</div>` : '<p class="action-note">This task was opened in Claude before background execution was available. Its result stays in that chat.</p>'}`;
   } else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
   return `<section class="action-card" aria-label="${a.stage === 'ready' || a.stage === 'sent' ? 'Execution box' : 'Action box'}">${content}</section>`;
 }
@@ -3499,7 +3507,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drag?.so
 // drag on empty map draws a selection box: the boxes it touches are picked together (group) and move together;
 // the view moves with the trackpad, the Hand tool, or by holding Space while dragging
 let group = new Set(), marquee = null, spaceDown = false;
-document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('input, textarea, [contenteditable]')){ e.preventDefault(); if (!spaceDown){ spaceDown = true; canvas.classList.add('spacepan'); } } });
+document.addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('button, a, input, textarea, [contenteditable]')){ e.preventDefault(); if (!spaceDown){ spaceDown = true; canvas.classList.add('spacepan'); } } });
 document.addEventListener('keyup', (e) => { if (e.code === 'Space'){ spaceDown = false; canvas.classList.remove('spacepan'); } });
 // a box is picked as soon as the selection box touches it
 const inBox = (n, r) => n.x + W(n) / 2 >= r[0] && n.x - W(n) / 2 <= r[2] && n.y + HT(n) / 2 >= r[1] && n.y - HT(n) / 2 <= r[3];
@@ -3513,7 +3521,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (e.button === 2){ moved = true; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); try { canvas.setPointerCapture(e.pointerId); } catch {} return; }
   const pin = e.target.closest('.pinc');
   // Apply and Not now inside a box's diagram are buttons: their click goes to the page, not the map
-  if (e.target.closest('.dgask')) return;
+  if (e.target.closest('.dgask, [data-box-action]')) return;
   if (pin){ if (pin.dataset.pin){ openThread = openThread === Number(pin.dataset.pin) ? null : Number(pin.dataset.pin); draft = null; render(); } return; }
   // the Expand pill opens the box here: the canvas captures the pointer, so a
   // click event would land on the canvas, not on the pill
@@ -3828,6 +3836,8 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
 document.addEventListener('submit', (e) => {
+  const continuing = e.target.closest('form[data-action-continue]');
+  if (continuing) { e.preventDefault(); const input = continuing.querySelector('textarea'); runBoxAction('actioncontinue',continuing.dataset.actionContinue,{revision:continuing.dataset.actionRevision,answer:input.value.trim()}); return; }
   const actionStart = e.target.closest('form[data-action-start]');
   if (actionStart) { e.preventDefault(); const intent = actionStart.querySelector('textarea').value.trim(); if (intent) runBoxAction('actionstart',actionStart.dataset.actionStart,{intent}); return; }
   const actionForm = e.target.closest('form[data-action-answer]');
@@ -3993,12 +4003,12 @@ window.addEventListener('resize', fit);
 // the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
 // input method is still composing a word); the box grows with each line
 document.addEventListener('keydown', (e) => {
-  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea');
+  const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea');
   if (!t || e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
   e.preventDefault(); t.form.requestSubmit();
 });
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
-document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea'); if (t) fitBox(t); });
+document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea'); if (t) fitBox(t); });
 listen();
 if (!FILE){ fetchInbox(); setInterval(fetchInbox, 8000); }
 </script>
