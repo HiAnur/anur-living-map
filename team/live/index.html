@@ -1346,8 +1346,8 @@ function renderMapSearch(){
 }
 function openSearchResult(index, keepOpen = false){
   const row = searchMatches[index]; if (!row) return;
-  if (!keepOpen){ closeMapSearch(); $('map-query').blur(); }
-  view = row.container; selected = row.id; sideFor = row.id; sideTab = 'box'; keyboardSelection = true;
+  if (!keepOpen){ closeMapSearch(); $('map-query').blur(); backTo = null; }
+  view = row.container; selected = row.id; sideFor = row.id; sideTab = 'box'; keyboardSelection = keepOpen;
   group.clear(); pickedLine = null; setTool('select'); render();
   // Use preview positions too, so a pending plan cannot send search to the old location.
   const n = scope().nodes.find((n) => n.id === row.id); if (!n) return;
