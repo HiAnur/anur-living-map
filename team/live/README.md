@@ -68,3 +68,7 @@ Action box: select a saved topic and choose **Action box** beside Auto plan, wri
 Search map in the top bar finds box names, descriptions and notes across accessible boxes, including folded branches, proposed boxes and boxes inside another box. Open it with Command/Ctrl+F, use the arrow keys to immediately reveal and center each matching box while search stays open. Enter or clicking a result closes the list and opens its Information panel; Escape closes search. Searching does not change map content.
 
 Share shows Local only before publication and Shared online after upload. Copy link asks before the first cloud upload: Keep local cancels without uploading or copying, and Upload and copy link publishes the shared copy. Revoking link access shows In cloud · link off because the cloud copy remains stored. Unknown status and upload failures never imply that publication succeeded.
+
+### All brain
+
+The right rail’s **All brain** tab lists the maps you can access. Choose a map to browse its map objects, decisions and memory, expand an object for details, or open its box on the map. Shared links and downloaded files do not expose this cross-map browser.
