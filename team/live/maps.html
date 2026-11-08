@@ -47,17 +47,13 @@ a.map:hover{border-color:var(--text)}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
 .sort button:hover{color:var(--text)}
 .sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
-/* a map made here can be deleted from the list, after a second click that says so */
+/* Trash keeps maps recoverable, with the same neutral action on every owned map. */
 .row{position:relative;margin-bottom:10px}
 .row a.map{margin-bottom:0}
 .row.can a.map{padding-right:48px}
 .del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
-.del:hover{background:#f0eee8;color:#B42318}
-.ask{display:flex;align-items:center;gap:8px;padding:10px 10px 10px 16px;background:#fff;border:1px solid #B42318;border-radius:10px}
-.ask span{flex:1}
-.ask button{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font:13px var(--plex);color:var(--text);cursor:pointer}
-.ask button.yes{background:#B42318;border-color:#B42318;color:#fff}
-.ask button:disabled{opacity:.5;cursor:default}
+.del:hover{background:#f0eee8;color:var(--text)}
+.del svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
 #brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
@@ -78,6 +74,15 @@ a.map:hover{border-color:var(--text)}
 #brain .brain-content p{margin:5px 0 10px;white-space:pre-wrap}
 #brain .brain-content a,#brain .brain-open{color:var(--new);text-decoration:none;font-size:13px}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
+[hidden]{display:none!important}
+.trash-button{font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
+.trash-button:disabled,.del:disabled{opacity:.5;cursor:wait}
+#trash-open{margin-top:6px;background:none}
+#trash-panel>p{color:var(--text-2);font-size:13px;margin:10px 0 18px}
+.trash-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin:10px 0;background:#fff;border:1px solid var(--rule-2);border-radius:10px}
+.trash-row strong{font-weight:500}.trash-row small{display:block;color:var(--text-2);font-size:12px;margin-top:3px}
+#trash-status{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:calc(100% - 32px);padding:12px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;box-shadow:0 5px 20px var(--rule);z-index:10}
+.trash-dismiss{border:0;background:none;font-size:20px;color:var(--text-2);cursor:pointer}
 </style>
 </head>
 <body>
@@ -93,6 +98,9 @@ a.map:hover{border-color:var(--text)}
   <div class="head"><h1>Or pick a map you have</h1>
     <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
   <div id="list" class="none">Loading…</div>
+  <button id="trash-open" type="button" class="trash-button">Trash</button>
+  <section id="trash-panel" hidden aria-label="Trash"><div class="head"><h1>Trash</h1><button id="trash-back" type="button" class="trash-button">Back to maps</button></div><p>Restore a map to put it back in your list. Code files and online copies are kept.</p><div id="trash-list"></div></section>
+  <div id="trash-status" role="status" hidden></div>
 </main>
 <aside id="brain" aria-label="All brain"></aside>
 </div>
@@ -149,6 +157,67 @@ if (new URLSearchParams(location.search).has('load') && window.opener){
   });
   window.opener.postMessage('lm-ready', '*');
 }
+let trashItems = [], trashOpen = false;
+const trashIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6"/></svg>';
+function trashNotice(message, id = ''){
+  $('trash-status').hidden = false;
+  $('trash-status').innerHTML = `<span>${esc(message)}</span>${id ? `<button type="button" class="trash-button" data-restore="${esc(id)}">Undo</button>` : ''}<button type="button" class="trash-dismiss" aria-label="Dismiss message">×</button>`;
+}
+async function trashRequest(route, data){
+  let response;
+  try { response = await fetch(route, data ? {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)} : undefined); }
+  catch { throw new Error('Could not reach Living Map. Try again when it reconnects.'); }
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'That change could not be saved. Try again.');
+  return result;
+}
+async function refreshMapList(){ maps = await trashRequest('/api/maps'); list(); loadBrain(); }
+async function moveToTrash(name, button){
+  const title = titleOf(maps.find((m) => m.name === name) || {name}); button.disabled = true;
+  try {
+    const result = await trashRequest('/api/maps/trash', {name});
+    maps = maps.filter((m) => m.name !== name); list(); loadBrain();
+    trashNotice(`Moved “${title}” to Trash.`, result.trashId);
+  } catch (e){
+    // A restart can interrupt the reply after the move has succeeded.
+    try {
+      await refreshMapList();
+      if (!maps.some((m) => m.name === name)) {
+        const items = await trashRequest('/api/maps/trash'), item = items.find((m) => m.name === name);
+        if (item) { trashNotice(`Moved “${title}” to Trash.`, item.id); return; }
+      }
+    } catch {}
+    button.disabled = false; trashNotice(e.message);
+  }
+}
+function renderTrash(){
+  $('trash-list').innerHTML = trashItems.length ? trashItems.map((m) => `<div class="trash-row"><span><strong>${esc(m.title)}</strong><small>Moved to Trash ${ago(m.at)}</small></span><button type="button" class="trash-button" data-restore="${esc(m.id)}">Restore</button></div>`).join('') : '<p class="none">Trash is empty.</p>';
+}
+async function showTrash(){
+  trashOpen = true; document.querySelector('main .head').hidden = true; $('list').hidden = true; $('trash-open').hidden = true; $('trash-panel').hidden = false;
+  $('trash-back').focus(); $('trash-list').textContent = 'Loading…';
+  try { trashItems = await trashRequest('/api/maps/trash'); renderTrash(); }
+  catch (e){ $('trash-list').innerHTML = `<p role="alert">${esc(e.message)}</p><button type="button" class="trash-button" data-trash-retry>Try again</button>`; }
+}
+async function restoreFromTrash(id, button){
+  button.disabled = true;
+  try {
+    const result = await trashRequest('/api/maps/restore', {id});
+    trashItems = trashItems.filter((m) => m.id !== id); if (trashOpen) renderTrash();
+    await refreshMapList(); trashNotice(`Restored “${result.title}”.`);
+  } catch (e){button.disabled = false; trashNotice(e.message);}
+}
+$('trash-open').addEventListener('click', showTrash);
+$('trash-back').addEventListener('click', () => {
+  trashOpen = false; $('trash-panel').hidden = true; document.querySelector('main .head').hidden = false; $('list').hidden = false; $('trash-open').hidden = false; $('trash-open').focus();
+});
+document.addEventListener('click', (e) => {
+  const restore = e.target.closest('[data-restore]');
+  if (restore) restoreFromTrash(restore.dataset.restore, restore);
+  else if (e.target.closest('[data-trash-retry]')) showTrash();
+  else if (e.target.closest('.trash-dismiss')) $('trash-status').hidden = true;
+});
+
 let maps = null, sortBy = 'time';
 try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
 const titleOf = (m) => m.title || m.name;
@@ -160,28 +229,9 @@ function list(){
   el.className = '';
   const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
     : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
-  el.innerHTML = sorted.map((m) => asking === m.name
-    ? `<div class="row ask"><span>Delete <b>${esc(titleOf(m))}</b> for everyone?</span>
-      <button type="button" data-cancel>Cancel</button><button type="button" class="yes" data-delete="${esc(m.name)}">Delete</button></div>`
-    : `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}">
-    <span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span>
-    <span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>${m.deletable
-      ? `<button type="button" class="del" data-ask="${esc(m.name)}" title="Delete this map" aria-label="Delete ${esc(titleOf(m))}">✕</button>` : ''}</div>`).join('');
+  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span><span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span></a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
 }
-// ✕ asks first; only Delete removes the map, for everyone
-let asking = null;
-document.getElementById('list').addEventListener('click', (e) => {
-  const t = e.target;
-  if (t.closest('[data-ask]')) { asking = t.closest('[data-ask]').dataset.ask; list(); }
-  else if (t.closest('[data-cancel]')) { asking = null; list(); }
-  else if (t.closest('[data-delete]')) {
-    const b = t.closest('[data-delete]'), name = b.dataset.delete; b.disabled = true;
-    fetch('/api/maps/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })
-      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
-      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be deleted.'); maps = maps.filter((m) => m.name !== name); asking = null; loadBrain(); list(); })
-      .catch((x) => { b.disabled = false; b.closest('.ask').querySelector('span').textContent = x.message; });
-  }
-});
+$('list').addEventListener('click', (e) => { const button = e.target.closest('[data-trash]'); if (button) moveToTrash(button.dataset.trash, button); });
 document.querySelector('.sort').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sort]'); if (!b) return;
   sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}

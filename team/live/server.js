@@ -30,7 +30,7 @@ import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-pl
 import { follow } from './mirror.js';
 import { appendProposed } from './proposal-layout.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
-import { changeAccess } from './access.js';
+import { changeAccess, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState, withoutActions } from './sharing.js';
 import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
@@ -111,6 +111,7 @@ const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : 
 // one map: its state, the windows following it, and what people can do to it
 export function openMap({ project = '', name = '', home, initialState, undoState, memory = false }) {
   if (project) fs.mkdirSync(home, { recursive: true });
+  let closed = false;
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
   const SAVES = path.join(home, 'saves');
@@ -167,7 +168,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state); if (memory) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -1060,6 +1061,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // the map's API, at <map address>/api/...; false when the path is not one of them
   const access = (who, req) => permission(state, who, req);
   const allowed = (who, req) => !!access(who, req);
+  // Admins can manage an unopened map without first joining its viewer list.
+  const canDelete = (who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
   async function handle(req, res, p, who = null) {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
     const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
@@ -1216,6 +1219,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
   function close() {
+    closed = true;
     actions.close();
     cloud?.close();
     mirror?.f.stop(); mirror = null;
@@ -1231,7 +1235,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (result.ok) { actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
-  return { handle, summary, asks, build, close, allowed, access, editShared,
+  return { handle, summary, asks, build, close, allowed, access, canDelete, editShared,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
@@ -1242,17 +1246,23 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename
 const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
 const { MIN, users, recovery } = await import('./users.js');
 const { handleRecovery } = await import('./recovery.js');
-const main = openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
+const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
+const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
+const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
+let main = PROJECT && deletedMaps.has(mapName(PROJECT)) ? null : openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 // every code folder this server draws, by folder name: the one it started with, then each added since
 // a map's address is its folder's name in lowercase letters, digits and dashes (AnurWebApp -> /anurwebapp/)
-const projects = new Map(PROJECT ? [[mapName(PROJECT), main]] : []);
-const folders = new Map(PROJECT ? [[mapName(PROJECT), PROJECT]] : []);
+const projects = new Map(PROJECT && main ? [[mapName(PROJECT), main]] : []);
+const folders = new Map(PROJECT && main ? [[mapName(PROJECT), PROJECT]] : []);
 const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
-const addProject = (folder) => {
+const addProject = (folder, restore = false) => {
   const name = mapName(folder);
+  if (deletedMaps.has(name) && !restore) return false;
   if (folders.has(name)) return folders.get(name) === folder;
   if (!/^[a-z0-9-]+$/.test(name) || !fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()) return false;
+  if (deletedMaps.delete(name)) saveDeleted();
   projects.set(name, openMap({ project: folder, home: path.join(folder, '.living-map') }));
+  if (folder === PROJECT) main = projects.get(name);
   folders.set(name, folder);
   return true;
 };
@@ -1261,15 +1271,31 @@ const named = new Map();
 // a name no map here has yet, from the first words of what it is about (a prompt, a shared file's title)
 function freeName(text) {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
-  const taken = (n) => fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
+  const taken = (n) => deletedMaps.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
   let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
   return name;
 }
 const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
+// Existing archives are readable in Trash too, including maps removed before Restore was available.
+const trashRecords = (who) => {
+  const bin = path.dirname(DELETED);
+  if (!who || !fs.existsSync(bin)) return [];
+  return fs.readdirSync(bin, { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) => {
+    try {
+      const archive = path.join(bin, d.name), state = JSON.parse(fs.readFileSync(path.join(archive, 'state.json'), 'utf8'));
+      let meta; try { meta = JSON.parse(fs.readFileSync(path.join(archive, 'trash.json'), 'utf8')); } catch {}
+      if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || demo().people.some((p) => p.id === who && p.role === 'Admin'))) return [];
+      const name = meta?.name || d.name.replace(/-(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|[a-z0-9]{8,12})$/, '');
+      if (!/^[a-z0-9-]+$/.test(name)) return [];
+      const project = meta ? meta.project : [PROJECT, ...remembered()].find((f) => f && mapName(f) === name) || '';
+      return [{ id: d.name, name, title: state.title || name, at: meta?.at || fs.statSync(archive).mtimeMs, project, archive }];
+    } catch { return []; }
+  }).sort((a, b) => b.at - a.at);
+};
 // every map to choose from: the code folders' own, then each named one
 const everyMap = () => {
   const MAPS = path.join(DIR, 'maps');
-  const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d) && !projects.has(d)).sort() : [];
+  const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d) && !projects.has(d) && !deletedMaps.has(d)).sort() : [];
   return [...projects, ...names.map((d) => [d, mapCalled(d)])];
 };
 
@@ -1357,18 +1383,61 @@ const server = http.createServer(async (req, res) => {
     mapCalled(name);
     return json(200, { name, href: `/${name}/` });
   }
-  // deleting a map from the list: only a map made here, never a code folder's. Its folder moves to
-  // maps/.deleted/<name>-<when>/, out of the list but still on this Mac
-  if (url.pathname === '/api/maps/delete' && req.method === 'POST') {
+  // Archive only the map data, never its code folder. A tombstone also prevents old URLs and restarts recreating it.
+  if (['/api/maps/trash', '/api/maps/delete'].includes(url.pathname) && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
+    if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to move a map to Trash.' });
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
-    const name = String(a.name || ''), dir = path.join(DIR, 'maps', name);
-    if (!/^[a-z0-9-]+$/.test(name) || projects.has(name) || !fs.existsSync(dir)) return json(400, { error: 'That map cannot be deleted here.' });
-    if (mapCalled(name).access(who, req) !== 'owner') return json(403, { error: 'You no longer have access to this project.' });
-    named.get(name)?.close(); named.delete(name);
-    const bin = path.join(DIR, 'maps', '.deleted');
-    fs.mkdirSync(bin, { recursive: true }); fs.renameSync(dir, path.join(bin, `${name}-${Date.now().toString(36)}`));
-    return json(200, { name });
+    const name = String(a.name || '');
+    if (!/^[a-z0-9-]+$/.test(name) || deletedMaps.has(name)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
+    const project = folders.get(name), dir = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
+    if (!projects.has(name) && !fs.existsSync(dir)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
+    const map = projects.get(name) || mapCalled(name);
+    if (!map.canDelete(who)) return json(403, { error: 'Only a map owner can move this map to Trash.' });
+    const bin = path.join(DIR, 'maps', '.deleted'), archive = path.join(bin, `${name}-${crypto.randomUUID()}`);
+    try {
+      fs.mkdirSync(bin, { recursive: true });
+      fs.renameSync(dir, archive);
+      try {
+        fs.writeFileSync(path.join(archive, 'trash.json'), JSON.stringify({ name, project: project || '', at: Date.now() }));
+        deletedMaps.add(name); saveDeleted();
+      }
+      catch (error) { deletedMaps.delete(name); fs.renameSync(archive, dir); throw error; }
+    } catch { return json(500, { error: 'Could not move the map to Trash. Try again.' }); }
+    map.close(); named.delete(name); projects.delete(name); folders.delete(name);
+    if (map === main) main = null;
+    return json(200, { name, trashId: path.basename(archive) });
+  }
+  if (url.pathname === '/api/maps/trash' && req.method === 'GET') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    return json(200, trashRecords(who).map(({ id, name, title, at }) => ({ id, name, title, at })));
+  }
+  if (url.pathname === '/api/maps/restore' && req.method === 'POST') {
+    if (!who) return json(401, { error: 'Sign in first.' });
+    if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to restore a map.' });
+    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    const record = trashRecords(who).find((r) => r.id === a.id);
+    if (!record) return json(404, { error: 'That map is not in your Trash.' });
+    const { name, project, archive } = record, home = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
+    if (projects.has(name) || (!deletedMaps.has(name) && named.has(name)) || fs.existsSync(path.join(home, 'state.json'))) return json(409, { error: 'A map already uses this address. Your trashed map is kept.' });
+    if (project && !fs.statSync(project, { throwIfNoEntry: false })?.isDirectory()) return json(409, { error: 'The code folder is no longer available. Your trashed map is kept.' });
+    const files = fs.readdirSync(archive).filter((f) => f !== 'trash.json' && !(f === 'server.log' && fs.existsSync(path.join(home, f))));
+    if (files.some((f) => fs.existsSync(path.join(home, f)))) return json(409, { error: 'Existing files would be replaced. Your trashed map is kept.' });
+    const moved = [], wasDeleted = deletedMaps.has(name);
+    try {
+      fs.mkdirSync(home, { recursive: true });
+      for (const f of files) { fs.renameSync(path.join(archive, f), path.join(home, f)); moved.push(f); }
+      deletedMaps.delete(name); saveDeleted();
+      fs.writeFileSync(path.join(archive, 'trash.json'), JSON.stringify({ name, project, at: record.at, restored: true }));
+    } catch {
+      for (const f of moved.reverse()) fs.renameSync(path.join(home, f), path.join(archive, f));
+      if (wasDeleted) { deletedMaps.add(name); saveDeleted(); }
+      return json(500, { error: 'The map could not be restored. Try again.' });
+    }
+    if (project) {
+      const map = openMap({ project, home }); projects.set(name, map); folders.set(name, project); if (project === PROJECT) main = map;
+    } else mapCalled(name);
+    return json(200, { name, title: record.title, href: `/${name}/` });
   }
   // which code this server runs: the package version, the build (commits in the clone), and whether main holds
   // newer ones; ?check=1 asks origin first (about a second), otherwise the answer is from the last check
@@ -1386,7 +1455,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.pathname === '/api/maps') {
-    const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: !projects.has(name), ...m.summary() }));
+    const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));
     return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
   }
   // the Inbox: what waits on one person on every map, the maps with nothing for them left out
@@ -1400,18 +1469,20 @@ const server = http.createServer(async (req, res) => {
   if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const folder = a.folder ? path.resolve(String(a.folder)) : '', name = mapName(folder);
-    if (!folder || !addProject(folder)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
+    if (!folder || !addProject(folder, true)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
     if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
     return json(200, { name, href: `/${name}/` });
   }
   // /<name>/... is the map called <name>, unless a file of the page has that name
   const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
+  if (deletedMaps.has(first) || (PROJECT && !first && !main)) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
   const own = projects.get(first);
   const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
   // the page asks its API by relative address, so a map's address ends in a slash
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
   const map = !isMap ? main : own || mapCalled(first);
   const p = isMap ? rest : url.pathname;
+  if (!map) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
   if (await map.handle(req, res, p, who)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
   // Private map files and server sources are never browser assets.
