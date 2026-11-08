@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Know when your map is shared online</strong></dt>
+<dd>
+
+Share shows **Local only** or **Shared online** and asks before uploading a map to create its first cloud link. [#176](https://github.com/HiAnur/anur-living-map/pull/176) <!-- merged-at: 2026-11-08T01:52:59Z -->
+
+<img src="docs/shipping/2026-11-07/share-confirmation.png" alt="Share dialog shows Local only and asks whether to host the map online, with Keep local and Upload and copy link buttons." width="580">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] Top-bar order</strong></dt>
 <dd>
 
