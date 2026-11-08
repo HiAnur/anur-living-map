@@ -5,21 +5,21 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
-<dt><strong>🧹 [Layout cleanup] Your profile on the home page</strong></dt>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
-Your avatar and name appear in the home page’s top-right corner so you can see who you’re signed in as. [#187](https://github.com/HiAnur/anur-living-map/pull/187) <!-- merged-at: 2026-11-08T02:25:00Z -->
+Choose **Action box** on a topic and **Execute** beneath its amber box; **Side Chat** returns confirmation and **Continue** resumes the same chat. Older unconfirmed tasks offer **Execute here** to check prior work and finish safely. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191) <!-- merged-at: 2026-11-08T03:03:54Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with plum Action and amber Execution boxes beside a Completed reply, confirmation details and Continue in Side Chat." width="640">
 
 </dd>
 </dl>
 
 <dl>
-<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dt><strong>🧹 [Layout cleanup] Your profile on the home page</strong></dt>
 <dd>
 
-Choose **Action box** on a topic, then **Execute** beneath its amber box. Replies stay in **Side Chat**, where **Continue** resumes the same chat. [#182](https://github.com/HiAnur/anur-living-map/pull/182) <!-- merged-at: 2026-11-08T02:16:53Z -->
-
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A plum Action box and an amber Execution box with Execute beneath it, beside the task review in Side Chat." width="640">
+Your avatar and name appear in the home page’s top-right corner so you can see who you’re signed in as. [#187](https://github.com/HiAnur/anur-living-map/pull/187) <!-- merged-at: 2026-11-08T02:25:00Z -->
 
 </dd>
 </dl>
