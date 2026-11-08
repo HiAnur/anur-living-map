@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
+<dd>
+
+On the **home page**, choose a map in **All brain** to view or download its map, decision and memory JSON objects, with **Open map** beside its name. [#178](https://github.com/HiAnur/anur-living-map/pull/178), [#183](https://github.com/HiAnur/anur-living-map/pull/183), [#202](https://github.com/HiAnur/anur-living-map/pull/202) <!-- merged-at: 2026-11-08T03:30:06Z -->
+
+<img src="docs/shipping/2026-11-07/all-brain-home.png" alt="The home page shows All brain on the right with Map object JSON, Decision object and Memory object downloads, and Open map beside the selected map name." width="760">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
@@ -73,17 +84,6 @@ Use the neutral **Delete online copy** button to the right of **Shared online**,
 <img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a neutral Delete online copy button to the right of Shared online." width="640">
 
 <img src="docs/shipping/2026-11-07/delete-online-confirmation.png" alt="Compact confirmation explains that the local map stays and the shared link stops working, with Cancel and Delete online copy." width="540">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
-<dd>
-
-On the **home page**, choose a map in **All brain** to browse its boxes, decisions and memories with expandable details. [#178](https://github.com/HiAnur/anur-living-map/pull/178), [#183](https://github.com/HiAnur/anur-living-map/pull/183) <!-- merged-at: 2026-11-08T02:16:16Z -->
-
-<img src="docs/shipping/2026-11-07/all-brain-home.png" alt="The Living Map home page shows the map list on the left and All brain on the right, with a chosen map's boxes, decisions and memories." width="760">
 
 </dd>
 </dl>
