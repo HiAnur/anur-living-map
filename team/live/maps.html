@@ -14,6 +14,10 @@
 body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
 .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,32%);min-height:calc(100vh - 44px)}
+#account{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+#account[hidden]{display:none}
+#account-avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600}
+:root{--profile:#0E7490}
 main{width:100%;max-width:640px;margin:48px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
 a.map{display:flex;align-items:baseline;gap:12px;padding:14px 16px;margin-bottom:10px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none}
@@ -77,7 +81,7 @@ a.map:hover{border-color:var(--text)}
 </style>
 </head>
 <body>
-<div id="top">Living Map</div>
+<div id="top"><span>Living Map</span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
 <div class="home">
 <main>
   <h1>Start a new map</h1>
@@ -95,7 +99,17 @@ a.map:hover{border-color:var(--text)}
 <script>
 // every map this server holds; a click opens it, with ?as= carried along
 const $ = (id) => document.getElementById(id);
-const ME = document.querySelector('meta[name="lm-user"]')?.content || new URLSearchParams(location.search).get('as') || 'Duy';
+const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
+const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+if (SIGNED_IN){
+  $('account').hidden = false;
+  $('account').title = `Signed in as ${SIGNED_IN}`;
+  $('account').setAttribute('aria-label', `Signed in as ${SIGNED_IN}`);
+  $('account-name').textContent = SIGNED_IN;
+  $('account-avatar').textContent = Array.from(SIGNED_IN.trim())[0]?.toUpperCase() || '';
+  const color = {Harshit:'#1E7A5A', Priyanka:'#7C3AED', Duy:'#0E7490', You:'#1E7A5A', Sam:'#B45309'}[SIGNED_IN];
+  if (color) $('account').style.setProperty('--profile', color);
+}
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
