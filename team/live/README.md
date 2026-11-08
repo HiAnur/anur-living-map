@@ -74,4 +74,4 @@ Share shows Local only before publication and Shared online after upload. Copy l
 
 ### All brain
 
-The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to browse its map objects, decisions and memory, expand an object for details, or open its box on the map. Shared links and downloaded files do not expose this cross-map browser.
+The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to view or download its Map object, Decision object and Memory object as JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
