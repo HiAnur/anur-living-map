@@ -7,7 +7,7 @@ const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('function shareAddress(){'), html.indexOf('async function setLinkRole('));
 function harness(sharing = {}) {
   const copied = [], calls = [];
-  const ctx = vm.createContext({ URL, CLOUD: false, CLOUD_STATUS: {configured:false}, cloudPublishing: false, cloudPublishConfirm:false, document:{querySelector:()=>({focus(){}})}, S: { people: [{ id: 'Duy', role: 'Admin' }], linkSharing: sharing }, ME: 'Duy', SIGNED_IN: 'Duy', LINK: '', location: { origin: 'http://localhost:4323', pathname: '/example/', search: '?as=Duy&chat=1' }, renderShare(){}, toast(){}, copyText: async (s) => { copied.push(s); return true; }, fetch: async (url, options) => { calls.push([url, JSON.parse(options.body)]); return { ok: true, json: async () => ({ mode: 'view', token: 'test-token' }) }; } });
+  const ctx = vm.createContext({ URL, CLOUD: false, CLOUD_STATUS: {configured:false}, cloudPublishing: false, cloudPublishConfirm:false, cloudDeleting:false, cloudDeleteConfirm:false, linkSaving:false, FILE:false, document:{querySelector:()=>({focus(){}})}, S: { people: [{ id: 'Duy', role: 'Admin' }], linkSharing: sharing }, ME: 'Duy', SIGNED_IN: 'Duy', LINK: '', location: { origin: 'http://localhost:4323', pathname: '/example/', search: '?as=Duy&chat=1' }, renderShare(){}, toast(){}, copyText: async (s) => { copied.push(s); return true; }, fetch: async (url, options) => { calls.push([url, JSON.parse(options.body)]); return { ok: true, json: async () => ({ mode: 'view', token: 'test-token' }) }; } });
   vm.runInContext(source, ctx);
   return { ctx, copied, calls };
 }
@@ -73,4 +73,22 @@ it('labels storage truthfully before upload, online, and with a revoked link',()
   expect(label({published:true,mode:'restricted'})).toBe('In cloud · link off');
   expect(label(null,{cloud:true})).toBe('Shared online');
   expect(label(null,{file:true})).toBe('Downloaded file');
+});
+
+it('confirms online deletion, can cancel, and keeps failures retryable', async () => {
+  const h=harness({mode:'edit',token:'local'}); h.ctx.CLOUD_STATUS={configured:true,published:true,url:'https://maps.example/shared'};
+  await h.ctx.deleteOnlineCopy(); expect(h.ctx.cloudDeleteConfirm).toBe(true); expect(h.calls).toEqual([]);
+  h.ctx.cancelCloudDelete(); expect(h.ctx.cloudDeleteConfirm).toBe(false); expect(h.calls).toEqual([]);
+  await h.ctx.deleteOnlineCopy(true); expect(h.calls).toEqual([]);
+  await h.ctx.deleteOnlineCopy();
+  h.ctx.fetch=async()=>({ok:false,json:async()=>({error:'Offline'})});
+  await h.ctx.deleteOnlineCopy(true); expect(h.ctx.CLOUD_STATUS.published).toBe(true); expect(h.ctx.cloudDeleting).toBe(false); expect(h.ctx.cloudDeleteConfirm).toBe(true);
+  h.ctx.fetch=async(url,options)=>{h.calls.push([url,JSON.parse(options.body)]);return {ok:true,json:async()=>({mode:'restricted',cloud:{configured:true,published:false,url:null}})};};
+  await h.ctx.deleteOnlineCopy(true); expect(h.calls).toEqual([['api/cloud/delete',{confirm:true}]]); expect(h.ctx.CLOUD_STATUS.published).toBe(false); expect(h.ctx.S.linkSharing.mode).toBe('restricted');
+  await h.ctx.copyMapLink(); expect(h.ctx.cloudPublishConfirm).toBe(true); expect(h.copied).toEqual([]);
+});
+it('does not offer deletion to guests or allow sharing during deletion', async () => {
+  const h=harness();h.ctx.CLOUD_STATUS={published:true};h.ctx.CLOUD=true;
+  await h.ctx.deleteOnlineCopy();expect(h.calls).toEqual([]);expect(h.ctx.cloudDeleteConfirm).toBe(false);
+  h.ctx.CLOUD=false;h.ctx.cloudDeleting=true;await h.ctx.copyMapLink();await h.ctx.deleteOnlineCopy();expect(h.calls).toEqual([]);
 });
