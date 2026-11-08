@@ -29,12 +29,12 @@ export function runAction({ cwd, env, session, resume, prompt, onText, onDone, s
     if (e?.type === 'message_start' && words) words += '\n\n';
     if (e?.type === 'content_block_delta' && typeof e.delta?.text === 'string') { words = (words + e.delta.text).slice(-MAX); onText(words); }
     if (d.type === 'assistant' && !words) {
-      words = (d.message?.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n\n').slice(-MAX);
+      words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((b) => b.type === 'text').map((b) => b.text).join('\n\n').slice(-MAX);
       if (words) onText(words);
     }
     if (d.type === 'result') {
       const denied = Array.isArray(d.permission_denials) && d.permission_denials.length > 0;
-      result = { text: String(d.result || d.errors?.join('\n') || words || 'Claude returned no answer.').slice(-MAX), blocked: !!d.is_error || denied };
+      result = { text: String(d.result || (Array.isArray(d.errors) ? d.errors.join('\n') : '') || words || 'Claude returned no answer.').slice(-MAX), blocked: !!d.is_error || denied };
       if (denied) result.text += '\n\nSome tools need permission. The task may be incomplete. Resolve access, then Continue here.';
     }
   };

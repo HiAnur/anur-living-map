@@ -24,7 +24,7 @@ describe('background execution',()=>{
     const bad=harness(true);bad.proc.stderr.write('Chat not found');bad.proc.emit('close',1);expect(bad.results[0]).toMatchObject({blocked:true});expect(bad.results[0].text).toContain('Chat not found');expect(bad.calls).toHaveLength(1);
   });
   it('handles malformed output, split UTF-8, cancellation and launch errors once',()=>{
-    const h=harness();h.proc.stdout.write('not json\n');const bytes=Buffer.from(JSON.stringify({type:'result',result:'Café'}));const index=bytes.indexOf(0xc3);h.proc.stdout.write(bytes.subarray(0,index+1));h.proc.stdout.write(bytes.subarray(index+1));h.proc.emit('close',0);expect(h.results[0].text).toBe('Café');
+    const h=harness();h.proc.stdout.write('not json\n');h.event({type:'assistant',message:{content:'invalid'}});h.event({type:'result',errors:'invalid'});const bytes=Buffer.from(JSON.stringify({type:'result',result:'Café'}));const index=bytes.indexOf(0xc3);h.proc.stdout.write(bytes.subarray(0,index+1));h.proc.stdout.write(bytes.subarray(index+1));h.proc.emit('close',0);expect(h.results[0].text).toBe('Café');
     const stopped=harness();stopped.stop();stopped.proc.emit('close',null);expect(stopped.results[0].text).toContain('Stopped');expect(stopped.results[0].blocked).toBe(true);
     const failed=harness();failed.proc.emit('error',new Error('missing'));failed.proc.emit('close',1);expect(failed.results).toHaveLength(1);expect(failed.results[0].blocked).toBe(true);
   });
