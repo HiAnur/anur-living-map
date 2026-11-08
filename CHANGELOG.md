@@ -16,6 +16,15 @@ Share shows **Local only** or **Shared online**, with a compact confirmation bef
 </dl>
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Your profile on the home page</strong></dt>
+<dd>
+
+Your avatar and name appear in the home page’s top-right corner so you can see who you’re signed in as. [#187](https://github.com/HiAnur/anur-living-map/pull/187) <!-- merged-at: 2026-11-08T02:25:00Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Delete the online copy</strong></dt>
 <dd>
 
