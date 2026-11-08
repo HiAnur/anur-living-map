@@ -15,7 +15,7 @@
   /* paper, ink; hue says what the plan changes */
   --canvas:#fbfaf7; --box:#fff; --box-line:#bdb9ae; --line:#a8a49a; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
   --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#fff;
-  --action:#176B70; --action-tint:#EDF7F6; --action-line:#73AAA7;
+  --action:#784861; --action-tint:#F8F0F5; --action-line:#BE92AA;
   --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --todo:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442; --ok:#2E8B57;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -733,6 +733,9 @@ body.resizing{cursor:col-resize;user-select:none}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
 .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
 .node.action-node{background:var(--action-tint);border-color:var(--action-line);color:var(--text)}
+.node.action-node.sel,.node.action-node:has(.cd):hover:not(.sel){outline-color:var(--action)}
+.node.action-node .cd{border-color:var(--action);background:var(--action-tint)}
+.node.action-node .cd:hover{background:var(--action)}
 .node.action-node .n{color:var(--text)}
 .node.action-node .s{color:var(--text-2);opacity:1}
 .node.action-node .action-tag{color:var(--action)}
