@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Your profile on the home page</strong></dt>
+<dd>
+
+Your avatar and name appear in the home page’s top-right corner so you can see who you’re signed in as. [#187](https://github.com/HiAnur/anur-living-map/pull/187) <!-- merged-at: 2026-11-08T02:25:00Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
