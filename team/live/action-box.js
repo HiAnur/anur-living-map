@@ -50,7 +50,7 @@ export function recoverAction(n) {
 }
 
 // Preparation cannot execute. Only the explicit Execute request starts the reviewed task in its own resumable chat.
-export function actionBoxes({ nodeOf, canUse, context, ask, changed, run }) {
+export function actionBoxes({ nodeOf, canUse, context, ask, changed, run, executionCwd }) {
   const jobs = new Map(), runs = new Map();
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
   function begin(id, by) {
@@ -102,7 +102,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, run }) {
     if (a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
     const checked = readActionReply('```action\n'+JSON.stringify({status:'ready',brief:a.brief})+'\n```');
     if (checked?.stage !== 'ready') return false;
-    a.session = crypto.randomUUID(); a.turns = [];
+    a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
     const prompt = `The person pressed Execute. Carry out the reviewed task below.\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
     return runTurn(id, by, a, prompt, false);
   }
@@ -125,7 +125,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, run }) {
       delete a.since; delete a.progress; changed();
     };
     try {
-      job.stop = run({session:a.session,resume,prompt,onText(words) {
+      job.stop = run({cwd:a.cwd,session:a.session,resume,prompt,onText(words) {
         if (!active()) { reconcile(); return; }
         a.progress = String(words).slice(-32000); changed();
       },onDone:finish});

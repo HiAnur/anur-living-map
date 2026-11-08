@@ -422,7 +422,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((m) => !m.thinking).slice(-20), true),
     ask: (request) => askClaude({ cwd:project || home, ...request }),
     changed: () => { save(); push(); },
-    run: (request) => { fs.mkdirSync(home, {recursive:true}); return runAction({cwd:project || home,env:childEnv(),...request}); },
+    executionCwd: project || PROJECT || home,
+    run: (request) => { fs.mkdirSync(home, {recursive:true}); return runAction({env:childEnv(),...request}); },
   });
 
   // Instructions (what Claude must follow) and Memory (what the team asked it to keep), each for the whole map

@@ -10,7 +10,7 @@ function harness() {
   let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
   const requests=[],launches=[],stops=[];let changed=0,allowed=true;
   const api=actionBoxes({nodeOf:()=>node,canUse:()=>allowed,context:()=> 'Whole map: Website > Contact form; Audience: small teams',
-    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,run:r=>{launches.push(r);return ()=>stops.push(true);}});
+    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,executionCwd:'/sample/project',run:r=>{launches.push(r);return ()=>stops.push(true);}});
   return {api,requests,launches,stops,get node(){return node;},get changes(){return changed;},remove:()=>node=null,revoke:()=>allowed=false,
     start:()=>{if(!node.action)api.begin('form','Duy');return node.action.stage==='draft'?api.start('form','Duy','Build a contact form for the website'):api.prepare('form','Duy');},ready:()=>requests.at(-1).onDone(reply({status:'ready',brief}))};
 }
@@ -71,7 +71,7 @@ describe('action boxes',()=>{
     expect(h.api.continue('form','Other',revision,'sales@example.com')).toBe(false);
     expect(h.api.continue('form','Duy','old','sales@example.com')).toBe(false);
     expect(h.api.continue('form','Duy',revision,'sales@example.com')).toBe(true);
-    expect(h.launches[1]).toMatchObject({session,resume:true,prompt:'sales@example.com'});
+    expect(h.launches[1]).toMatchObject({cwd:'/sample/project',session,resume:true,prompt:'sales@example.com'});
     expect(h.api.continue('form','Duy',revision)).toBe(false);expect(h.api.cancel('form','Duy')).toBe(false);
     h.launches[1].onDone({blocked:true,text:'Permission needed'});expect(h.node.action.stage).toBe('blocked');
     expect(h.api.continue('form','Duy',h.node.action.id)).toBe(true);expect(h.launches[2].session).toBe(session);expect(h.launches[2].prompt).toContain('already finished');
