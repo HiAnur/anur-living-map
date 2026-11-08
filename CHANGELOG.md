@@ -14,6 +14,18 @@ Choose **Action box** on a topic, then **Execute** beneath its amber box. Replie
 
 </dd>
 </dl>
+
+<dl>
+<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
+<dd>
+
+On the **home page**, choose a map in **All brain** to browse its boxes, decisions and memories with expandable details. [#178](https://github.com/HiAnur/anur-living-map/pull/178), [#183](https://github.com/HiAnur/anur-living-map/pull/183) <!-- merged-at: 2026-11-08T02:16:16Z -->
+
+<img src="docs/shipping/2026-11-07/all-brain-home.png" alt="The Living Map home page shows the map list on the left and All brain on the right, with a chosen map's boxes, decisions and memories." width="760">
+
+</dd>
+</dl>
+
 <dl>
 <dt><strong>✨ [New feature] Delete the online copy</strong></dt>
 <dd>
@@ -21,17 +33,6 @@ Choose **Action box** on a topic, then **Execute** beneath its amber box. Replie
 In **Share → Delete online copy**, confirm to remove the hosted map and disable its shared link while keeping your local map; sharing again creates a new copy and link. [#180](https://github.com/HiAnur/anur-living-map/pull/180) <!-- merged-at: 2026-11-08T02:11:24Z -->
 
 <img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a Delete online copy button beneath the Shared online status." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
-<dd>
-
-Open **All brain** in the right rail and choose a map to browse its boxes, decisions and memories with expandable details. [#178](https://github.com/HiAnur/anur-living-map/pull/178) <!-- merged-at: 2026-11-08T02:04:24Z -->
-
-<img src="docs/shipping/2026-11-07/all-brain.png" alt="All brain in the right rail shows a selected map's boxes, decisions and memories, with an expanded box description and decision beside the map." width="680">
 
 </dd>
 </dl>
