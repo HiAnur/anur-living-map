@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
+<dd>
+
+Open **All brain** in the right rail and choose a map to browse its boxes, decisions and memories with expandable details. [#178](https://github.com/HiAnur/anur-living-map/pull/178) <!-- merged-at: 2026-11-08T02:04:24Z -->
+
+<img src="docs/shipping/2026-11-07/all-brain.png" alt="All brain in the right rail shows a selected map's boxes, decisions and memories, with an expanded box description and decision beside the map." width="680">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Know when your map is shared online</strong></dt>
 <dd>
 
