@@ -5,21 +5,21 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
-<dt><strong>✨ [New feature] Box metadata</strong></dt>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
-Open the document icon beside a box’s close button to see its creator, edit history details, stable ID, and source chat when available. [#192](https://github.com/HiAnur/anur-living-map/pull/192) <!-- merged-at: 2026-11-08T03:05:33Z -->
+Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get an **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195) <!-- merged-at: 2026-11-08T03:11:21Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with an Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
 
 </dd>
 </dl>
 
 <dl>
-<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dt><strong>✨ [New feature] Box metadata</strong></dt>
 <dd>
 
-Choose **Action box** on a topic and **Execute** beneath its amber box; **Side Chat** returns confirmation and **Continue** resumes the same chat. Older unconfirmed tasks offer **Execute here** to check prior work and finish safely. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191) <!-- merged-at: 2026-11-08T03:03:54Z -->
-
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with plum Action and amber Execution boxes beside a Completed reply, confirmation details and Continue in Side Chat." width="640">
+Open the document icon beside a box’s close button to see its creator, edit history details, stable ID, and source chat when available. [#192](https://github.com/HiAnur/anur-living-map/pull/192) <!-- merged-at: 2026-11-08T03:05:33Z -->
 
 </dd>
 </dl>
@@ -56,7 +56,6 @@ Use the neutral **Delete online copy** button to the right of **Shared online**,
 
 </dd>
 </dl>
-
 
 <dl>
 <dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
