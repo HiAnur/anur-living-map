@@ -41,11 +41,17 @@ export function readActionReply(reply) {
 const source = (n) => JSON.stringify([n.label, n.sub || '', n.desc || '']);
 export function recoverAction(n) {
   if (n.action?.stage === 'gathering') Object.assign(n.action, { stage:'error', error:'Preparation stopped when the map restarted. Try again.' });
+  if (n.action?.stage === 'running') {
+    n.action.stage = 'blocked';
+    n.action.turns ||= [];
+    n.action.turns.push({who:'Claude',text:'Execution was interrupted when the map restarted. Some steps may have finished. Continue will pick up this chat and check before doing more.'});
+    delete n.action.since; delete n.action.progress;
+  }
 }
 
-// Preparation cannot execute. Only the explicit Execute request hands the reviewed brief to Claude.
-export function actionBoxes({ nodeOf, canUse, context, ask, changed, launch }) {
-  const jobs = new Map();
+// Preparation cannot execute. Only the explicit Execute request starts the reviewed task in its own resumable chat.
+export function actionBoxes({ nodeOf, canUse, context, ask, changed, run }) {
+  const jobs = new Map(), runs = new Map();
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
   function begin(id, by) {
     const n = nodeOf(id); if (!owns(n, by) || n.action) return false;
@@ -57,7 +63,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, launch }) {
   }
   function prepare(id, by, answer) {
     const n = nodeOf(id), prior = n?.action;
-    if (!owns(n, by) || !prior?.intent || prior?.stage === 'gathering' || prior?.stage === 'sent') return false;
+    if (!owns(n, by) || !prior?.intent || !['draft','clarify','ready','error'].includes(prior.stage) || prior.session) return false;
     if (answer !== undefined && (prior?.stage !== 'clarify' || !text(answer, 2000))) return false;
     const history = [...(prior?.history || [])];
     if (answer !== undefined) history.push({ question:prior.question, answer:answer.trim() });
@@ -83,7 +89,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, launch }) {
     return true;
   }
   function cancel(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.stage === 'sent') return false;
+    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || n.action.stage === 'sent') return false;
     jobs.get(id)?.(); jobs.delete(id); delete n.action; changed(); return true;
   }
   function revise(id, by) {
@@ -96,13 +102,54 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, launch }) {
     if (a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
     const checked = readActionReply('```action\n'+JSON.stringify({status:'ready',brief:a.brief})+'\n```');
     if (checked?.stage !== 'ready') return false;
-    a.stage = 'sent'; a.sentAt = Date.now(); changed();
+    a.session = crypto.randomUUID(); a.turns = [];
+    const prompt = `The person pressed Execute. Carry out the reviewed task below.\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
+    return runTurn(id, by, a, prompt, false);
+  }
+  function continueAction(id, by, revision, answer = '') {
+    const n = nodeOf(id), a = n?.action;
+    if (!owns(n, by) || !a?.session || !['finished','blocked'].includes(a.stage) || a.id !== revision || typeof answer !== 'string' || answer.length > 4000) return false;
+    const message = answer.trim() || 'Continue the reviewed task. Check what already finished in this conversation before doing more.';
+    a.turns.push({who:by,text:answer.trim() || 'Continue'});
+    return runTurn(id, by, a, message, true);
+  }
+  function runTurn(id, by, a, prompt, resume) {
+    Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:Date.now(),progress:''});
+    const job = {a,by,stop:null}; runs.set(id,job); changed();
+    const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
+    const finish = (result) => {
+      if (!active()) { reconcile(); return; }
+      runs.delete(id);
+      a.stage = result.blocked ? 'blocked' : 'finished';
+      a.turns.push({who:'Claude',text:String(result.text || 'Claude returned no answer.').slice(-34000)});
+      delete a.since; delete a.progress; changed();
+    };
     try {
-      launch(n, checked.brief, (error) => {
-        if (error && nodeOf(id)?.action === a) { Object.assign(a, {stage:'error',error:'Could not open Claude. Gather information again to retry.'}); changed(); }
-      });
-    } catch { Object.assign(a, {stage:'error',error:'Could not open Claude. Gather information again to retry.'}); changed(); }
+      job.stop = run({session:a.session,resume,prompt,onText(words) {
+        if (!active()) { reconcile(); return; }
+        a.progress = String(words).slice(-32000); changed();
+      },onDone:finish});
+    } catch { finish({blocked:true,text:'Could not start Claude. Continue will try to reopen this same chat.'}); }
     return true;
   }
-  return { begin, start, prepare, cancel, revise, execute, close() { for (const stop of jobs.values()) stop?.(); jobs.clear(); } };
+  function stop(id, by, revision) {
+    const n = nodeOf(id), a = n?.action, job = runs.get(id);
+    if (!owns(n, by) || a?.stage !== 'running' || a.id !== revision || !job) return false;
+    job.stop?.();
+    return true;
+  }
+  function reconcile(nodes = []) {
+    for (const [id, job] of runs) if (nodeOf(id)?.action !== job.a || !owns(nodeOf(id), job.by)) {
+      runs.delete(id); job.stop?.();
+      const current = nodeOf(id);
+      if (current?.action?.stage === 'running') { recoverAction(current); changed(); }
+    }
+    for (const n of nodes) if (n.action?.stage === 'running' && !runs.has(n.id)) { recoverAction(n); changed(); }
+  }
+  function close() {
+    for (const stop of jobs.values()) stop?.(); jobs.clear();
+    for (const [id, job] of runs) { runs.delete(id); job.stop?.(); if (nodeOf(id)?.action === job.a) recoverAction(nodeOf(id)); }
+    changed();
+  }
+  return { begin, start, prepare, cancel, revise, execute, continue:continueAction, stop, reconcile, close };
 }

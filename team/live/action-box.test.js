@@ -10,7 +10,7 @@ function harness() {
   let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
   const requests=[],launches=[],stops=[];let changed=0,allowed=true;
   const api=actionBoxes({nodeOf:()=>node,canUse:()=>allowed,context:()=> 'Whole map: Website > Contact form; Audience: small teams',
-    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,launch:(n,b,done)=>launches.push({n,b,done})});
+    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,run:r=>{launches.push(r);return ()=>stops.push(true);}});
   return {api,requests,launches,stops,get node(){return node;},get changes(){return changed;},remove:()=>node=null,revoke:()=>allowed=false,
     start:()=>{if(!node.action)api.begin('form','Duy');return node.action.stage==='draft'?api.start('form','Duy','Build a contact form for the website'):api.prepare('form','Duy');},ready:()=>requests.at(-1).onDone(reply({status:'ready',brief}))};
 }
@@ -28,8 +28,8 @@ describe('action boxes',()=>{
     expect(h.node.action.stage).toBe('clarify');expect(h.launches).toHaveLength(0);
     expect(h.api.prepare('form','Duy','Website')).toBe(true);expect(h.requests[1].prompt).toContain('"question":"Which project?","answer":"Website"');
     h.ready();expect(h.node.action.stage).toBe('ready');expect(h.launches).toHaveLength(0);
-    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(true);expect(h.node.action.stage).toBe('sent');expect(h.launches).toHaveLength(1);
-    expect(h.launches[0].b).toEqual(brief);expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.start()).toBe(false);
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(true);expect(h.node.action.stage).toBe('running');expect(h.launches).toHaveLength(1);
+    expect(h.launches[0].prompt).toContain(JSON.stringify(brief));expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.start()).toBe(false);
   });
   it('only accepts the owner, current revision and a ready brief',()=>{
     const h=harness();h.start();const id=h.node.action.id;
@@ -62,9 +62,40 @@ describe('action boxes',()=>{
     h.start();h.requests.at(-1).onDone('Not signed in');expect(h.node.action.stage).toBe('error');
     h.start();recoverAction(h.node);expect(h.node.action.stage).toBe('error');expect(h.node.action.error).toContain('restarted');
   });
-  it('does not mark a handoff failure as completed and stops children on close',()=>{
-    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);h.launches[0].done(new Error('No app'));expect(h.node.action.stage).toBe('error');
-    h.start();h.api.close();expect(h.stops).toHaveLength(1);
+  it('streams replies and continues the exact chat without replaying the task',()=>{
+    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
+    const first=h.launches[0],session=h.node.action.session;expect(first).toMatchObject({session,resume:false});
+    first.onText('Checking the form');expect(h.node.action.progress).toBe('Checking the form');
+    first.onDone({text:'The form is built. Which inbox should receive inquiries?',blocked:false});
+    const revision=h.node.action.id;expect(h.node.action.stage).toBe('finished');expect(h.node.action.turns.at(-1).text).toContain('Which inbox');
+    expect(h.api.continue('form','Other',revision,'sales@example.com')).toBe(false);
+    expect(h.api.continue('form','Duy','old','sales@example.com')).toBe(false);
+    expect(h.api.continue('form','Duy',revision,'sales@example.com')).toBe(true);
+    expect(h.launches[1]).toMatchObject({session,resume:true,prompt:'sales@example.com'});
+    expect(h.api.continue('form','Duy',revision)).toBe(false);expect(h.api.cancel('form','Duy')).toBe(false);
+    h.launches[1].onDone({blocked:true,text:'Permission needed'});expect(h.node.action.stage).toBe('blocked');
+    expect(h.api.continue('form','Duy',h.node.action.id)).toBe(true);expect(h.launches[2].session).toBe(session);expect(h.launches[2].prompt).toContain('already finished');
+  });
+  it('preserves execution history across a restart and resumes instead of executing again',()=>{
+    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);const session=h.node.action.session;
+    recoverAction(h.node);expect(h.node.action.stage).toBe('blocked');expect(h.node.action.turns.at(-1).text).toContain('interrupted');
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.start()).toBe(false);
+    h.api.continue('form','Duy',h.node.action.id);expect(h.launches[1]).toMatchObject({session,resume:true});
+    h.launches[0].onDone({text:'Late result'});expect(h.node.action.stage).toBe('running');
+  });
+  it('stops running work on request, deletion, access loss and close',()=>{
+    for(const change of ['stop','remove','revoke','close']){
+      const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
+      if(change==='stop') { expect(h.api.stop('form','Other',h.node.action.id)).toBe(false);h.api.stop('form','Duy',h.node.action.id); }
+      else if(change==='close')h.api.close();else {h[change]();h.api.reconcile();}
+      expect(h.stops).toHaveLength(1);
+      h.launches[0].onDone({blocked:true,text:'Stopped'});if(change!=='remove')expect(h.node.action.stage).toBe('blocked');
+    }
+  });
+  it('recovers a running box restored from undo after its process was removed',()=>{
+    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
+    const n=structuredClone(h.node);h.api.close();h.node.action=n.action;
+    h.api.reconcile([h.node]);expect(h.node.action.stage).toBe('blocked');expect(h.node.action.session).toBe(n.action.session);
   });
   it('validates output, email details and bounds without accepting model operations',()=>{
     for(const value of [null,{}, {status:'ready',brief:{}},{status:'ready',brief:{...brief,steps:[]}}, {status:'ready',brief:{...brief,result:[]}}]) expect(readActionReply(reply(value))).toBeNull();
@@ -79,6 +110,6 @@ describe('action boxes',()=>{
     const s={nodes:[{...node,inside:{nodes:[{...node,id:'inside'}],edges:[]}}],edges:[]};
     const guest=sharedState(s,false,true);expect(guest.nodes[0].action).toBeUndefined();expect(guest.nodes[0].inside.nodes[0].action).toBeUndefined();expect(s.nodes[0].action).toBeDefined();
     expect(mapData(s).nodes[0].action).toBeUndefined();
-    for(const type of ['actionbox','actionstart','actionretry','actionanswer','actionexecute','actioncancel','actionrevise'])expect(LINK_EDITS.has(type)).toBe(false);
+    for(const type of ['actionbox','actionstart','actionretry','actionanswer','actionexecute','actioncontinue','actionstop','actioncancel','actionrevise'])expect(LINK_EDITS.has(type)).toBe(false);
   });
 });
