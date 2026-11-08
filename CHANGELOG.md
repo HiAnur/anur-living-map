@@ -8,7 +8,7 @@ Recent changes you can use in the current release of Living Map, newest first. D
 <dt><strong>✨ [New feature] Search your map</strong></dt>
 <dd>
 
-Use **Search map** or **⌘F / Ctrl+F** to find names, descriptions and notes; **↑ ↓** immediately show each matching box while the results stay open. [#167](https://github.com/HiAnur/anur-living-map/pull/167), [#170](https://github.com/HiAnur/anur-living-map/pull/170) <!-- merged-at: 2026-11-08T01:25:33Z -->
+Search names, descriptions and notes with **Search map** (**⌘F / Ctrl+F**); **↑ ↓** previews each box, and **Enter** opens its Information panel. [#167](https://github.com/HiAnur/anur-living-map/pull/167), [#170](https://github.com/HiAnur/anur-living-map/pull/170), [#172](https://github.com/HiAnur/anur-living-map/pull/172) <!-- merged-at: 2026-11-08T01:32:10Z -->
 
 <img src="docs/shipping/2026-11-07/map-search.png" alt="Search in the map's top bar shows matching box names, descriptions and their parent branches above the selected map box." width="640">
 
