@@ -1344,15 +1344,22 @@ function renderMapSearch(){
   if (searchMatches.length) $('map-query').setAttribute('aria-activedescendant',`search-result-${searchIndex}`);
   else $('map-query').removeAttribute('aria-activedescendant');
 }
-function openSearchResult(index){
+function openSearchResult(index, keepOpen = false){
   const row = searchMatches[index]; if (!row) return;
-  closeMapSearch(); $('map-query').blur();
+  if (!keepOpen){ closeMapSearch(); $('map-query').blur(); }
   view = row.container; selected = row.id; sideFor = row.id; sideTab = 'box'; keyboardSelection = true;
   group.clear(); pickedLine = null; setTool('select'); render();
   // Use preview positions too, so a pending plan cannot send search to the old location.
   const n = scope().nodes.find((n) => n.id === row.id); if (!n) return;
   const r = canvas.getBoundingClientRect(); cam.z = Math.max(cam.z, .8);
-  cam.x = r.width / 2 - n.x * cam.z; cam.y = r.height / 2 - n.y * cam.z; place();
+  let cx = r.width / 2, cy = r.height / 2;
+  if (keepOpen){
+    // Leave the result visible beside the search list, or below it on a narrow screen.
+    const popup = $('search-popover').getBoundingClientRect(), left = popup.left - r.left - 20;
+    if (left >= W(n) * cam.z + 32) cx = left / 2;
+    else cy = Math.min(r.height - HT(n) * cam.z / 2 - 16, (popup.bottom - r.top + r.height) / 2);
+  }
+  cam.x = cx - n.x * cam.z; cam.y = cy - n.y * cam.z; place();
 }
 $('map-query').addEventListener('focus', () => { searchOpen = true; renderMapSearch(); });
 $('map-query').addEventListener('input', () => { searchOpen = true; searchIndex = 0; searchMatches = []; renderMapSearch(); });
@@ -1373,7 +1380,7 @@ document.addEventListener('keydown', (e) => {
   else if (['ArrowDown','ArrowUp'].includes(e.key)){
     e.preventDefault(); if (!searchMatches.length) return;
     searchIndex = (searchIndex + (e.key === 'ArrowDown' ? 1 : -1) + searchMatches.length) % searchMatches.length;
-    renderMapSearch(); $(`search-result-${searchIndex}`)?.scrollIntoView({block:'nearest'});
+    openSearchResult(searchIndex, true); $(`search-result-${searchIndex}`)?.scrollIntoView({block:'nearest'});
   }
 }, true);
 function toggleFold(id){

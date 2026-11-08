@@ -37,3 +37,30 @@ describe('map search',()=>{
     expect(JSON.stringify(state)).toBe(before);
   });
 });
+
+function previewHarness(){
+  const calls=[];
+  const query={blur:()=>calls.push('blur')};
+  const c=vm.createContext({searchMatches:[{id:'child',container:'system'}],
+    closeMapSearch:()=>calls.push('close'),$:id=>id==='map-query'?query:{getBoundingClientRect:()=>({left:700,bottom:400})},
+    view:'system',selected:null,sideFor:null,sideTab:'',keyboardSelection:false,pickedLine:'line',
+    group:new Set(['old']),setTool:()=>{},render:()=>calls.push('render'),
+    scope:()=>({nodes:[{id:'child',x:1000,y:800}]}),W:()=>180,HT:()=>70,
+    canvas:{getBoundingClientRect:()=>({left:0,top:44,width:1200,height:700})},cam:{x:0,y:0,z:.8},place:()=>calls.push('place')});
+  vm.runInContext(html.slice(html.indexOf('function openSearchResult('),html.indexOf("$('map-query').addEventListener('focus'")),c);
+  return {c,calls};
+}
+describe('search result preview',()=>{
+  it('selects and reveals the result without closing search or blurring its input',()=>{
+    const {c,calls}=previewHarness();c.openSearchResult(0,true);
+    expect(c.selected).toBe('child');expect(c.group.size).toBe(0);
+    expect(calls).toEqual(['render','place']);
+    expect(c.cam.x+1000*c.cam.z).toBe(340);
+    expect(c.cam.y+800*c.cam.z).toBe(350);
+  });
+  it('still closes search on Enter or click and centers normally',()=>{
+    const {c,calls}=previewHarness();c.openSearchResult(0);
+    expect(calls).toEqual(['close','blur','render','place']);
+    expect(c.cam.x+1000*c.cam.z).toBe(600);
+  });
+});
