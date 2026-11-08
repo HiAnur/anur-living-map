@@ -43,7 +43,7 @@ function previewHarness(){
   const query={blur:()=>calls.push('blur')};
   const c=vm.createContext({searchMatches:[{id:'child',container:'system'}],
     closeMapSearch:()=>calls.push('close'),$:id=>id==='map-query'?query:{getBoundingClientRect:()=>({left:700,bottom:400})},
-    view:'system',selected:null,sideFor:null,sideTab:'',keyboardSelection:false,pickedLine:'line',
+    view:'system',selected:null,sideFor:null,sideTab:'chat',keyboardSelection:true,pickedLine:'line',backTo:'sidechats',
     group:new Set(['old']),setTool:()=>{},render:()=>calls.push('render'),
     scope:()=>({nodes:[{id:'child',x:1000,y:800}]}),W:()=>180,HT:()=>70,
     canvas:{getBoundingClientRect:()=>({left:0,top:44,width:1200,height:700})},cam:{x:0,y:0,z:.8},place:()=>calls.push('place')});
@@ -54,13 +54,16 @@ describe('search result preview',()=>{
   it('selects and reveals the result without closing search or blurring its input',()=>{
     const {c,calls}=previewHarness();c.openSearchResult(0,true);
     expect(c.selected).toBe('child');expect(c.group.size).toBe(0);
+    expect(c.keyboardSelection).toBe(true);
     expect(calls).toEqual(['render','place']);
     expect(c.cam.x+1000*c.cam.z).toBe(340);
     expect(c.cam.y+800*c.cam.z).toBe(350);
   });
-  it('still closes search on Enter or click and centers normally',()=>{
+  it('opens Information on Enter or click and clears the previous panel destination',()=>{
     const {c,calls}=previewHarness();c.openSearchResult(0);
     expect(calls).toEqual(['close','blur','render','place']);
+    expect(c.keyboardSelection).toBe(false);expect(c.sideTab).toBe('box');
+    expect(c.sideFor).toBe('child');expect(c.backTo).toBe(null);
     expect(c.cam.x+1000*c.cam.z).toBe(600);
   });
 });
