@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dd>
+
+Choose **Action box** on a topic, then **Execute** beneath its amber box. Replies stay in **Side Chat**, where **Continue** resumes the same chat. [#182](https://github.com/HiAnur/anur-living-map/pull/182) <!-- merged-at: 2026-11-08T02:16:53Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A plum Action box and an amber Execution box with Execute beneath it, beside the task review in Side Chat." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
 <dd>
 
@@ -53,17 +64,6 @@ Share shows **Local only** or **Shared online** and asks before uploading a map 
 Search names, descriptions and notes with **Search map** (**⌘F / Ctrl+F**); **↑ ↓** previews each box, and **Enter** opens its Information panel. [#167](https://github.com/HiAnur/anur-living-map/pull/167), [#170](https://github.com/HiAnur/anur-living-map/pull/170), [#172](https://github.com/HiAnur/anur-living-map/pull/172) <!-- merged-at: 2026-11-08T01:32:10Z -->
 
 <img src="docs/shipping/2026-11-07/map-search.png" alt="Search in the map's top bar shows matching box names, descriptions and their parent branches above the selected map box." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
-<dd>
-
-Choose **Action box**, write your task in **Side Chat**, answer clarifications with **Enter**, then review and **Execute** in Claude. Plum boxes show spinning progress or a **Need clarify** pill. [#164](https://github.com/HiAnur/anur-living-map/pull/164), [#166](https://github.com/HiAnur/anur-living-map/pull/166) <!-- merged-at: 2026-11-08T00:08:33Z -->
-
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="Plum Action and Execution boxes beside Side Chat, with a Need clarify pill, the question and answer history, and the reply composer." width="640">
 
 </dd>
 </dl>
