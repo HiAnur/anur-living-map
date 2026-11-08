@@ -97,6 +97,32 @@ describe('action boxes',()=>{
     const n=structuredClone(h.node);h.api.close();h.node.action=n.action;
     h.api.reconcile([h.node]);expect(h.node.action.stage).toBe('blocked');expect(h.node.action.session).toBe(n.action.session);
   });
+  it('recovers old handoffs as unconfirmed without running and requires an explicit current-owner Execute',()=>{
+    const h=harness();h.start();h.ready();Object.assign(h.node.action,{stage:'sent',sentAt:100});
+    const briefBefore=structuredClone(h.node.action.brief);recoverAction(h.node);
+    expect(h.node.action.stage).toBe('unconfirmed');expect(h.node.action.brief).toEqual(briefBefore);expect(h.launches).toHaveLength(0);
+    const rev=h.node.action.id;expect(h.api.cancel('form','Duy')).toBe(false);
+    expect(h.api.execute('form','Other',rev)).toBe(false);expect(h.api.execute('form','Duy','old')).toBe(false);
+    expect(h.api.execute('form','Duy',rev)).toBe(true);expect(h.launches[0].prompt).toContain('First check actual evidence');expect(h.launches[0].prompt).toContain('never risk a duplicate');
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);
+    h.launches[0].onDone({text:'A matching send already exists.',completion:{status:'completed',summary:'A matching send already exists.',evidence:['Sent message: sample-123']}});
+    expect(h.node.action.completion.status).toBe('completed');expect(h.node.action.turns.at(-1).completion.evidence).toEqual(['Sent message: sample-123']);
+  });
+  it('only shows completed with a valid confirmation, never a process exit or permission failure',()=>{
+    for(const result of [
+      {text:'Done'},
+      {text:'Done',completion:{status:'completed',summary:'Done',evidence:[]}},
+      {text:'Permission denied',blocked:true,completion:{status:'completed',summary:'Done',evidence:['Not usable']}},
+    ]){
+      const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);h.launches[0].onDone(result);
+      expect(h.node.action.completion.status).toBe(result.blocked?'blocked':'unconfirmed');
+      expect(h.node.action.turns.at(-1).completion.status).not.toBe('completed');
+    }
+    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
+    h.launches[0].onDone({completion:{status:'needs_input',summary:'Which inbox?',evidence:[]}});
+    expect(h.node.action.completion.status).toBe('needs_input');expect(h.node.action.turns.at(-1).text).toBe('Which inbox?');
+    h.api.continue('form','Duy',h.node.action.id,'team@example.com');expect(h.node.action.completion).toBeUndefined();expect(h.launches[1].resume).toBe(true);
+  });
   it('validates output, email details and bounds without accepting model operations',()=>{
     for(const value of [null,{}, {status:'ready',brief:{}},{status:'ready',brief:{...brief,steps:[]}}, {status:'ready',brief:{...brief,result:[]}}]) expect(readActionReply(reply(value))).toBeNull();
     const email={...brief,kind:'email',email:{to:'invented',subject:'Hello',body:'Thanks'}};
