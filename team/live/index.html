@@ -879,8 +879,9 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-storage strong::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-3)}
 .sh-storage strong.online::before{background:var(--new)}
 .sh-storage p,.sh-confirm p{margin-top:7px;font-size:13px;line-height:1.5;color:var(--text-2)}
-.sh-storage .sh-delete{margin-top:12px}
-.sh-delete{color:var(--gone);border-color:var(--rule);background:#fff}
+.sh-storage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.sh-storage-head .sh-delete{margin-left:auto;flex-shrink:0}
+.sh-delete{color:var(--text);border-color:var(--rule);background:#fff}
 .sh-storage .sh-sync-error{color:var(--gone)}
 .sh-confirm>strong{font-weight:500;font-size:16px}
 .sh-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;flex-wrap:wrap}
@@ -2077,7 +2078,7 @@ function renderShare(){
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
-      <div class="sh-storage" role="status"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div>
+      <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
       ${cloudDeleteConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="delete-cloud-title" aria-describedby="delete-cloud-detail"><strong id="delete-cloud-title">Delete the online copy?</strong><p id="delete-cloud-detail">The shared link will stop working for everyone. Your local map stays on this Mac. This cannot be undone; you can upload a new copy later.</p><div><button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Keep online copy</button><button type="button" class="gb sh-delete" data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button></div></div>` : ''}
       ${cloudPublishConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="share-confirm-title" aria-describedby="share-confirm-detail"><strong id="share-confirm-title">Share this map online?</strong><p id="share-confirm-detail">To let others open this link, Living Map needs to upload and host a copy of this map. It will no longer be local only. Your private chats stay on this Mac.</p><div><button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-confirm-publish>Upload and copy link</button></div></div>` : ''}
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
