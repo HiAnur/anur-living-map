@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
+<dd>
+
+Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get a green **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195), [#200](https://github.com/HiAnur/anur-living-map/pull/200) <!-- merged-at: 2026-11-08T03:21:57Z -->
+
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with a green Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Trash and Restore</strong></dt>
 <dd>
 
@@ -20,17 +31,6 @@ Use the trash icon on the home page to move a local map to **Trash**, then **Und
 <dd>
 
 The map’s **Memory** tab and panel heading are now called **Brain**. [#197](https://github.com/HiAnur/anur-living-map/pull/197) <!-- merged-at: 2026-11-08T03:12:57Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
-<dd>
-
-Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get an **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195) <!-- merged-at: 2026-11-08T03:11:21Z -->
-
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with an Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
 
 </dd>
 </dl>
