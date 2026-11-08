@@ -25,11 +25,12 @@ export function runAction({ cwd, env, session, resume, prompt, onText, onDone, s
   active.add(kill);
   const read = (line) => {
     let d; try { d = JSON.parse(line); } catch { return; }
+    if (!d || typeof d !== 'object') return;
     const e = d.type === 'stream_event' ? d.event : null;
     if (e?.type === 'message_start' && words) words += '\n\n';
     if (e?.type === 'content_block_delta' && typeof e.delta?.text === 'string') { words = (words + e.delta.text).slice(-MAX); onText(words); }
     if (d.type === 'assistant' && !words) {
-      words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((b) => b.type === 'text').map((b) => b.text).join('\n\n').slice(-MAX);
+      words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n\n').slice(-MAX);
       if (words) onText(words);
     }
     if (d.type === 'result') {
