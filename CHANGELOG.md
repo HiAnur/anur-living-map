@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Box metadata</strong></dt>
+<dd>
+
+Open the document icon beside a box’s close button to see its creator, edit history details, stable ID, and source chat when available. [#192](https://github.com/HiAnur/anur-living-map/pull/192) <!-- merged-at: 2026-11-08T03:05:33Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Know when your map is shared online</strong></dt>
 <dd>
 
