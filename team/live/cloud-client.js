@@ -33,7 +33,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
   let busy = null, error = '', closed = false, pending = Promise.resolve(), queued = 0;
   // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
   const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => {}); return next.finally(() => { queued--; }); };
-  const persist = () => { fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
+  const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
   const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
   const request = async (route, data, etag, missingOK = false) => {
@@ -58,6 +58,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
           if (!state) { error = ''; return; }
           got = { data: mapData(state), revision: state.cloudRevision };
         } else got = await request(`/m/${saved.id}/api/sync`, { base: saved.base, data: sent });
+        if (closed) return;
         const merged = mergeMap(sent, mapData(read()), got.data);
         saved.base = got.data; saved.revision = got.revision; persist();
         if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
@@ -68,6 +69,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     return busy;
   }
   async function publish(mode) {
+    if (closed) throw new Error('This local map is closed.');
     if (!['view','edit','restricted'].includes(mode)) throw new Error('Choose view or edit.');
     if (busy) await busy;
     if (saved?.published) {
@@ -80,6 +82,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     saved ||= { id: crypto.randomBytes(16).toString('hex'), ownerKey: crypto.randomBytes(32).toString('hex'), linkKey: crypto.randomBytes(32).toString('hex') };
     const sent = mapData(read()); saved.base ||= sent; persist();
     const got = await request('/api/maps', { id: saved.id, ownerKey: saved.ownerKey, linkKey: saved.linkKey, mode, data: sent });
+    if (closed) return status();
     const merged = mergeMap(sent, mapData(read()), got.data);
     saved = { ...saved, published: true, mode, base: got.data, revision: got.revision }; persist();
     if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);

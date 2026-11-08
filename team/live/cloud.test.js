@@ -154,3 +154,20 @@ it('preserves sharing on deletion failure and safely retries a lost deletion res
   await expect(mirror.remove()).rejects.toThrow();expect(mirror.status().published).toBe(true);
   await mirror.remove();expect(mirror.status()).toMatchObject({published:false,url:null,error:''});expect(local).toEqual(base());
 });
+
+it('does not recreate archived local files when a pending cloud response arrives', async () => {
+  const store = new MemoryStore(), app = await start(store);
+  const root = fs.mkdtempSync(path.resolve('cache/cloud-close-')); homes.push(root);
+  const home = path.join(root, 'map'); fs.mkdirSync(home);
+  let local = base(), writes = 0;
+  const mirror = cloudMirror({ home, read: () => local, write: (next) => { writes++; local = next; }, notify() {}, config: { url: app.url, publishKey: publisher } }); mirrors.push(mirror);
+  await mirror.publish('edit');
+  let release, entered; const arrived = new Promise((r) => { entered = r; }), gate = new Promise((r) => { release = r; });
+  const get = store.get.bind(store); store.get = async (id) => { entered(); await gate; return get(id); };
+  local.nodes[0].label = 'Local change';
+  const syncing = mirror.sync(); await arrived;
+  mirror.close(); fs.renameSync(home, path.join(root, 'archived'));
+  release(); await syncing;
+  expect(fs.existsSync(home)).toBe(false); expect(writes).toBe(0);
+  expect(fs.existsSync(path.join(root, 'archived/cloud.json'))).toBe(true);
+});

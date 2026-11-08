@@ -78,6 +78,7 @@ a.map:hover{border-color:var(--text)}
 #brain .brain-content p{margin:5px 0 10px;white-space:pre-wrap}
 #brain .brain-content a,#brain .brain-open{color:var(--new);text-decoration:none;font-size:13px}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
+.delete-detail{display:block;font-size:12px;color:var(--text-2);margin-top:5px}
 </style>
 </head>
 <body>
@@ -161,7 +162,7 @@ function list(){
   const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
     : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
   el.innerHTML = sorted.map((m) => asking === m.name
-    ? `<div class="row ask"><span>Delete <b>${esc(titleOf(m))}</b> for everyone?</span>
+    ? `<div class="row ask"><span>Delete <b>${esc(titleOf(m))}</b> from this Mac?<small class="delete-detail">Code files and any online copy are kept.</small></span>
       <button type="button" data-cancel>Cancel</button><button type="button" class="yes" data-delete="${esc(m.name)}">Delete</button></div>`
     : `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}">
     <span class="t">${esc(titleOf(m))}</span><span class="addr">${m.href}</span>
