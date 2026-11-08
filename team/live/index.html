@@ -893,6 +893,8 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-storage strong::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-3)}
 .sh-storage strong.online::before{background:var(--new)}
 .sh-storage p,.sh-confirm p{margin-top:7px;font-size:13px;line-height:1.5;color:var(--text-2)}
+.sh-storage .sh-delete{margin-top:12px}
+.sh-delete{color:var(--gone);border-color:var(--rule);background:#fff}
 .sh-storage .sh-sync-error{color:var(--gone)}
 .sh-confirm>strong{font-weight:500;font-size:16px}
 .sh-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;flex-wrap:wrap}
@@ -2057,7 +2059,7 @@ function render(){
 }
 
 // Share: copy this map's address, manage access, or download it. Invites are not wired up yet.
-let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false, cloudPublishing = false, cloudPublishConfirm = false;
+let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false, cloudPublishing = false, cloudPublishConfirm = false, cloudDeleting = false, cloudDeleteConfirm = false;
 // the Save menu: Save now, and the Auto-save switch, on unless someone turned it off for this map
 let saveOpen = false;
 function renderSave(){
@@ -2088,15 +2090,16 @@ function renderShare(){
   const canManage = !CLOUD && !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const storage = sharingLocation(CLOUD_STATUS, {cloud:CLOUD,file:FILE,uploading:cloudPublishing});
   const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
-  $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
+  $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
-      <div class="sh-storage" role="status"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
+      <div class="sh-storage" role="status"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div>
+      ${cloudDeleteConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="delete-cloud-title" aria-describedby="delete-cloud-detail"><strong id="delete-cloud-title">Delete the online copy?</strong><p id="delete-cloud-detail">The shared link will stop working for everyone. Your local map stays on this Mac. This cannot be undone; you can upload a new copy later.</p><div><button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Keep online copy</button><button type="button" class="gb sh-delete" data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button></div></div>` : ''}
       ${cloudPublishConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="share-confirm-title" aria-describedby="share-confirm-detail"><strong id="share-confirm-title">Share this map online?</strong><p id="share-confirm-detail">To let others open this link, Living Map needs to upload and host a copy of this map. It will no longer be local only. Your private chats stay on this Mac.</p><div><button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-confirm-publish>Upload and copy link</button></div></div>` : ''}
-      <div ${cloudPublishConfirm ? 'hidden' : ''}>
+      <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
-      ${!FILE && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit','restricted'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : mode === 'edit' ? 'Edit' : 'Turn off link'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
+      ${!FILE && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving || cloudDeleting ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit','restricted'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : mode === 'edit' ? 'Edit' : 'Turn off link'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
@@ -2112,7 +2115,7 @@ function shareAddress(){
   return url.href;
 }
 async function copyMapLink(confirmed = false){
-  if (cloudPublishing) return;
+  if (cloudPublishing || cloudDeleting || cloudDeleteConfirm) return;
   const owner = !CLOUD && !LINK && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   if (owner && !CLOUD_STATUS){
     try { const response = await fetch('api/cloud'); if (!response.ok) throw new Error(); CLOUD_STATUS = await response.json(); }
@@ -2133,8 +2136,25 @@ async function copyMapLink(confirmed = false){
   } catch (e) { toast(e.message || 'The link could not be created. Try again.'); }
   finally { cloudPublishing = false; renderShare(); }
 }
+function cancelCloudDelete(){
+  if (cloudDeleting) return;
+  cloudDeleteConfirm = false; renderShare(); document.querySelector('[data-delete-cloud]')?.focus();
+}
+async function deleteOnlineCopy(confirmed = false){
+  if (cloudDeleting || cloudPublishing || linkSaving || CLOUD || FILE || LINK || !SIGNED_IN || !S.people.some((p) => p.id === ME && p.role === 'Admin') || !CLOUD_STATUS?.published) return;
+  if (!confirmed){ cloudDeleteConfirm = true; cloudPublishConfirm = false; linkMenuOpen = false; renderShare(); document.querySelector('[data-keep-cloud]')?.focus(); return; }
+  if (!cloudDeleteConfirm) return;
+  cloudDeleting = true; renderShare();
+  try {
+    const response = await fetch('api/cloud/delete', {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({confirm:true})});
+    const got = await response.json(); if (!response.ok) throw new Error(got.error || 'The online copy could not be deleted. Please try again.');
+    S.linkSharing = got; CLOUD_STATUS = got.cloud; cloudDeleteConfirm = false;
+    toast('Online copy deleted. Your local map is kept.');
+  } catch (e) { toast(e.message || 'The online copy could not be deleted. Please try again.'); }
+  finally { cloudDeleting = false; renderShare(); }
+}
 async function setLinkRole(mode){
-  if (linkSaving) return;
+  if (linkSaving || cloudDeleting || cloudDeleteConfirm) return;
   linkMenuOpen = false; linkSaving = true; renderShare();
   try {
     const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode }) });
@@ -2242,7 +2262,8 @@ function downloadMap(){
   const a = document.createElement('a'); a.href = mapURL('api/file'); a.download = ''; a.click();
   toast(`Saving ${String(S.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html to your downloads.`);
 }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ if (cloudPublishConfirm) cancelCloudPublish(); else { shareOpen = false; linkMenuOpen = false; renderShare(); } } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpen){ if (cloudDeleteConfirm){ e.preventDefault(); e.stopImmediatePropagation(); cancelCloudDelete(); return; }
+    if (cloudPublishConfirm) cancelCloudPublish(); else { shareOpen = false; linkMenuOpen = false; renderShare(); } } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
 // The plan's code, top right beside the people: where it stands at every step, so nobody has to ask.
 // Before Execute nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
@@ -3808,8 +3829,11 @@ document.addEventListener('click', (e) => {
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
-  else if (t.id === 'shareb'){ shareOpen = true; cloudPublishConfirm = false; renderShare(); }
-  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; cloudPublishConfirm = false; linkMenuOpen = false; renderShare(); }
+  else if (t.id === 'shareb'){ shareOpen = true; cloudPublishConfirm = false; cloudDeleteConfirm = false; renderShare(); }
+  else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; cloudPublishConfirm = false; cloudDeleteConfirm = false; linkMenuOpen = false; renderShare(); }
+  else if (t.closest('[data-delete-cloud]')){ deleteOnlineCopy(); }
+  else if (t.closest('[data-keep-cloud]')){ cancelCloudDelete(); }
+  else if (t.closest('[data-confirm-delete-cloud]')){ deleteOnlineCopy(true); }
   else if (t.closest('[data-keep-local]')){ cancelCloudPublish(); }
   else if (t.closest('[data-confirm-publish]')){ copyMapLink(true); }
   else if (t.closest('[data-copy-link]')){

@@ -1055,6 +1055,15 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (role !== 'owner') return deny();
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cloud?.status() || { configured: false })); return true;
     }
+    if (p === '/api/cloud/delete' && req.method === 'POST') {
+      if (role !== 'owner' || !who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
+      let a; try { a = JSON.parse(await body(req)); } catch {}
+      if (a?.confirm !== true) return deny();
+      try { await cloud?.remove(); }
+      catch (e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
+      changeSharing(state, who, 'restricted'); save(); push();
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...state.linkSharing, cloud: cloud?.status() || { configured: false } })); return true;
+    }
     if (p === '/api/sharing' && req.method === 'POST') {
       if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
       let a; try { a = JSON.parse(await body(req)); } catch {}

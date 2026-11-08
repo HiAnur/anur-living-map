@@ -56,7 +56,9 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
     expect((await request('/shared/')).status).toBe(302);
     expect((await request('/shared/api/state')).status).toBe(403);
     expect((await request('/shared/api/sharing', { data: { mode: 'edit' } })).status).toBe(403);
+    expect((await request('/shared/api/cloud/delete', { owner: true, data: {} })).status).toBe(403);
     const { token } = await (await change('view')).json();
+    expect((await request('/shared/api/cloud/delete', { token, data: {confirm:true} })).status).toBe(403);
     const page = await request('/shared/', { token }); expect(page.status).toBe(200);
     expect(page.headers.get('referrer-policy')).toBe('no-referrer');
     expect(await page.text()).toContain('name="lm-access" content="view"');

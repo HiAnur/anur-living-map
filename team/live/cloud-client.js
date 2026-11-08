@@ -30,20 +30,24 @@ export function installCloudData(state, data) {
 export function cloudMirror({ home, read, write, notify, config = cloudConfig() }) {
   const file = path.join(home, 'cloud.json');
   let saved; try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
-  let busy = null, error = '', closed = false;
+  let busy = null, error = '', closed = false, pending = Promise.resolve(), queued = 0;
+  // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
+  const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => {}); return next.finally(() => { queued--; }); };
   const persist = () => { fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
-  const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy, error });
-  const request = async (route, data, etag) => {
+  const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
+  const request = async (route, data, etag, missingOK = false) => {
     if (!config) throw new Error('Cloud sharing is not set up on this Mac.');
     const r = await fetch(config.url + route, { method: data === undefined ? 'GET' : 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${config.publishKey}`, 'x-map-owner': saved?.ownerKey || '', ...(etag ? { 'if-none-match': etag } : {}) }, body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(30000) });
     if (r.status === 304) return null;
+    if (missingOK && r.status === 404) return {};
     const got = await r.json();
     if (!r.ok) throw new Error(got.error || 'Cloud sharing is unavailable. Your local changes are kept.');
     return got;
   };
   async function sync() {
     if (!saved?.published || !config || closed) return;
+    if (queued) return pending;
     if (busy) return busy;
     busy = (async () => {
       try {
@@ -81,7 +85,17 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
     error = ''; notify(); return status();
   }
+  async function remove() {
+    if (busy) await busy;
+    if (!saved?.published) return status();
+    try {
+      // A lost response can leave the remote copy already deleted; retrying is safe.
+      await request(`/m/${saved.id}/api/delete`, {}, undefined, true);
+      saved = null; persist(); error = ''; notify();
+      return status();
+    } catch (e) { error = e.message; notify(); throw e; }
+  }
   // Poll only already-published maps. Each exchange merges changes made while offline.
   const timer = setInterval(() => { void sync(); }, 5000); timer.unref();
-  return { status, publish, sync, close() { closed = true; clearInterval(timer); } };
+  return { status, publish: (mode) => exclusive(() => publish(mode)), remove: () => exclusive(remove), sync, close() { closed = true; clearInterval(timer); } };
 }

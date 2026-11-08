@@ -128,3 +128,29 @@ it('syncs a published local map, survives restart, and revokes even with a confl
   const next = JSON.parse(fs.readFileSync(path.join(home, 'cloud.json'))); expect(next.linkKey).not.toBe(old);
   expect((await app.call(route('api/state'))).status).toBe(403);
 });
+
+it('deletes after an in-flight publish, keeps the local map, and republishes with a new link', async () => {
+  const app=await start();const home=fs.mkdtempSync(path.resolve('cache/cloud-delete-'));homes.push(home);
+  const local=base();local.threads={mine:['private']};const before=structuredClone(local);
+  const options={home,read:()=>local,write:data=>installCloudData(local,data),notify(){},config:{url:app.url,publishKey:publisher}};
+  let mirror=cloudMirror(options);mirrors.push(mirror);
+  const publishing=mirror.publish('edit');const deleting=mirror.remove();
+  const published=await publishing;await deleting;
+  expect(local).toEqual(before);expect(mirror.status()).toMatchObject({published:false,url:null});expect(app.store.records.size).toBe(0);
+  mirror.close();mirror=cloudMirror(options);mirrors.push(mirror);await mirror.sync();expect(app.store.records.size).toBe(0);
+  const next=await mirror.publish('view');expect(next.url).not.toBe(published.url);
+  expect((await fetch(published.url.replace('http://localhost:4498',app.url))).status).toBe(404);
+  expect(local).toEqual(before);
+});
+it('preserves sharing on deletion failure and safely retries a lost deletion response', async () => {
+  const app=await start();const home=fs.mkdtempSync(path.resolve('cache/cloud-delete-'));homes.push(home);
+  const local=base();const mirror=cloudMirror({home,read:()=>local,write:data=>installCloudData(local,data),notify(){},config:{url:app.url,publishKey:publisher}});mirrors.push(mirror);
+  await mirror.publish('view');const saved=JSON.parse(fs.readFileSync(path.join(home,'cloud.json')));
+  const route=`/m/${saved.id}/api/delete?share=${signedLink(saved.id,saved.linkKey,publisher)}`;
+  expect((await app.call(route,{})).status).toBe(403);
+  app.store.delete=async()=>{throw Object.assign(new Error('Offline'),{status:503});};
+  await expect(mirror.remove()).rejects.toThrow();expect(mirror.status().published).toBe(true);expect(app.store.records.size).toBe(1);
+  app.store.delete=async(id)=>{app.store.records.delete(id);throw Object.assign(new Error('Response lost'),{status:503});};
+  await expect(mirror.remove()).rejects.toThrow();expect(mirror.status().published).toBe(true);
+  await mirror.remove();expect(mirror.status()).toMatchObject({published:false,url:null,error:''});expect(local).toEqual(base());
+});

@@ -11,13 +11,18 @@ server runs. Independent edits merge; overlapping edits stop synchronization wit
 an error, keeping both copies. The cloud map remains editable while the Mac is off.
 Local changes are retried when the connection returns.
 
+In the local Share dialog, owners can choose **Delete online copy** and confirm to
+remove the hosted map and disable its link. The local map stays on the Mac, and
+synchronization stops. Sharing again asks to upload a new copy with a new link.
+A failed delete keeps the sharing details so the owner can retry.
+
 Private chats, pending proposals, memory, local paths, sign-in records and local
 member names are excluded. Cloud visitors use link permissions and separate browser
 undo histories. Claude runs only locally. Cloud history is limited to the most
 recent 20 undo steps per visitor (20 visitors); local History remains on the Mac.
 Cloud maps currently support up to 3,000 boxes per graph and a compressed document
-of 700 KB. Unsupported markup is refused before publication, rather than rendered
-as executable HTML. Links are bearer credentials: anyone receiving one has its
+of 700 KB. Text is preserved in storage and escaped when displayed; style fields
+remain restricted. Links are bearer credentials: anyone receiving one has its
 selected permission. Do not place them in public issues or deployment logs.
 
 ## Local setup
