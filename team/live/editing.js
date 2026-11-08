@@ -36,7 +36,7 @@ export function reparentTopic(state, a, canEdit = () => true) {
   return true;
 }
 // Dates describe edits; they must not make an otherwise unchanged undo conflict.
-const content = (value) => JSON.stringify(value, (key, v) => key === 'createdAt' || key === 'updatedAt' ? undefined : v);
+const content = (value) => JSON.stringify(value, (key, v) => key === 'createdAt' || key === 'updatedAt' || key === 'updatedBy' ? undefined : v);
 const equal = (a, b) => content(a) === content(b);
 const boxes = (state) => (state.nodes || []).flatMap((n) => [n, ...boxes(n.inside || {})]);
 const date = (value) => Number.isFinite(value) && value > 0 ? value : null;
@@ -47,13 +47,17 @@ export function boxDates(state, fresh = false, now = Date.now()) {
     n.createdAt = date(n.createdAt) ?? (fresh ? now : null);
     n.updatedAt = date(n.updatedAt) ?? n.createdAt;
   }
-  const snapshot = (s) => new Map(boxes(s).map((n) => [n.id, { content: content(n), createdAt: n.createdAt, updatedAt: n.updatedAt }]));
+  const snapshot = (s) => new Map(boxes(s).map((n) => [n.id, { content: content(n), createdAt: n.createdAt, updatedAt: n.updatedAt, updatedBy: n.updatedBy }]));
   let previous = snapshot(state);
-  return (next, at = Date.now()) => {
+  return (next, at = Date.now(), by) => {
     for (const n of boxes(next)) {
       const before = previous.get(n.id);
       n.createdAt = before ? before.createdAt : Object.hasOwn(n, 'createdAt') ? date(n.createdAt) : at;
-      n.updatedAt = before && before.content === content(n) ? before.updatedAt : at;
+      const unchanged = before && before.content === content(n);
+      n.updatedAt = unchanged ? before.updatedAt : at;
+      const editor = unchanged ? before.updatedBy : by;
+      if (editor) n.updatedBy = editor;
+      else delete n.updatedBy;
     }
     previous = snapshot(next);
   };

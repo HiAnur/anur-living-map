@@ -19,6 +19,14 @@ describe('box dates', () => {
     s.nodes[0].label = 'Root'; touch(s, 3000);
     expect(s.nodes[0]).toMatchObject({ createdAt: 1000, updatedAt: 1000 });
   });
+  it('attributes changed boxes and leaves the previous editor on no-op saves', () => {
+    const s = map(), touch = boxDates(s, true, 1000);
+    s.nodes[0].label = 'Edited'; touch(s, 2000, 'Duy');
+    touch(s, 3000, 'Claude');
+    expect(s.nodes[0]).toMatchObject({ updatedAt: 2000, updatedBy: 'Duy' });
+    s.nodes[0].desc = 'New notes'; touch(s, 4000);
+    expect(s.nodes[0].updatedBy).toBeUndefined();
+  });
   it('keeps legacy dates unknown and records their next actual edit', () => {
     const s = map(), touch = boxDates(s, false, 1000);
     touch(s, 2000);
