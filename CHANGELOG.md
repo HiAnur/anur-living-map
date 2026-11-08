@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Trash and Restore</strong></dt>
+<dd>
+
+Use the trash icon on the home page to move a local map to **Trash**, then **Undo** or **Trash → Restore** to bring it back; code files and online copies stay intact, and older archived maps can also be restored. [#196](https://github.com/HiAnur/anur-living-map/pull/196) <!-- merged-at: 2026-11-08T03:17:45Z -->
+
+<img src="docs/shipping/2026-11-07/map-trash.png" alt="Trash shows a recoverable project map with Restore and Back to maps controls." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] Brain tab</strong></dt>
 <dd>
 
