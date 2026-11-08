@@ -878,22 +878,20 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-storage strong{display:inline-flex;align-items:center;gap:7px;font-weight:500;font-size:14px}
 .sh-storage strong::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-3)}
 .sh-storage strong.online::before{background:var(--new)}
-.sh-storage p,.sh-confirm p{margin-top:7px;font-size:13px;line-height:1.5;color:var(--text-2)}
+.sh-storage p{margin-top:7px;font-size:13px;line-height:1.5;color:var(--text-2)}
 .sh-storage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .sh-storage-head .sh-delete{margin-left:auto;flex-shrink:0}
 .sh-delete{color:var(--text);border-color:var(--rule);background:#fff}
 .sh-storage .sh-sync-error{color:var(--gone)}
 #share.confirm{width:400px}
-.sh-delete-confirm{padding:24px}
-.sh-delete-confirm h2{font-size:18px;font-weight:500;margin:0 0 12px}
-.sh-delete-confirm p{font-size:14px;line-height:1.5;color:var(--text-2);margin:0}
-.sh-delete-confirm .sh-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px;flex-wrap:wrap}
-.sh-delete-confirm .gb{height:34px;padding:0 12px;font-size:13px}
-.sh-delete-confirm .sh-delete{background:var(--text);border-color:var(--text);color:var(--box)}
-.sh-delete-confirm .sh-delete:hover{opacity:.88}
-.sh-confirm>strong{font-weight:500;font-size:16px}
-.sh-confirm>div{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;flex-wrap:wrap}
-.sh-confirm .sh-publish{background:var(--new);border-color:var(--new);color:var(--box)}
+.sh-confirmation{padding:24px}
+.sh-confirmation h2{font-size:18px;font-weight:500;margin:0 0 12px}
+.sh-confirmation p{font-size:14px;line-height:1.5;color:var(--text-2);margin:0}
+.sh-confirmation .sh-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:24px;flex-wrap:wrap}
+.sh-confirmation .gb{height:34px;padding:0 12px;font-size:13px}
+.sh-confirmation .sh-delete{background:var(--text);border-color:var(--text);color:var(--box)}
+.sh-confirmation .sh-delete:hover{opacity:.88}
+.sh-confirmation .sh-publish{background:var(--new);border-color:var(--new);color:var(--box)}
 .sh-link{border:0;background:none;padding:0;font:inherit;display:inline-flex;align-items:center;gap:6px;color:var(--new);font-size:13.5px;cursor:pointer}
 .view-only #tools [data-tool="box"],.view-only #tools [data-tool="arrow"],.view-only #tools [data-tool="comment"],.view-only .history-tool,.view-only #tidyb,.view-only #savew,.view-only [data-hrestore],.view-only .topic-actions,.link-guest #bot,.link-guest #inboxb,.link-guest #rail [data-rail="memory"],.link-guest #rail [data-rail="sidechats"],.link-guest .topic-actions,.view-only .cd,.link-guest #verb,.link-guest #savew,.link-guest #side [data-side-tab="chat"],.view-only #side .d-del,.view-only #thread form,.view-only [data-resolve]{display:none}
 .sh-link svg,.sh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
@@ -2079,12 +2077,15 @@ function cancelCloudPublish(){
 function renderShare(){
   $('sharebg').classList.toggle('on', shareOpen);
   if (!shareOpen || !S) return;
-  $('share').classList.toggle('confirm', cloudDeleteConfirm);
-  $('share').setAttribute('role', cloudDeleteConfirm ? 'alertdialog' : 'dialog');
-  $('share').setAttribute('aria-label', cloudDeleteConfirm ? 'Delete online copy?' : 'Share this map');
-  if (cloudDeleteConfirm){
-    $('share').setAttribute('aria-describedby', 'delete-cloud-detail');
-    $('share').innerHTML = `<div class="sh-delete-confirm"><h2>Delete online copy?</h2><p id="delete-cloud-detail">Your local map stays on this Mac. The shared link will stop working for everyone.</p><div class="sh-actions"><button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Cancel</button><button type="button" class="gb sh-delete" data-primary data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button></div></div>`;
+  const confirming = cloudDeleteConfirm || cloudPublishConfirm;
+  const confirmTitle = cloudDeleteConfirm ? 'Delete online copy?' : 'Share this map online?';
+  $('share').classList.toggle('confirm', confirming);
+  $('share').setAttribute('role', confirming ? 'alertdialog' : 'dialog');
+  $('share').setAttribute('aria-label', confirming ? confirmTitle : 'Share this map');
+  if (confirming){
+    $('share').setAttribute('aria-describedby', 'share-confirm-detail');
+    const detail = cloudDeleteConfirm ? 'Your local map stays on this Mac. The shared link will stop working for everyone.' : 'Upload a cloud copy so others can open your link, even when this Mac is off. Your private chats stay on this Mac.';
+    $('share').innerHTML = `<div class="sh-confirmation"><h2>${confirmTitle}</h2><p id="share-confirm-detail">${detail}</p><div class="sh-actions">${cloudDeleteConfirm ? `<button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Cancel</button><button type="button" class="gb sh-delete" data-primary data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : `<button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-primary data-confirm-publish>Upload and copy link</button>`}</div></div>`;
     return;
   }
   $('share').removeAttribute('aria-describedby');
@@ -2096,7 +2097,6 @@ function renderShare(){
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
       <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
-      ${cloudPublishConfirm ? `<div class="sh-confirm" role="alertdialog" aria-labelledby="share-confirm-title" aria-describedby="share-confirm-detail"><strong id="share-confirm-title">Share this map online?</strong><p id="share-confirm-detail">To let others open this link, Living Map needs to upload and host a copy of this map. It will no longer be local only. Your private chats stay on this Mac.</p><div><button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-confirm-publish>Upload and copy link</button></div></div>` : ''}
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
