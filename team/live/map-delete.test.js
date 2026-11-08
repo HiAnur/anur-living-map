@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
-it('deletes unopened and project maps for the owner, preserves code, and keeps deletions across restart', async () => {
+it('trashes and restores unopened and project maps, preserves code, and keeps state across restart', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-delete-'));
   const app = path.join(root, 'app'), primary = path.join(root, 'primary'), secondary = path.join(root, 'secondary');
   fs.mkdirSync(app);
@@ -32,7 +32,7 @@ it('deletes unopened and project maps for the owner, preserves code, and keeps d
   };
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
   const request = (route, { token = owner, data, from = origin } = {}) => fetch(origin + route, { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { cookie: `lm_session=${token}`, 'sec-fetch-site': 'same-origin', ...(data ? { origin: from, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
-  const remove = (name, options = {}) => request('/api/maps/delete', { ...options, data: { name } });
+  const remove = (name, options = {}) => request('/api/maps/trash', { ...options, data: { name } });
   try {
     await start();
     const list = await (await request('/api/maps')).json();
@@ -42,8 +42,9 @@ it('deletes unopened and project maps for the owner, preserves code, and keeps d
     expect((await remove('unopened', { from: 'https://elsewhere.example' })).status).toBe(403);
     expect((await remove('../primary')).status).toBe(404);
     expect((await remove('missing')).status).toBe(404);
+    const trashIds = {};
     for (const name of ['unopened', 'secondary', 'primary']) {
-      expect((await remove(name)).status).toBe(200);
+      const response = await remove(name); expect(response.status).toBe(200); trashIds[name] = (await response.json()).trashId;
       expect((await request(`/${name}/api/state`)).status).toBe(410);
     }
     expect(await (await request('/api/maps')).json()).toEqual([]);
@@ -61,5 +62,27 @@ it('deletes unopened and project maps for the owner, preserves code, and keeps d
     for (const folder of [primary, secondary]) expect(fs.existsSync(path.join(folder, '.living-map'))).toBe(false);
     expect((await remove('unopened')).status).toBe(404);
     expect(fs.existsSync(path.join(app, 'maps/missing'))).toBe(false);
+    const trash = await (await request('/api/maps/trash')).json();
+    expect(trash.map((m) => m.name).sort()).toEqual(['primary', 'secondary', 'unopened']);
+    expect(JSON.stringify(trash)).not.toContain(root);
+    expect(await (await request('/api/maps/trash', {token:member})).json()).toEqual([]);
+    expect((await request('/api/maps/restore', {token:member,data:{id:trashIds.unopened}})).status).toBe(404);
+    expect((await request('/api/maps/restore', {data:{id:'../primary'}})).status).toBe(404);
+    fs.mkdirSync(named); fs.writeFileSync(path.join(named, 'state.json'), JSON.stringify({title:'Do not overwrite'}));
+    expect((await request('/api/maps/restore', {data:{id:trashIds.unopened}})).status).toBe(409);
+    expect(JSON.parse(fs.readFileSync(path.join(named, 'state.json'))).title).toBe('Do not overwrite');
+    fs.rmSync(named, {recursive:true});
+    // The running server may recreate only its log directory after its map was trashed.
+    fs.mkdirSync(path.join(primary, '.living-map'));fs.writeFileSync(path.join(primary, '.living-map/server.log'),'Current server log');
+    for (const name of ['unopened', 'secondary', 'primary']) expect((await request('/api/maps/restore', {data:{id:trashIds[name]}})).status).toBe(200);
+    expect(fs.readFileSync(path.join(primary, '.living-map/server.log'), 'utf8')).toBe('Current server log');
+    expect(await (await request('/api/maps/trash')).json()).toEqual([]);
+    await stop(); await start();
+    expect((await (await request('/api/maps')).json()).map((m) => m.name).sort()).toEqual(['primary','secondary','unopened']);
+    const legacy = path.join(bin, 'legacy-mw00rg9z');fs.mkdirSync(legacy);fs.writeFileSync(path.join(legacy, 'state.json'),JSON.stringify(state));
+    const older = await (await request('/api/maps/trash')).json();expect(older.map((m) => m.name)).toEqual(['legacy']);
+    expect((await request('/api/maps/restore',{data:{id:older[0].id}})).status).toBe(200);
+    expect(JSON.parse(fs.readFileSync(path.join(app,'maps/legacy/state.json'))).title).toBe(state.title);
+
   } finally { await stop(); fs.rmSync(root, { recursive: true, force: true }); }
 }, 15000);
