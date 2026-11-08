@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Delete the online copy</strong></dt>
+<dd>
+
+In **Share → Delete online copy**, confirm to remove the hosted map and disable its shared link while keeping your local map; sharing again creates a new copy and link. [#180](https://github.com/HiAnur/anur-living-map/pull/180) <!-- merged-at: 2026-11-08T02:11:24Z -->
+
+<img src="docs/shipping/2026-11-07/delete-online-copy.png" alt="Share shows a Delete online copy button beneath the Shared online status." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
 <dd>
 
