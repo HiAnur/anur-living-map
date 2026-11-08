@@ -13,7 +13,8 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
-main{max-width:640px;margin:48px auto;padding:0 16px}
+.home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,32%);min-height:calc(100vh - 44px)}
+main{width:100%;max-width:640px;margin:48px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
 a.map{display:flex;align-items:baseline;gap:12px;padding:14px 16px;margin-bottom:10px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none}
 a.map:hover{border-color:var(--text)}
@@ -53,10 +54,31 @@ a.map:hover{border-color:var(--text)}
 .ask button{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font:13px var(--plex);color:var(--text);cursor:pointer}
 .ask button.yes{background:#B42318;border-color:#B42318;color:#fff}
 .ask button:disabled{opacity:.5;cursor:default}
+#brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
+#brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
+#brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
+#brain .brain-content{user-select:text}
+:root{--new:#2F6FE4;--text-3:#8e8b84}
+@media(max-width:860px){.home{display:block}#brain{border-left:0;border-top:1px solid var(--rule)}}
+#brain .brain-map{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:14px 10px;text-align:left;border:0;border-bottom:1px solid var(--rule);background:none;color:var(--text);cursor:pointer;border-radius:8px}
+#brain .brain-map:hover{background:var(--canvas)}
+#brain .brain-map strong{font-size:14px;display:block}
+#brain small{display:block;color:var(--text-2);font-size:12px;margin-top:4px}
+#brain .brain-back{border:0;background:none;color:var(--new);padding:2px 0 14px;cursor:pointer}
+#brain h2{font-size:19px;margin:2px 0 12px;overflow-wrap:anywhere}
+#brain h3{font-size:13px;margin:22px 0 8px;display:flex;justify-content:space-between}
+#brain h3 span{color:var(--text-3);font-weight:400}
+#brain details{border-top:1px solid var(--rule);padding:10px 0;font-size:13px;overflow-wrap:anywhere}
+#brain summary{cursor:pointer;font-weight:500;line-height:1.45}
+#brain .brain-content{padding:5px 0 3px 16px;color:var(--text-2);line-height:1.5}
+#brain .brain-content p{margin:5px 0 10px;white-space:pre-wrap}
+#brain .brain-content a,#brain .brain-open{color:var(--new);text-decoration:none;font-size:13px}
+#brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
 </style>
 </head>
 <body>
 <div id="top">Living Map</div>
+<div class="home">
 <main>
   <h1>Start a new map</h1>
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
@@ -68,8 +90,12 @@ a.map:hover{border-color:var(--text)}
     <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
   <div id="list" class="none">Loading…</div>
 </main>
+<aside id="brain" aria-label="All brain"></aside>
+</div>
 <script>
 // every map this server holds; a click opens it, with ?as= carried along
+const $ = (id) => document.getElementById(id);
+const ME = document.querySelector('meta[name="lm-user"]')?.content || new URLSearchParams(location.search).get('as') || 'Duy';
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -138,7 +164,7 @@ document.getElementById('list').addEventListener('click', (e) => {
     const b = t.closest('[data-delete]'), name = b.dataset.delete; b.disabled = true;
     fetch('/api/maps/delete', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name }) })
       .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
-      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be deleted.'); maps = maps.filter((m) => m.name !== name); asking = null; list(); })
+      .then(({ ok, d }) => { if (!ok) throw new Error(d.error || 'The map could not be deleted.'); maps = maps.filter((m) => m.name !== name); asking = null; loadBrain(); list(); })
       .catch((x) => { b.disabled = false; b.closest('.ask').querySelector('span').textContent = x.message; });
   }
 });
@@ -147,6 +173,70 @@ document.querySelector('.sort').addEventListener('click', (e) => {
   sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}
   list();
 });
+function brainObjects(state, who){
+  const sees = state.people?.find((p) => p.id === who)?.sees;
+  const nodes = [], ids = new Set();
+  const collect = (items, container = 'system') => {
+    for (const n of items || []){
+      if (sees && sees !== 'all' && n.area !== sees) continue;
+      nodes.push({...n, container}); ids.add(n.id);
+      if (n.inside) collect(n.inside.nodes, n.id);
+    }
+  };
+  collect(state.nodes);
+  const decisions = (state.calls || []).filter((c) => ids.has(c.node) && ['answered', 'confirmed', 'disputed'].includes(c.status));
+  for (const [i, entry] of (state.log || []).entries()){
+    if (!['answered','confirmed','disputed'].includes(entry.action) || entry.call || (entry.node && !ids.has(entry.node))) continue;
+    decisions.push({id:'log-'+i, node:entry.node, text:entry.text, picked:entry.picked, status:entry.action, by:entry.who});
+  }
+  const memory = (state.memory || []).filter((m) => !m.box || ids.has(m.box));
+  return {nodes, decisions, memory};
+}
+let brainMaps = [], brainMap = null, brainState = null, brainLoading = false, brainError = '', brainRequest = 0;
+async function loadBrain(map = null){
+  const request = ++brainRequest;
+  brainMap = map; brainState = null; brainError = ''; brainLoading = true; renderBrain();
+  try {
+    const r = await fetch(map ? `${map.href}api/state` : '/api/maps');
+    if (!r.ok) throw new Error('This map is unavailable or your access has changed.');
+    const data = await r.json();
+    if (request !== brainRequest) return;
+    if (map) brainState = data;
+    else {
+      brainMaps = data;
+
+    }
+  } catch (e){ if (request === brainRequest) brainError = e.message || 'Could not load your maps.'; }
+  finally { if (request === brainRequest){ brainLoading = false; renderBrain(); } }
+}
+function renderBrain(){
+  const el = $('brain');
+  const heading = '<div class="ct"><span>All brain</span></div>';
+  const back = brainMap ? '<button class="brain-back" data-brain-back>‹ All maps</button>' : '';
+  if (brainLoading){ el.innerHTML = heading + back + '<p class="brain-empty" role="status">Loading…</p>'; return; }
+  if (brainError){ el.innerHTML = heading + back + `<p role="alert">${esc(brainError)}</p><button class="gb" data-brain-retry>Try again</button>`; return; }
+  if (!brainMap){
+    el.innerHTML = heading + brainMaps.map((m,i) => `<button class="brain-map" data-brain-map="${i}"><span><strong>${esc(m.title || m.name || 'Untitled map')}</strong><small>${m.boxes || 0} boxes</small></span><span aria-hidden="true">›</span></button>`).join(''); return;
+  }
+  const state = brainState;
+  if (!state) return;
+  const objects = brainObjects(state, ME);
+  const opened = new Set([...el.querySelectorAll('details[open]')].map((d) => d.dataset.brainObject));
+  const row = (key,title,body) => `<details data-brain-object="${esc(key)}"${opened.has(key) ? ' open' : ''}><summary>${esc(title)}</summary><div class="brain-content">${body}</div></details>`;
+  const section = (title,rows) => `<h3>${title}<span>${rows.length}</span></h3>${rows.join('') || '<p class="brain-empty">None yet.</p>'}`;
+  const boxName = (id) => objects.nodes.find((n) => n.id === id)?.label || 'Whole map';
+  el.innerHTML = heading + back + `<h2>${esc(state.title || brainMap.title)}</h2><a class="brain-open" href="${esc(brainMap.href)}">Open map ↗</a>` +
+    section('Map objects', objects.nodes.map((n) => row('box:'+n.id, n.label, `${[n.sub,n.desc,n.note].filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join('')}<a href="${esc(brainMap.href)}?brain-box=${encodeURIComponent(n.id)}">Open box ↗</a>`))) +
+    section('Decisions', objects.decisions.map((c) => row('decision:'+c.id, c.ask || c.text || boxName(c.node), `<p>${esc(c.picked || c.said || c.status)}</p><small>${esc(boxName(c.node))}${c.by ? ' · '+esc(c.by) : ''}</small>${c.context || c.plain ? `<p>${esc(c.plain || c.context)}</p>` : ''}`))) +
+    section('Memory', objects.memory.map((m) => row('memory:'+m.id, m.text, `<small>${m.kind === 'instruction' ? 'Instruction' : 'Memory'} · ${esc(boxName(m.box))}</small>`)));
+}
+$('brain').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-brain-map]');
+  if (button) loadBrain(brainMaps[Number(button.dataset.brainMap)]);
+  else if (e.target.closest('[data-brain-back]')) loadBrain();
+  else if (e.target.closest('[data-brain-retry]')) loadBrain(brainMap);
+});
+loadBrain();
 list();
 fetch('api/maps').then((r) => r.json()).then((m) => { maps = m; list(); });
 </script>
