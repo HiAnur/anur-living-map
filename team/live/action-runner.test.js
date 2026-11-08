@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
-import { runAction } from './action-runner.js';
+import { completionSchema, readCompletion, runAction } from './action-runner.js';
 
 function harness(resume = false) {
   const proc = new EventEmitter(); proc.stdin=new PassThrough();proc.stdout=new PassThrough();proc.stderr=new PassThrough();proc.kill=()=>{};
@@ -22,6 +22,19 @@ describe('background execution',()=>{
   it('shows permission denials and process failures as blocked, without starting a fresh chat',()=>{
     const h=harness(true);h.event({type:'result',result:'Could not send.',permission_denials:[{tool_name:'Send'}]});h.proc.emit('close',0);expect(h.results[0].blocked).toBe(true);expect(h.results[0].text).toContain('permission');expect(h.calls).toHaveLength(1);
     const bad=harness(true);bad.proc.stderr.write('Chat not found');bad.proc.emit('close',1);expect(bad.results[0]).toMatchObject({blocked:true});expect(bad.results[0].text).toContain('Chat not found');expect(bad.calls).toHaveLength(1);
+  });
+  it('requests structured outcomes and keeps evidence separately from the expected result',()=>{
+    const h=harness();expect(JSON.parse(h.calls[0][1][h.calls[0][1].indexOf('--json-schema')+1])).toEqual(completionSchema);
+    const completion={status:'completed',summary:'Sent the test email.',evidence:['Sent message: sample-123, to alex@example.com']};
+    h.event({type:'result',structured_output:completion,is_error:false});h.proc.emit('close',0);
+    expect(h.results[0]).toEqual({text:completion.summary,completion,blocked:false});
+    for(const value of [null,{}, {...completion,evidence:[]}, {...completion,evidence:['']}, {...completion,evidence:[{}]}, {...completion,summary:''}, {...completion,status:'success'}])expect(readCompletion(value)).toBeNull();
+  });
+  it('keeps tool failures and access errors from confirming completion',()=>{
+    for(const extra of [{is_error:true},{permission_denials:[{tool_name:'Send'}]}]){
+      const h=harness();h.event({type:'result',...extra,structured_output:{status:'completed',summary:'Sent',evidence:['message-id']}});h.proc.emit('close',0);
+      expect(h.results[0].blocked).toBe(true);expect(h.results[0].completion).toBeUndefined();expect(h.results[0].text).not.toBe('Sent');
+    }
   });
   it('handles malformed output, split UTF-8, cancellation and launch errors once',()=>{
     const h=harness();h.proc.stdout.write('not json\nnull\n');h.event({type:'assistant',message:{content:[null,{type:'text'}]}});h.event({type:'assistant',message:{content:'invalid'}});h.event({type:'result',errors:'invalid'});const bytes=Buffer.from(JSON.stringify({type:'result',result:'Café'}));const index=bytes.indexOf(0xc3);h.proc.stdout.write(bytes.subarray(0,index+1));h.proc.stdout.write(bytes.subarray(index+1));h.proc.emit('close',0);expect(h.results[0].text).toBe('Café');

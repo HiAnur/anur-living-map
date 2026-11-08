@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
 
+import { readCompletion } from './action-runner.js';
+
 export const actionPrompt = `Prepare an Action box: a concrete task to carry out, not more planning boxes.
 Use the selected box, all accessible map context and the answers below. You may read project files, but do not change files, send messages or execute anything. You cannot inspect email, contacts or other apps here; ask for missing details rather than claiming you found them.
 If the goal, destination, required inputs or success criteria are unclear, ask one short specific question. Offer up to three choices when useful. Never invent a recipient, address, repository, deadline or fact. A placeholder such as Sub-topic is not an actionable goal.
-For an email, resolve the exact recipient address and purpose, then draft the subject and full message from confirmed facts for the person to review. For a build, obtain the target project and what should work when finished. For other tasks, establish the destination and concrete result.
+For an email, resolve the exact recipient address and purpose, then draft the subject and full message from confirmed facts for the person to review. Completion means a verified send to that address, not proof of receipt in the recipient's inbox. For a build, obtain the target project and what should work when finished. For other tasks, establish the destination and concrete result.
 Return exactly one fenced action JSON block, with either:
 \`\`\`action
 {"status":"clarify","question":"What should this action accomplish?","choices":["Send an email","Build something"]}
@@ -40,11 +42,13 @@ export function readActionReply(reply) {
 
 const source = (n) => JSON.stringify([n.label, n.sub || '', n.desc || '']);
 export function recoverAction(n) {
+  if (n.action?.stage === 'sent') n.action.stage = 'unconfirmed';
   if (n.action?.stage === 'gathering') Object.assign(n.action, { stage:'error', error:'Preparation stopped when the map restarted. Try again.' });
   if (n.action?.stage === 'running') {
     n.action.stage = 'blocked';
+    delete n.action.completion;
     n.action.turns ||= [];
-    n.action.turns.push({who:'Claude',text:'Execution was interrupted when the map restarted. Some steps may have finished. Continue will pick up this chat and check before doing more.'});
+    n.action.turns.push({who:'Claude',text:'Execution was interrupted when the map restarted. Some steps may have finished. Continue will pick up this chat and check before doing more.',completion:{status:'blocked',summary:'',evidence:[]},at:Date.now()});
     delete n.action.since; delete n.action.progress;
   }
 }
@@ -89,7 +93,7 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, run, execut
     return true;
   }
   function cancel(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || n.action.stage === 'sent') return false;
+    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || ['sent','unconfirmed'].includes(n.action.stage)) return false;
     jobs.get(id)?.(); jobs.delete(id); delete n.action; changed(); return true;
   }
   function revise(id, by) {
@@ -98,12 +102,13 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, run, execut
   }
   function execute(id, by, revision) {
     const n = nodeOf(id), a = n?.action;
-    if (!owns(n, by) || a?.stage !== 'ready' || a.id !== revision) return false;
-    if (a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
+    if (!owns(n, by) || !['ready','sent','unconfirmed'].includes(a?.stage) || a.session || a.id !== revision) return false;
+    if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
     const checked = readActionReply('```action\n'+JSON.stringify({status:'ready',brief:a.brief})+'\n```');
     if (checked?.stage !== 'ready') return false;
+    const recovery = a.stage !== 'ready';
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
-    const prompt = `The person pressed Execute. Carry out the reviewed task below.\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
+    const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
     return runTurn(id, by, a, prompt, false);
   }
   function continueAction(id, by, revision, answer = '') {
@@ -115,13 +120,16 @@ export function actionBoxes({ nodeOf, canUse, context, ask, changed, run, execut
   }
   function runTurn(id, by, a, prompt, resume) {
     Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:Date.now(),progress:''});
+    delete a.completion;
     const job = {a,by,stop:null}; runs.set(id,job); changed();
     const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
     const finish = (result) => {
       if (!active()) { reconcile(); return; }
       runs.delete(id);
+      const completion = readCompletion(result.completion);
       a.stage = result.blocked ? 'blocked' : 'finished';
-      a.turns.push({who:'Claude',text:String(result.text || 'Claude returned no answer.').slice(-34000)});
+      a.completion = completion && (!result.blocked || completion.status === 'blocked') ? completion : {status:result.blocked ? 'blocked' : 'unconfirmed',summary:'',evidence:[]};
+      a.turns.push({who:'Claude',text:String(a.completion.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
       delete a.since; delete a.progress; changed();
     };
     try {

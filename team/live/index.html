@@ -746,6 +746,9 @@ body.resizing{cursor:col-resize;user-select:none}
 .topic-actions .action-create{color:var(--action);border-color:var(--action-line);background:var(--action-tint)}
 .action-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;color:var(--action);font-size:12px;font-weight:500;flex-shrink:0}
 .action-plain{border:0;background:none;color:var(--text-2);font-size:12px;cursor:pointer;padding:4px 0}
+.action-result h3{font-size:15px;margin:0 0 10px;color:var(--action)}
+.action-evidence{font-size:13px;border-top:1px solid var(--action-line);margin-top:12px;padding-top:12px;overflow-wrap:anywhere}
+.action-evidence ul{margin:6px 0;padding-left:20px}
 .action-progress{display:flex;align-items:center;gap:8px;color:var(--action)}
 #side .action-chat .action-card{background:var(--action-tint);border-color:var(--action-line);max-height:none;margin-top:16px}
 #side .action-chat .side-ask.cbox{border-color:var(--action-line)}
@@ -1243,7 +1246,7 @@ const subLines = (n) => {
   return wraps.get(key);
 };
 // Boxes grow for every wrapped line in their name and subtitle.
-const executionBox = (a) => a && (['ready','sent'].includes(a.stage) || !!a.session);
+const executionBox = (a) => a && (['ready','sent','unconfirmed'].includes(a.stage) || !!a.session);
 const HT = (n) => (n.action ? 18 : 0) + (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
@@ -2585,28 +2588,34 @@ function actionChat(n, previousChat){
   const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const asking = a.stage === 'draft' || a.stage === 'clarify';
   const label = executionBox(a) ? 'Execution box' : 'Action box';
-  const back = mine && !a.session && a.stage !== 'sent' ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
+  const back = mine && !a.session && !['sent','unconfirmed'].includes(a.stage) ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
   const turns = `${a.intent ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
   const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
   const current = a.stage === 'draft' ? claudes('<p>What do you want to do?</p>')
     : a.stage === 'clarify' ? claudes(`${md(a.question)}${choices}${mine ? '' : `<p class="quiet">Waiting for ${esc(a.by)}.</p>`}`)
     : a.stage === 'gathering' ? claudes(`<div class="action-progress">${actionSpinner(a)}<span>Gathering information…</span></div>`)
-    : a.session ? `${(a.turns || []).map((t) => t.who === 'Claude' ? claudes(md(t.text)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
+    : a.session ? `${(a.turns || []).map((t) => t.who === 'Claude' ? claudes(actionResult(t)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
     : actionCard(n);
   const continuing = a.session && ['finished','blocked'].includes(a.stage);
   const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
   return `<div class="action-chat-head"><span>${label}</span>${back}</div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
 }
+function actionResult(turn){
+  const c = turn.completion;
+  const label = {completed:'Completed',needs_input:'Needs your answer',blocked:'Blocked'}[c?.status] || 'Completion unconfirmed';
+  return `<section class="action-result" aria-label="Task result"><h3>${label}</h3>${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}</section>`;
+}
 function actionCard(n){
   const a = n.action; if (!a) return '';
   const mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const button = (type, label, extra = '') => mine ? `<button class="gb ${extra}" data-box-action="${type}" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">${label}</button>` : '';
+  const legacy = ['sent','unconfirmed'].includes(a.stage);
   let content = '';
-  if (a.stage === 'ready' || a.stage === 'sent') {
+  if (a.stage === 'ready' || legacy) {
     const b = a.brief;
-    content = `<h3>${a.stage === 'ready' ? 'Ready to execute' : 'Sent to Claude'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p><ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Expected result:</b> ${esc(b.result)}</p>${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}${a.stage === 'ready' ? `<p class="action-note">Execute runs this task and replies here.</p><div class="action-controls">${button('actionexecute','Execute','action-execute')}${button('actionrevise','Revise')}</div>` : '<p class="action-note">This task was opened in Claude before background execution was available. Its result stays in that chat.</p>'}`;
+    content = `<h3>${legacy ? 'Completion unconfirmed' : 'Ready to execute'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p>${legacy ? '<p>No result came back from the earlier attempt. This task is not marked complete.</p>' : `<ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Expected result:</b> ${esc(b.result)}</p>`}${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}<p class="action-note">${legacy ? 'Execute here checks for prior work before doing more, then returns the result to this chat.' : 'Execute runs this task and replies here.'}</p><div class="action-controls">${button('actionexecute',legacy ? 'Execute here' : 'Execute','action-execute')}${legacy ? '' : button('actionrevise','Revise')}</div>`;
   } else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
-  return `<section class="action-card" aria-label="${a.stage === 'ready' || a.stage === 'sent' ? 'Execution box' : 'Action box'}">${content}</section>`;
+  return `<section class="action-card" aria-label="${a.stage === 'ready' || legacy ? 'Execution box' : 'Action box'}">${content}</section>`;
 }
 async function runBoxAction(type, id, data = {}) {
   if (READ_ONLY || FILE || PREVIEW) return;
