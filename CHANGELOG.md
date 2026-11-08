@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Search your map</strong></dt>
+<dd>
+
+Use **Search map** in the top bar or **⌘F / Ctrl+F** to find names, descriptions and notes, then jump to the matching box. [#167](https://github.com/HiAnur/anur-living-map/pull/167) <!-- merged-at: 2026-11-08T00:11:26Z -->
+
+<img src="docs/shipping/2026-11-07/map-search.png" alt="Search in the map's top bar shows matching box names, descriptions and their parent branches above the selected map box." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
