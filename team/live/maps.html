@@ -57,7 +57,6 @@ a.map:hover{border-color:var(--text)}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
 #brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
-#brain .brain-content{user-select:text}
 :root{--new:#2F6FE4;--text-3:#8e8b84}
 @media(max-width:860px){.home{display:block}#brain{border-left:0;border-top:1px solid var(--rule)}}
 #brain .brain-map{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:14px 10px;text-align:left;border:0;border-bottom:1px solid var(--rule);background:none;color:var(--text);cursor:pointer;border-radius:8px}
@@ -66,13 +65,14 @@ a.map:hover{border-color:var(--text)}
 #brain small{display:block;color:var(--text-2);font-size:12px;margin-top:4px}
 #brain .brain-back{border:0;background:none;color:var(--new);padding:2px 0 14px;cursor:pointer}
 #brain h2{font-size:19px;margin:2px 0 12px;overflow-wrap:anywhere}
-#brain h3{font-size:13px;margin:22px 0 8px;display:flex;justify-content:space-between}
-#brain h3 span{color:var(--text-3);font-weight:400}
-#brain details{border-top:1px solid var(--rule);padding:10px 0;font-size:13px;overflow-wrap:anywhere}
-#brain summary{cursor:pointer;font-weight:500;line-height:1.45}
-#brain .brain-content{padding:5px 0 3px 16px;color:var(--text-2);line-height:1.5}
-#brain .brain-content p{margin:5px 0 10px;white-space:pre-wrap}
-#brain .brain-content a,#brain .brain-open{color:var(--new);text-decoration:none;font-size:13px}
+#brain .brain-title{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:12px}
+#brain .brain-title h2{min-width:0;margin:2px 0 0}
+#brain .brain-open{flex-shrink:0;color:var(--new);text-decoration:none;font-size:13px}
+#brain .brain-json-row{position:relative;border-top:1px solid var(--rule);padding:10px 0}
+#brain .brain-json-row details{border:0;padding:0}
+#brain .brain-json-row > button{position:absolute;right:0;top:10px;font-size:12px}
+#brain summary{padding-right:120px;min-height:30px;line-height:30px;cursor:pointer;font-size:14px;font-weight:600}
+#brain pre{max-height:45vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;margin:8px 0 0;padding:10px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);font:12px/1.5 ui-monospace,monospace}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
 [hidden]{display:none!important}
 .trash-button{font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
@@ -239,22 +239,21 @@ document.querySelector('.sort').addEventListener('click', (e) => {
 });
 function brainObjects(state, who){
   const sees = state.people?.find((p) => p.id === who)?.sees;
-  const nodes = [], ids = new Set();
-  const collect = (items, container = 'system') => {
-    for (const n of items || []){
-      if (sees && sees !== 'all' && n.area !== sees) continue;
-      nodes.push({...n, container}); ids.add(n.id);
-      if (n.inside) collect(n.inside.nodes, n.id);
-    }
-  };
-  collect(state.nodes);
-  const decisions = (state.calls || []).filter((c) => ids.has(c.node) && ['answered', 'confirmed', 'disputed'].includes(c.status));
-  for (const [i, entry] of (state.log || []).entries()){
-    if (!['answered','confirmed','disputed'].includes(entry.action) || entry.call || (entry.node && !ids.has(entry.node))) continue;
-    decisions.push({id:'log-'+i, node:entry.node, text:entry.text, picked:entry.picked, status:entry.action, by:entry.who});
-  }
-  const memory = (state.memory || []).filter((m) => !m.box || ids.has(m.box));
-  return {nodes, decisions, memory};
+  const limited = sees && sees !== 'all', ids = new Set();
+  const collect = (items) => (items || []).filter((n) => !limited || n.area === sees).map((n) => {
+    ids.add(n.id);
+    return n.inside ? {...n, inside:{...n.inside, nodes:collect(n.inside.nodes)}} : n;
+  });
+  const nodes = collect(state.nodes);
+  const visibleEdges = (edges) => (edges || []).filter((e) => ids.has(e.from) && ids.has(e.to));
+  const trimEdges = (nodes) => nodes.map((n) => n.inside ? {...n,inside:{...n.inside,nodes:trimEdges(n.inside.nodes),edges:visibleEdges(n.inside.edges)}} : n);
+  const calls = (state.calls || []).filter((c) => !limited || ids.has(c.node));
+  const log = (state.log || []).filter((l) => ['answered','confirmed','disputed'].includes(l.action) && (!limited || (l.node && ids.has(l.node))));
+  const memory = (state.memory || []).filter((m) => !limited || !m.box || ids.has(m.box));
+  // Match the map's JSON view without exposing its share-link credential.
+  const map = limited ? {title:state.title, start:ids.has(state.start) ? state.start : null, nodes:trimEdges(nodes), edges:visibleEdges(state.edges), calls, memory}
+    : {...state, ...(state.linkSharing ? {linkSharing:{mode:state.linkSharing.mode}} : {})};
+  return {map, decisions:{calls, log}, memory};
 }
 let brainMaps = [], brainMap = null, brainState = null, brainLoading = false, brainError = '', brainRequest = 0;
 async function loadBrain(map = null){
@@ -286,15 +285,21 @@ function renderBrain(){
   if (!state) return;
   const objects = brainObjects(state, ME);
   const opened = new Set([...el.querySelectorAll('details[open]')].map((d) => d.dataset.brainObject));
-  const row = (key,title,body) => `<details data-brain-object="${esc(key)}"${opened.has(key) ? ' open' : ''}><summary>${esc(title)}</summary><div class="brain-content">${body}</div></details>`;
-  const section = (title,rows) => `<h3>${title}<span>${rows.length}</span></h3>${rows.join('') || '<p class="brain-empty">None yet.</p>'}`;
-  const boxName = (id) => objects.nodes.find((n) => n.id === id)?.label || 'Whole map';
-  el.innerHTML = heading + back + `<h2>${esc(state.title || brainMap.title)}</h2><a class="brain-open" href="${esc(brainMap.href)}">Open map ↗</a>` +
-    section('Map objects', objects.nodes.map((n) => row('box:'+n.id, n.label, `${[n.sub,n.desc,n.note].filter(Boolean).map((v) => `<p>${esc(v)}</p>`).join('')}<a href="${esc(brainMap.href)}?brain-box=${encodeURIComponent(n.id)}">Open box ↗</a>`))) +
-    section('Decisions', objects.decisions.map((c) => row('decision:'+c.id, c.ask || c.text || boxName(c.node), `<p>${esc(c.picked || c.said || c.status)}</p><small>${esc(boxName(c.node))}${c.by ? ' · '+esc(c.by) : ''}</small>${c.context || c.plain ? `<p>${esc(c.plain || c.context)}</p>` : ''}`))) +
-    section('Memory', objects.memory.map((m) => row('memory:'+m.id, m.text, `<small>${m.kind === 'instruction' ? 'Instruction' : 'Memory'} · ${esc(boxName(m.box))}</small>`)));
+  const row = (key,title) => `<div class="brain-json-row"><details data-brain-object="${key}"${opened.has(key) ? ' open' : ''}><summary>${title}</summary><pre tabindex="0">${esc(JSON.stringify(objects[key], null, 2))}</pre></details><button class="gb" data-brain-download="${key}" aria-label="Download ${title} JSON">Download JSON</button></div>`;
+  el.innerHTML = heading + back + `<div class="brain-title"><h2>${esc(state.title || brainMap.title)}</h2><a class="brain-open" href="${esc(brainMap.href)}">Open map ↗</a></div>` +
+    row('map', 'Map object') + row('decisions', 'Decision object') + row('memory', 'Memory object');
 }
 $('brain').addEventListener('click', (e) => {
+  const download = e.target.closest('[data-brain-download]');
+  if (download && brainState){
+    const key = download.dataset.brainDownload;
+    const data = brainObjects(brainState, ME)[key];
+    if (data === undefined) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+    const a = document.createElement('a'); a.href = url;
+    a.download = `${(brainMap.name || 'map').replace(/[^a-z0-9-]/gi, '-')}-${key}.json`;
+    a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000); return;
+  }
   const button = e.target.closest('[data-brain-map]');
   if (button) loadBrain(brainMaps[Number(button.dataset.brainMap)]);
   else if (e.target.closest('[data-brain-back]')) loadBrain();
