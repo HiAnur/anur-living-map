@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Top-bar order</strong></dt>
+<dd>
+
+**Latest** now appears before **Search map** in the top bar. [#174](https://github.com/HiAnur/anur-living-map/pull/174) <!-- merged-at: 2026-11-08T01:41:44Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Search your map</strong></dt>
 <dd>
 
