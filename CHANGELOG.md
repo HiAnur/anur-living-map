@@ -8,9 +8,9 @@ Recent changes you can use in the current release of Living Map, newest first. D
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
-Choose **Action box**, write your task in **Side Chat**, answer clarifications with **Enter**, then review and **Execute** in Claude. Teal boxes show spinning progress or a **Need clarify** pill. [#160](https://github.com/HiAnur/anur-living-map/pull/160), [#164](https://github.com/HiAnur/anur-living-map/pull/164) <!-- merged-at: 2026-11-07T23:56:20Z -->
+Choose **Action box**, write your task in **Side Chat**, answer clarifications with **Enter**, then review and **Execute** in Claude. Plum boxes show spinning progress or a **Need clarify** pill. [#164](https://github.com/HiAnur/anur-living-map/pull/164), [#166](https://github.com/HiAnur/anur-living-map/pull/166) <!-- merged-at: 2026-11-08T00:08:33Z -->
 
-<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="Teal Action and Execution boxes beside Side Chat, with a Need clarify pill, the question and answer history, and the reply composer." width="640">
+<img src="docs/shipping/2026-11-07/action-side-chat.png" alt="Plum Action and Execution boxes beside Side Chat, with a Need clarify pill, the question and answer history, and the reply composer." width="640">
 
 </dd>
 </dl>
