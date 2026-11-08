@@ -457,10 +457,21 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const part = { timeline: 'moment', sequence: 'step', venn: 'item' }[now.kind], n = (k) => `${k} ${part}${k === 1 ? '' : 's'}`;
     return was?.kind === now.kind ? `its ${now.kind}: ${n(added)} added, ${n(left.length)} taken out` : `a ${now.kind} of ${n(now.items.length)}`;
   }
-  function draw(p) {
-    // Creation and edit times come from this server, never from a drawing request.
-    const stripDates = (nodes) => { for (const n of nodes || []) if (n) { delete n.createdAt; delete n.updatedAt; stripDates(n.inside?.nodes); } };
-    stripDates(p.nodes);
+  function draw(p, by, source) {
+    // A drawing can change a box's content, but its original creator, source and dates come from the map.
+    const markCreators = (nodes, previous) => {
+      for (const n of nodes || []) if (n) {
+        const prior = previous?.find((box) => box.id === n.id);
+        delete n.createdAt; delete n.updatedAt; delete n.updatedBy; delete n.source;
+        delete n.by;
+        if (prior?.by) n.by = prior.by;
+        else if (!prior) n.by = by;
+        if (prior?.source) n.source = prior.source;
+        else if (!prior) n.source = source;
+        markCreators(n.inside?.nodes, prior?.inside?.nodes);
+      }
+    };
+    markCreators(p.nodes, state.nodes);
     for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
     const merge = (list, key, items = []) => {
       for (const it of items) {
@@ -674,7 +685,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (!Array.isArray(reflow) || reflow.length > list.length || new Set(reflow.map((m) => m?.id)).size !== reflow.length) return false;
       if (reflow.some((m) => { const n = list.find((n) => n.id === m?.id); return !n || !Number.isFinite(m.fromY) || !Number.isFinite(m.y) || n.y !== m.fromY || (sees !== 'all' && n.area !== sees); })) return false;
       for (const m of reflow) list.find((n) => n.id === m.id).y = Math.round(m.y);
-      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
+      list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, source: { kind: 'map' }, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
       const from = a.from ? nodeOf(a.from) : null;
       if (from && (sees === 'all' || from.area === sees)) (inside ? (inside.edges ??= []) : state.edges).push({ from: from.id, to: id, ...(sideOf(a.out) ? { out: a.out } : {}), ...(sideOf(a.in) ? { in: a.in } : {}) });
@@ -904,7 +915,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
       const to = fromChat ? fromChat.session : ownerOf(touched || m.about || null);
       if (pr.plan.start) state.start = pr.plan.start;
-      draw(pr.plan);
+      const source = fromChat ? { kind: 'proposal', session: fromChat.session }
+        : key === `@${a.by}>${m?.about}` ? { kind: 'side', box: m.about, owner: a.by }
+        : { kind: 'proposal' };
+      draw(pr.plan, 'Claude', source);
       if (pr.plan.tidy) relayout();
       for (const m of pr.plan.memory || []) keepMemory(m, a.by);
       pr.status = 'applied'; pr.by = a.by; pr.at = stamp();
@@ -972,7 +986,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (who) { for (const it of [...(a.nodes || []), ...(a.calls || [])]) it.session = who; state.owner = who; }
       // a plan that asks something new waits for answers again before anyone can press Execute
       if ((a.calls || []).some((c) => c.status === 'open')) state.executed = null;
-      draw(a);
+      draw(a, a.by, { kind: 'plan', ...(who ? { session: who } : {}) });
       Object.assign(state.answers, a.answers || {});
       // the ask behind the plan shows on the map's top line; a named map takes the plan's title
       if (a.title && name && !state.renamed) state.title = String(a.title).slice(0, 60);
@@ -1035,7 +1049,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     edit(a) {
       if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
       if (typeof a.start === 'string' && [...state.nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) state.start = a.start;
-      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink });
+      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });
       if (a.tidy === true) relayout();
       for (const m of (a.memory || []).slice(0, 10)) keepMemory(m, a.by);
       state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });
@@ -1176,7 +1190,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
       if (result.ok) {
         actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]));
-        updateBoxDates(state);
+        updateBoxDates(state, undefined, a.by);
         if (before) edits.record(a.by, before, editSnapshot(state));
         remember(a.type, a.by, big); save(); push();
       }
@@ -1218,7 +1232,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
     const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!ACTS[a.type]?.(a) };
-    if (result.ok) { actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state); if (before) edits.record(a.by, before, editSnapshot(state)); }
+    if (result.ok) { actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
   return { handle, summary, asks, build, close, allowed, access, canDelete, editShared,
