@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 7, 2026
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Brain tab</strong></dt>
+<dd>
+
+The map’s **Memory** tab and panel heading are now called **Brain**. [#197](https://github.com/HiAnur/anur-living-map/pull/197) <!-- merged-at: 2026-11-08T03:12:57Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
