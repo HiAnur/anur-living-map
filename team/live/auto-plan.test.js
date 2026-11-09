@@ -27,15 +27,15 @@ function harness() {
 const reply = plan => `Suggested next steps.\n\`\`\`map\n${JSON.stringify(plan)}\n\`\`\``;
 
 describe('Auto plan',()=>{
-  it('always asks for the planning goal before calling Claude, and plans only after the answer',()=>{
-    const h=harness();h.ask({text:''});h.ask({text:''});
-    expect(h.calls).toHaveLength(0);expect(h.state.threads['@Tester>launch']).toHaveLength(2);
-    expect(h.state.threads['@Tester>launch'][1]).toMatchObject({autoPlanQuestion:true,autoPlanAbout:'launch'});
-    h.ask({autoPlan:false,side:true,text:'Decide who should join our pilot'});
-    expect(h.calls).toHaveLength(1);expect(h.calls[0].prompt).toContain('Decide who should join our pilot');
-    expect(h.calls[0].prompt).toContain('This is Auto plan');
+  it('reads the map immediately on Auto plan without a mandatory goal question',()=>{
+    const h=harness();expect(h.ask({text:''})).toBe(true);expect(h.ask({text:''})).toBe(false);
+    expect(h.calls).toHaveLength(1);expect(h.state.threads['@Tester>launch']).toHaveLength(2);
+    expect(h.state.threads['@Tester>launch'][0].text).toBe(AUTO_PLAN_QUESTION);
+    expect(h.state.threads['@Tester>launch'][1]).toMatchObject({thinking:true,autoPlanAbout:'launch'});
+    expect(h.calls[0].prompt).toContain('Audience [id: audience]');
+    expect(h.calls[0].prompt).toContain('If the available context supports a useful plan, proceed directly.');
     h.calls[0].onDone(reply({nodes:[{id:'pilot',label:'Pilot participants'}],edges:[{from:'audience',to:'pilot'}]}));
-    expect(h.state.threads['@Tester>launch'][3].proposal.autoPlanAbout).toBe('launch');
+    expect(h.state.threads['@Tester>launch'][1].proposal.autoPlanAbout).toBe('launch');
   });
   it('keeps working through visible prose and hidden map generation, then clears the status',()=>{
     const h=harness();h.ask();const m=h.state.threads['@Tester>launch'][1];
@@ -152,7 +152,7 @@ describe('Auto plan',()=>{
   });
   it('asks about unclear intent without proposing boxes, then carries the answer into continued planning',()=>{
     const h=harness();h.ask();
-    expect(h.calls[0].prompt).toContain('Before looking for gaps, establish what the person wants to achieve');
+    expect(h.calls[0].prompt).toContain('only when essential information is missing and different answers would materially change the plan');
     expect(h.calls[0].prompt).toContain('Do not guess, propose boxes, or include a map block in that reply.');
     const question='Is this launch for an internal pilot or paying customers?';
     h.calls[0].onDone(question);
