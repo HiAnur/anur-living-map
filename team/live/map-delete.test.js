@@ -20,6 +20,8 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
   fs.writeFileSync(path.join(app, 'projects.json'), JSON.stringify([secondary]));
   const named = path.join(app, 'maps/unopened'); fs.mkdirSync(named, { recursive: true });
   fs.writeFileSync(path.join(named, 'state.json'), JSON.stringify(state));
+  fs.writeFileSync(path.join(primary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'view',ownerKey:'private-owner',linkKey:'private-link'}));
+  fs.writeFileSync(path.join(secondary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'restricted'}));
   const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
   const cookie = (name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
   const owner = cookie('Duy'), member = cookie('Priyanka');
@@ -36,6 +38,8 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
   try {
     await start();
     const list = await (await request('/api/maps')).json();
+    expect(list.map((m) => [m.name, m.shared, m.cloud]).sort()).toEqual([['primary',true,true],['secondary',false,true],['unopened',false,false]]);
+    expect(JSON.stringify(list)).not.toMatch(/private-owner|private-link|ownerKey|linkKey/);
     expect(list.map((m) => [m.name, m.deletable]).sort()).toEqual([['primary', true], ['secondary', true], ['unopened', true]]);
     expect((await (await request('/api/maps', { token: member })).json()).every((m) => !m.deletable)).toBe(true);
     expect((await remove('unopened', { token: member })).status).toBe(403);

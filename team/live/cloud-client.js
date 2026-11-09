@@ -34,7 +34,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
   // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
   const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => {}); return next.finally(() => { queued--; }); };
   const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
-  const address = () => saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
+  const address = () => config && saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
   const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
   const request = async (route, data, etag, missingOK = false) => {
     if (!config) throw new Error('Cloud sharing is not set up on this Mac.');

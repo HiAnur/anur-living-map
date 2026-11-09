@@ -1201,8 +1201,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
 
   // one line for the list of maps at /
-  const summary = () => ({ title: state.title, boxes: state.nodes.length, open: state.calls.filter((c) => c.status === 'open').length,
-    at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0 });
+  const summary = () => {
+    const online = cloud?.status(), inCloud = !!online?.published;
+    const shared = inCloud ? ['view', 'edit'].includes(online.mode)
+      : !!state.linkSharing?.token && ['view', 'edit'].includes(state.linkSharing.mode);
+    return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((c) => c.status === 'open').length,
+      at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud };
+  };
 
   // what waits on a person here, for the Inbox: questions for them, and comment threads waiting on
   // their reply (they wrote in it, or someone @-named them); only on boxes they may see
