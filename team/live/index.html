@@ -2588,7 +2588,7 @@ function renderSide(){
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h action-create" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${boxTypeButton(n)}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ` action-chat${executionBox(n.action) ? ' execution-chat' : ''}` : ''}">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2642,11 +2642,15 @@ function actionSpinner(action){
   const elapsed = Math.max(0, Date.now() - (Number(action.since) || Date.now()));
   return `<span class="action-spin" aria-hidden="true" style="animation-delay:-${elapsed}ms"></span>`;
 }
+function boxTypeButton(n){
+  if (n.proposed || (n.action && (n.action.by !== ME || n.action.session || ['sent','unconfirmed'].includes(n.action.stage)))) return '';
+  return `<button class="gb chat-h${n.action ? '' : ' action-create'}" data-box-action="${n.action ? 'actioncancel' : 'actionbox'}" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${n.action ? 'Make info box' : 'Make action box'}</button>`;
+}
 function actionChat(n, previousChat){
   const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const asking = a.stage === 'draft' || a.stage === 'clarify';
   const label = executionBox(a) ? 'Execution box' : 'Action box';
-  const back = mine && !a.session && !['sent','unconfirmed'].includes(a.stage) ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
+
   const turns = `${a.intent ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
   const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
   const current = a.stage === 'draft' ? claudes('<p>What do you want to do?</p>')
@@ -2656,7 +2660,7 @@ function actionChat(n, previousChat){
     : actionCard(n);
   const continuing = a.session && ['finished','blocked'].includes(a.stage);
   const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
-  return `<div class="action-chat-head"><span>${label}</span>${back}</div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
+  return `<div class="action-chat-head"><span>${label}</span></div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
 }
 function actionSummary(turn){
   const text = String(turn.completion?.summary || turn.text || '').split(/\n\s*\n/, 1)[0].replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s+/g, ' ').trim();
