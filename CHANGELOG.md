@@ -2,6 +2,17 @@
 
 Recent changes you can use in the current release of Living Map, newest first. Dates use America/Los_Angeles. Installed copies receive these changes when they update.
 
+## November 9, 2026
+
+<dl>
+<dt><strong>Auto plan asks only when needed</strong></dt>
+<dd>
+
+**Auto plan** reads the whole map first and asks a specific question only when essential information is missing. [#216](https://github.com/HiAnur/anur-living-map/pull/216) <!-- merged-at: 2026-11-09T19:55:27Z -->
+
+</dd>
+</dl>
+
 ## November 8, 2026
 
 <dl>
@@ -139,15 +150,6 @@ Search names, descriptions and notes with **Search map** (**⌘F / Ctrl+F**); **
 Proposed topics append after existing children, with the preview showing where Apply will place them. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
 
 <img src="docs/shipping/2026-11-07/appended-proposals.png" alt="A sample map with proposed topics appended under Categories, PM and Software Engineer, beside the Auto plan conversation." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>Auto plan asks for your goal first</strong></dt>
-<dd>
-
-Auto plan asks what you want to achieve before using the whole map to find gaps in the selected branch. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
 
 </dd>
 </dl>
