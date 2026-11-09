@@ -8,9 +8,9 @@ Recent changes you can use in the current release of Living Map, newest first. D
 <dt><strong>✨ [New feature] Sharing status in your map list</strong></dt>
 <dd>
 
-On the **home page**, a people icon marks maps shared by link, and **Cloud** marks maps with an online copy, including copies with link access turned off. [#204](https://github.com/HiAnur/anur-living-map/pull/204) <!-- merged-at: 2026-11-09T00:28:22Z -->
+On the **home page**, right-aligned people and cloud icons show link sharing and online copies; hover over either for its meaning. [#204](https://github.com/HiAnur/anur-living-map/pull/204), [#206](https://github.com/HiAnur/anur-living-map/pull/206) <!-- merged-at: 2026-11-09T00:38:01Z -->
 
-<img src="docs/shipping/2026-11-08/map-sharing.png" alt="Sample map list: Personal ideas has no indicators, Design notes shows Cloud, and Product launch shows both the people icon and Cloud." width="640">
+<img src="docs/shipping/2026-11-08/map-sharing.png" alt="Sample map list with sharing and cloud icons aligned on the right before Trash; local-only maps have no status icons." width="640">
 
 </dd>
 </dl>
