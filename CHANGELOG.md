@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Clearer box-type controls</strong></dt>
+<dd>
+
+Beside **Auto plan**, use **Make action box** or **Make info box** to switch a box before execution. [#218](https://github.com/HiAnur/anur-living-map/pull/218) <!-- merged-at: 2026-11-09T22:11:40Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Auto plan asks only when needed</strong></dt>
 <dd>
 
@@ -54,7 +63,7 @@ On the **home page**, choose a map in **All brain** to view or download its map,
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
-Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get a green **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195), [#200](https://github.com/HiAnur/anur-living-map/pull/200) <!-- merged-at: 2026-11-08T03:21:57Z -->
+Use **Make action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get a green **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195), [#200](https://github.com/HiAnur/anur-living-map/pull/200) <!-- merged-at: 2026-11-08T03:21:57Z -->
 
 <img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with a green Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
 
