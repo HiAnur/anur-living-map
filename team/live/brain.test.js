@@ -42,15 +42,19 @@ describe('All brain loading', () => {
     const c=vm.createContext({fetch:()=>new Promise(resolve=>pending.push(resolve)),renderBrain(){},fitPane(){}});
     vm.runInContext(html.slice(html.indexOf('let brainMaps ='),html.indexOf('function renderBrain(')),c);
     const old=c.loadBrain({href:'/old/'}), latest=c.loadBrain({href:'/new/'});
-    pending[1]({ok:true,json:async()=>({title:'New'})}); await latest;
-    pending[0]({ok:true,json:async()=>({title:'Old'})}); await old;
+    pending[2]({ok:true,json:async()=>({title:'New'})});
+    pending[3]({ok:true,json:async()=>({description:'New overview'})}); await latest;
+    pending[0]({ok:true,json:async()=>({title:'Old'})});
+    pending[1]({ok:true,json:async()=>({description:'Old overview'})}); await old;
     expect(vm.runInContext('brainState.title',c)).toBe('New');
+    expect(vm.runInContext('brainDescription.description',c)).toBe('New overview');
   });
   it('clears old content and shows an error when access is revoked', async () => {
     const c=vm.createContext({fetch:async()=>({ok:false}),renderBrain(){},fitPane(){}});
     vm.runInContext(html.slice(html.indexOf('let brainMaps ='),html.indexOf('function renderBrain(')),c);
     await c.loadBrain({href:'/removed/'});
     expect(vm.runInContext('brainState',c)).toBeNull();
+    expect(vm.runInContext('brainDescription',c)).toBeNull();
     expect(vm.runInContext('brainError',c)).toContain('access has changed');
   });
 });

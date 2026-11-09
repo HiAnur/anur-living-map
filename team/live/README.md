@@ -80,4 +80,4 @@ In **Brain → Map description**, edit the purpose, scope and background for oth
 
 ### All brain
 
-The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to view or download its Map object, Decision object and Memory object as JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
+The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to see the Discovery description Claude reads first, above its downloadable Map object, Decision object and Memory object JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
