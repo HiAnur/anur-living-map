@@ -8,7 +8,7 @@ Recent changes you can use in the current release of Living Map, newest first. D
 <dt><strong>✨ [New feature] Relevant context from other maps</strong></dt>
 <dd>
 
-Claude loads relevant maps using descriptions shown in **home → All brain → Discovery description**; edit yours in **Brain → Map description**, and follow **Read from** links in replies. [#208](https://github.com/HiAnur/anur-living-map/pull/208), [#210](https://github.com/HiAnur/anur-living-map/pull/210) <!-- merged-at: 2026-11-09T01:26:57Z -->
+Claude uses detailed descriptions to load relevant maps; edit yours in **Brain → Map description**, and follow **Read from** links in replies. [#208](https://github.com/HiAnur/anur-living-map/pull/208), [#212](https://github.com/HiAnur/anur-living-map/pull/212) <!-- merged-at: 2026-11-09T01:36:00Z -->
 
 <img src="docs/shipping/2026-11-08/relevant-map-context.png" alt="A sample Feature launch map beside Claude's billing answer, with a Read from link to the Pilot research map it loaded." width="760">
 
