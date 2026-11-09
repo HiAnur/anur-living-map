@@ -5,6 +5,17 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 8, 2026
 
 <dl>
+<dt><strong>✨ [New feature] Relevant context from other maps</strong></dt>
+<dd>
+
+Claude uses detailed descriptions to load relevant maps; edit yours in **Brain → Map description**, and follow **Read from** links in replies. [#208](https://github.com/HiAnur/anur-living-map/pull/208) <!-- merged-at: 2026-11-09T00:44:11Z -->
+
+<img src="docs/shipping/2026-11-08/relevant-map-context.png" alt="A sample Feature launch map beside Claude's billing answer, with a Read from link to the Pilot research map it loaded." width="760">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Sharing status in your map list</strong></dt>
 <dd>
 
