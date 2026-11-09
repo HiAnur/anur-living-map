@@ -818,6 +818,11 @@ body.resizing{cursor:col-resize;user-select:none}
 #scs .sc-b span{font-weight:400;font-size:12px;color:var(--text-3);white-space:nowrap}
 #scs .sc-q{display:block;margin-top:3px;font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #mem .mem-h{display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 2px;font-weight:600;font-size:14px}
+#mem .map-description{white-space:pre-wrap;line-height:1.5;font-size:13px}
+#mem .map-description-edit textarea{box-sizing:border-box;width:100%;min-height:150px;padding:10px;border:1px solid var(--rule);border-radius:8px;background:var(--card);color:var(--text);font:inherit;resize:vertical}
+#mem .context-overview{white-space:pre-wrap;font:12px/1.5 var(--plex);max-height:350px;overflow:auto;padding:12px;background:var(--canvas);border-radius:8px}
+.context-sources{font-size:12px;color:var(--text-2);margin-top:8px}
+.context-sources a{color:var(--new);margin-left:8px}
 #mem .mem-sub{font-size:12.5px;color:var(--text-2);margin:0 0 6px}
 #mem .mem-g{margin:10px 0 0;font-size:12px;font-weight:600;color:var(--text-2)}
 #mem .mem-i{padding:7px 0;border-top:1px solid var(--rule)}
@@ -1192,7 +1197,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'undo', 'redo']);
+const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'undo', 'redo']);
 const pendingActions = new Set();
 let cloudWriteQueue = Promise.resolve();
 const act = (type, extra = {}) => {
@@ -2569,7 +2574,7 @@ function renderSide(){
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
   const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-    : claudes(`${md(m.text)}${change(m, sideKey, i)}${signin(m)}`)).join('');
+    : claudes(`${md(m.text)}${contextSources(m)}${change(m, sideKey, i)}${signin(m)}`)).join('');
   const chat = n.action ? actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}</div>
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
@@ -2713,6 +2718,7 @@ const LOGIN_SAYS = {
   done: 'Signed in. Ask again.',
   failed: 'Sign-in did not finish. Press Sign in to try again, or run <code>claude auth login</code> in Terminal.',
 };
+const contextSources = (m) => (m.sources || []).length ? `<div class="context-sources">Read from${m.sources.filter((x) => /^[a-z0-9-]+$/.test(x.id)).map((x) => `<a href="/${x.id}/" target="_blank" rel="noopener">${esc(x.title)}</a>`).join('')}</div>` : '';
 const signin = (m) => !m.signin || FILE ? '' : `<div class="prop${loginState === 'done' ? ' applied' : ''}">
   ${loginState ? `<div class="pd">${LOGIN_SAYS[loginState]}</div>` : ''}
   ${loginState === 'waiting' || loginState === 'done' ? '' : '<div class="btns"><span class="gb yes" data-claude-login>Sign in</span></div>'}</div>`;
@@ -2874,7 +2880,7 @@ function renderChat(){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${esc(nodeById(m.about).label)}">${esc(nodeById(m.about).label)}</span>` : '')
-        : claudes(`${md(m.text)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
+        : claudes(`${md(m.text)}${contextSources(m)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${esc(nodeById(chatAbout).label)}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
@@ -2906,6 +2912,7 @@ function openBrainBox(){
 /* the rail's Memory pane: Instructions (what Claude follows on this map) and Memory (what the team asked it to keep
    in mind), each for the whole map first, then box by box. Only Claude adds them, when asked in a chat; here people
    change their words or remove them */
+let mapDescriptionEdit = false, mapDescriptionDraft = '';
 let memEdit = null; // the item you are editing
 const memSeen = () => (S.memory || []).filter((m) => !m.box || (nodeById(m.box) && canSee(nodeById(m.box))));
 function renderMem(){
@@ -2921,9 +2928,21 @@ function renderMem(){
     const rows = groups.map((b) => { const g = its.filter((m) => (m.box || null) === b); return g.length ? `<div class="mem-g">${b ? prose(nodeById(b).label) : 'Whole map'}</div>${g.map(item).join('')}` : ''; }).join('');
     return `<div class="mem-h"><span>${title}</span></div><div class="mem-sub">${sub}</div>${rows || '<div class="d-wait">None yet.</div>'}`;
   };
+  const description = mapDescriptionEdit
+    ? `<form class="map-description-edit" data-map-description><textarea aria-label="Map description" maxlength="12000">${esc(mapDescriptionDraft)}</textarea><button class="gb" type="submit">Save</button> <button class="gb" type="button" data-description-cancel>Cancel</button></form>`
+    : `<div class="map-description">${prose(S.desc || S.prompt || 'Add the purpose, scope and background of this map.')}</div>${!READ_ONLY && !CLOUD && !FILE ? '<button class="gb" data-description-edit>Edit description</button>' : ''}`;
   el.innerHTML = `<div class="ct"><span>Brain</span><span class="x" data-close-rail>×</span></div>
+    <div class="mem-h">Map description</div>${description}
+    ${!CLOUD && !FILE ? '<details data-context-overview><summary>Description used by other maps</summary><pre class="context-overview">Loading…</pre></details>' : ''}
     ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map. Ask Claude to make something a rule.')}
     ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date. Ask Claude to remember something.')}`;
+  el.querySelector('[data-context-overview]')?.addEventListener('toggle', async (e) => {
+    if (!e.target.open) return;
+    const target = e.target.querySelector('pre');
+    try { const r = await fetch('api/context-description'); if (!r.ok) throw new Error(); const d = await r.json(); target.textContent = d.description; }
+    catch { target.textContent = 'Could not load the description. Close and open it to try again.'; }
+  });
+  el.querySelector('[data-map-description] textarea')?.addEventListener('input', (e) => { mapDescriptionDraft = e.target.value; });
 }
 // what a Side Chat reads before each answer, shown as chips in its input box: the whole map and this box; hovering a
 // chip says what is in it
@@ -3904,6 +3923,8 @@ document.addEventListener('click', (e) => {
     }
   }
   else if (t.closest('[data-scopen]')){ t.closest('#box-metadata')?.hidePopover(); const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'chat'; backTo = 'sidechats'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; centerOn(id); } }
+  else if (t.closest('[data-description-edit]')){ mapDescriptionDraft = S.desc || S.prompt || ''; mapDescriptionEdit = true; renderMem(); $('mem').querySelector('textarea')?.focus(); }
+  else if (t.closest('[data-description-cancel]')){ mapDescriptionEdit = false; renderMem(); }
   else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; render(); $('mem-in')?.focus(); }
   else if (t.closest('[data-forget]')){ act('forget', { id: t.closest('[data-forget]').dataset.forget }); }
   // a box's name in Decisions opens that box on its History tab
@@ -3935,6 +3956,11 @@ document.addEventListener('submit', (e) => {
   if (actionStart) { e.preventDefault(); const intent = actionStart.querySelector('textarea').value.trim(); if (intent) runBoxAction('actionstart',actionStart.dataset.actionStart,{intent}); return; }
   const actionForm = e.target.closest('form[data-action-answer]');
   if (actionForm) { e.preventDefault(); const answer = actionForm.querySelector('textarea').value.trim(); if (answer) runBoxAction('actionanswer',actionForm.dataset.actionAnswer,{answer}); return; }
+  const description = e.target.closest('form[data-map-description]');
+  if (description){
+    e.preventDefault(); const text = description.querySelector('textarea').value;
+    act('describemap', { description: text }).then((r) => { if (r?.ok) { mapDescriptionEdit = false; renderMem(); } else toast('The description could not be saved. Try again.'); }); return;
+  }
   // the Memory pane: new words for an instruction or a memory
   const me = e.target.closest('form[data-memedit]');
   if (me){

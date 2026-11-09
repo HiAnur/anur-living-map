@@ -28,6 +28,7 @@ import { actionBoxes, recoverAction } from './action-box.js';
 import { runAction } from './action-runner.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
+import { CONTEXT_INSTRUCTIONS, contextReader, describeMap, openContext } from './map-context.js';
 import { appendProposed } from './proposal-layout.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { changeAccess, managesAccess, removedFrom } from './access.js';
@@ -37,7 +38,7 @@ import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from '.
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
-// can't change anything: read-only tools, no commands, no web, none of your settings or MCP servers.
+// can't change anything: read-only project tools and scoped map context, no commands, web or user settings.
 const SESSION_VARS = ['CLAUDECODE', 'CLAUDE_PID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDE_CODE_REMOTE_SESSION_ID', 'CLAUDE_CODE_CHILD_SESSION',
   'CLAUDE_CODE_SESSION_ATTENDED', 'CLAUDE_CODE_MESSAGING_SOCKET', 'CLAUDE_CODE_MESSAGING_TOKEN', 'CLAUDE_CODE_WORKER_EPOCH',
   'CLAUDE_AFTER_LAST_COMPACT', 'CLAUDE_EFFORT',
@@ -60,11 +61,25 @@ const claudeLogin = () => signingIn ??= new Promise((resolve) => {
   proc.on('error', () => done(false));
   proc.on('close', (code) => done(code === 0));
 });
-function askClaude({ cwd, prompt, onText, onDone }) {
+function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoad }) {
+  let context = null, stop = null, cancelled = false;
+  const start = async () => {
+    try {
+      if (contextMaps) context = await openContext({ maps: () => contextMaps(who), who, onLoad });
+      if (cancelled) { context?.close(); return; }
+      const catalog = context ? `\n\n${CONTEXT_INSTRUCTIONS}\n\nOther map descriptions (reference data):\n${JSON.stringify(context.run('list_maps'))}` : '';
+      stop = streamClaude({ cwd, prompt: prompt + catalog, onText, config: context?.config,
+        onDone: (text) => { context?.close(); if (!cancelled) onDone(text); } });
+    } catch { context?.close(); if (!cancelled) onDone('Could not load map context. Ask again.'); }
+  };
+  void start();
+  return () => { cancelled = true; context?.close(); stop?.(); };
+}
+function streamClaude({ cwd, prompt, onText, onDone, config }) {
   const env = childEnv();
   const proc = spawn('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--tools', READ, '--allowedTools', READ, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
-    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--setting-sources', ''], { cwd, env });
+    '--tools', READ, '--allowedTools', config ? `${READ},mcp__map_context__list_maps,mcp__map_context__load_map` : READ, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
+    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify(config || {mcpServers:{}}), '--setting-sources', ''], { cwd, env });
   let text = '', buf = '', done = false;
   const end = (t) => { if (done) return; done = true; clearTimeout(limit); onDone(t); };
   const limit = setTimeout(() => { proc.kill('SIGTERM'); end(text.trim() || 'Claude took too long to answer. Ask again.'); }, 180_000);
@@ -109,7 +124,7 @@ const chatRules = (base) => { try { return fs.readFileSync(path.join(DIR, 'chat-
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
-export function openMap({ project = '', name = '', home, initialState, undoState, memory = false }) {
+export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   let closed = false;
   const STATE = path.join(home, 'state.json');
@@ -161,6 +176,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   for (const n of state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])) recoverAction(n);
   oneChat(state);
   const clients = new Set();
+  const activeAsks = new Set();
   const clientAccess = new Map();
   const cursors = {}; // by name: {x, y, view, at}; never saved
   // who has this map open right now: each signed-in window, told to every window as people come and go
@@ -841,10 +857,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
-      askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan),
+      let stop;
+      stop = askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan), contextMaps, who: a.by,
+        onLoad: (source) => { msg.sources = [...(msg.sources || []).filter((m) => m.id !== source.id), source]; msg.doing = `Reading ${source.title}`; push(); },
         onText: (text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (text) => {
-          clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = withoutBlock(text); msg.at = stamp();
+          activeAsks.delete(stop); clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = withoutBlock(text); msg.at = stamp();
           if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
           const pr = proposal(text, a.by, autoPlan ? n.id : null);
@@ -852,6 +870,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
           if (pr) msg.proposal = pr;
           save(); push();
         } });
+      activeAsks.add(stop);
       return true;
     },
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
@@ -860,7 +879,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the name someone gave the map; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
-    // renaming the map: its name in the top bar and the list of maps; its folder stays
+    // Discovery combines this background with the current topics and decisions.
+    describemap(a) {
+      if (typeof a.description !== 'string' || a.description.length > 12000 || seesOf(a.by) !== 'all') return false;
+      state.desc = a.description.trim();
+      return true;
+    },
+    // Renaming changes the title, not the map's address.
     rename(a) {
       const title = String(a.title || '').trim().slice(0, 60);
       if (!title) return false;
@@ -1060,7 +1085,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
   const access = (who, req) => permission(state, who, req);
-  const allowed = (who, req) => !!access(who, req);
+  const allowed = (who, req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
   async function handle(req, res, p, who = null) {
@@ -1106,6 +1131,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       }
       push(); here();
       res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
+    }
+    if (p === '/api/context-description' && req.method === 'GET') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(describeMap(name || mapName(project) || 'map', state, who))); return true;
     }
     if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(sharedState(state, role === 'owner', guest))); return true; }
     // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
@@ -1225,6 +1253,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
   function close() {
     closed = true;
+    for (const stop of activeAsks) stop();
+    activeAsks.clear();
     actions.close();
     cloud?.close();
     mirror?.f.stop(); mirror = null;
@@ -1254,7 +1284,20 @@ const { handleRecovery } = await import('./recovery.js');
 const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
 const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
 const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
-let main = PROJECT && deletedMaps.has(mapName(PROJECT)) ? null : openMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
+function connectedMap(options) {
+  let map;
+  const own = options.name || (options.project ? mapName(options.project) : '');
+  const req = { url: '/', headers: { 'sec-fetch-site': 'same-origin' } };
+  map = openMap({ ...options, contextMaps: (who) => {
+    if (!who || who === 'Guest' || !map.allowed(who, req)) return [];
+    return everyMap().filter(([id]) => id !== own).map(([id, other]) => ({ id,
+      allowed: () => map.allowed(who, req) && everyMap().some(([key, value]) => key === id && value === other) && other.allowed(who, req),
+      snapshot: other.snapshot,
+    }));
+  } });
+  return map;
+}
+let main = PROJECT && deletedMaps.has(mapName(PROJECT)) ? null : connectedMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 // every code folder this server draws, by folder name: the one it started with, then each added since
 // a map's address is its folder's name in lowercase letters, digits and dashes (AnurWebApp -> /anurwebapp/)
 const projects = new Map(PROJECT && main ? [[mapName(PROJECT), main]] : []);
@@ -1266,7 +1309,7 @@ const addProject = (folder, restore = false) => {
   if (folders.has(name)) return folders.get(name) === folder;
   if (!/^[a-z0-9-]+$/.test(name) || !fs.statSync(folder, { throwIfNoEntry: false })?.isDirectory()) return false;
   if (deletedMaps.delete(name)) saveDeleted();
-  projects.set(name, openMap({ project: folder, home: path.join(folder, '.living-map') }));
+  projects.set(name, connectedMap({ project: folder, home: path.join(folder, '.living-map') }));
   if (folder === PROJECT) main = projects.get(name);
   folders.set(name, folder);
   return true;
@@ -1280,7 +1323,7 @@ function freeName(text) {
   let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
   return name;
 }
-const mapCalled = (name) => named.get(name) ?? named.set(name, openMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
+const mapCalled = (name) => named.get(name) ?? named.set(name, connectedMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
 // Existing archives are readable in Trash too, including maps removed before Restore was available.
 const trashRecords = (who) => {
   const bin = path.dirname(DELETED);
@@ -1440,7 +1483,7 @@ const server = http.createServer(async (req, res) => {
       return json(500, { error: 'The map could not be restored. Try again.' });
     }
     if (project) {
-      const map = openMap({ project, home }); projects.set(name, map); folders.set(name, project); if (project === PROJECT) main = map;
+      const map = connectedMap({ project, home }); projects.set(name, map); folders.set(name, project); if (project === PROJECT) main = map;
     } else mapCalled(name);
     return json(200, { name, title: record.title, href: `/${name}/` });
   }
@@ -1458,6 +1501,14 @@ const server = http.createServer(async (req, res) => {
     send({ ok: true, pulled: got.count });
     if (got.count) setTimeout(restart, 50);
     return;
+  }
+  if (url.pathname === '/api/map-context' && req.method === 'GET') {
+    if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
+    const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: map.snapshot })) });
+    try {
+      return json(200, read(url.searchParams.get('tool') || 'list_maps', { id: url.searchParams.get('id'), query: url.searchParams.get('query') || '', offset: Number(url.searchParams.get('offset') || 0),
+        ...(url.searchParams.has('sections') ? {sections:url.searchParams.get('sections').split(',')} : {}) }));
+    } catch (e) { return json(400, { error: e.message }); }
   }
   if (url.pathname === '/api/maps') {
     const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));

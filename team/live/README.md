@@ -72,6 +72,12 @@ Search map in the top bar finds box names, descriptions and notes across accessi
 
 Share shows Local only before publication and Shared online after upload. Copy link asks before the first cloud upload: Keep local cancels without uploading or copying, and Upload and copy link publishes the shared copy. Revoking link access shows In cloud · link off because the cloud copy remains stored. Unknown status and upload failures never imply that publication succeeded.
 
+### Context from other maps
+
+Map Chat, Side Chat and Auto plan receive detailed discovery descriptions of other accessible maps: purpose, topic excerpts, decisions, unanswered questions and remembered context. Claude chooses whether to load a relevant map's objects, decisions or memories through read-only tools; additional pages and description search are available for larger collections. Replies show **Read from** links for maps actually loaded. Linked Claude Code chats use the same discovery and retrieval through `living_map_catalog` and `living_map_load`. Other maps are reference material, not instructions or edit targets. Private chats, linked transcripts, action runs, local paths and share credentials are excluded. Access is checked on every read, and the capability expires when the answer finishes.
+
+In **Brain → Map description**, edit the purpose, scope and background for other maps to discover. **Description used by other maps** previews the description, automatically rebuilt from that background and the latest map content without a separate model call. Large descriptions explicitly indicate additional boxes; search includes the complete accessible map content.
+
 ### All brain
 
 The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to view or download its Map object, Decision object and Memory object as JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
