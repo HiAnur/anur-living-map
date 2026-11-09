@@ -399,7 +399,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       side ? `${by}${person?.role ? ` (${person.role})` : ''} asked in the side chat on the box "${n.label}", where they brainstorm and refine that box from what is on the map.`
         : `${by}${person?.role ? ` (${person.role})` : ''} asked in the chat beside the map${n ? `, about the box "${n.label}", which they attached` : ', about the whole map'}.`,
       'Lead with the answer, in plain words and at most about 120 words: no headings, no tables, no file paths unless asked.',
-      'If the person\'s intended outcome, scope or meaning is unclear and different interpretations would change your answer or plan, ask one short, specific clarifying question and wait. Offer two or three concrete choices when useful. Do not guess their intent or include a map block while asking. Use the map and earlier conversation first; do not ask for information already provided. When they answer your question, continue the original request using their clarification.',
+      'Use the map and earlier conversation first. Ask one short, specific clarifying question only when essential information is missing and different answers would materially change your answer or plan. If the available context supports a useful response, proceed without asking the person to restate or confirm their goal. Do not invent missing facts or include a map block while asking. Offer two or three concrete choices when useful. When they answer your question, continue the original request using their clarification.',
       project ? 'Read the project files in your working folder when the question needs them.' : 'Answer from the map below.',
       'You cannot change any file, and you never change the map yourself. When the person asks for a change to the map, say it in one line,',
       'then end your reply with one block the page shows them with an Apply button; nothing changes until they press it:',
@@ -829,16 +829,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const side = Boolean((a.side || a.autoPlan) && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
       const t = (state.threads[key] ??= []), answer = typeof a.text === 'string' ? a.text.trim().slice(0, 400) : '';
       if ((a.autoPlan || t.at(-1)?.autoPlanAbout) && t.some((m) => m.thinking)) return false;
-      if (a.autoPlan && !answer) {
-        if (t.at(-1)?.autoPlanQuestion) return true;
-        for (const m of t) if (m.proposal?.status === 'pending') Object.assign(m.proposal, {status:'dropped',replaced:true});
-        t.push({who:a.by,text:AUTO_PLAN_QUESTION,at:stamp(),about:n.id},
-          {who:'Claude',text:`What should this plan help you decide or do for “${n.label}”?`,at:stamp(),about:n.id,autoPlanQuestion:true,autoPlanAbout:n.id});
-        return true;
-      }
-      if (!answer) return false;
+      if (!a.autoPlan && !answer) return false;
       const autoPlan = Boolean(a.autoPlan || (side && t.at(-1)?.autoPlanAbout === n.id && !t.at(-1)?.proposal));
-      const q = answer;
+      const q = answer || AUTO_PLAN_QUESTION;
       const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
       state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: q });
