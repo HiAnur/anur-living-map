@@ -248,7 +248,7 @@ document.querySelector('.sort').addEventListener('click', (e) => {
   sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}
   list();
 });
-function brainObjects(state, who){
+function brainObjects(state, who, description){
   const sees = state.people?.find((p) => p.id === who)?.sees;
   const limited = sees && sees !== 'all', ids = new Set();
   const collect = (items) => (items || []).filter((n) => !limited || n.area === sees).map((n) => {
@@ -264,18 +264,20 @@ function brainObjects(state, who){
   // Match the map's JSON view without exposing its share-link credential.
   const map = limited ? {title:state.title, start:ids.has(state.start) ? state.start : null, nodes:trimEdges(nodes), edges:visibleEdges(state.edges), calls, memory}
     : {...state, ...(state.linkSharing ? {linkSharing:{mode:state.linkSharing.mode}} : {})};
-  return {map, decisions:{calls, log}, memory};
+  return {description, map, decisions:{calls, log}, memory};
 }
-let brainMaps = [], brainMap = null, brainState = null, brainLoading = false, brainError = '', brainRequest = 0;
+let brainMaps = [], brainMap = null, brainState = null, brainDescription = null, brainLoading = false, brainError = '', brainRequest = 0;
 async function loadBrain(map = null){
   const request = ++brainRequest;
-  brainMap = map; brainState = null; brainError = ''; brainLoading = true; renderBrain();
+  brainMap = map; brainState = null; brainDescription = null; brainError = ''; brainLoading = true; renderBrain();
   try {
-    const r = await fetch(map ? `${map.href}api/state` : '/api/maps');
-    if (!r.ok) throw new Error('This map is unavailable or your access has changed.');
-    const data = await r.json();
+    const responses = await Promise.all(map
+      ? [fetch(`${map.href}api/state`), fetch(`${map.href}api/context-description`)]
+      : [fetch('/api/maps')]);
+    if (responses.some((r) => !r.ok)) throw new Error('This map is unavailable or your access has changed.');
+    const [data, description] = await Promise.all(responses.map((r) => r.json()));
     if (request !== brainRequest) return;
-    if (map) brainState = data;
+    if (map) { brainState = data; brainDescription = description; }
     else {
       brainMaps = data;
 
@@ -294,17 +296,17 @@ function renderBrain(){
   }
   const state = brainState;
   if (!state) return;
-  const objects = brainObjects(state, ME);
+  const objects = brainObjects(state, ME, brainDescription);
   const opened = new Set([...el.querySelectorAll('details[open]')].map((d) => d.dataset.brainObject));
   const row = (key,title) => `<div class="brain-json-row"><details data-brain-object="${key}"${opened.has(key) ? ' open' : ''}><summary>${title}</summary><pre tabindex="0">${esc(JSON.stringify(objects[key], null, 2))}</pre></details><button class="gb" data-brain-download="${key}" aria-label="Download ${title} JSON">Download JSON</button></div>`;
   el.innerHTML = heading + back + `<div class="brain-title"><h2>${esc(state.title || brainMap.title)}</h2><a class="brain-open" href="${esc(brainMap.href)}">Open map ↗</a></div>` +
-    row('map', 'Map object') + row('decisions', 'Decision object') + row('memory', 'Memory object');
+    row('description', 'Description object') + row('map', 'Map object') + row('decisions', 'Decision object') + row('memory', 'Memory object');
 }
 $('brain').addEventListener('click', (e) => {
   const download = e.target.closest('[data-brain-download]');
   if (download && brainState){
     const key = download.dataset.brainDownload;
-    const data = brainObjects(brainState, ME)[key];
+    const data = brainObjects(brainState, ME, brainDescription)[key];
     if (data === undefined) return;
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
     const a = document.createElement('a'); a.href = url;
