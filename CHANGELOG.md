@@ -2,6 +2,19 @@
 
 Recent changes you can use in the current release of Living Map, newest first. Dates use America/Los_Angeles. Installed copies receive these changes when they update.
 
+## November 8, 2026
+
+<dl>
+<dt><strong>✨ [New feature] Sharing status in your map list</strong></dt>
+<dd>
+
+On the **home page**, a people icon marks maps shared by link, and **Cloud** marks maps with an online copy, including copies with link access turned off. [#204](https://github.com/HiAnur/anur-living-map/pull/204) <!-- merged-at: 2026-11-09T00:28:22Z -->
+
+<img src="docs/shipping/2026-11-08/map-sharing.png" alt="Sample map list: Personal ideas has no indicators, Design notes shows Cloud, and Product launch shows both the people icon and Cloud." width="640">
+
+</dd>
+</dl>
+
 ## November 7, 2026
 
 <dl>
