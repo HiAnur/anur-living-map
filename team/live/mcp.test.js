@@ -60,9 +60,9 @@ describe('the map\'s tools, over stdio', () => {
 async function mapServer() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-tools-')), source = import.meta.dirname;
   for (const name of fs.readdirSync(source)) if (/\.(js|json|html|md)$/.test(name) && fs.statSync(path.join(source, name)).isFile()) fs.copyFileSync(path.join(source, name), path.join(root, name));
-  // a whole map, as the server writes one: it reads `calls`, `log` and the rest without checking they are there
-  const state = { ...JSON.parse(fs.readFileSync(path.join(source, 'seed.json'), 'utf8')), log: [], threads: {}, comments: [], title: 'Launch', people: [{ id: 'Duy', role: 'Admin', sees: 'all' }],
-    nodes: [{ id: 'launch', label: 'Launch', sub: 'Ship the pilot', x: 90, y: 150 }, { id: 'email', label: 'Invite email', x: 430, y: 150 }], edges: [], calls: [] };
+  // a bare map, as one written by hand: no log, questions or chats yet
+  const state = { title: 'Launch', people: [{ id: 'Duy', role: 'Admin', sees: 'all' }],
+    nodes: [{ id: 'launch', label: 'Launch', sub: 'Ship the pilot', x: 90, y: 150 }, { id: 'email', label: 'Invite email', x: 430, y: 150 }], edges: [] };
   fs.mkdirSync(path.join(root, 'maps', 'demo'), { recursive: true });
   fs.writeFileSync(path.join(root, 'maps', 'demo', 'state.json'), JSON.stringify(state));
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
