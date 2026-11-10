@@ -72,6 +72,21 @@ export default defineConfig([
     },
   },
   {
+    // new code is TypeScript; the two below are tool settings read as they
+    // are (team/ is not linted, and its JavaScript is type-checked instead)
+    files: ["**/*.{js,jsx,mjs,cjs}"],
+    ignores: ["eslint.config.js", ".ncurc.cjs"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Program",
+          message: "Write new files in TypeScript (.ts or .tsx).",
+        },
+      ],
+    },
+  },
+  {
     // the files over the limit when it was set: take one off this list in
     // the change that splits it, and add none
     files: [

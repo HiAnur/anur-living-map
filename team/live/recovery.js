@@ -66,6 +66,7 @@ export async function sendRecoveryMail(to, link, verify, config = mailConfig()) 
   if (!response.ok) throw new Error('The email could not be sent. Please try again later.');
 }
 
+/** @param {any} req @param {any} res @param {any} options */
 export async function handleRecovery(req, res, { users, recovery, port, send = sendRecoveryMail, configured }) {
   const route = new URL(req.url, 'http://localhost').pathname;
   if (!['/api/recovery/email', '/api/recovery/forgot', '/api/recovery/verify', '/api/recovery/reset'].includes(route)) return false;

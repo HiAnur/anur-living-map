@@ -422,6 +422,6 @@ export function tidyTree(nodes, edges, shown = null, chosen = placed, start = nu
 // node project.js <folder>: print what the map would draw
 if (import.meta.main) {
   const m = readProject(path.resolve(process.argv[2] || '.'));
-  for (const n of m.nodes) console.log(`${n.label.padEnd(18)} ${n.kind || ''}`.padEnd(26), `x ${n.x} y ${n.y}`);
+  for (const n of /** @type {any[]} */ (m.nodes)) console.log(`${n.label.padEnd(18)} ${n.kind || ''}`.padEnd(26), `x ${n.x} y ${n.y}`);
   for (const e of m.edges) console.log(`  ${e.from} -> ${e.to}`);
 }

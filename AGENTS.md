@@ -60,7 +60,7 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 - `web/`: `App.tsx` signs in; with `?conv=<chat>` it asks `GET /api/ledger/view` for that chat once (`map/probe.ts`) and lazy-loads `map/MapScreen.tsx`; with no chat it lists every mapped chat (`Chats.tsx`, `GET /api/ledger/chats`), each opening in a new tab. `map/layout.ts` places nodes from the items alone (column = depth, rows in tree order, newest first by `order` key), so a new item never moves a node above it, and `holdView` moves the camera by what moved below so the box you are looking at stays put; `layout.test.ts` holds that over a 300-step growth. Node size follows the pane's width class (`sizeFor`: narrower than 640 px gets `NARROW`), never its exact width.
 - `skill/`: the `living-map` skill for users' own Claude Code. `SKILL.md` is a template (`{{APP_DIR}}`, `{{PORT}}`), `install.ts` writes it to `~/.claude/skills/living-map/` (the server rewrites an installed copy on start and after a one-click update, never a test server) and, from `npm run skill` only, copies the team map's skill beside it, `start.ts` starts the server detached so it outlives the chat that asked.
 - `e2e/`: browser tests of the map's screen on the fixture map (`playwright.config.ts`); Vitest skips this folder.
-- `team/`: Anur Living Map, the team's shared map of a codebase, kept apart from the chat map above: its server (`team/live/`), the `/anur-living-map` skill (`team/skill/`, copied into `~/.claude/skills/` by hand or by `npm run skill`, and refreshed by its own `open-map.sh`), login service, landing page and story boards. The chat map's own install and use page is `docs/chat-map.md`. Not linted or built here; only its layout tests (`team/live/project.test.js`) run with `vitest`. Its own README says how it runs.
+- `team/`: Anur Living Map, the team's shared map of a codebase, kept apart from the chat map above: its server (`team/live/`), the `/anur-living-map` skill (`team/skill/`, copied into `~/.claude/skills/` by hand or by `npm run skill`, and refreshed by its own `open-map.sh`), login service, landing page and story boards. The chat map's own install and use page is `docs/chat-map.md`. Not linted or built here: its tests run with `vitest`, and `tsc -p team` (in `npm run check`) type-checks its JavaScript, tests left out, with `strict` off. Fix a type error there with a JSDoc annotation, not a change in what runs. Its own README says how it runs.
 - A test server: `LIVING_MAP_HOME=<test home> PORT=<not 4317> node server/index.ts` keeps its own store and token and leaves the installed skill alone.
 
 ## Releases
@@ -69,6 +69,7 @@ Every push to `main` that passes CI publishes a GitHub release `v0.1.<run>` (the
 
 ## Conventions
 
+- New files are TypeScript: ESLint rejects a `.js` file outside `team/`, whose JavaScript runs as it is (the browser loads some of it, and it needs no install).
 - Imports carry their extension (`./follow.ts`, `./App.tsx`); Node needs it for the server, and the browser follows the same rule. ESLint orders them: external, blank line, internal. <!-- agent-docs: ignore -->
 - Anything model-specific lives in a provider.
 - The model's output is untrusted: check every op before it reaches the store (`apply.ts`, `checkProposal`).

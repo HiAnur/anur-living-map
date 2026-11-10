@@ -54,7 +54,7 @@ export const users = {
   },
   // the person a name and password belong to, or null
   check(name, password) {
-    const who = person(name), row = who && db.prepare('SELECT salt, hash FROM users WHERE name = ?').get(who);
+    const who = person(name), row = who && /** @type {any} */ (db.prepare('SELECT salt, hash FROM users WHERE name = ?').get(who));
     if (!row) return null;
     return crypto.timingSafeEqual(Buffer.from(scramble(password, row.salt), 'hex'), Buffer.from(row.hash, 'hex')) ? who : null;
   },
@@ -66,7 +66,7 @@ export const users = {
   // who a browser's cookie belongs to, or null once it is unknown or older than 30 days
   whoIs(token) {
     if (!token) return null;
-    const row = db.prepare('SELECT name, at FROM sessions WHERE token_hash = ?').get(sha(token));
+    const row = /** @type {any} */ (db.prepare('SELECT name, at FROM sessions WHERE token_hash = ?').get(sha(token)));
     return row && Date.now() - row.at < DAYS * 86_400_000 ? row.name : null;
   },
   end: (token) => { db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha(token)); },
@@ -103,7 +103,7 @@ async function askTwice(q1, q2) {
   }
   const ask = (q) => new Promise((ok) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    rl._writeToOutput = (s) => { if (s.includes(q)) process.stdout.write(q); };
+    /** @type {any} */ (rl)._writeToOutput = (s) => { if (s.includes(q)) process.stdout.write(q); };
     rl.question(q, (a) => { rl.close(); process.stdout.write('\n'); ok(a); });
   });
   return [await ask(q1), await ask(q2)];
