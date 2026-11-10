@@ -9,7 +9,7 @@ const source=html.slice(start,html.indexOf('const ago =',start));
 describe('delete selected boxes',()=>{
   it('deletes the group immediately without opening a confirmation',()=>{
     for(const key of ['Delete','Backspace']){
-      let handler;const removed=[];
+      /** @type {any} */ let handler;const removed=[];
       const ctx=vm.createContext({document:{addEventListener(type,f){handler=f;}},group:new Set(['one','two']),delAsk:null,PREVIEW:null,READ_ONLY:false,FILE:false,deleteBox:id=>removed.push(id)});
       vm.runInContext(source,ctx);handler({key,target:{closest:()=>false},preventDefault(){}});
       expect(removed).toEqual(['*']);expect(ctx.delAsk).toBeNull();
@@ -34,7 +34,8 @@ describe('branch deletion confirmation',()=>{
     h.key('Enter');expect(h.state.nodes.map(n=>n.id)).toEqual(['root']);expect(h.ctx.selected).toBe('root');expect(h.calls).toEqual([['remove',{ids:['parent'],cascade:true}]]);
   });
   it('waits for pending children before asking to delete the branch',async()=>{
-    const h=page();let release;const pending={saved:new Promise(resolve=>{release=resolve;})};h.ctx.pendingTopics.add(pending);
+    const h=page();
+    /** @type {any} */ let release;const pending={saved:new Promise(resolve=>{release=resolve;})};h.ctx.pendingTopics.add(pending);
     h.key('Delete');expect(h.ctx.delAsk).toBeNull();expect(h.calls).toEqual([]);
     pending.id='saved';release();await new Promise(setImmediate);expect(h.ctx.delAsk).toBe('parent');expect(h.calls).toEqual([]);
   });

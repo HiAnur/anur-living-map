@@ -55,7 +55,7 @@ export function mailConfig() {
   try { config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_MAIL_CONFIG || path.join(os.homedir(), '.living-map-2', 'mail.json'), 'utf8')); } catch {}
   return { key: process.env.RESEND_API_KEY || config.key, from: process.env.LIVING_MAP_MAIL_FROM || config.from };
 }
-export async function sendRecoveryMail(to, link, verify, config = mailConfig()) {
+export async function sendRecoveryMail(to, link, verify, /** @type {any} */ config = mailConfig()) {
   if (!config.key || !config.from) throw new Error('Email recovery is not set up on this Mac yet.');
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST', headers: { authorization: `Bearer ${config.key}`, 'content-type': 'application/json' },

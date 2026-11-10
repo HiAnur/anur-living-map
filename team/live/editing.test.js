@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { branchIds, editHistory, editSnapshot } from './editing.js';
 
-const map = () => ({ title: 'Map', nodes: [{id:'root',label:'Root'},{id:'child',label:'Child'},{id:'leaf',label:'Leaf'},{id:'other',label:'Other'}], edges: [{from:'root',to:'child'},{from:'child',to:'leaf'}], comments:[{text:'Keep this'}] });
+/** @type {() => any} */ const map = () => ({ title: 'Map', nodes: [{id:'root',label:'Root'},{id:'child',label:'Child'},{id:'leaf',label:'Leaf'},{id:'other',label:'Other'}], edges: [{from:'root',to:'child'},{from:'child',to:'leaf'}], comments:[{text:'Keep this'}] });
 describe('map editing',()=>{
   it('includes all descendants, folded or nested, without looping',()=>{
     const s=map();s.nodes[1].inside={nodes:[{id:'inside'}],edges:[]};s.edges.push({from:'leaf',to:'child'});

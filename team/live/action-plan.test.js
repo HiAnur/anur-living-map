@@ -10,7 +10,7 @@ const reply='```action\n'+JSON.stringify({status:'ready',brief})+'\n```';
 function setup(){
   const nodes=[{id:'research',label:'Research',action:{stage:'draft'}},{id:'report',label:'Report'}], requests=[],runs=[];
   const nodeOf=id=>nodes.find(n=>n.id===id);
-  const api=actionBoxes({nodeOf,allNodes:()=>nodes,canUse:n=>!n.private,context:()=>JSON.stringify(nodes),ask:r=>{requests.push(r);return ()=>{};},changed(){},run:r=>{runs.push(r);return ()=>{};}});
+  const api=actionBoxes(/** @type {any} */ ({nodeOf,allNodes:()=>nodes,canUse:n=>!n.private,context:()=>JSON.stringify(nodes),ask:r=>{requests.push(r);return ()=>{};},changed(){},run:r=>{runs.push(r);return ()=>{};}}));
   api.begin('report','Duy',plan);
   const complete=()=>{Object.assign(nodes[0].action,{stage:'finished',source:taskSource(nodes[0]),completion:{status:'completed',summary:'Found sources',evidence:['/sample/sources.md']}});api.reconcile();};
   return {nodes,requests,runs,api,complete,nodeOf};

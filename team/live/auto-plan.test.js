@@ -9,10 +9,10 @@ import { readPlannedTask } from './action-plan.js';
 
 const server = fs.readFileSync(new URL('./server.js', import.meta.url), 'utf8');
 function harness() {
-  const state = { title: 'Launch', nodes: [{id:'launch',label:'Launch',area:'product'},{id:'audience',label:'Audience',area:'product'},{id:'private',label:'Private budget',area:'finance'}], edges: [{from:'launch',to:'audience'}], people: [{id:'Tester',sees:'product'}], calls: [], threads: {}, log: [] };
+  /** @type {any} */ const state = { title: 'Launch', nodes: [{id:'launch',label:'Launch',area:'product'},{id:'audience',label:'Audience',area:'product'},{id:'private',label:'Private budget',area:'finance'}], edges: [{from:'launch',to:'audience'}], people: [{id:'Tester',sees:'product'}], calls: [], threads: {}, log: [] };
   const calls = [];
   const actionRequests=[],runs=[];
-  const actions=actionBoxes({nodeOf:id=>state.nodes.find(n=>n.id===id),allNodes:()=>state.nodes,canUse:()=>true,context:()=>'',ask:r=>actionRequests.push(r),changed(){},run:r=>runs.push(r)});
+  const actions=actionBoxes(/** @type {any} */ ({nodeOf:id=>state.nodes.find(n=>n.id===id),allNodes:()=>state.nodes,canUse:()=>true,context:()=>'',ask:r=>actionRequests.push(r),changed(){},run:r=>runs.push(r)}));
   const ctx = vm.createContext({ contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
     nodeOf:id=>state.nodes.find(n=>n.id===id), allNodes:()=>state.nodes, allEdges:()=>state.edges,
     stamp:()=> '12:00', fs:{mkdirSync(){}}, askClaude:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, SIGNED_OUT:'signed out',
