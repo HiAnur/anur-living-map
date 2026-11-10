@@ -7,12 +7,18 @@ const LOOKUPS = ['Read','Grep','Glob','ToolSearch','WebSearch','WebFetch',
   'mcp__map_context__list_maps','mcp__map_context__load_map'];
 const active = new Set();
 process.once('exit',()=>{for(const kill of active)kill('SIGKILL');});
+/** @param {string} s */
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 export function preparationSettings() {
   const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{};if(!${JSON.stringify(LOOKUPS)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Action preparation can only look up information. Review the brief and press Execute to make changes.'}}));});`;
   return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
 }
 
+/**
+ * @param {{ cwd: string, env: Record<string, string | undefined>, connected?: boolean, config?: unknown, prompt: string,
+ *   onText: (words: string) => void, onDone: (text: string, access: { tools: string[], denied: string[] }) => void,
+ *   spawnProcess?: typeof spawn, timeoutMs?: number }} job
+ */
 export function prepareAction({cwd,env,connected=false,config,prompt,onText,onDone,spawnProcess=spawn,timeoutMs=180_000}) {
   env = {...env};
   for (const key of Object.keys(env)) if (key.startsWith('CLAUDE') && !['CLAUDE_CONFIG_DIR','CLAUDE_CODE_OAUTH_TOKEN'].includes(key)) delete env[key];
@@ -22,12 +28,15 @@ export function prepareAction({cwd,env,connected=false,config,prompt,onText,onDo
     ...(config || !connected ? ['--mcp-config',JSON.stringify(config || {mcpServers:{}})] : [])];
   const proc = spawnProcess('claude',args,{cwd,env,detached:process.platform !== 'win32',stdio:['pipe','pipe','pipe']});
   const available = new Set(), denied = new Set(), searches = new Set();
-  let buffer='', words='', result=null, done=false, stopped=false, killTimer;
+  let buffer='', words='', /** @type {string | null} */ result=null, done=false, stopped=false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;
+  /** @param {NodeJS.Signals} signal */
   const kill = (signal) => { try { if (process.platform !== 'win32' && proc.pid) process.kill(-proc.pid,signal); else proc.kill(signal); } catch {} };
   active.add(kill);
+  /** @param {string} text */
   const finish = (text) => { if (done) return; done=true; clearTimeout(limit); clearTimeout(killTimer); active.delete(kill); onDone(text,{tools:[...available],denied:[...denied]}); };
   const stop = () => { if (done || stopped) return; stopped=true; kill('SIGTERM'); killTimer=setTimeout(()=>kill('SIGKILL'),3000); killTimer.unref?.(); };
   const limit = setTimeout(()=>{ stop(); result='Claude took too long to prepare this action. Try again.'; },timeoutMs); limit.unref?.();
+  /** @param {string} line */
   const read = (line) => {
     let d; try { d=JSON.parse(line); } catch { return; }
     if (!d || typeof d !== 'object') return;
