@@ -3,9 +3,10 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { searchBoxes } from './page-search.js';
+
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const ctx = vm.createContext({});
-vm.runInContext(html.slice(html.indexOf('function searchBoxes('), html.indexOf('let searchOpen =')), ctx);
+const ctx = { searchBoxes };
 const state = {nodes:[
   {id:'root',label:'Launch',sub:'First small test',desc:'Invite cafés in Hanoi',inside:{nodes:[{id:'nested',label:'Interview',sub:'Learn from partners'}],edges:[]}},
   {id:'child',label:'Partners',sub:'Local rules and money',desc:'Ask about food licences'},

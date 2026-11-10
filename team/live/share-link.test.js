@@ -3,6 +3,8 @@ import vm from 'node:vm';
 
 import { expect, it } from 'vitest';
 
+import { sharingLocation } from './page-share.js';
+
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('function shareAddress(){'), html.indexOf('async function setLinkRole('));
 function harness(sharing = {}) {
@@ -62,8 +64,7 @@ it('keeps an upload failure local and asks again on retry', async () => {
   await h.ctx.copyMapLink(true);expect(h.copied).toEqual([]);expect(h.ctx.CLOUD_STATUS.published).toBe(false);
   await h.ctx.copyMapLink();expect(h.ctx.cloudPublishConfirm).toBe(true);
 });
-const statusContext=vm.createContext({});
-vm.runInContext(html.slice(html.indexOf('function sharingLocation('),html.indexOf('function cancelCloudPublish(')),statusContext);
+const statusContext={ sharingLocation };
 it('labels storage truthfully before upload, online, and with a revoked link',()=>{
   const label=(s,o)=>statusContext.sharingLocation(s,o).label;
   expect(label({configured:true,published:false})).toBe('Local only');
