@@ -3,6 +3,26 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] An Action counts as done only when the map saw it</strong></dt>
+<dd>
+
+An Action shows **Executed** only when the map saw the run do the work, such as an email sent to the right recipient or a pull request GitHub confirms; otherwise it reads **Done, unverified**, with Claude's account shown apart, until you press **Confirm done**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/318 --> <!-- merged-at: 2026-11-10T22:11:06Z -->
+
+<img src="docs/shipping/2026-11-10/action-verified.png" alt="A sample map with the Free trial Action box marked Done, unverified, and its details pane showing the Action history, Claude's account and Confirm done." width="660">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Every Action keeps its history</strong></dt>
+<dd>
+
+Open **Action history** on an Action to see each step, who took it and when, and the tools a run was given; the latest step also shows in the box's details. <!-- source: https://github.com/HiAnur/anur-living-map/pull/317 --> <!-- merged-at: 2026-11-10T22:02:15Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Cancel an Action without losing it</strong></dt>
 <dd>
 
