@@ -363,6 +363,27 @@ test("a long chat linked late reads its newest 40 turns first", async () => {
   assert.equal(t.db.findConv([root])!.skipped, 10);
 });
 
+test("a chat carried on in another file is read again from that file's start", async () => {
+  const a = chat();
+  a.turn("first question?", "An answer.");
+  const b = chat();
+  b.turn("first question?", "An answer.");
+  b.turn("second thing", "Done.");
+  const h = setup();
+  const root = h.link(a);
+  h.advance(3000);
+  await h.ledger.tick();
+  assert.equal(h.ledger.turnsOf(root)?.length, 1);
+  // the same chat, linked again from the file it went on in
+  h.ledger.follow({ id: a.id, file: b.file, cwd: tmp, title: "A chat" });
+  h.advance(3000);
+  await h.ledger.tick();
+  assert.deepEqual(
+    h.ledger.turnsOf(root)?.map((t) => t.text),
+    ["first question?", "second thing"],
+  );
+});
+
 test("the map's model is the setting's, never Haiku", async () => {
   for (const [asked, used] of [
     ["", ""],
