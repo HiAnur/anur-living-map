@@ -82,6 +82,7 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
     for (const id of (p.remove || []).slice(0, 12)) {
       const had = nodeOf(id);
       if (!had || !mayTouch(had)) { dropped.push({ text: `remove ${id}`, why: had ? 'outside your access' : 'no such box' }); continue; }
+      if (had.action) { dropped.push({ text: `remove ${had.label}`, why: 'it holds an Action: only its author or an Admin takes it off the map, by hand' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
     }
     const lineOn = (/** @type {any} */ from, /** @type {any} */ to) => [getState(), ...getState().nodes.map((/** @type {any} */ n) => n.inside).filter(Boolean)].some((s) => (s.edges || []).some((/** @type {any} */ e) => e.from === from && e.to === to));

@@ -24,7 +24,7 @@ export const WHO = {
   connect: { standing: 'link', then: 'both boxes are in their area' },
   relabel: { standing: 'link', then: 'both boxes are in their area' },
   unlink: { standing: 'link', then: 'both boxes are in their area' },
-  remove: { standing: 'link', then: 'every box taken off (the whole branch with cascade) is in their area' },
+  remove: { standing: 'link', then: 'every box taken off (the whole branch with cascade) is in their area; a box holding an Action only by its author or an Admin, before it has run and while it is not preparing or running (action-leave.js)' },
   resize: { standing: 'link', then: 'the box is in their area' },
   renamebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
   describebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
@@ -66,6 +66,8 @@ export const WHO = {
   // Action boxes
   ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionconfirm', 'actionexecute', 'actioncontinue', 'actionstop']
     .map((type) => [type, { standing: /** @type {Standing} */ ('member'), then: 'they are signed in (not Guest, not removed), the box is in their area, and they started its Action' }])),
+  actionarchive: { standing: 'member', then: 'the box is in their area, its Action has run, and they started it or are an Admin' },
+  actionunarchive: { standing: 'member', then: 'the box is in their area, they started its Action or are an Admin, and its id is free on the map' },
 };
 
 /** The actions a guest with an edit link may take, here and on the cloud copy. */

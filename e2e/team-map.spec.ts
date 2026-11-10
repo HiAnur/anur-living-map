@@ -293,6 +293,50 @@ test("cancelling an Action keeps it, and Prepare again brings it back", async ({
   );
 });
 
+test("an Action box is deleted only after a question, and archived once it has run", async ({
+  page,
+}) => {
+  const draft = { by: "Duy", stage: "draft", id: "d1", intent: "Plan it" };
+  const ran = {
+    by: "Duy",
+    stage: "blocked",
+    id: "b1",
+    session: "s1",
+    intent: "Write the trial page",
+    history: [],
+  };
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial"
+        ? { ...n, action: ran, boxType: "action" }
+        : n.id === "audience"
+          ? { ...n, action: draft, boxType: "action" }
+          : n,
+    ),
+  });
+  // before it runs, Delete asks first and names the Action
+  await box(page, "Audience").click();
+  await page.locator('#side [data-side-tab="box"]').click();
+  await page.locator("#side [data-delete]").click();
+  await expect(page.locator(".delq")).toContainText(
+    "Delete this box and its Action?",
+  );
+  await page.locator("[data-delete-no]").click();
+  await expect(box(page, "Audience")).toHaveCount(1);
+  // once it has run, the details offer Archive instead of Delete
+  await box(page, "Free trial").click();
+  await page.locator('#side [data-side-tab="box"]').click();
+  await expect(page.locator("#side [data-delete]")).toHaveCount(0);
+  await page.locator("#side [data-archive]").click();
+  await expect(box(page, "Free trial")).toHaveCount(0);
+  // History lists it, and Put back on the map brings it back
+  await page.locator('#rail [data-rail="history"]').click();
+  await expect(page.locator("#hist .ha")).toContainText("Free trial");
+  await page.getByRole("button", { name: "Put back on the map" }).click();
+  await expect(box(page, "Free trial")).toHaveCount(1);
+});
+
 test("a run the map could not verify waits for its author to confirm it", async ({
   page,
 }) => {

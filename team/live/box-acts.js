@@ -1,4 +1,5 @@
 // Drawing on the map by hand: boxes, lines, moves and Tidy up. The map passes in its state and the helpers it needs.
+import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { tidy, tidyTree } from './project.js';
 
@@ -16,7 +17,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : getState().nodes;
       if (!list) return false;
       const base = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
-      let id = base; for (let i = 2; nodeOf(id); i++) id = `${base}-${i}`;
+      let id = base; for (let i = 2; nodeOf(id) || getState().archived?.some((/** @type {any} */ x) => x.box.id === id); i++) id = `${base}-${i}`;
       // the box keeps the size it was drawn at (the page grows it only when its words need more room)
       const sees = seesOf(a.by), w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
       // Keyboard insertion moves later branches in the same action, so undo restores their positions too.
@@ -106,9 +107,12 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       if (!roots.length || roots.some((/** @type {any} */ id) => !nodeOf(id))) return false;
       const ids = a.cascade ? branchIds(getState(), roots) : new Set(roots), sees = seesOf(a.by);
       if ([...ids].some((id) => !nodeOf(id) || (sees !== 'all' && nodeOf(id).area !== sees))) return false;
+      // a box holding an Action goes only as action-leave.js allows: by its author or an Admin, and never once it has run
+      if ([...ids].some((id) => leaving(getState(), nodeOf(id), a.by) !== 'remove')) return false;
       const label = nodeOf(roots[0]).label;
       const drop = (/** @type {any} */ s) => { s.nodes = s.nodes.filter((/** @type {any} */ n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((/** @type {any} */ e) => !ids.has(e.from) && !ids.has(e.to)); };
       drop(getState()); for (const n of getState().nodes) if (n.inside) drop(n.inside);
+      forgetPrerequisites(getState().nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes ?? [])]), ids, a.by);
       tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
       return true;
     },

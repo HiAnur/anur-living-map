@@ -27,6 +27,18 @@ export const actionUntouched = (a) => a?.stage === 'draft' && !a.intent && !a.pl
 // Before it runs, an Action can be cancelled (the cancel row in action-stages.js).
 /** @param {any} a */
 export const actionCancellable = (a) => !!a && !a.session && ['draft', 'gathering', 'clarify', 'ready', 'waiting', 'error'].includes(a.stage);
+// How its box may leave the map: 'remove' before it runs, 'archive' once it has, or why not. action-leave.js
+// decides the same on the server, and action-leave.test.js holds the two together.
+/** @param {any} a @param {string} me @param {boolean} admin */
+export function actionLeaving(a, me, admin){
+  if (!a) return 'remove';
+  if (a.by !== me && !admin) return `Only ${a.by}, who started its Action, or an Admin can take this box off the map.`;
+  if (a.stage === 'running') return 'Its Action is running. Stop it first.';
+  if (a.stage === 'gathering') return 'Claude is preparing its Action. Cancel it first.';
+  if (['draft', 'clarify', 'ready', 'waiting', 'error', 'cancelled'].includes(a.stage)) return 'remove';
+  if (['finished', 'blocked', 'unconfirmed'].includes(a.stage)) return 'archive';
+  return 'Its Action cannot be taken off the map from where it stands.';
+}
 // An Action's history as the page shows it, newest first: what happened, who did it ("the map" for what the map
 // did itself), when, and what code recorded of it. action-box.js writes the steps.
 const ACTION_STEPS = /** @type {Record<string, string>} */ ({
@@ -34,7 +46,8 @@ const ACTION_STEPS = /** @type {Record<string, string>} */ ({
   ready:'Brief ready', revised:'Asked to revise', executed:'Executed', stopped:'Stopped', continued:'Continued',
   finished:'Run ended', interrupted:'Interrupted by a restart', waiting:'Waiting on a prerequisite',
   released:'Prerequisites finished', failed:'Preparation stopped', cancelled:'Cancelled', reopened:'Prepared again', confirmed:'Confirmed done',
-  branched:'Made a branch', built:'Committed and pushed', 'handed over':'Handed over',
+  branched:'Made a branch', built:'Committed and pushed', 'handed over':'Handed over', archived:'Archived', restored:'Put back on the map',
+  unblocked:'Stopped waiting on a deleted box',
 });
 const ACTION_ENDS = /** @type {Record<string, string>} */ ({ completed:'completed, verified', unverified:'done, unverified', needs_input:'needs an answer', blocked:'blocked', unconfirmed:'unconfirmed' });
 /** @param {number} ms */
@@ -45,6 +58,6 @@ export function actionHistory(events) {
     label: ACTION_STEPS[e.what] || e.what,
     who: e.by === 'Map' ? 'the map' : String(e.by || ''),
     at: e.at,
-    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : ''].filter(Boolean).join(' · '),
+    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : '', e.boxes?.length ? `boxes: ${e.boxes.join(', ')}` : ''].filter(Boolean).join(' · '),
   })).reverse();
 }

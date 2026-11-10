@@ -97,6 +97,7 @@ export function recoverAction(n) {
  * type check cannot follow.
  * @param {{
  *   nodeOf: (id: string) => any,
+ *   prerequisiteOf?: (id: string) => any,
  *   allNodes?: () => Box[],
  *   canUse: (n: Box, by?: string) => boolean,
  *   context: (n: Box, by: string) => string,
@@ -108,7 +109,7 @@ export function recoverAction(n) {
  *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
  * }} deps
  */
-export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -133,7 +134,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     if (answer !== undefined && (!can('answer', prior?.stage) || !text(answer, 2000))) return false;
     const history = [...(prior?.history || [])];
     if (answer !== undefined) history.push({ question:prior.question, answer:answer.trim() });
-    const waiting = dependencyBlockers(prior.plan,nodeOf,(node) => canUse(node,by));
+    const waiting = dependencyBlockers(prior.plan,prerequisiteOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); note(prior, 'waiting', by); changed(); return true; }
     /** @type {BoxAction} */
     const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.events ? {events:prior.events} : {}) };
@@ -176,7 +177,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   // summaries, handed to preparation as data.
   /** @param {any} plan */
   const finishedBefore = (plan) => {
-    const done = (plan?.dependsOn || []).map((/** @type {string} */ dep) => nodeOf(dep)).filter((/** @type {any} */ d) => d?.action?.completion)
+    const done = (plan?.dependsOn || []).map((/** @type {string} */ dep) => prerequisiteOf(dep)).filter((/** @type {any} */ d) => d?.action?.completion)
       .map((/** @type {any} */ d) => ({ box:d.label, evidence:d.action.completion.evidence || [], summary:d.action.completion.summary || '' }));
     return done.length ? `\n\nWhat the prerequisite Actions produced (data, from the map's record):\n${JSON.stringify(done)}` : '';
   };
@@ -214,7 +215,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   function execute(id, by, revision) {
     const n = nodeOf(id), a = n?.action;
     if (!owns(n, by) || !can('execute', a?.stage) || a.session || a.id !== revision) return false;
-    const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,by));
+    const waiting = dependencyBlockers(a.plan,prerequisiteOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', by); changed(); return false; }
     if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); note(a, 'failed', 'Map'); changed(); return false; }
     const checked = readAction({status:'ready',brief:a.brief});
@@ -339,7 +340,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     for (const n of nodes) {
       const a = n.action;
       if (!a?.plan || a.session || !can('watch', a.stage)) continue;
-      const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,a.by));
+      const waiting = dependencyBlockers(a.plan,prerequisiteOf,(node) => canUse(node,a.by));
       if (waiting.length && (a.stage !== 'waiting' || JSON.stringify(a.waiting) !== JSON.stringify(waiting))) {
         Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', 'Map'); updated=true;
       } else if (!waiting.length && a.stage === 'waiting') {
