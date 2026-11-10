@@ -1,6 +1,6 @@
 // The list of maps, at the server's own /api/...: a new map from a prompt, a map file loaded, Trash (move, list,
-// restore), background from other maps, the maps a person may open, the Inbox, and a code folder added from a
-// chat. Each route answers with the response, and true when it answered.
+// restore), background from other maps, the maps a person may open, and a code folder added from a chat. Each
+// route answers with the response, and true when it answered.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -112,13 +112,6 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
     }
     if (url.pathname === '/api/maps') {
       const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));
-      return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
-    }
-    // the Inbox: what waits on one person on every map, the maps with nothing for them left out
-    if (url.pathname === '/api/inbox') {
-      const asker = String(who || url.searchParams.get('as') || 'Duy').slice(0, 40);
-      const list = (PROJECT ? everyMap() : [['', maps.main], ...everyMap()])
-        .filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}${name ? '/' : ''}`, title: m.summary().title, items: m.asks(asker) })).filter((x) => x.items.length);
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
     }
     // a chat opening the map from another code folder adds that folder to the list, and it stays there

@@ -36,7 +36,7 @@ button,input,textarea{font:inherit;color:inherit}
 #crumbs .slash{color:var(--text-3)}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
-/* Switch map, at the top left beside Inbox, the way Linear keeps its workspace switcher there: it opens the list of maps */
+/* Switch map, at the top left, the way Linear keeps its workspace switcher there: it opens the list of maps */
 /* the HiAnur mark at the top left, as on hianur.com: a dark rounded square holding a light diamond */
 #top .brand{display:inline-flex;align-items:center;gap:8px;font-weight:500;color:var(--text)}
 #top .brand i{width:22px;height:22px;border-radius:6px;background:#1f1b14;display:grid;place-items:center}
@@ -338,12 +338,10 @@ button,input,textarea{font:inherit;color:inherit}
 
 /* cards over the map */
 .panel{position:fixed;background:var(--card);border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.08);z-index:15;font-size:13.5px}
-#queue{left:16px;top:calc(var(--topbar) + 16px);width:360px;max-width:calc(100% - 104px);padding:12px 14px}
 /* Back, inside a box, a flow or a diagram: top left, above your answers, which move down to make room */
 #backb{left:16px;top:calc(var(--topbar) + 16px);display:none;padding:8px 14px;font:500 13.5px var(--plex);color:var(--text);cursor:pointer}
 #backb.on{display:block}
 #backb:hover{border-color:var(--text-2)}
-body.deep #queue{top:calc(var(--topbar) + 64px)}
 #side{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #side.on{display:block}
 #side.on.info{display:flex;flex-direction:column}
@@ -446,23 +444,12 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 .tb .dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
 .tb{position:relative}
 #prs.on{display:block}
-/* the Inbox: what anyone is asking you, on every map; a count on the button when something waits */
-.tbtn.ib{display:inline-flex;align-items:center;gap:6px}
-.tbtn.ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
-.tbtn.ib .n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;padding:0 5px}
-#inbox{top:52px;width:380px;padding:12px 14px;display:none;max-height:calc(100% - 120px);overflow:auto;z-index:21}
-#inbox.on{display:block}
-#inbox .ib-map{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-2);margin:12px 0 2px}
-#inbox .ib-row{display:block;padding:8px 0;border-top:1px solid var(--rule);cursor:pointer;color:inherit;text-decoration:none}
-#inbox .ib-row .on{font-size:12px;color:var(--text-2);margin-top:2px}
-#inbox .quiet{color:var(--text-2)}
 .ct{font-weight:500;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center}
 .x{cursor:pointer;color:var(--text-3);font-size:16px;line-height:1;padding:0 4px}
 .row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--rule)}
 .row:first-of-type{border-top:0}
 .row.open-node{cursor:pointer;border-radius:6px}
 .row.req{display:block;padding:10px 0}
-.ct .ca-n{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--claude);color:#fff;font-size:11px;margin-left:6px;padding:0 5px}
 .row.ca{display:block;padding:9px 8px;margin:0 -8px}
 /* the box card: one decision block per call, the question as the headline */
 .d-sub{font-size:15.5px;font-weight:600;line-height:1.35;color:var(--text);margin:2px 0 8px}
@@ -538,7 +525,6 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .ct-r{display:flex;align-items:center;gap:8px}.chat-h{height:26px;padding:0 9px;font-size:12px;color:var(--claude)}.chat-h:hover{border-color:var(--claude)}
 .side-tabs span{padding:6px 10px;font-size:12.5px;white-space:nowrap;color:var(--text-2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
 .side-tabs span.on{color:var(--text);border-color:#141413;font-weight:500}
-.ca-opts{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}.ca-opts .gb{height:26px}
 .d-file{margin-top:16px;font:11.5px var(--mono);color:var(--text-3)}
 .info-footer{margin-top:auto;padding-top:16px;flex-shrink:0}
 .box-meta-button{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--text-2);cursor:pointer}
@@ -550,25 +536,11 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .box-dates{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 16px;margin:0;font-size:12px;line-height:1.5}
 .box-dates dt{color:var(--text-3)}
 .box-dates dd{margin:0;text-align:right;color:var(--text-2);overflow-wrap:anywhere}
-.ca-line{display:flex;align-items:center;gap:10px}
-.ca-line .ca-q{flex:1;margin:0}
-.ca-btns{display:flex;gap:6px;flex:none}
-.ca-btns .gb{height:26px;padding:0 10px}
-.ca-btns .gb.yes{background:#141413;color:#fff;border-color:#141413}
-.ca-on{font-size:11.5px !important;color:var(--text-3);margin-top:2px;display:flex}
-.ca-more{margin-left:auto;color:var(--new);font-weight:500}
-.row.ca.open{background:#f6f8fe}
-.ca-x{margin-top:8px;padding-top:8px;border-top:1px solid var(--rule);font-size:13px;line-height:1.45}
-.ca-x p{margin:0 0 8px;color:var(--text)}
-.ca-if{display:flex;gap:10px;padding:3px 0}
-.ca-if b{flex:none;width:30px;font-weight:600}
-.ca-if span{color:var(--text-2)}
 /* a box with a yes/no waiting on you: a small orange question mark */
 /* a box with a question for you: a small "Clarify" tag on its top-right corner */
 .node .mk.q{left:auto;right:8px;top:-7px;width:auto;height:14px;padding:0 5px;border-radius:999px;background:var(--claude);color:#fff;font:500 8.5px/14px var(--plex);letter-spacing:.02em;text-align:center;white-space:nowrap;box-shadow:0 0 0 1.5px #fff}
 .ca-head{font-size:12px;color:var(--text-2)}
 .ca-ag{color:var(--claude);font-weight:500}.ca-ag.cx{color:var(--text)}
-.ca-on{color:var(--text-3)}
 .ca-q{font-size:14px;font-weight:500;margin-top:3px}
 .ca-why{font-size:12.5px;color:var(--text-2);margin-top:2px}
 .ca-done{font-size:12.5px;color:var(--text-2);margin-top:2px}
@@ -591,8 +563,6 @@ button.d-opt{cursor:pointer}button.d-opt:hover{border-color:#141413}
 .gb.pressed{background:#141413;color:#fff;border-color:#141413}
 .done{font-size:12px;color:var(--text-2)}
 a{color:inherit;text-decoration:none}
-#queue.quiet-card,#queue.folded{width:auto;padding:8px 12px;display:flex;align-items:center;gap:10px}
-#queue .fold{margin-left:auto;color:var(--text-2);font-size:12px;font-weight:400;cursor:pointer}#queue .fold:hover{color:var(--text)}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
 .chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 10px 0 4px;border:1px solid var(--rule-2);border-radius:999px;font-size:12px;background:#fff;cursor:pointer}
 .chip:hover{background:#f3f2ee}
@@ -962,7 +932,7 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-confirmation .sh-delete:hover{opacity:.88}
 .sh-confirmation .sh-publish{background:var(--new);border-color:var(--new);color:var(--box)}
 .sh-link{border:0;background:none;padding:0;font:inherit;display:inline-flex;align-items:center;gap:6px;color:var(--new);font-size:13.5px;cursor:pointer}
-.view-only #tools [data-tool="box"],.view-only #tools [data-tool="arrow"],.view-only #tools [data-tool="comment"],.view-only .history-tool,.view-only #tidyb,.view-only #savew,.view-only [data-hrestore],.view-only .topic-actions,.link-guest #bot,.link-guest #inboxb,.link-guest #rail [data-rail="memory"],.link-guest #rail [data-rail="sidechats"],.link-guest .topic-actions,.view-only .cd,.link-guest #verb,.link-guest #savew,.link-guest #side [data-side-tab="chat"],.view-only #side .d-del,.view-only #thread form,.view-only [data-resolve]{display:none}
+.view-only #tools [data-tool="box"],.view-only #tools [data-tool="arrow"],.view-only #tools [data-tool="comment"],.view-only .history-tool,.view-only #tidyb,.view-only #savew,.view-only [data-hrestore],.view-only .topic-actions,.link-guest #bot,.link-guest #rail [data-rail="memory"],.link-guest #rail [data-rail="sidechats"],.link-guest .topic-actions,.view-only .cd,.link-guest #verb,.link-guest #savew,.link-guest #side [data-side-tab="chat"],.view-only #side .d-del,.view-only #thread form,.view-only [data-resolve]{display:none}
 .sh-link svg,.sh-ic svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .sh-permission{position:relative;flex-shrink:0}
 .sh-access{display:inline-flex;align-items:center;justify-content:space-between;gap:16px;min-width:90px;height:34px;padding:0 11px;border:1px solid var(--rule-2);border-radius:8px;background:var(--card);font:inherit;cursor:pointer}
@@ -998,13 +968,12 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   body{--topbar:80px;--pane-width:calc(100vw - 72px)}
   #top{flex-wrap:wrap;align-content:center;gap:6px;padding:6px 8px}
   #crumbs{order:10;flex-basis:100%;height:28px;justify-content:flex-start}
-  #top .mapb,#top .ib{font-size:0;gap:0;padding:0 8px}
-  #top .ib svg{margin:0}
+  #top .mapb{font-size:0;gap:0;padding:0 8px}
   #top .faces{margin-left:auto}
   #top .ver.ok{font-size:0;gap:0;padding:0 6px}
   #crumbs #renamei{max-width:100%}
   body.paned #canvas{right:72px;visibility:hidden}
-  body.paned #tools,body.paned #foot,body.paned #tidyb,body.paned #plan,body.paned #legend,body.paned #queue,body.paned #chatgrip{display:none}
+  body.paned #tools,body.paned #foot,body.paned #tidyb,body.paned #plan,body.paned #legend,body.paned #chatgrip{display:none}
   body.paned #toast,body.paned #histbar{left:calc((100% - 72px) / 2);max-width:calc(100% - 96px)}
   .side-tabs{overflow-x:auto;flex-shrink:0}
   .topic-actions,.sc .ct{flex-shrink:0}
@@ -1034,7 +1003,6 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <body>
 <div id="top">
   <span class="brand"><i aria-hidden="true"></i>Anur</span>
-  <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
   <div class="savew" id="savew"></div>
   <div id="crumbs"></div>
@@ -1049,10 +1017,8 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 </div>
 <div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><svg id="rubber"></svg><div id="newbox"></div><div id="pins"></div><div id="curs"></div></div></div>
 <button class="panel" id="backb" title="Esc"></button>
-<div class="panel" id="queue"></div>
 <div class="panel" id="side"></div>
 <div class="panel" id="prs"></div>
-<div class="panel" id="inbox"></div>
 <div class="panel" id="thread"></div>
 <div class="panel" id="cpanel"></div>
 <div id="tools">
@@ -1268,11 +1234,6 @@ const lastTopics = new Map();
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {}, hereNow = [];
 // History: its versions, the one on show (null: the live map) and the live map underneath it
 let HIST = [], PREVIEW = null, LIVE = null, histAsk = 0;
-// the Inbox: this map's asks come from its own live state; every other map's from /api/inbox, every few seconds
-const HERE = location.pathname.split('/')[1] || '';
-let inboxOpen = false, elsewhere = [];
-const fetchInbox = () => fetch(`/api/inbox?as=${encodeURIComponent(ME)}`).then((r) => r.json())
-  .then((x) => { elsewhere = x.filter((m) => m.name !== HERE); if (S) renderInbox(); }).catch(() => {});
 const cam = { x: 0, y: 0, z: 1 };
 // A box is as big as its words and no bigger: the usual width (140, a person 110), wider for a long name up to
 // 220, where the name wraps; include both borders and rounding room before wrapping. As tall as its lines. A box drawn big with one word in it is the usual size.
@@ -1401,7 +1362,7 @@ function unfolded({ nodes, edges }){
   return shown.size === ids.size ? { nodes, edges } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter((e) => shown.has(e.from) && shown.has(e.to)) };
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
-// a box you go to (from a question, the Inbox, a search) comes out from under whatever folded it away
+// a box you go to (from a question, a search) comes out from under whatever folded it away
 const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ folded.delete(f); out = true; } if (out) saveFolds(); return out; };
 let searchOpen = false, searchMatches = [], searchIndex = 0;
 function closeMapSearch(){
@@ -1526,7 +1487,7 @@ const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])
 // a flow is a third level: the calls one route makes, drawn as a sequence, at view "flow:<box id>"
 const flowBox = () => view.startsWith('flow:') ? nodeById(view.slice(5)) : null;
 const flowOf = (n) => n?.flow ? n : n?.inside?.nodes?.find((x) => x.flow) || null;
-function openFlow(id){ view = `flow:${id}`; selected = null; expanded = null; lit = null; render(); fit(); }
+function openFlow(id){ view = `flow:${id}`; selected = null; lit = null; render(); fit(); }
 const LANE_X = (i) => 120 + i * 190, STEP_Y0 = 150, STEP_DY = 62;
 function drawFlow(fb){
   const f = fb.flow, lx = Object.fromEntries(f.lanes.map((l, i) => [l.id, LANE_X(i)]));
@@ -1597,7 +1558,7 @@ function openDiagram(id){
   const n = nodeById(id) || proposedBox(id); if ((!n?.diagram && !diagramChange(id)) || locked(n)) return;
   const from = onScreen(n, cam);
   dgBack = { cam: { ...cam }, view };
-  view = `diagram:${id}`; selected = null; expanded = null; lit = null; dgFresh = true; render(); fit();
+  view = `diagram:${id}`; selected = null; lit = null; dgFresh = true; render(); fit();
   const f = $('dgf'); if (!f) return;
   f.classList.add('small', 'still'); frameAt(f, inStage(from)); f.getBoundingClientRect();
   f.classList.remove('small', 'still'); frameAt(f, { x: 30, y: 20, w: dgSize.w - 30, h: dgSize.h - 20 });
@@ -1694,14 +1655,10 @@ function fit(){
   // the lines and their words too: a curve between two boxes in one column, and its words, reach past the boxes
   else try { const b = edgesEl.getBBox(); if (b.width){ minX = Math.min(minX, b.x - 24); maxX = Math.max(maxX, b.x + b.width + 24); minY = Math.min(minY, b.y - 24); maxY = Math.max(maxY, b.y + b.height + 24); } } catch {}
   const r = canvas.getBoundingClientRect();
-  // the map takes whichever is bigger: the space beside the queue, or the full width under it
-  const q = $('queue').getBoundingClientRect();
   // Docked panes already reduce the canvas width. Only the floating pull-request card needs extra room.
   const right = prsOpen ? Math.min(440, r.width / 2) : 24, bottom = 160;
-  const under = Math.max(30, q.bottom - r.top + 16);
   const fitIn = (left, top) => Math.max(.1, Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY)));
-  const beside = fitIn(q.width + 48, 30), below = fitIn(40, under);
-  const [left, top, z] = below >= beside ? [40, under, below] : [q.width + 48, 30, beside];
+  const [left, top] = [40, 30], z = fitIn(left, top);
   cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = top + ((r.height - top - bottom) - (maxY - minY) * z) / 2 - minY * z;
   place();
 }
@@ -1981,7 +1938,7 @@ function render(){
   const fb = flowBox();
   const db = !fb && diagramBox();
   if (db && !db.diagram && !diagramChange(db.id)){ view = 'system'; return render(); }
-  if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
+  if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
@@ -2082,7 +2039,7 @@ function render(){
   }
   nodesEl.innerHTML = html;
   positionInlineName();
-  renderLevels(); renderTop(); renderInbox(); renderQueue(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
+  renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
 }
 
 // Share: copy this map's address, manage access, or download it. Invites are not wired up yet.
@@ -2387,11 +2344,6 @@ document.addEventListener('focusout', (e) => { if (e.target.id === 'renamei') en
 const waitPill = (calls, cls) => { const who = [...new Set(calls.map((c) => c.for))];
   return `<span class="${cls} wait">Wait on ${who.map((w) => `<i class="wav" style="background:${pcol(w)}" data-name="${w}" aria-label="${w}">${w[0]}</i>`).join('')}</span>`; };
 const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answer' : c.picked) : c.status === 'confirmed' ? 'Yes' : 'No';
-
-// What the agent needs from you before it builds: one short question, the box it is on, and its answers:
-// Yes / No when that is the whole choice, or a few options plus "Other…" to say it in your own words.
-// Click it and it opens in place: why it is asked, and what each answer does; its box lights up on the map.
-let expanded = null;
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null, sideSeen = '';
 let sideRename = null;
@@ -2429,31 +2381,7 @@ let backTo = null, decsScroll = 0;
 const histOpen = new Set();
 // what the Information tab shows behind More: n:<box> the rest of its notes, c:<call> why a question is asked, o:<call> its own-words box
 const infoMore = new Set();
-const callRow = (c, withButtons) => `<div class="row open-node ca ${expanded === c.id ? 'open' : ''}" data-call-row="${c.id}" data-node="${c.node}">
-  <div class="ca-line"><span class="ca-q">${c.ask || c.assume || c.text}</span>${withButtons && c.status === 'open' && !c.options?.length
-    ? `<span class="ca-btns"><span class="gb yes" data-call="${c.id}" data-ans="confirm">Yes</span><span class="gb" data-call="${c.id}" data-ans="dispute">No</span></span>`
-    : c.status !== 'open' ? `<span class="ca-done">${ans(c)}</span>` : ''}</div>
-  ${withButtons && c.status === 'open' && c.options?.length ? `<div class="ca-opts">${c.options.map((o) => `<span class="gb" data-call="${c.id}" data-opt="${o.id}" data-label="${o.label}" title="${o.means || ''}">${o.label}</span>`).join('')}<span class="gb" data-other-pick="${c.id}">Other…</span></div>` : ''}
-  <div class="ca-on">${c.from === 'Codex' ? 'Codex' : 'Claude'} · ${esc(nodeById(c.node)?.label || c.node)}<span class="ca-more">${expanded === c.id ? 'Less' : 'Why?'}</span></div>
-  ${expanded === c.id ? `<div class="ca-x">
-    ${c.plain || c.context ? `<p>${c.plain || c.context}</p>` : ''}
-    ${c.options?.length ? c.options.map((o) => `<div class="ca-if"><span>${o.label}${o.means ? `: ${o.means}` : ''}</span></div>`).join('')
-      : `${c.yes ? `<div class="ca-if"><b>Yes</b><span>${c.yes}</span></div>` : ''}${c.no ? `<div class="ca-if"><b>No</b><span>${c.no}</span></div>` : ''}`}
-  </div>` : ''}</div>`;
 
-// the Need clarify card can be put aside to look at the map first: it shrinks to its count, and this browser remembers
-const QUEUE_KEY = 'lm.queue-aside';
-let queueAside = false;
-try { queueAside = localStorage.getItem(QUEUE_KEY) === '1'; } catch {}
-function renderQueue(){
-  const open = S.calls.filter((c) => c.for === ME && c.status === 'open');
-  const q = $('queue');
-  q.classList.toggle('quiet-card', !open.length);
-  q.classList.toggle('folded', !!open.length && queueAside);
-  if (!open.length){ q.innerHTML = '<span class="quiet">Nothing for you to answer</span>'; return; }
-  if (queueAside){ q.innerHTML = `<span class="quiet">Need clarify <span class="ca-n">${open.length}</span></span><span class="fold" data-queue-fold>Show</span>`; return; }
-  q.innerHTML = `<div class="ct">Need clarify <span class="ca-n">${open.length}</span><span class="fold" data-queue-fold title="Put it aside; the count stays">Hide</span></div>${open.map((c) => callRow(c, true)).join('')}`;
-}
 
 // sections a person opened stay open when the card redraws (it redraws on every change to the map)
 const openSecs = new Set();
@@ -3067,29 +2995,6 @@ function renderDecs(){
       : '<div class="d-wait">Nothing has been decided on this map yet.</div>'}`;
 }
 
-// The Inbox button, with a count when anyone is asking you something, and its list: your questions and the
-// comment threads waiting on your reply (you wrote in it, or someone @-named you), this map first, then the others
-function renderInbox(){
-  const mention = new RegExp(`@${ME}\\b`, 'i');
-  const calls = S.calls.filter((c) => c.for === ME && c.status === 'open' && canSee(nodeById(c.node) || {}));
-  const talk = (S.comments || []).filter((c) => !c.resolved && (!c.node || canSee(nodeById(c.node) || {})) && c.msgs.at(-1).who !== ME
-    && c.msgs.some((m) => m.who === ME || mention.test(m.text)));
-  // your own Actions, prepared and waiting for your Execute
-  const readyForYou = S.nodes.flatMap((b) => [b, ...(b.inside?.nodes || [])]).filter((b) => b.action?.by === ME && b.action.stage === 'ready' && canSee(b));
-  const n = calls.length + talk.length + readyForYou.length + elsewhere.reduce((k, m) => k + m.items.length, 0);
-  const b = $('inboxb');
-  b.innerHTML = `<svg viewBox="0 0 20 20"><path d="M3 11h4l1.2 2h3.6L13 11h4M3 11v4.5h14V11l-2.2-6.5H5.2z"/></svg>Inbox${n ? `<span class="n">${n}</span>` : ''}`;
-  b.classList.toggle('on', inboxOpen);
-  const el = $('inbox'); el.classList.toggle('on', inboxOpen); if (!inboxOpen) return;
-  el.style.left = `${Math.max(16, Math.min(b.getBoundingClientRect().left, innerWidth - 396))}px`;
-  const here = (c) => `<div class="ib-row" data-goto="${c.id}"><div>${prose(c.msgs.at(-1).text)}</div><div class="on">${esc(c.msgs.at(-1).who)} wrote${c.node ? ` · ${esc(nodeById(c.node)?.label || c.node)}` : ''}</div></div>`;
-  const review = (b) => `<div class="ib-row" data-review="${esc(b.id)}"><div>${prose(b.action.brief?.goal || b.action.intent || b.label)}</div><div class="on">Ready for your Execute · ${prose(b.label)}</div></div>`;
-  const far = (m, it) => `<a class="ib-row" href="${m.href}?as=${encodeURIComponent(ME)}"><div>${prose(it.text)}</div><div class="on">${it.kind === 'call' ? `${it.from} asks you` : it.kind === 'action' ? 'Ready for your Execute' : `${it.from} wrote`}${it.on ? ` · ${prose(it.on)}` : ''}</div></a>`;
-  el.innerHTML = `<div class="ct"><span>Inbox${n ? ` <span class="ca-n">${n}</span>` : ''}</span><span class="x" data-close-inbox>×</span></div>
-    ${n ? '' : '<div class="quiet">Nobody is asking you anything.</div>'}
-    ${calls.length || talk.length || readyForYou.length ? `<div class="ib-map">${prose(S.title)} · this map</div>${calls.map((c) => callRow(c, true)).join('')}${talk.map(here).join('')}${readyForYou.map(review).join('')}` : ''}
-    ${elsewhere.map((m) => `<div class="ib-map">${prose(m.title || m.name)}</div>${m.items.map((it) => far(m, it)).join('')}`).join('')}`;
-}
 
 function renderPrs(){
   const el = $('prs'); el.classList.toggle('on', prsOpen); if (!prsOpen) return;
@@ -3935,16 +3840,8 @@ document.addEventListener('click', (e) => {
   // "Other…" on a question in the corner opens its box, ready for your own words
   else if (t.closest('[data-more]')){ const k = t.closest('[data-more]').dataset.more; infoMore.has(k) ? infoMore.delete(k) : infoMore.add(k); render(); if (k.startsWith('o:') && infoMore.has(k)) $(`other-${k.slice(2)}`)?.focus(); }
   else if (t.dataset.otherPick){ const c = S.calls.find((x) => x.id === t.dataset.otherPick); if (c){ selected = c.node; sideFor = c.node; sideTab = 'box'; infoMore.add(`o:${c.id}`); render(); $(`other-${c.id}`)?.focus(); } }
-  else if (t.closest('[data-call-row]') && !t.closest('.gb')){
-    // the call opens in place; its box lights up on the map, and no other card opens
-    const row = t.closest('[data-call-row]'), id = row.dataset.callRow;
-    expanded = expanded === id ? null : id;
-    lit = expanded ? row.dataset.node : null;
-    render();
-  }
   else if (t.hasAttribute('data-close-prs')){ prsOpen = false; render(); }
   else if (t.closest('[data-prs]')){ prsOpen = true; render(); }
-  else if (t.closest('[data-queue-fold]')){ queueAside = !queueAside; try { localStorage.setItem(QUEUE_KEY, queueAside ? '1' : ''); } catch {} renderQueue(); }
   else if (t.closest('[data-call]')){
     const b = t.closest('[data-call]'), o = b.dataset.opt; b.classList.add('pressed');
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
@@ -3972,8 +3869,6 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-archive]')){ archiveBox(t.closest('[data-archive]').dataset.archive); }
   else if (t.closest('[data-unarchive]')){ unarchiveBox(t.closest('[data-unarchive]').dataset.unarchive); }
   else if (t.closest('[data-delete-yes]')){ deleteBox(t.closest('[data-delete-yes]').dataset.deleteYes, true); }
-  else if (t.closest('#inboxb')){ inboxOpen = !inboxOpen; if (inboxOpen) fetchInbox(); render(); }
-  else if (t.closest('[data-close-inbox]')){ inboxOpen = false; render(); }
   else if (t.closest('[data-resolve]')){
     const id = Number(t.closest('[data-resolve]').dataset.resolve), c = S.comments.find((x) => x.id === id);
     act('resolve', { id });
@@ -3989,8 +3884,6 @@ document.addEventListener('click', (e) => {
       const r = canvas.getBoundingClientRect(); cam.x = r.width / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
-  // a ready Action in the Inbox opens on its Action
-  else if (t.closest('[data-review]')){ const id = t.closest('[data-review]').dataset.review; if (nodeById(id)){ inboxOpen = false; selected = id; sideFor = id; sideTab = 'chat'; render(); centerOn(id); } }
   // a message's box name opens that box
   else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   // a tool pressed again goes back to Select
@@ -4227,7 +4120,6 @@ document.addEventListener('keydown', (e) => {
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
 document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea'); if (t) fitBox(t); });
 listen();
-if (!FILE){ fetchInbox(); setInterval(fetchInbox, 8000); }
 </script>
 </body>
 </html>
