@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { prepareAction } from './action-preparation.js';
 import { readLines } from './claude.js';
 import { CONTEXT_INSTRUCTIONS, openContext } from './map-context.js';
+import { PROPOSE_SERVER, PROPOSE_TOOL } from './propose.js';
 
 // Ask Claude on a box gets a real Claude Code answer, like a side chat on /living-map: one
 // `claude -p` that reads the map as text and, on a project's map, the project's files. It
@@ -47,10 +48,11 @@ export function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoa
 export function streamClaude(/** @type {any} */ { cwd, prompt, onText, onDone, config }) {
   const env = childEnv();
   const proc = spawn('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--tools', READ, '--allowedTools', config ? `${READ},mcp__map_context__list_maps,mcp__map_context__load_map` : READ, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
-    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify(config || {mcpServers:{}}), '--setting-sources', ''], { cwd, env });
-  let text = '', done = false;
-  const end = (/** @type {any} */ t) => { if (done) return; done = true; clearTimeout(limit); onDone(t); };
+    '--tools', READ, '--allowedTools', `${READ},${PROPOSE_TOOL}${config ? ',mcp__map_context__list_maps,mcp__map_context__load_map' : ''}`, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
+    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify({ mcpServers: { ...config?.mcpServers, map_propose: PROPOSE_SERVER } }), '--setting-sources', ''], { cwd, env });
+  // a change Claude offers is its last propose_change call's input, never words in its reply
+  let text = '', done = false, /** @type {any} */ proposed;
+  const end = (/** @type {any} */ t) => { if (done) return; done = true; clearTimeout(limit); onDone(t, undefined, proposed); };
   const limit = setTimeout(() => { proc.kill('SIGTERM'); end(text.trim() || 'Claude took too long to answer. Ask again.'); }, 180_000);
   proc.on('error', () => end('Claude Code is not installed here, so the map cannot answer.'));
   proc.stderr.on('data', () => {});
@@ -61,7 +63,10 @@ export function streamClaude(/** @type {any} */ { cwd, prompt, onText, onDone, c
     const e = d.type === 'stream_event' ? d.event : null;
     // words before a file read and words after it are two paragraphs
     if (e?.type === 'message_start' && text) text += '\n\n';
-    if (e?.type === 'content_block_delta' && e.delta?.text) { text += e.delta.text; onText(text); }
+    if (e?.type === 'content_block_delta' && e.delta?.text) { text += e.delta.text; onText(text, proposed !== undefined); }
+    if (e?.type === 'content_block_start' && e.content_block?.type === 'tool_use' && e.content_block.name === PROPOSE_TOOL) onText(text, true);
+    if (d.type === 'assistant') for (const c of d.message?.content || [])
+      if (c?.type === 'tool_use' && c.name === PROPOSE_TOOL && c.input && typeof c.input === 'object') proposed = c.input;
     // the finished reply is the last message's words, without "let me look" on the way there
     if (d.type === 'result') end(!d.is_error ? String(d.result || text).trim()
       : signedOut(d.result) ? SIGNED_OUT : `Claude could not answer: ${d.result || 'an error'}`);
