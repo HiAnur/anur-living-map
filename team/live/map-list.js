@@ -51,7 +51,7 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo }) {
   /** @param {any} text */
   function freeName(text) {
     const base = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
-    const taken = (/** @type {any} */ n) => deletedMaps.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
+    const taken = (/** @type {any} */ n) => deletedMaps.has(n) || projects.has(n) || named.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
     let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
     return name;
   }

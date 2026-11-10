@@ -2920,6 +2920,14 @@ function renderChat(){
 let railTab = null;
 // the decision opened in the Decisions panel, by call id: one at a time
 const decOpen = new Set();
+function openNewMap(){
+  const url = new URL(location.href);
+  if (!url.searchParams.has('new')) return;
+  if (READ_ONLY || FILE || PREVIEW || S.nodes.length) return;
+  view = 'system'; selected = sideFor = null; setTool('select');
+  const r = canvas.getBoundingClientRect(); cam.x = r.width / 2; cam.y = r.height / 2; cam.z = 1; place();
+  askName({ x: 0, y: 0, keyboard: true, text: 'Topic' });
+}
 function openBrainBox(){
   const id = new URLSearchParams(location.search).get('brain-box');
   if (!id) return;
@@ -4137,7 +4145,7 @@ function listen(){
     render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
-    if (first){ first = false; fit(); openBrainBox(); }
+    if (first){ first = false; fit(); openBrainBox(); openNewMap(); }
   });
   es.addEventListener('cloud', (m) => { CLOUD_STATUS = JSON.parse(m.data); if (shareOpen) renderShare(); });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });

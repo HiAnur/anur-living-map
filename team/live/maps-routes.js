@@ -22,6 +22,11 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
     if (url.pathname === '/api/newmap' && req.method === 'POST') {
       if (!who) return json(401, { error: 'Sign in first.' });
       let /** @type {any} */ a = await jsonBody(req, {});
+      if (a.blank === true) {
+        const name = freeName('Untitled map');
+        mapCalled(name).blank();
+        return json(200, { name, href: `/${name}/` });
+      }
       const prompt = String(a.prompt || '').trim().slice(0, 4000);
       if (!prompt) return json(400, { error: 'Say what the map is about.' });
       const name = freeName(prompt);

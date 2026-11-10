@@ -212,6 +212,11 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       }, 500);
     }
   }
+  // Persist a manual map immediately, even before its first topic is named.
+  function blank() {
+    state.title = state.renamed = 'Untitled map';
+    save();
+  }
   // A new map from a prompt opens a new chat in the agent's app, in the map's folder, so it sits in Recents like
   // any other chat, with every tool, connector and permission the app gives it. The chat starts with
   // /anur-living-map map:<name> and the prompt, and draws. The pane follows it from its first second: the server
@@ -672,7 +677,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (result.ok) { actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
-  return { handle, summary, asks, build, close, allowed, access, canDelete, editShared,
+  return { handle, summary, asks, build, blank, close, allowed, access, canDelete, editShared,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 

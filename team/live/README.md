@@ -90,4 +90,6 @@ In **Brain → Map description**, edit the purpose, scope and background for oth
 
 ### All brain
 
+On the home page, **+ New map** opens an empty, saved **Untitled map** with its first topic ready to name, without starting Claude. Type a name, then use Tab for a child or Enter to keep brainstorming. The prompt below still starts a map with Claude.
+
 The home page at `/` includes **All brain**, listing the maps you can access. Choose a map to view or download its Description object, Map object, Decision object and Memory object as JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
