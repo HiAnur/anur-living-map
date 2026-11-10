@@ -10,10 +10,10 @@ import path from 'node:path';
 
 // git run inside a git hook inherits where that repository is (GIT_DIR, GIT_INDEX_FILE, …); every command here names
 // its own repository, so those are left out
-const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|OBJECT_DIRECTORY|COMMON_DIR)$/.test(key)));
+const env = () => Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_(DIR|INDEX_FILE|WORK_TREE|PREFIX|OBJECT_DIRECTORY|COMMON_DIR)$/.test(key)));
 /** @param {string} cwd @param {string[]} args @returns {Promise<{ ok: boolean, out: string, err: string }>} */
 const git = (cwd, ...args) => new Promise((resolve) => {
-  execFile('git', ['-C', cwd, ...args], { timeout: 120_000, env }, (error, out, err) => resolve({ ok: !error, out: String(out).trim(), err: String(err || error?.message || '').trim() }));
+  execFile('git', ['-C', cwd, ...args], { timeout: 120_000, env: env() }, (error, out, err) => resolve({ ok: !error, out: String(out).trim(), err: String(err || error?.message || '').trim() }));
 });
 
 /**
