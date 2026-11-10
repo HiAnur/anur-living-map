@@ -1,9 +1,4 @@
-import {
-  ReactFlowProvider,
-  useReactFlow,
-  useStore,
-  type Viewport,
-} from "@xyflow/react";
+import { ReactFlowProvider } from "@xyflow/react";
 import {
   useCallback,
   useEffect,
@@ -11,8 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
-  type ReactNode,
 } from "react";
 
 import type {
@@ -20,27 +13,14 @@ import type {
   LedgerItem,
   LedgerView,
 } from "../../shared/ledger.ts";
-import { Mark } from "../components/Logo.tsx";
-import { More } from "../components/More.tsx";
-import { UpdateButton } from "../components/UpdateButton.tsx";
 import { useUpdate } from "../lib/api.ts";
-import { api } from "../lib/session.ts";
 import { store, stored } from "../lib/storage.ts";
+import { SIDE_BY_SIDE, startAt, useCamera } from "./camera.ts";
 import { Canvas } from "./Canvas.tsx";
 import { Card } from "./Card.tsx";
 import { Drawer } from "./Drawer.tsx";
+import { holdView, layout, NARROW_PANE, ROOT, type Layout } from "./layout.ts";
 import {
-  holdView,
-  layout,
-  NARROW,
-  NARROW_PANE,
-  ROOT,
-  sizeFor,
-  WIDE,
-  type Layout,
-} from "./layout.ts";
-import {
-  changedIds,
   foldsAbove,
   litBy,
   matcher,
@@ -48,32 +28,29 @@ import {
   search,
   type Lens,
 } from "./lens.ts";
-import { pendingItem } from "./pending.ts";
+import { openElsewhere, useNotes } from "./notes.ts";
+import {
+  Banners,
+  Empty,
+  LensNote,
+  Notes,
+  Notice,
+  ScreenMenu,
+  SideChips,
+  StripOnly,
+} from "./ScreenParts.tsx";
 import { SearchBox } from "./SearchBox.tsx";
-import { mapItems, startFolds } from "./shown.ts";
-import { Chip, SideSheet } from "./SideSheet.tsx";
-import { newIds, snapOf, type Snap } from "./since.ts";
+import { startFolds } from "./shown.ts";
+import { SideSheet } from "./SideSheet.tsx";
+import { newIds } from "./since.ts";
 import { SinceChip, Strip } from "./Strip.tsx";
-import type { TipId } from "./tips.ts";
 import { MapTips, Tip } from "./Tips.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { useLedger } from "./useLedger.ts";
-
-// coming back to the page after this long counts as a new look
-const AWAY_MS = 5 * 60_000;
-const CARD_W = 400;
-const DRAWER_W = 360;
-// from this width the card opens beside the open list instead of over it
-const SIDE_BY_SIDE = CARD_W + DRAWER_W + 320;
-
-// what a lens with nothing in it says, so a map dimmed all over reads as
-// "none", not as broken
-const NONE: Record<Lens, string> = {
-  waiting: "Nothing is waiting on you",
-  open: "Nothing is open",
-  decided: "Nothing is decided yet",
-  changed: "Nothing here is tied to a change in your system yet",
-};
+import { useMapKeys } from "./useMapKeys.ts";
+import { useShown } from "./useShown.ts";
+import { useSince } from "./useSince.ts";
+import { useTips } from "./useTips.ts";
 
 // The map of your chat: the strip, the lenses, and the mind map itself,
 // with a card for the item you click and the list as a drawer.
@@ -91,62 +68,6 @@ export default function MapScreen({
   );
 }
 
-// the camera never starts or moves below this zoom: a box stays readable,
-// and a column that runs off the right is a drag away
-const MIN_ZOOM = 0.85;
-const clampZoom = (z: number) => Math.min(1, Math.max(MIN_ZOOM, z));
-
-// the window is the pane the map sits in; only crossing NARROW_PANE re-renders
-const onResize = (f: () => void) => {
-  window.addEventListener("resize", f);
-  return () => window.removeEventListener("resize", f);
-};
-const isNarrow = () => window.innerWidth < NARROW_PANE;
-
-// how far in from the pane's left edge a framed topic sits: on a narrow pane
-// little enough that the topic, its items and theirs all fit
-const marginX = (narrow: boolean) => (narrow ? 8 : 16);
-// how far down a framed topic sits: on a narrow pane at the top, so what it
-// holds fills the pane below it
-const marginY = (narrow: boolean, h: number) =>
-  narrow ? 16 : Math.min(h * 0.2, 120);
-
-// Where the camera starts. On a narrow pane, the topic Claude is on at the
-// top left, at full size, so its items read beside it. Wider, the whole tree
-// from the chat's root, zoomed so its columns fill the width (never below
-// MIN_ZOOM) instead of leaving the right of the pane empty; scrolled down to
-// that topic only when it would start below the fold.
-function startAt(
-  v: LedgerView,
-  w = typeof window === "undefined" ? 1024 : window.innerWidth,
-  h = typeof window === "undefined" ? 768 : window.innerHeight,
-): Viewport {
-  const size = sizeFor(w);
-  const opening = startFolds(v.items, v.now);
-  const l = layout(
-    mapItems(v.items),
-    (id) => opening[id] ?? !!v.items.find((i) => i.id === id)?.folded,
-    size,
-  );
-  const t = nowTopic(v.items, v.now);
-  const root = l.nodes.get(ROOT)!;
-  const p = (t && l.nodes.get(t.id)) || root;
-  let wide = 0;
-  for (const n of l.nodes.values()) wide = Math.max(wide, n.x + size.w);
-  const narrow = w < NARROW_PANE;
-  const zoom = narrow
-    ? 1
-    : Math.min(1, Math.max(MIN_ZOOM, (w - 32) / Math.max(1, wide)));
-  const left = narrow ? p : root;
-  // the top of the map when that keeps the topic well in view
-  const top = 16 + p.y * zoom < h * (narrow ? 0.4 : 0.6);
-  return {
-    x: Math.round(marginX(narrow) - left.x * zoom),
-    y: Math.round(top ? 16 : marginY(narrow, h) - p.y * zoom),
-    zoom: Math.round(zoom * 100) / 100,
-  };
-}
-
 function Screen({
   initial,
   fixture,
@@ -159,13 +80,6 @@ function Screen({
     fixture,
   );
   const update = useUpdate();
-  const rf = useReactFlow();
-  const width = useStore((s) => s.width);
-  const height = useStore((s) => s.height);
-  const narrowPane = useSyncExternalStore(onResize, isNarrow, () => false);
-  // below NARROW_PANE the map draws its narrow nodes; it is also where the
-  // card covers the top of the map instead of its side
-  const size = narrowPane ? NARROW : WIDE;
 
   const [lens, setLens] = useState<Lens | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -181,61 +95,13 @@ function Screen({
   const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(() => stored("map.compact", false));
-  // the one-time tips you have seen, and whether you turned them all off
-  const [tipsSeen, setTipsSeen] = useState(
-    () => new Set(stored<string[]>("map.tips.seen", [])),
-  );
-  const [tipsOff, setTipsOff] = useState(() => stored("map.tips.off", false));
-  const seeTip = (tip: TipId) => {
-    const next = new Set([...tipsSeen, tip]);
-    setTipsSeen(next);
-    store("map.tips.seen", [...next]);
-  };
-  const tipsAgain = (off: boolean) => {
-    setTipsOff(off);
-    store("map.tips.off", off);
-    if (!off) {
-      setTipsSeen(new Set());
-      store("map.tips.seen", []);
-    }
-  };
-  const [snap, setSnap] = useState<Snap | null>(() =>
-    snapOf(initial, layout(mapItems(initial.items)).order),
-  );
-  const [step, setStep] = useState(-1);
+  const { tipsSeen, tipsOff, seeTip, tipsAgain } = useTips();
   const [following, setFollowing] = useState(false);
-  const [error, setError] = useState("");
-  // a word on what just happened (a link copied), gone by itself
-  const [note, setNote] = useState("");
-  useEffect(() => {
-    if (!note) return;
-    const t = setTimeout(() => setNote(""), 6000);
-    return () => clearTimeout(t);
-  }, [note]);
+  const { error, setError, note, setNote } = useNotes();
   // this map in another browser of yours: the server makes a fresh one-time
   // link and opens it there, or the page copies it for you to paste
-  const handOff = async (launch: boolean) => {
-    try {
-      const r = await api("/api/open", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conv: view.conv, launch }),
-      });
-      const b = (await r.json()) as { url?: string; error?: string };
-      if (!r.ok || !b.url) {
-        setError(b.error ?? "Couldn't make a link for another browser.");
-        return;
-      }
-      if (launch) {
-        setNote("Opening this map in your browser…");
-        return;
-      }
-      await navigator.clipboard.writeText(b.url);
-      setNote("Link copied. It works once and expires in 5 minutes.");
-    } catch {
-      setError("Couldn't reach the Living Map server. Is it running?");
-    }
-  };
+  const handOff = (launch: boolean) =>
+    openElsewhere(view.conv, launch, setNote, setError);
   // the side chat shown over the lower half; the others wait as chips
   const [sideId, setSideId] = useState<string | null>(null);
   // where stepping through a lens got to, for the lens it was on
@@ -243,46 +109,28 @@ function Screen({
     lens: null,
     at: -1,
   });
+  const { rf, width, height, size, beside, centre, frameLeft } =
+    useCamera(drawer);
   // where the camera was, so the map comes back there after strip-only
   const [camera, setCamera] = useState(() => startAt(initial));
 
-  const items = view.items;
-  const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
-  const folded = useCallback(
-    (id: string) => folds[id] ?? !!byId.get(id)?.folded,
-    [folds, byId],
-  );
-  // what the map draws: findings stay in the card and the list; turns on
-  // their way get a placeholder box (pending.ts)
-  const mapped = useMemo(() => {
-    const m = mapItems(items);
-    const p = pendingItem(view);
-    return p ? [...m, p] : m;
-  }, [items, view]);
-  const laid = useMemo(
-    () => layout(mapped, folded, size),
-    [mapped, folded, size],
-  );
-  // every item on the map in order, folds open: the order the since chip and
-  // a lens step in
-  const order = useMemo(() => layout(mapped).order, [mapped]);
-  const changed = useMemo(
-    () => changedIds(items, view.changes),
-    [items, view.changes],
-  );
-  const counts = useMemo(
-    () => ({
-      waiting: items.filter(matcher("waiting", changed)).length,
-      open: items.filter(matcher("open", changed)).length,
-      decided: items.filter(matcher("decided", changed)).length,
-      changed: changed.size,
-    }),
-    [items, changed],
-  );
-  // waits the map closed with no quote behind it, for you to check
-  const toCheck = useMemo(
-    () => items.filter((i) => !i.waiting && i.unconfirmed).length,
-    [items],
+  const {
+    items,
+    byId,
+    folded,
+    mapped,
+    laid,
+    order,
+    changed,
+    counts,
+    toCheck,
+    foldable,
+  } = useShown(view, folds, size);
+  const { snap, step, setStep, closeSince } = useSince(
+    initial,
+    view,
+    order,
+    act,
   );
   const lit = useMemo((): ((i: LedgerItem) => boolean) | null => {
     if (searching && query.trim()) {
@@ -298,7 +146,6 @@ function Screen({
   // an item that left the map (Not right, or merged) closes its card
   const card = selected ? (byId.get(selected) ?? null) : null;
   const now = nowTopic(items, view.now);
-  const beside = drawer && width >= SIDE_BY_SIDE;
   // a side chat you ended (here or on another page) is no longer shown
   const side =
     sideId && view.sides.some((x) => x.id === sideId)
@@ -326,92 +173,7 @@ function Screen({
       if (!r.ok) setError(r.error ?? "That didn't go through.");
       return r;
     },
-    [act],
-  );
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(""), 6000);
-    return () => clearTimeout(t);
-  }, [error]);
-
-  // the latest view and order, for listeners set up once
-  const latest = useRef({ view, order });
-  useEffect(() => {
-    latest.current = { view, order };
-  }, [view, order]);
-
-  // You look at the page when it gains focus after five minutes or more
-  // away: the bar keeps what you had not seen, and the server counts from
-  // now. Opened in view, the page is a look already.
-  useEffect(() => {
-    const inView = () =>
-      document.visibilityState === "visible" && document.hasFocus();
-    let away: number | null = inView() ? null : 0;
-    if (away === null) void act({ type: "looked" });
-    const back = () => {
-      if (away === null) return;
-      const long = Date.now() - away >= AWAY_MS;
-      away = null;
-      if (!long) return;
-      setSnap(snapOf(latest.current.view, latest.current.order));
-      setStep(-1);
-      void act({ type: "looked" });
-    };
-    const gone = () => {
-      away ??= Date.now();
-    };
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") gone();
-      else if (document.hasFocus()) back();
-    };
-    window.addEventListener("focus", back);
-    window.addEventListener("blur", gone);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.removeEventListener("focus", back);
-      window.removeEventListener("blur", gone);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [act]);
-
-  // the camera, moved only when you ask: a step, a pick, Now
-  const centre = useCallback(
-    (id: string, l: Layout, withCard: boolean, sheet = false) => {
-      const p = l.nodes.get(id);
-      if (!p) return;
-      const zoom = clampZoom(rf.getZoom());
-      const narrow = width < NARROW_PANE;
-      // with the card open, the item lands beside it (and the list), not
-      // under it; with a side chat open, in the half above it
-      const dx =
-        withCard && !narrow ? (CARD_W + (beside ? DRAWER_W : 0)) / 2 / zoom : 0;
-      const dy = sheet
-        ? -(height * 0.25) / zoom
-        : withCard && narrow
-          ? (height * 0.25) / zoom
-          : 0;
-      void rf.setCenter(p.x + size.w / 2 + dx, p.y + size.h / 2 - dy, {
-        zoom,
-        duration: 300,
-      });
-    },
-    [rf, width, height, beside, size],
-  );
-  const frameLeft = useCallback(
-    (id: string, l: Layout, duration = 300) => {
-      const p = l.nodes.get(id);
-      if (!p) return;
-      const zoom = clampZoom(rf.getZoom());
-      void rf.setViewport(
-        {
-          x: marginX(narrowPane) - p.x * zoom,
-          y: marginY(narrowPane, height) - p.y * zoom,
-          zoom,
-        },
-        { duration },
-      );
-    },
-    [rf, height, narrowPane],
+    [act, setError],
   );
 
   // open the folds an item sits in (and, for Now, the topic itself); gives
@@ -457,16 +219,6 @@ function Screen({
     void run({ type: "fold", item: id, folded: next });
   };
 
-  // every topic that holds boxes, for Fold all and Unfold all
-  const foldable = useMemo(
-    () =>
-      mapped
-        .filter(
-          (i) => i.type === "topic" && mapped.some((c) => c.parent === i.id),
-        )
-        .map((i) => i.id),
-    [mapped],
-  );
   const allFolded = foldable.length > 0 && foldable.every(folded);
   const foldAll = () => {
     const to = !allFolded;
@@ -556,66 +308,22 @@ function Screen({
     centre(id, l, false, true);
   };
 
-  // ⌘F searches the map; Esc closes the search, then the card, then the list
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        setSearching(true);
-      } else if (e.key === "Escape") {
-        if (searching) {
-          setSearching(false);
-          setQuery("");
-        } else if (selected) setSelected(null);
-        else if (sideId) setSideId(null);
-        else if (drawer) setDrawer(false);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [searching, selected, drawer, sideId]);
+  useMapKeys(
+    { searching, selected, sideId, drawer },
+    { setSearching, setQuery, setSelected, setSideId, setDrawer },
+  );
 
   const more = (
-    <>
-      <UpdateButton steps={updates} update={update} />
-      <More
-        sections={[
-          {
-            items: [
-              {
-                label: compact ? "Show the map" : "Strip only",
-                onClick: () => setStrip(!compact),
-              },
-              ...(tipsOff || tipsSeen.size
-                ? [
-                    {
-                      label: "Show tips again",
-                      onClick: () => tipsAgain(false),
-                    },
-                  ]
-                : []),
-            ],
-          },
-          {
-            head: "This map elsewhere",
-            items: fixture
-              ? []
-              : [
-                  {
-                    label: "Open in your browser",
-                    title: "Opens this map in your default browser, signed in",
-                    onClick: () => void handOff(true),
-                  },
-                  {
-                    label: "Copy a link for another browser",
-                    title: "A one-time link, good for 5 minutes",
-                    onClick: () => void handOff(false),
-                  },
-                ],
-          },
-        ]}
-      />
-    </>
+    <ScreenMenu
+      updates={updates}
+      update={update}
+      compact={compact}
+      onStrip={() => setStrip(!compact)}
+      tipsHidden={tipsOff || tipsSeen.size > 0}
+      onTips={() => tipsAgain(false)}
+      fixture={fixture}
+      onElsewhere={(launch) => void handOff(launch)}
+    />
   );
 
   if (!linked)
@@ -641,35 +349,12 @@ function Screen({
         waitingLens={lens === "waiting"}
         more={more}
       />
-      {!online && !fixture && (
-        <div className="bg-warning-soft px-3 py-1 text-[12.5px] text-warning-strong">
-          Lost the connection to the Living Map server; reconnecting…
-        </div>
-      )}
-      {view.health.error && (
-        <div
-          className="bg-danger-soft px-3 py-1 text-[12.5px] text-danger-strong"
-          title={view.health.error}
-        >
-          The map couldn't file the latest turns. It tries again after the next
-          one.
-        </div>
-      )}
+      <Banners offline={!online && !fixture} error={view.health.error} />
     </>
   );
 
   if (compact)
-    return (
-      <div className="flex h-full flex-col bg-canvas">
-        {top}
-        <button
-          onClick={() => setStrip(false)}
-          className="mx-3 mt-2 self-start rounded-lg border border-line-strong px-2.5 py-1 text-[12.5px] text-body hover:bg-panel"
-        >
-          Show the map
-        </button>
-      </div>
-    );
+    return <StripOnly onShow={() => setStrip(false)}>{top}</StripOnly>;
 
   return (
     <div className="flex h-full flex-col bg-canvas">
@@ -683,10 +368,7 @@ function Screen({
               snap={snap}
               at={step}
               onStep={stepTo}
-              onClose={() => {
-                setSnap(null);
-                setStep(-1);
-              }}
+              onClose={closeSince}
             />
           )
         }
@@ -768,33 +450,17 @@ function Screen({
               onOff={() => tipsAgain(true)}
             />
           )}
-        {/* floats over the map, so turning the lens on moves nothing */}
-        {lens &&
-          counts[lens] === 0 &&
-          !(lens === "changed" && view.changes.length > 0) &&
-          !searching &&
-          !drawer && (
-            <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 max-w-[calc(100%-24px)] -translate-x-1/2 truncate rounded-full bg-surface px-3 py-1 text-[12.5px] text-body shadow-md ring-1 ring-line">
-              {NONE[lens]}
-            </div>
-          )}
-        {lens === "changed" && view.changes.length > 0 && !drawer && (
-          <div className="absolute bottom-3 left-1/2 z-10 flex max-w-[calc(100%-24px)] -translate-x-1/2 items-center gap-2 rounded-full bg-surface px-3 py-1 text-[12.5px] whitespace-nowrap text-body shadow-md ring-1 ring-line">
-            <span className="truncate">
-              {view.changes.filter((c) => !c.low).length} changes in your system
-              this session
-            </span>
-            <button
-              onClick={() => {
-                setChangesFirst(true);
-                setDrawer(true);
-              }}
-              className="shrink-0 text-[12px] text-ink underline underline-offset-2"
-            >
-              Show them
-            </button>
-          </div>
-        )}
+        <LensNote
+          lens={lens}
+          count={lens ? counts[lens] : 0}
+          changes={view.changes}
+          searching={searching}
+          drawer={drawer}
+          onShow={() => {
+            setChangesFirst(true);
+            setDrawer(true);
+          }}
+        />
         {searching && (
           <SearchBox
             items={items}
@@ -849,18 +515,11 @@ function Screen({
             onHide={() => setSideId(null)}
           />
         ) : (
-          otherSides.length > 0 && (
-            <div className="absolute bottom-3 left-3 z-20 flex max-w-[calc(100%-24px)] gap-1 overflow-x-auto [scrollbar-width:none]">
-              {otherSides.map((o) => (
-                <Chip
-                  key={o.id}
-                  side={o}
-                  onOpen={() => void openSide(o.item)}
-                  onClose={() => void run({ type: "side-close", side: o.id })}
-                />
-              ))}
-            </div>
-          )
+          <SideChips
+            sides={otherSides}
+            onOpen={(item) => void openSide(item)}
+            onClose={(id) => void run({ type: "side-close", side: id })}
+          />
         )}
         <Drawer
           open={drawer}
@@ -878,84 +537,8 @@ function Screen({
           onReview={(a) => void run(a)}
           onClose={() => setDrawer(false)}
         />
-        {note && !error && (
-          <div className="absolute top-2 left-1/2 z-40 max-w-[min(480px,calc(100%-32px))] -translate-x-1/2 rounded-lg bg-surface px-3 py-1.5 text-sm text-body shadow-md ring-1 ring-line">
-            {note}
-          </div>
-        )}
-        {error && (
-          <div className="absolute top-2 left-1/2 z-40 flex max-w-[min(480px,calc(100%-32px))] -translate-x-1/2 items-center gap-3 rounded-lg bg-warning-soft px-3 py-1.5 text-sm text-warning-strong shadow-md ring-1 ring-warning-line">
-            <span className="min-w-0 flex-1">{error}</span>
-            <button onClick={() => setError("")} className="shrink-0">
-              ×
-            </button>
-          </div>
-        )}
+        <Notes note={note} error={error} onClose={() => setError("")} />
       </main>
-    </div>
-  );
-}
-
-// nothing on the map yet: reading a long chat, or nothing filed
-function Empty({ view }: { view: LedgerView }) {
-  const r = view.health.reading;
-  return (
-    <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
-      <div className="pointer-events-auto max-w-xs rounded-xl bg-surface p-4 text-center shadow-md ring-1 ring-line">
-        {r ? (
-          <>
-            <div className="text-[14px] font-medium text-ink">
-              Reading your chat
-            </div>
-            <p className="mt-1 text-[12.5px] text-body">
-              {r.done} of {r.total} turns so far. What's asked, decided and left
-              to do shows up as it's found.
-            </p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-panel">
-              <div
-                className="h-full rounded-full bg-primary transition-[width]"
-                style={{
-                  width: `${Math.round((100 * r.done) / Math.max(1, r.total))}%`,
-                }}
-              />
-            </div>
-          </>
-        ) : view.health.error ? (
-          <>
-            <div className="text-[14px] font-medium text-ink">
-              The map couldn't read your chat yet
-            </div>
-            <p className="mt-1 text-[12.5px] text-body">
-              It tries again after the next turn.
-            </p>
-          </>
-        ) : (
-          <>
-            <div className="text-[14px] font-medium text-ink">
-              Nothing filed yet
-            </div>
-            <p className="mt-1 text-[12.5px] text-body">
-              As you and Claude talk, what's asked, decided and left to do shows
-              up here.
-              {view.health.behind > 0
-                ? ` ${view.health.behind} turns are still to read.`
-                : ""}
-            </p>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Notice({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="flex h-full items-center justify-center bg-canvas px-6">
-      <div className="max-w-sm text-center">
-        <Mark size={36} className="mx-auto" />
-        <h1 className="mt-3 text-[15px] font-semibold text-ink">{title}</h1>
-        <p className="mt-1.5 text-[13px] text-body">{children}</p>
-      </div>
     </div>
   );
 }
