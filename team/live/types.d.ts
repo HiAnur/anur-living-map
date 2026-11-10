@@ -110,3 +110,78 @@ interface Sqlite {
     get(...values: any[]): any;
   };
 }
+
+// ---- the map's objects ------------------------------------------------------
+// What a box, a line and a memory are meant to be: one parent that gives
+// every object an id, a type, a name and its dates, and each kind built on
+// it. Maps are not stored in this shape yet (a line has no id of its own, a
+// box's type is split over `boxType` and `kind`, a box's second line is
+// `sub`). objects.js reads what is stored as these objects and says what
+// each still lacks, so the shape can be settled before any map is changed.
+
+/** What every object on a map has. */
+interface MapObject {
+  id: string;
+  type: string;
+  name: string;
+  createdAt: number | null; // null: made before dates were kept
+  updatedAt: number | null;
+  createdBy?: string;
+  updatedBy?: string;
+}
+
+/** Where a box sits and how big it is drawn. */
+interface Place {
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+}
+
+interface BoxBase extends MapObject {
+  description: string; // the line or two under the name; "" when it has none
+  notes: string; // what opens with the box; "" when it has none
+  state?: string; // "new", "todo", "assumed-gone" or "gone"
+  area?: string; // who may see it, when not everyone
+  place?: Place; // absent until it has been given one
+  inside?: { boxes: BoxObject[]; lines: LineObject[] }; // the map it opens into
+}
+
+/** A box that organizes: a topic, a person at the edge, a system outside. */
+interface TopicBox extends BoxBase {
+  type: "topic" | "actor" | "external";
+}
+
+/** A box that is a task to carry out: only this kind carries a plan or a run. */
+interface ActionBox extends BoxBase {
+  type: "action";
+  task?: unknown; // what a planner proposed for it
+  action?: BoxAction; // absent until someone begins it
+}
+
+type BoxObject = TopicBox | ActionBox;
+
+/**
+ * A line between two boxes. "contains" is the map's tree: the box at `to`
+ * hangs under the box at `from`, and needs no name. "flow" is anything
+ * else one box does to another, and its name says what.
+ */
+interface LineObject extends MapObject {
+  type: "contains" | "flow";
+  from: string;
+  to: string;
+  state?: string;
+}
+
+/** Something kept in mind on a map, or a rule for it; its name is its text. */
+interface MemoryObject extends MapObject {
+  type: "instruction" | "memory";
+  box: string | null; // the box it is about; null for the whole map
+}
+
+/** What an object still lacks to be whole in this shape. */
+interface ObjectGap {
+  id: string;
+  kind: "box" | "line" | "memory";
+  lacks: "name" | "description" | "dates";
+}

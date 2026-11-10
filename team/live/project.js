@@ -321,7 +321,7 @@ export function tidy(nodes, edges = [], /** @type {any} */ shown = null) {
 // (`start`), the tree hangs under it and lines into it are cross-links. Null when there is no single such box
 // or it does not reach every box.
 /** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} [start] */
-function treeOf(nodes, edges, start = null) {
+export function treeOf(nodes, edges, start = null) {
   const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
     if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || e.to === start) continue;
