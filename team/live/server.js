@@ -1123,7 +1123,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       let a; try { a = JSON.parse(await body(req)); } catch {}
       if (a?.confirm !== true) return deny();
       try { await cloud?.remove(); }
-      catch (e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
+      catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
       changeSharing(state, who, 'restricted'); save(); push();
       res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...state.linkSharing, cloud: cloud?.status() || { configured: false } })); return true;
     }
@@ -1133,7 +1133,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
       if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
         try { await cloud.publish(a.mode); }
-        catch (e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
+        catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
       }
       if (!changeSharing(state, who, a?.mode)) return deny();
       save(); push();
@@ -1400,7 +1400,7 @@ const server = http.createServer(async (req, res) => {
     return res.writeHead(302, { location: googleStart(`http://${host}`, next.startsWith('/') && !next.startsWith('//') ? next : '/') }).end();
   }
   if (url.pathname === '/auth/done' && req.method === 'GET') {
-    let got; try { got = await googleFinish(url.searchParams); } catch (e) { return signInError(e.message); }
+    let got; try { got = await googleFinish(url.searchParams); } catch (/** @type {any} */ e) { return signInError(e.message); }
     // one of this map's people only when the login's list says so (an address, not a name, proves who someone is);
     // anyone else is a guest under their Google name, never seated as a person who happens to share it
     const name = got.listed ? users.person(got.name) || got.name : users.person(got.name) ? `${got.name} (guest)` : got.name;
@@ -1536,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
     try {
       return json(200, read(url.searchParams.get('tool') || 'list_maps', { id: url.searchParams.get('id'), query: url.searchParams.get('query') || '', offset: Number(url.searchParams.get('offset') || 0),
         ...(url.searchParams.has('sections') ? {sections:url.searchParams.get('sections').split(',')} : {}) }));
-    } catch (e) { return json(400, { error: e.message }); }
+    } catch (/** @type {any} */ e) { return json(400, { error: e.message }); }
   }
   if (url.pathname === '/api/maps') {
     const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));

@@ -218,7 +218,7 @@ async function onMessage(m) {
     const tool = TOOLS.find((t) => t.name === m.params?.name);
     if (!tool) return send({ id: m.id, error: { code: -32602, message: `No tool ${m.params?.name}` } });
     try { send({ id: m.id, result: { content: [{ type: 'text', text: await tool.run(m.params.arguments || {}) }] } }); }
-    catch (e) { send({ id: m.id, result: { content: [{ type: 'text', text: e.message }], isError: true } }); }
+    catch (/** @type {any} */ e) { send({ id: m.id, result: { content: [{ type: 'text', text: e.message }], isError: true } }); }
     return;
   }
   send({ id: m.id, error: { code: -32601, message: `No method ${m.method}` } });

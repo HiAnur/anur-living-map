@@ -63,7 +63,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
         saved.base = got.data; saved.revision = got.revision; persist();
         if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
         error = '';
-      } catch (e) { error = e.message; }
+      } catch (/** @type {any} */ e) { error = e.message; }
       finally { busy = null; notify(); }
     })();
     return busy;
@@ -96,7 +96,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
       await request(`/m/${saved.id}/api/delete`, {}, undefined, true);
       saved = null; persist(); error = ''; notify();
       return status();
-    } catch (e) { error = e.message; notify(); throw e; }
+    } catch (/** @type {any} */ e) { error = e.message; notify(); throw e; }
   }
   // Poll only already-published maps. Each exchange merges changes made while offline.
   const timer = setInterval(() => { void sync(); }, 5000); timer.unref();

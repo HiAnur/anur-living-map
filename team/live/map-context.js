@@ -104,7 +104,7 @@ export async function openContext({ maps, who, onLoad = () => {} }) {
       for await (const part of req) { text += part; if (text.length > 8192) return send(413, { error: 'Request too large.' }); }
       const { method, args } = JSON.parse(text);
       send(200, run(method, args));
-    } catch (e) { send(400, { error: e.message }); }
+    } catch (/** @type {any} */ e) { send(400, { error: e.message }); }
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', /** @type {() => void} */ (resolve)); });
   const close = () => { if (closed) return; closed = true; clearTimeout(timer); server.close(); server.closeAllConnections(); };

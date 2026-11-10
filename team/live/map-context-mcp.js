@@ -18,6 +18,6 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
       const r = await fetch(process.env.LM_CONTEXT_URL, { method: 'POST', headers: { authorization: `Bearer ${process.env.LM_CONTEXT_TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify({ method: m.params.name, args: m.params.arguments }), signal: AbortSignal.timeout(10000) });
       const data = await r.json(); if (!r.ok) throw new Error(data.error || 'Map context unavailable.');
       send(m.id, { content: [{ type: 'text', text: JSON.stringify(data) }] });
-    } catch (e) { send(m.id, { isError: true, content: [{ type: 'text', text: e.message }] }); }
+    } catch (/** @type {any} */ e) { send(m.id, { isError: true, content: [{ type: 'text', text: e.message }] }); }
   } else process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'Method not found' } }) + '\n');
 }
