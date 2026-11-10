@@ -70,13 +70,19 @@ function actionDocument(brief, version) {
 }
 
 const source = taskSource;
+// What happened to an Action, kept on it by this code and never taken from the model's words: who did it (a person,
+// Claude for what preparation or a run handed back, Map for what the map did itself), when, the revision it
+// happened to, and what code knows of it (the tools it verified, how a run ended, how long it took).
+/** @param {BoxAction} a @param {string} what @param {string} by @param {Record<string, unknown>} [extra] */
+export const note = (a, what, by, extra = {}) => { a.events = [...(a.events || []), { what, by, at:Date.now(), rev:a.id, ...extra }].slice(-50); };
 /** @param {Box} n */
 export function recoverAction(n) {
   // `sent` is how releases before `unconfirmed` stored a run that never reported back
   if (/** @type {string | undefined} */ (n.action?.stage) === 'sent') n.action.stage = 'unconfirmed';
-  if (n.action?.stage === 'gathering') Object.assign(n.action, { stage:'error', error:'Preparation stopped when the map restarted. Try again.' });
+  if (n.action?.stage === 'gathering') { Object.assign(n.action, { stage:'error', error:'Preparation stopped when the map restarted. Try again.' }); note(n.action, 'interrupted', 'Map'); }
   if (n.action?.stage === 'running') {
     n.action.stage = 'blocked';
+    note(n.action, 'interrupted', 'Map');
     delete n.action.completion;
     n.action.turns ||= [];
     n.action.turns.push({who:'Claude',text:'Execution was interrupted when the map restarted. Some steps may have finished. Continue will pick up this chat and check before doing more.',completion:{status:'blocked',summary:'',evidence:[]},at:Date.now()});
@@ -109,6 +115,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const plan = planned === undefined ? null : readPlannedTask(planned);
     if (planned !== undefined && !plan) return false;
     n.action = {id:crypto.randomUUID(),by,stage:'draft',intent:plan?.goal || '',history:[],...(plan ? {plan} : {})};
+    note(n.action, 'created', by, { planned:!!plan });
     n.boxType = 'action'; if (notify) changed(); return true;
   }
   /** @param {string} id @param {string} by @param {any} intent */
@@ -124,8 +131,10 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const history = [...(prior?.history || [])];
     if (answer !== undefined) history.push({ question:prior.question, answer:answer.trim() });
     const waiting = dependencyBlockers(prior.plan,nodeOf,(node) => canUse(node,by));
-    if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); changed(); return true; }
-    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}) };
+    if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); note(prior, 'waiting', by); changed(); return true; }
+    /** @type {BoxAction} */
+    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.events ? {events:prior.events} : {}) };
+    note(current, answer === undefined ? 'preparing' : 'answered', by);
     const active = () => nodeOf(id)?.action === current && owns(nodeOf(id), by);
     const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}`;
     jobs.set(id, null); changed();
@@ -135,7 +144,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
         // cancelled while Claude was looking: the Action keeps what it had, and the answer is dropped
         if (current.stage !== 'gathering') return;
         if (!active()) {
-          if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); delete /** @type {any} */ (current).since; changed(); }
+          if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); note(current, 'failed', 'Map'); delete /** @type {any} */ (current).since; changed(); }
           return;
         }
         if (source(n) !== current.source) Object.assign(current, { stage:'error', error:'This box changed while gathering information. Try again.' });
@@ -147,11 +156,16 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
           }
           Object.assign(current, prepared || { stage:'error', error:/signed out|not installed|took too long|stopped before/i.test(reply) ? String(reply).slice(0, 300) : 'Could not prepare this action. Try again or add more detail to the box.' });
         }
+        // the tools a ready brief lists are the ones code just checked preparation could reach
+        const reached = /** @type {string} */ (current.stage);
+        if (reached === 'ready') note(current, 'ready', 'Claude', { tools:[...(current.brief.tools || [])] });
+        else if (reached === 'clarify') note(current, 'asked', 'Claude');
+        else note(current, 'failed', 'Map');
         delete /** @type {any} */ (current).since; reconcile(); changed();
       } });
       if (jobs.has(id)) jobs.set(id, stop);
     } catch {
-      jobs.delete(id); Object.assign(current, { stage:'error', error:'Could not start gathering information. Try again.' }); delete /** @type {any} */ (current).since; changed();
+      jobs.delete(id); Object.assign(current, { stage:'error', error:'Could not start gathering information. Try again.' }); note(current, 'failed', 'Map'); delete /** @type {any} */ (current).since; changed();
     }
     return true;
   }
@@ -164,6 +178,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     jobs.get(id)?.(); jobs.delete(id);
     if (untouched(n.action)) { delete n.action; n.boxType = 'topic'; }
     else {
+      note(n.action, 'cancelled', by, { from:n.action.stage });
       Object.assign(n.action, { stage:'cancelled', cancelled:{ by, at:Date.now(), from:n.action.stage } });
       delete /** @type {any} */ (n.action).since;
     }
@@ -175,26 +190,27 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const n = nodeOf(id), a = n?.action; if (!owns(n, by) || !can('reopen', a?.stage)) return false;
     if (a.brief) { a.documents ||= []; a.documents.push(actionDocument(a.brief, a.documents.length + 1)); }
     for (const key of ['cancelled', 'brief', 'question', 'choices', 'error', 'waiting']) delete /** @type {any} */ (a)[key];
-    Object.assign(a, { id:crypto.randomUUID(), stage:'draft' }); changed(); return true;
+    Object.assign(a, { id:crypto.randomUUID(), stage:'draft' }); note(a, 'reopened', by); changed(); return true;
   }
   /** @param {string} id @param {string} by */
   function revise(id, by) {
     const n = nodeOf(id); if (!owns(n, by) || !can('revise', n.action?.stage)) return false;
     n.action.documents ||= [];
     n.action.documents.push(actionDocument(n.action.brief, n.action.documents.length + 1));
-    Object.assign(n.action, {stage:'clarify',question:'What would you like to change about this action?',choices:[]}); changed(); return true;
+    Object.assign(n.action, {stage:'clarify',question:'What would you like to change about this action?',choices:[]}); note(n.action, 'revised', by); changed(); return true;
   }
   /** @param {string} id @param {string} by @param {unknown} revision */
   function execute(id, by, revision) {
     const n = nodeOf(id), a = n?.action;
     if (!owns(n, by) || !can('execute', a?.stage) || a.session || a.id !== revision) return false;
     const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,by));
-    if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); changed(); return false; }
-    if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
+    if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', by); changed(); return false; }
+    if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); note(a, 'failed', 'Map'); changed(); return false; }
     const checked = readAction({status:'ready',brief:a.brief});
     if (checked?.stage !== 'ready') return false;
     const recovery = handedOff(a.stage);
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
+    note(a, 'executed', by, { tools:[...(a.brief.tools || [])] });
     const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
     return runTurn(id, by, a, prompt, false);
   }
@@ -204,11 +220,13 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     if (!owns(n, by) || !a?.session || !can('continue', a.stage) || a.id !== revision || typeof answer !== 'string' || answer.length > 4000) return false;
     const message = answer.trim() || 'Continue the reviewed task. Check what already finished in this conversation before doing more.';
     a.turns.push({who:by,text:answer.trim() || 'Continue'});
+    note(a, 'continued', by);
     return runTurn(id, by, a, message, true);
   }
   /** @param {string} id @param {string} by @param {BoxAction} a @param {string} prompt @param {boolean} resume */
   function runTurn(id, by, a, prompt, resume) {
-    Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:Date.now(),progress:''});
+    const started = Date.now();
+    Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:started,progress:''});
     delete a.completion;
     const job = {a,by,stop:/** @type {Stop} */ (null)}; runs.set(id,job); changed();
     const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
@@ -220,6 +238,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       a.stage = result.blocked ? 'blocked' : 'finished';
       a.completion = completion && (!result.blocked || completion.status === 'blocked') ? completion : {status:result.blocked ? 'blocked' : 'unconfirmed',summary:'',evidence:[]};
       a.turns.push({who:'Claude',text:String(a.completion.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
+      note(a, 'finished', 'Claude', { status:a.completion.status, ms:Date.now() - started });
       delete a.since; delete a.progress; reconcile(); changed();
     };
     try {
@@ -234,6 +253,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   function stop(id, by, revision) {
     const n = nodeOf(id), a = n?.action, job = runs.get(id);
     if (!owns(n, by) || !can('stop', a?.stage) || a.id !== revision || !job) return false;
+    note(a, 'stopped', by);
     job.stop?.();
     return true;
   }
@@ -250,9 +270,9 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       if (!a?.plan || a.session || !can('watch', a.stage)) continue;
       const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,a.by));
       if (waiting.length && (a.stage !== 'waiting' || JSON.stringify(a.waiting) !== JSON.stringify(waiting))) {
-        Object.assign(a,{stage:'waiting',waiting}); updated=true;
+        Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', 'Map'); updated=true;
       } else if (!waiting.length && a.stage === 'waiting') {
-        a.stage='draft'; delete a.waiting; updated=true;
+        a.stage='draft'; delete a.waiting; note(a, 'released', 'Map'); updated=true;
       }
     }
     if (updated) changed();
