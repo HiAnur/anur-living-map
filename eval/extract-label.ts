@@ -30,6 +30,8 @@ export type Checkpoints = {
   conv: string;
   file: string;
   model: string;
+  // which instructions filed it (promptId in ledger/extract.ts); none before ids were kept
+  prompt?: string;
   turns: number;
   checkpoints: {
     turn: number;

@@ -140,6 +140,7 @@ type Result = {
   lines: number;
   marked: number;
   model: string;
+  prompt: string;
   labeller: string;
 };
 
@@ -340,7 +341,7 @@ async function scoreChat(dir: string): Promise<Result | null> {
   const out = [
     `# Settle: ${cps.conv}`,
     "",
-    `\`${cps.file}\` · ${cps.turns} turns · extractor ${cps.model || "default"} · labels ${labels.labeller}`,
+    `\`${cps.file}\` · ${cps.turns} turns · extractor ${cps.model || "default"} · prompt ${cps.prompt ?? "unknown"} · labels ${labels.labeller}`,
     "",
     "Tick one box on each line. **map right**: the map has it right and the label is wrong. **label right**: the label is right and the map is wrong. **both wrong**: neither has it right (on a map-only line, the map's item is wrong and something real is missing). Unmarked lines count as label right. Run `node eval/extract-score.ts` again to rescore; your marks are kept.",
     "",
@@ -378,6 +379,7 @@ async function scoreChat(dir: string): Promise<Result | null> {
     lines,
     marked,
     model: cps.model,
+    prompt: cps.prompt ?? "unknown",
     labeller: labels.labeller,
   };
 }
@@ -395,6 +397,7 @@ function summary(results: Result[]): string[] {
     lines: 0,
     marked: 0,
     model: "",
+    prompt: "",
     labeller: "",
   };
   for (const r of results) {
@@ -440,23 +443,26 @@ async function main(args: string[]) {
     console.error("nothing to score");
     process.exit(1);
   }
-  const models = [...new Set(results.map((r) => r.model || "default"))].join(
-    ", ",
-  );
-  const labellers = [...new Set(results.map((r) => r.labeller))].join(", ");
-  const table = summary(results);
-  const head = `## ${new Date().toISOString().slice(0, 16).replace("T", " ")} · ${results.length} chats · extractor ${models} · labels ${labellers}`;
   const note =
     "Waiting is shown before → after settling; the other lists after. Gate: waiting recall ≥ 80% and precision ≥ 90% after settling.";
-  console.log([head, "", note, "", ...table].join("\n"));
+  // runs filed under different instructions are scored apart, one table each
+  const byPrompt = new Map<string, Result[]>();
+  for (const r of results)
+    byPrompt.set(r.prompt, [...(byPrompt.get(r.prompt) ?? []), r]);
+  const sections = [...byPrompt].map(([prompt, group]) => {
+    const models = [...new Set(group.map((r) => r.model || "default"))].join(
+      ", ",
+    );
+    const labellers = [...new Set(group.map((r) => r.labeller))].join(", ");
+    const head = `## ${new Date().toISOString().slice(0, 16).replace("T", " ")} · ${group.length} chats · extractor ${models} · prompt ${prompt} · labels ${labellers}`;
+    return [head, "", note, "", ...summary(group)].join("\n");
+  });
+  console.log(sections.join("\n\n"));
   for (const d of dirs) console.log(`settle: ${path.join(d, "settle.md")}`);
   fs.mkdirSync(ROOT, { recursive: true });
   const sumFile = path.join(ROOT, "summary.md");
   const prefix = fs.existsSync(sumFile) ? "\n" : "# Extractor eval\n\n";
-  fs.appendFileSync(
-    sumFile,
-    `${prefix}${[head, "", note, "", ...table].join("\n")}\n`,
-  );
+  fs.appendFileSync(sumFile, `${prefix}${sections.join("\n\n")}\n`);
 }
 
 if (import.meta.main) await main(process.argv.slice(2));

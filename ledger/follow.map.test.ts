@@ -9,7 +9,7 @@ import { test } from "vitest";
 import type { ExtractRequest } from "../server/providers/types.ts";
 import { applyAction } from "./apply.ts";
 import { type Conv } from "./db.ts";
-import { SWEEP_SYSTEM } from "./extract.ts";
+import { PROMPT_ID, SWEEP_PROMPT_ID, SWEEP_SYSTEM } from "./extract.ts";
 import { chat, filing, setup, tmp, until } from "./follow.harness.ts";
 import { emptyStore, type Item } from "./items.ts";
 
@@ -199,6 +199,13 @@ test("what waits on you and goes quiet is swept: checked again against the turns
     await t.ledger.tick();
   }
   assert.ok(sweeps.length >= 1, "a sweep ran");
+  // a sweep's run keeps the sweep's own prompt id
+  const prompts = new Set(
+    (
+      t.db.db.prepare("SELECT prompt FROM runs").all() as { prompt: string }[]
+    ).map((r) => r.prompt),
+  );
+  assert.ok(prompts.has(SWEEP_PROMPT_ID) && prompts.has(PROMPT_ID));
   const v = t.ledger.view(root)!;
   assert.deepEqual(v.strip.waiting, []);
 }, 30_000);

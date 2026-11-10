@@ -137,7 +137,7 @@ test("a state written and read back is the same", () => {
         }
       ).user_version,
     ),
-    4,
+    5,
   );
   again.close();
 
@@ -201,7 +201,10 @@ test("a store from before the unconfirmed column opens with its items whole", ()
   raw.exec(
     `ALTER TABLE items DROP COLUMN unconfirmed;
      ALTER TABLE conversations DROP COLUMN read_extent;
+     ALTER TABLE runs DROP COLUMN prompt;
      PRAGMA user_version = 2;
+     INSERT INTO runs (conv, turns, base, answer, status, usd, input, output, model, ms, error, at)
+     VALUES ('old', '[1]', 0, '{}', 'answered', 0, 0, 0, 'm', 1, '', 1);
      INSERT INTO conversations (root, ids, title) VALUES ('old', '["old"]', 'Old');
      INSERT INTO items (conv, id, type, state, title, body, quote, src, parent, owner, basis, links, writers, order_key, filed_at)
      VALUES ('old', 'i1', 'question', 'answered', 'Which store?', '', 'Which store?', '[1]', NULL, 'you', 'said', '[]', '{}', 'a1', 1);`,
@@ -213,7 +216,7 @@ test("a store from before the unconfirmed column opens with its items whole", ()
   assert.equal(back.store.items.get("i1")!.unconfirmed, undefined);
   assert.equal(back.conv.readExtent, undefined);
   // the store as it was before migrating, kept beside it, yours alone
-  const copy = `${file}.before-v4`;
+  const copy = `${file}.before-v5`;
   assert.equal(fs.statSync(copy).mode & 0o777, 0o600);
   const kept = new DatabaseSync(copy);
   assert.equal(
@@ -237,7 +240,12 @@ test("a store from before the unconfirmed column opens with its items whole", ()
       (db.db.prepare("PRAGMA user_version").get() as { user_version: number })
         .user_version,
     ),
-    4,
+    5,
+  );
+  // a run from before has no prompt id, and is still read
+  assert.deepEqual(
+    { ...(db.db.prepare("SELECT prompt, status FROM runs").get() as object) },
+    { prompt: null, status: "answered" },
   );
   db.close();
 });

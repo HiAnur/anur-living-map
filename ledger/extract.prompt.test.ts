@@ -6,7 +6,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "vitest";
 
-import { SYSTEM } from "./extract.ts";
+import {
+  PROMPT_ID,
+  promptId,
+  SCHEMA,
+  SWEEP_PROMPT_ID,
+  SWEEP_SYSTEM,
+  SYSTEM,
+} from "./extract.ts";
 import { KIND_GUIDE, KINDS, STATES } from "./items.ts";
 
 test("the instructions are the reviewed text", () => {
@@ -37,4 +44,13 @@ test("every kind and state the store accepts is in the list, and nothing else", 
     assert.deepEqual(k.states, [...STATES[k.kind as keyof typeof STATES]]);
     assert.equal(k.guide, KIND_GUIDE[k.kind as keyof typeof KIND_GUIDE]);
   }
+});
+
+test("each prompt has an id that changes when its text or schema does", () => {
+  assert.match(PROMPT_ID, /^[0-9a-f]{12}$/);
+  assert.equal(PROMPT_ID, promptId(SYSTEM, SCHEMA));
+  assert.notEqual(promptId(`${SYSTEM} `, SCHEMA), PROMPT_ID);
+  assert.notEqual(promptId(SYSTEM, { ...SCHEMA, required: [] }), PROMPT_ID);
+  assert.notEqual(SWEEP_PROMPT_ID, PROMPT_ID);
+  assert.equal(SWEEP_PROMPT_ID, promptId(SWEEP_SYSTEM, SCHEMA));
 });
