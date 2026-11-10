@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// The browser tests draw the fixture map (?fixture=1), which only a dev
-// build lets past the sign-in, so they run on Vite alone: no server, no
-// store, no model. The port is its own, so a dev server can stay up.
+// The chat map's browser tests draw the fixture map (?fixture=1), which only
+// a dev build lets past the sign-in, so they run on Vite alone: no server, no
+// store, no model. The port is its own, so a dev server can stay up. The team
+// map's page (team-map.spec.ts) starts its own copy of the team server.
 const PORT = 5199;
 
 export default defineConfig({
