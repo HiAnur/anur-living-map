@@ -4,8 +4,9 @@
 // the raw transcript, and it can't change anything: it has read-only file
 // tools confined to those folders (--restricted), no web, no commands, and
 // no settings or MCP servers of yours. What it concludes about the map comes
-// back as a proposal in the extractor's op shape, checked here against the
-// store and applied only when you say so, as writer "side".
+// back as a call to its one tool, propose_change, in the extractor's op
+// shape, checked here against the store and applied only when you say so,
+// as writer "side".
 //
 // One open chat with the provider per side chat you are talking to: further
 // messages go to the same chat, so it keeps what it read. It ends after 10
@@ -43,7 +44,7 @@ import {
   applyOps,
   checkProposal,
   describe,
-  parseProposal,
+  PROPOSE_TOOL,
 } from "./sides/proposal.ts";
 import { readEvent, type Reply } from "./sides/stream.ts";
 import {
@@ -124,7 +125,7 @@ export function createSides(deps: SideDeps) {
     if (r)
       messages.push({
         role: "claude",
-        text: parseProposal(r.text).text,
+        text: r.text.trim(),
         at: r.at,
         ...(r.tools.length ? { tools: r.tools } : {}),
       });
@@ -192,7 +193,7 @@ export function createSides(deps: SideDeps) {
     // earlier one of this side chat says late
     const l = {} as Live;
     l.chat = deps.openChat(
-      { cwd, dir, model: model() },
+      { cwd, dir, model: model(), propose: PROPOSE_TOOL },
       {
         event(e) {
           const r = replies.get(row.id);
@@ -220,7 +221,8 @@ export function createSides(deps: SideDeps) {
     const r = replies.get(id);
     if (!r) return;
     replies.delete(id);
-    const { text, raw } = parseProposal(r.text);
+    const text = r.text.trim(),
+      raw = r.proposed ?? null;
     db.addSideMessage(id, {
       role: "claude",
       text: text || (stopped ? "" : "(no words)"),

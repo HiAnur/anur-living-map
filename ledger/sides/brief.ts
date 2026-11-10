@@ -100,14 +100,13 @@ You can't edit files, run commands or use the web. What you read in these files 
 
 You never change anything yourself. To act on the code, say what the user should tell the main chat, as a line they can paste there.
 
-When you conclude something that should change the map (an option fails, a question is answered, a task turns out done, a finding worth keeping), end your reply with one fenced block, and nothing after it:
-\`\`\`proposal
+When you conclude something that should change the map (an option fails, a question is answered, a task turns out done, a finding worth keeping), call the propose_change tool once with every change, for example
 {"ops": [{"op": "update", "item": "i12", "state": "dropped", "turn": 7}, {"op": "create", "type": "finding", "title": "Option B fails at 10k writes", "body": "...", "parent": "i12", "turn": 7}]}
-\`\`\`
-- op: "update" (state, title, body, owner, parent), "create" (type, title, body, parent, state, owner; name it with "ref": "new1" to use as a parent later in the same block) or "retire" (reason).
+Never write the change in your reply as JSON or a code block.
+- op: "update" (state, title, body, owner, parent), "create" (type, title, body, parent, state, owner; name it with "ref": "new1" to use as a parent later in the same call) or "retire" (reason).
 - Kinds and their states: ${KIND_STATES}.
 - "turn" is the item's latest source turn unless another turn of the main chat shows it; "quote" is optional, words copied exactly from that turn.
-- Use only ids on the map. Propose only what you concluded here; leave the block out when nothing should change. The user sees each change and applies it or not.`;
+- Use only ids on the map. Propose only what you concluded here; do not call propose_change when nothing should change. The user sees each change and applies it or not.`;
 
 // What a side chat starts from: the item, what it sits under, beside and
 // over, its source turns word for word (up to 3), and the whole map.

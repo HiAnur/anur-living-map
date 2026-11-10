@@ -5,12 +5,14 @@
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { findConversation } from "./claude-sessions.ts";
 import type {
   Chat,
   ChatEvent,
   ChatRequest,
+  ChatTool,
   ExtractRequest,
   ExtractResult,
   ModelProvider,
@@ -123,12 +125,27 @@ export function priceOf(model: string, usage: CliResult["usage"]): number {
 export const CHAT_TOOLS = "Read,Grep,Glob";
 const NEVER = "WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit";
 
+// A chat's propose tool, served by tool-mcp.ts, as Claude Code names it
+const TOOL_MCP = fileURLToPath(new URL("./tool-mcp.ts", import.meta.url));
+export const proposeName = (t: ChatTool) => `mcp__living_map__${t.name}`;
+const proposeMcp = (t: ChatTool) =>
+  JSON.stringify({
+    mcpServers: {
+      living_map: {
+        command: process.execPath,
+        args: [TOOL_MCP],
+        env: { LM_TOOL: JSON.stringify(t) },
+      },
+    },
+  });
+
 // The arguments of every chat's process. Kept apart so a test can prove
 // what a chat may and may not do.
 export function chatArgs(o: {
   dir: string; // the one folder it may read beside the one it runs in
   emptyMcp: string;
   model?: string;
+  propose?: ChatTool;
 }): string[] {
   const args = [
     "-p",
@@ -141,7 +158,7 @@ export function chatArgs(o: {
     "--tools",
     CHAT_TOOLS,
     "--allowedTools",
-    CHAT_TOOLS,
+    o.propose ? `${CHAT_TOOLS},${proposeName(o.propose)}` : CHAT_TOOLS,
     "--disallowedTools",
     NEVER,
     "--restricted",
@@ -150,7 +167,7 @@ export function chatArgs(o: {
     "--no-session-persistence",
     "--strict-mcp-config",
     "--mcp-config",
-    o.emptyMcp,
+    o.propose ? proposeMcp(o.propose) : o.emptyMcp,
     "--setting-sources",
     "",
   ];
@@ -299,7 +316,12 @@ export function claudeCode({
   ): Chat {
     const proc = spawn(
       "claude",
-      chatArgs({ dir: req.dir, emptyMcp, model: req.model }),
+      chatArgs({
+        dir: req.dir,
+        emptyMcp,
+        model: req.model,
+        propose: req.propose,
+      }),
       { cwd: req.cwd, env: childEnv() },
     );
     track(proc);
@@ -345,6 +367,10 @@ export function claudeCode({
               input?: Record<string, unknown>;
             };
             if (b.type !== "tool_use") continue;
+            if (req.propose && b.name === proposeName(req.propose)) {
+              on.event({ type: "propose", input: b.input });
+              continue;
+            }
             on.event({
               type: "tool",
               name: `${b.name}`,

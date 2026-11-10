@@ -74,13 +74,23 @@ export function fakeSpawn() {
 }
 
 export const ev = (event: unknown) => ({ type: "stream_event", event });
-export const reply = (text: string, cost: number) => [
+// an answer: it reads, may call propose_change with `change`, then says `text`
+export const reply = (text: string, cost: number, change?: unknown) => [
   ev({ type: "message_start", message: { model: "claude-opus-5-5" } }),
   {
     type: "assistant",
     message: {
       content: [
         { type: "tool_use", name: "Read", input: { file_path: "ITEMS" } },
+        ...(change === undefined
+          ? []
+          : [
+              {
+                type: "tool_use",
+                name: "mcp__living_map__propose_change",
+                input: change,
+              },
+            ]),
       ],
     },
   },

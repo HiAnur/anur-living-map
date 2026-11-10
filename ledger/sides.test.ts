@@ -9,10 +9,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 
-import { chatArgs, CHAT_TOOLS } from "../server/providers/claude-code.ts";
+import {
+  chatArgs,
+  CHAT_TOOLS,
+  proposeName,
+} from "../server/providers/claude-code.ts";
 import type { SideChat } from "../shared/ledger.ts";
 import { itemsPage, turnsPage } from "./sides/brief.ts";
-import { checkProposal, parseProposal } from "./sides/proposal.ts";
+import { checkProposal, PROPOSE_TOOL } from "./sides/proposal.ts";
 import { ev, reply, setup, until } from "./sides.harness.ts";
 test("a side chat runs read-only, confined, offline, on the rendered files", async () => {
   // the arguments themselves
@@ -33,6 +37,30 @@ test("a side chat runs read-only, confined, offline, on the rendered files", asy
     assert.doesNotMatch(after(flag)!, /Web|Bash|Edit|Write/);
   assert.ok(!args.includes("--dangerously-skip-permissions"));
   assert.ok(!args.includes("--resume"));
+  assert.equal(after("--mcp-config"), "/h/empty-mcp.json");
+
+  // with its propose tool: that one tool more, from our own server alone
+  const withTool = chatArgs({
+    dir: "/h/sides/c",
+    emptyMcp: "/h/empty-mcp.json",
+    propose: PROPOSE_TOOL,
+  });
+  const at = (flag: string) => withTool[withTool.indexOf(flag) + 1]!;
+  assert.equal(
+    at("--allowedTools"),
+    "Read,Grep,Glob,mcp__living_map__propose_change",
+  );
+  assert.equal(at("--tools"), "Read,Grep,Glob");
+  const mcp = JSON.parse(at("--mcp-config")) as {
+    mcpServers: Record<string, { args: string[]; env: { LM_TOOL: string } }>;
+  };
+  assert.deepEqual(Object.keys(mcp.mcpServers), ["living_map"]);
+  assert.match(mcp.mcpServers.living_map!.args[0]!, /tool-mcp\.ts$/);
+  assert.deepEqual(
+    JSON.parse(mcp.mcpServers.living_map!.env.LM_TOOL),
+    PROPOSE_TOOL,
+  );
+  assert.equal(proposeName(PROPOSE_TOOL), "mcp__living_map__propose_change");
 
   // and as a real side chat starts its process
   const t = await setup();
@@ -52,6 +80,10 @@ test("a side chat runs read-only, confined, offline, on the rendered files", asy
   assert.equal(p.args[p.args.indexOf("--add-dir") + 1], dir);
   assert.ok(p.args.includes("--restricted"));
   assert.equal(p.args[p.args.indexOf("--tools") + 1], "Read,Grep,Glob");
+  assert.match(
+    p.args[p.args.indexOf("--allowedTools") + 1]!,
+    /,mcp__living_map__propose_change$/,
+  );
   assert.ok(
     !p.args.some((a) => a.endsWith(".jsonl") || a.includes(t.file)),
     "never the raw transcript",
@@ -109,7 +141,7 @@ test("a question streams, starts from the slice, and later ones reuse the proces
   assert.match(first, /THE WHOLE MAP/);
   assert.match(first, /items\.md/);
   assert.match(first, /turns\.md/);
-  assert.match(first, /```proposal/);
+  assert.match(first, /propose_change/);
   assert.match(first, /THE USER ASKS:\nDoes Kafka fit at 10k writes\?$/);
 
   // a second question while it answers waits its turn
@@ -209,6 +241,37 @@ test("Stop keeps what came; an idle side chat ends, and starts again with what w
   t.sides.close();
 });
 
+test("only a propose_change call proposes: a block in the words is just words", async () => {
+  const t = await setup();
+  const kafka = t.id("Kafka");
+  const { side } = await t.sides.act(t.root, {
+    type: "side-open",
+    item: kafka,
+  });
+  await t.sides.act(t.root, {
+    type: "side-say",
+    side: side!.id,
+    text: "Does Kafka hold up?",
+  });
+  await until(() => t.procs.length === 1);
+  const words = `No.\n\n\`\`\`proposal\n{"ops":[{"op":"update","item":"${kafka}","state":"dropped"}]}\n\`\`\``;
+  t.procs[0]!.say(reply(words, 0.01));
+  await until(() => !t.sides.get(t.root, side!.id)!.busy);
+  const chat = t.sides.get(t.root, side!.id)!;
+  assert.equal(chat.messages.at(-1)!.text, words.trim());
+  assert.deepEqual(chat.proposals, []);
+  // a call whose input is not a change proposes nothing either
+  await t.sides.act(t.root, {
+    type: "side-say",
+    side: side!.id,
+    text: "And now?",
+  });
+  await until(() => t.procs[0]!.sent.length === 2);
+  t.procs[0]!.say(reply("Still no.", 0.02, "not a change"));
+  await until(() => !t.sides.get(t.root, side!.id)!.busy);
+  assert.deepEqual(t.sides.get(t.root, side!.id)!.proposals, []);
+  t.sides.close();
+});
 test("a proposal is checked, waits, and lands only when you apply it", async () => {
   const t = await setup();
   const kafka = t.id("Kafka");
@@ -223,7 +286,7 @@ test("a proposal is checked, waits, and lands only when you apply it", async () 
     text: "Does Kafka hold up?",
   });
   await until(() => t.procs.length === 1);
-  const block = JSON.stringify({
+  const change = {
     ops: [
       { op: "update", item: kafka, state: "dropped" },
       {
@@ -238,13 +301,16 @@ test("a proposal is checked, waits, and lands only when you apply it", async () 
       { op: "update", item: question, state: "decided" },
       { op: "create", type: "topic", title: "A new topic" },
     ],
-  });
-  t.procs[0]!.say(
-    reply(`It doesn't fit.\n\n\`\`\`proposal\n${block}\n\`\`\``, 0.02),
-  );
+  };
+  t.procs[0]!.say(reply("It doesn't fit.", 0.02, change));
   await until(() => t.sides.get(t.root, side!.id)!.proposals.length === 1);
   const chat = t.sides.get(t.root, side!.id)!;
-  assert.equal(chat.messages.at(-1)!.text, "It doesn't fit.", "block left out");
+  assert.equal(chat.messages.at(-1)!.text, "It doesn't fit.");
+  assert.deepEqual(
+    chat.messages.at(-1)!.tools,
+    ["Read ITEMS"],
+    "the propose call is not shown as a tool",
+  );
   const p = chat.proposals[0]!;
   assert.equal(p.status, "pending");
   assert.deepEqual(p.ops, [
@@ -355,15 +421,6 @@ test("what you set yourself stays yours; quotes are checked; ignored proposals s
   );
   assert.equal(c.ops[1]!.parent, kafka, "under its item by default");
   assert.equal(c.ops[2]!.turn, 1, "an unknown turn becomes the item's latest");
-
-  assert.deepEqual(parseProposal("Just words."), {
-    text: "Just words.",
-    raw: null,
-  });
-  assert.deepEqual(parseProposal("x\n```proposal\nnot json\n```").raw, {
-    ops: [],
-    bad: true,
-  });
 
   // dropped by you: it stays as it was, settled
   const { side } = await t.sides.act(t.root, {

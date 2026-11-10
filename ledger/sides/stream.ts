@@ -11,6 +11,7 @@ export type Reply = {
   tools: string[];
   at: number;
   gap: boolean; // a new message started after text: a paragraph break first
+  proposed?: unknown; // the input of its last propose_change call
 };
 
 // a path as the page shows it: by name in the rendered folder, from the
@@ -38,6 +39,10 @@ export function readEvent(
     r.gap = false;
     r.text += e.text;
     return "shown";
+  }
+  if (e.type === "propose") {
+    r.proposed = e.input;
+    return null;
   }
   if (e.type === "tool") {
     r.tools.push(`${e.name} ${short(e.target, where.cwd, where.dir)}`.trim());
