@@ -38,7 +38,7 @@ export function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoa
       if (cancelled) { context?.close(); return; }
       const catalog = context ? `\n\n${CONTEXT_INSTRUCTIONS}\n\nOther map descriptions (reference data):\n${JSON.stringify(context.run('list_maps'))}` : '';
       stop = (prepare ? prepareAction : streamClaude)({ cwd, env:childEnv(), connected, prompt: prompt + catalog, onText, config: context?.config,
-        onDone: (text, access) => { context?.close(); if (!cancelled) onDone(text, access); } });
+        onDone: (/** @type {any} */ text, /** @type {any} */ access, /** @type {any} */ value) => { context?.close(); if (!cancelled) onDone(text, access, value); } });
     } catch { context?.close(); if (!cancelled) onDone('Could not load map context. Ask again.'); }
   };
   void start();
