@@ -8,7 +8,7 @@
 export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
   return {
     // Discovery combines this background with the current topics and decisions.
-    /** @param {any} a */
+    /** @param {Act<'contextmap'>} a */
     contextmap(a) {
       if (typeof a.id !== 'string' || typeof a.include !== 'boolean') return false;
       if (a.include && !(contextMaps?.(a.by) || []).some((/** @type {any} */ m) => m.id === a.id && m.allowed())) return false;
@@ -17,14 +17,14 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
       getState().contextMapIds = [...ids];
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'describemap'>} a */
     describemap(a) {
       if (typeof a.description !== 'string' || a.description.length > 12000) return false;
       getState().desc = a.description.trim();
       return true;
     },
     // Renaming changes the title, not the map's address.
-    /** @param {any} a */
+    /** @param {Act<'rename'>} a */
     rename(a) {
       const title = String(a.title || '').trim().slice(0, 60);
       if (!title) return false;
@@ -32,7 +32,7 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
       return true;
     },
     // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
-    /** @param {any} a */
+    /** @param {Act<'comment'>} a */
     comment(a) {
       const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
       getState().comments ??= [];
@@ -42,7 +42,7 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
       tell(`${a.by} commented${c.node ? ` on ${nodeOf(c.node)?.label || c.node}` : ''}: ${text}`, ownerOf(c.node));
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'reply'>} a */
     reply(a) {
       const c = getState().comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
       if (!c || !text) return false;
@@ -50,7 +50,7 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
       tell(`${a.by} replied on comment #${c.id}: ${text}`, ownerOf(c.node));
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'resolve'>} a */
     resolve(a) { const c = getState().comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
   };
 }

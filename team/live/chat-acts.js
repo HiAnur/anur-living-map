@@ -12,13 +12,13 @@ import { AUTO_PLAN_QUESTION } from './auto-plan.js';
  *   activeAsks: Set<any>, stamp: () => string, save: () => void, push: () => void, tell: Function,
  *   ownsChat: Function, mineChat: Function, ownerOf: Function, placeProposed: Function, draw: Function,
  *   actions: any, relayout: () => void, keepMemory: Function, chats: AgentConversation, startMirror: () => void,
- *   linkOf: () => any, savePicture: Function, converse: Function, sendMirror: () => void }} deps
+ *   linkOf: () => any, savePicture: (picture: any) => any, converse: Function, sendMirror: () => void }} deps
  */
 export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
   selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
   relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }) {
   return {
-    /** @param {any} a */
+    /** @param {Act<'renamebox'>} a */
     renamebox(a) {
       const label = String(a.label || '').trim().slice(0, 80);
       if (a.proposed){
@@ -38,7 +38,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       tell(`${a.by} renamed a box to ${label}`);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'describebox'>} a */
     describebox(a) {
       if (a.proposed){
         if (typeof a.sub !== 'string') return false;
@@ -58,7 +58,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       tell(`${a.by} changed the description of ${n.label}`);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'ask'>} a */
     ask(a) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it
       const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
@@ -78,7 +78,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       if (!project && !name) {
         // asking to see a flow opens it; the page does the drawing
         const hasFlow = n && (n.flow || n.inside?.nodes?.some((/** @type {any} */ x) => x.flow));
-        const answer = hasFlow && /flow|visuali|diagram|draw|sequence/i.test(a.text)
+        const answer = hasFlow && /flow|visuali|diagram|draw|sequence/i.test(/** @type {string} */ (a.text))
           ? 'Drew the payment flow on the map: the upgrade, Payment confirmed, and where an annual customer gets billed twice.'
           : getState().answers[n?.id] || getState().answers['*'];
         t.push({ who: 'Claude', text: answer, at: stamp(), staged: true, ...(n ? { about: n.id } : {}) });
@@ -109,7 +109,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
     // Your own chat's changes are yours to apply. The chat told is the one that drew the first box the
     // change touches or links to, else the box the question was about.
     // A change the linked Claude chat proposed (a.proposal) is its owner's to apply, and that chat hears it.
-    /** @param {any} a */
+    /** @param {Act<'apply'>} a */
     apply(a) {
       const fromChat = a.proposal ? (getState().proposals || []).find((/** @type {any} */ x) => x.id === a.proposal) : null;
       const key = String(a.thread || ''), m = fromChat ? null : getState().threads[key]?.[Number(a.index)], pr = fromChat || m?.proposal;
@@ -138,7 +138,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       tell(`${a.by} applied Claude's change on the map: ${pr.ops.join('; ')}`, to);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'drop'>} a */
     drop(a) {
       const fromChat = a.proposal ? (getState().proposals || []).find((/** @type {any} */ x) => x.id === a.proposal) : null;
       const key = String(a.thread || ''), pr = fromChat || getState().threads[key]?.[Number(a.index)]?.proposal;
@@ -146,7 +146,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       pr.status = 'dropped'; pr.by = a.by; return true;
     },
     // the Claude Code chat that opened this map with /anur-living-map: its owner's Claude pane follows that chat
-    /** @param {any} a */
+    /** @param {Act<'link'>} a */
     link(a) {
       const session = String(a.session || ''), file = String(a.file || '');
       if (!chats.isChat(file, session)) return false;
@@ -156,7 +156,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
     },
     // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once;
     // pictures attached to it are saved in the map's folder, and the chat is told where, so Claude can open them
-    /** @param {any} a */
+    /** @param {Act<'say'>} a */
     say(a) {
       const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
       if (!l || l.owner !== a.by) return false;
@@ -170,7 +170,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       setTimeout(sendMirror); return true;
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
-    /** @param {any} a */
+    /** @param {Act<'propose'>} a */
     propose(a) {
       const session = String(a.session || ''), l = (getState().linked || []).find((/** @type {any} */ x) => x.session === session);
       if (!l) return false;
@@ -179,7 +179,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       setTimeout(sendMirror); return true;
     },
     // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
-    /** @param {any} a */
+    /** @param {Act<'newchat'>} a */
     newchat(a) {
       const key = `@${a.by}`, t = getState().threads[key];
       if (!t?.length || t.some((/** @type {any} */ m) => m.thinking)) return false;
@@ -187,7 +187,7 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       return true;
     },
     // a chat picked from your history becomes the open one, and the one open now goes into the history
-    /** @param {any} a */
+    /** @param {Act<'openchat'>} a */
     openchat(a) {
       const key = `@${a.by}`, from = String(a.chat || ''), old = getState().threads[from], now = getState().threads[key] || [];
       if (!from.startsWith(`${key}#`) || !old || now.some((/** @type {any} */ m) => m.thinking)) return false;
