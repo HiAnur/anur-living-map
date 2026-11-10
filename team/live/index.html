@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living Map · acme-app</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231f1b14'/%3E%3Crect x='19' y='19' width='26' height='26' rx='4' fill='%23f8f6f1' transform='rotate(45 32 32)'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -36,6 +37,10 @@ button,input,textarea{font:inherit;color:inherit}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
 /* Switch map, at the top left beside Inbox, the way Linear keeps its workspace switcher there: it opens the list of maps */
+/* the HiAnur mark at the top left, as on hianur.com: a dark rounded square holding a light diamond */
+#top .brand{display:inline-flex;align-items:center;gap:8px;font-weight:500;color:var(--text)}
+#top .brand i{width:22px;height:22px;border-radius:6px;background:#1f1b14;display:grid;place-items:center}
+#top .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#f8f6f1;transform:rotate(45deg)}
 #top .mapb{display:inline-flex;align-items:center;gap:6px;color:var(--text);text-decoration:none}
 #top .mapb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round}
 /* Save opens a small menu under it: Save now, and an Auto-save switch, green when on */
@@ -718,7 +723,13 @@ body.resizing{cursor:col-resize;user-select:none}
 .msg.cm{padding:0;margin:10px 0 4px;font-size:14px;line-height:1.55}
 .msg.cm + .msg.cm{margin-top:2px}
 .msg.cm .md p{margin-bottom:10px}
-/* the ✳ blinks while Claude works even with Reduce motion on, as in the Claude app: it is how you tell Claude is at work */
+/* Claude's own mark, as claude.ai draws it, in its colour; white where it sits on Claude's colour */
+.claude-mark{display:inline-block;width:1em;height:1em;vertical-align:-.14em;color:#D97757}
+.claude-mark path{fill:currentColor}
+.xbtn .claude-mark,.face.cl .claude-mark{color:#fff}
+/* a button lays its words out without the space before them, so the mark keeps its own */
+.gb .claude-mark,.tbtn .claude-mark{margin-right:.35em}
+/* Claude's mark blinks while Claude works even with Reduce motion on, as in the Claude app: it is how you tell Claude is at work */
 .spark{display:inline-block;color:var(--claude);font-size:18px;animation:spark 1.6s ease-in-out infinite}
 .doing{display:flex;align-items:center;gap:8px;color:var(--text-2);font-size:13.5px}
 @keyframes spark{50%{opacity:.35;transform:rotate(45deg)}}
@@ -1014,6 +1025,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 </head>
 <body>
 <div id="top">
+  <span class="brand"><i aria-hidden="true"></i>Anur</span>
   <button class="tbtn ib" id="inboxb" title="What anyone is asking you, on every map">Inbox</button>
   <a class="tbtn mapb" href="/" title="Pick another map"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5l6.5 3.5-6.5 3.5-6.5-3.5z"/><path d="M3.5 10.5l6.5 3.5 6.5-3.5"/></svg>Switch map</a>
   <div class="savew" id="savew"></div>
@@ -1066,7 +1078,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Brain</span></button>
   <button class="ri" data-rail="sidechats" title="Your side chats on this map's boxes"><svg viewBox="0 0 20 20"><path d="M3.5 4.5h9v6.5h-5l-3 2.5v-2.5h-1z"/><path d="M14.5 8h2v6.5h-1V17l-3-2.5h-4.5v-1.5"/></svg><span>Side Chats</span></button>
   <button class="ri" data-rail="history" title="Every version of this map"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 101.9-4.6M3.4 3.4v2.8h2.8"/><path d="M10 6.6V10l2.4 1.5"/></svg><span>History</span></button>
-  <button id="bot" title="Chat with Claude about this map"><span class="star">✳</span><span>Chat</span></button>
+  <button id="bot" title="Chat with Claude about this map"><span class="star"></span><span>Chat</span></button>
 </nav>
 <div id="toast"></div>
 <div id="sharebg"><div id="share" role="dialog" aria-label="Share this map"></div></div>
@@ -1077,6 +1089,9 @@ import { searchBoxes } from './page-search.js';
 import { imageExportSize, sharingLocation } from './page-share.js';
 import { actionExecuted, actionStatus } from './page-action.js';
 const $ = (id) => document.getElementById(id);
+// Claude's mark, the spark claude.ai serves as its icon; .claude-mark gives it Claude's colour
+const CLAUDE_MARK = '<svg class="claude-mark" viewBox="0 0 248 248" aria-hidden="true"><path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z"/></svg>';
+$('bot').querySelector('.star').innerHTML = CLAUDE_MARK;
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const LINK = new URLSearchParams(location.search).get('share') || '';
@@ -2297,7 +2312,7 @@ function planBar(){
   const ask = xAsk && !tip ? `<div class="xconf" role="dialog"><b>Build this plan now?</b><span>Claude Code builds it on a branch from main.</span>
     <div class="xc-b"><button class="gb yes" data-xc="yes">Yes</button><button class="gb" data-xc="no">No</button><button class="gb" data-xc="plan">Give me plan.md</button></div></div>` : '';
   const md = S.planmd ? `<a class="xmd" href="api/planmd" target="_blank" rel="noopener" title="${esc(S.planmd.by)} asked for it at ${S.planmd.at}">plan.md ›</a>` : '';
-  return `${md}<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}>${ask}<button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>✳ Execute on Claude</button></span>`;
+  return `${md}<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}>${ask}<button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>${CLAUDE_MARK} Execute on Claude</button></span>`;
 }
 document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-execute]'), c = e.target.closest('[data-xc]');
@@ -2343,7 +2358,7 @@ function renderTop(){
   const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
-      <div class="pm-row"><span class="face cl">✳</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
+      <div class="pm-row"><span class="face cl">${CLAUDE_MARK}</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
       ${SIGNED_IN ? `<a class="pm-row pm-out" href="/login?recovery=email">Recovery email</a><div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
 
@@ -2558,7 +2573,7 @@ function renderSide(){
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>${CLAUDE_MARK} Side Chat</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">
     ${(() => {
@@ -2810,7 +2825,7 @@ const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat
 // while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
 // way the Claude app does; a turn quiet for ten minutes was stopped, not working
 const busy = () => !!MIRROR?.status?.working && Date.now() - MIRROR.status.at < 10 * 60_000;
-const workStatus = (doing, since) => `<div class="doing"><span class="spark">✳</span><span role="status">${esc(doing || 'Claude is working')}…</span>${secs(since)}</div>`;
+const workStatus = (doing, since) => `<div class="doing"><span class="spark">${CLAUDE_MARK}</span><span role="status">${esc(doing || 'Claude is working')}…</span>${secs(since)}</div>`;
 const replyProgress = (thread, starting = false) => {
   const active = thread.findLast((m) => m.thinking);
   return active || starting ? `<div class="reply-progress">${workStatus(active?.doing || (starting ? 'Planning additions' : 'Claude is working'), active?.since)}</div>` : '';
@@ -2844,7 +2859,7 @@ function redrawChat(){
 }
 function renderMirror(el){
   const msgs = MIRROR.msgs, keep = el.querySelector('.msgs')?.scrollTop || 0, last = msgs.at(-1);
-  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
+  el.innerHTML = `<div class="ct"><span><span class="star">${CLAUDE_MARK}</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
@@ -2855,7 +2870,7 @@ function renderMirror(el){
   // a picture still loading grows the chat: if you were at the bottom, stay there
   for (const i of box.querySelectorAll('img')) if (!i.complete) i.onload = () => { if (box.scrollHeight - box.scrollTop - box.clientHeight < i.clientHeight + 80) box.scrollTop = box.scrollHeight; };
 }
-// the ✳ on the Chat button pulses while Claude is at work in your chat, so you see it with the pane closed; the same
+// Claude's mark on the Chat button pulses while Claude is at work in your chat, so you see it with the pane closed; the same
 // moments the pane says Working, less a message still on its way to the chat
 const claudeAtWork = () => {
   if (MIRROR){ const last = MIRROR.msgs?.at(-1); return busy() || (last?.who === 'you' && (!last.map || !!last.handed)); }
@@ -2867,14 +2882,14 @@ function renderChat(){
   if (!open) return;
   if (MIRROR) return renderMirror(el);
   const thread = S.threads?.[`@${ME}`] || [], keep = el.querySelector('.msgs')?.scrollTop || 0;
-  el.innerHTML = `<div class="ct"><span><span class="star">✳</span>Claude</span><span class="cb">
+  el.innerHTML = `<div class="ct"><span><span class="star">${CLAUDE_MARK}</span>Claude</span><span class="cb">
       <button class="ci" data-newchat title="New chat" aria-label="New chat">${CHAT_ICON.newchat}</button>
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Chat history" aria-label="Chat history">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${esc(nodeById(m.about).label)}">${esc(nodeById(m.about).label)}</span>` : '')
         : claudes(`${md(m.text)}${contextSources(m)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
-      : `<div class="hello"><div class="ic">✳</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
+      : `<div class="hello"><div class="ic">${CLAUDE_MARK}</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${esc(nodeById(chatAbout).label)}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
     ${chatHist ? '' : replyProgress(thread)}${chatHist ? '' : composer(chatAbout && nodeById(chatAbout) ? `Ask about ${nodeById(chatAbout).label}` : 'Ask about this map', false)}`;
@@ -2974,7 +2989,7 @@ function renderSideChats(){
     if (!n || !canSee(n)) return '';
     return `<button class="sc-r" data-scopen="${id}"><span class="sc-b">${prose(n.label)}<span>${asked.length} asked · ${t.at(-1).at || ''}</span></span><span class="sc-q">${prose(asked.at(-1)?.text || '')}</span></button>`;
   }).join('');
-  el.innerHTML = `<div class="ct"><span>Side Chats</span><span class="x" data-close-rail>×</span></div>${rows || '<div class="d-wait">No side chats yet. Open a box and use ✳ Side Chat.</div>'}`;
+  el.innerHTML = `<div class="ct"><span>Side Chats</span><span class="x" data-close-rail>×</span></div>${rows || `<div class="d-wait">No side chats yet. Open a box and use ${CLAUDE_MARK} Side Chat.</div>`}`;
 }
 // a box's own Instructions and Memory, on its card
 const memOf = (id) => ['instruction', 'memory'].map((kind) => {

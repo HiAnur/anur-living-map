@@ -142,6 +142,21 @@ test("draws the map's boxes and lines", async ({ page }) => {
   await expect(page.locator("#edges path")).not.toHaveCount(0);
 });
 
+test("carries the HiAnur mark and Claude's own mark", async ({ page }) => {
+  await openSample(page);
+  // the tab icon and the top left: HiAnur's dark square with its light diamond
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+    "href",
+    /^data:image\/svg\+xml,.*%231f1b14/,
+  );
+  await expect(page.locator("#top .brand")).toHaveText("Anur");
+  // Claude's spark, never the old text star
+  await expect(page.locator("#bot .claude-mark")).toBeVisible();
+  await page.locator("#bot").click();
+  await expect(page.locator("#chat .ct .claude-mark")).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("\u2733");
+});
+
 test("Tab adds a topic under the selected box, and the map keeps it", async ({
   page,
 }) => {
