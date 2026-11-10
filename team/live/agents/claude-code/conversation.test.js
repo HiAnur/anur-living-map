@@ -43,14 +43,18 @@ it('opens a new chat in the app by link, and keeps skills under its home', () =>
   expect(on).toHaveBeenCalledWith('error', expect.any(Function));
   expect(chats.skillDir('anur-living-map')).toBe('/h/.claude/skills/anur-living-map');
 });
-it('registers the map\'s MCP server once, and says how when Claude Code is missing', () => {
+it('registers the map\'s MCP server once as anur-living-map, keeps an old living-map one, and says how when Claude Code is missing', () => {
   const runner = (answers) => { const calls = []; return { calls, run: /** @type {any} */ ((cmd, args) => { calls.push([cmd, ...args]); if (!answers.shift()) throw new Error('no'); }) }; };
   const there = runner([true]);
   expect(claudeCodeChats({ run: there.run }).connectTools()).toBe('');
-  expect(there.calls).toEqual([['claude', 'mcp', 'get', 'living-map']]);
-  const added = runner([false, true]);
+  expect(there.calls).toEqual([['claude', 'mcp', 'get', 'anur-living-map']]);
+  // registered under the old name: it keeps working, and is not added twice
+  const old = runner([false, true]);
+  expect(claudeCodeChats({ run: old.run }).connectTools()).toBe('');
+  expect(old.calls).toEqual([['claude', 'mcp', 'get', 'anur-living-map'], ['claude', 'mcp', 'get', 'living-map']]);
+  const added = runner([false, false, true]);
   expect(claudeCodeChats({ run: added.run }).connectTools()).toContain('can now read and change the map');
-  expect(added.calls[1]).toEqual(['claude', 'mcp', 'add', '--scope', 'user', 'living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp']);
-  const missing = runner([false, false]);
+  expect(added.calls[2]).toEqual(['claude', 'mcp', 'add', '--scope', 'user', 'anur-living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp']);
+  const missing = runner([false, false, false]);
   expect(claudeCodeChats({ run: missing.run }).connectTools()).toContain('not found on PATH');
 });

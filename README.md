@@ -13,7 +13,7 @@ You need [Node.js](https://nodejs.org) 22 or later and [Claude Code](https://cla
 ```bash
 git clone https://github.com/HiAnur/anur-living-map.git ~/anur-living-map
 cp -R ~/anur-living-map/team/skill/anur-living-map ~/.claude/skills/
-claude mcp add --scope user living-map -- node ~/anur-living-map/team/live/mcp.js
+claude mcp add --scope user anur-living-map -- node ~/anur-living-map/team/live/mcp.js
 ```
 
 Then, in a Claude Code chat inside any repo, type **/anur-living-map**. It starts the map server on port `4323` if none answers, puts that repo on the list of maps, opens `http://localhost:4323/<repo folder name>/` beside the chat and links the chat to it. `/anur-living-map, plan <a feature>` has Claude draw its plan on the map before writing any code. The first time, sign in as yourself; the map's people are the repo's team.
@@ -24,7 +24,7 @@ Then, in a Claude Code chat inside any repo, type **/anur-living-map**. It start
 - **Every agent after reads it:** the next chat, yours or a teammate's, starts from what the team decided; what it builds lands back on the map, and History keeps every version.
 - **Any chat can draw on it:** `living_map_read` and `living_map_change` are the two tools from `team/live/mcp.js`.
 
-Everything runs on your machine. Clone somewhere else? Set `LIVING_MAP_HOME` to that folder. Sign-in, Google sign-in for a team, and the list of maps: [team/README.md](team/README.md).
+Everything runs on your machine. Clone somewhere else? Set `ANUR_LIVING_MAP_HOME` to that folder. Sign-in, Google sign-in for a team, and the list of maps: [team/README.md](team/README.md).
 
 ## The chat map
 

@@ -28,13 +28,14 @@ export function claudeCodeChats({ home = os.homedir(), run = execFileSync, open 
       open('open', [`claude://code/new?q=${encodeURIComponent(prompt)}&folder=${encodeURIComponent(folder)}`]).on('error', () => {});
     },
     skillDir: (name) => path.join(home, '.claude', 'skills', name),
-    // the map's MCP server, registered once for every chat; this same package runs it, so the path never goes stale
+    // the map's MCP server, registered once for every chat as anur-living-map; this same package runs it, so the
+    // path never goes stale. One registered under its old name, living-map, keeps working and is not added twice.
     connectTools() {
       const claude = (/** @type {string[]} */ ...a) => { try { run('claude', a, { stdio: 'pipe' }); return true; } catch { return false; } };
-      if (claude('mcp', 'get', 'living-map')) return '';
-      return claude('mcp', 'add', '--scope', 'user', 'living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp')
-        ? 'Claude Code can now read and change the map (living-map MCP). Start a new chat to use it.'
-        : 'Claude Code was not found on PATH, so the map is not registered with it yet. Later: claude mcp add --scope user living-map -- npx -y anur-living-map mcp';
+      if (claude('mcp', 'get', 'anur-living-map') || claude('mcp', 'get', 'living-map')) return '';
+      return claude('mcp', 'add', '--scope', 'user', 'anur-living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp')
+        ? 'Claude Code can now read and change the map (anur-living-map MCP). Start a new chat to use it.'
+        : 'Claude Code was not found on PATH, so the map is not registered with it yet. Later: claude mcp add --scope user anur-living-map -- npx -y anur-living-map mcp';
     },
   };
   return chats;
