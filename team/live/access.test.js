@@ -39,6 +39,7 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-access-'));
   const source = import.meta.dirname;
   for (const name of fs.readdirSync(source)) if (/\.(js|json|html|md)$/.test(name) && fs.statSync(path.join(source, name)).isFile()) fs.copyFileSync(path.join(source, name), path.join(root, name));
+  fs.cpSync(path.join(source, 'agents'), path.join(root, 'agents'), { recursive: true });
   const state = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(source, 'seed.json'), 'utf8')));
   state.people = [{ id: 'Duy', role: 'Admin', joined: 'test' }, { id: 'Member', joined: 'test' }];
   fs.mkdirSync(path.join(root, 'maps', 'private'), { recursive: true });

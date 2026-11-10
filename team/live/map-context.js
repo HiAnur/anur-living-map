@@ -117,5 +117,5 @@ export async function openContext({ maps, who, onLoad = () => {} }) {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', /** @type {() => void} */ (resolve)); });
   const close = () => { if (closed) return; closed = true; clearTimeout(timer); server.close(); server.closeAllConnections(); };
   const timer = setTimeout(close, 190000); timer.unref();
-  return { run, close, config: { mcpServers: { map_context: { command: process.execPath, args: [fileURLToPath(new URL('./map-context-mcp.js', import.meta.url))], env: { LM_CONTEXT_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}/`, LM_CONTEXT_TOKEN: token } } } } };
+  return { run, close, servers: { map_context: { tools: ['list_maps', 'load_map'], command: process.execPath, args: [fileURLToPath(new URL('./map-context-mcp.js', import.meta.url))], env: { LM_CONTEXT_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}/`, LM_CONTEXT_TOKEN: token } } } };
 }

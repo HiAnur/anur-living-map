@@ -26,8 +26,9 @@ import path from 'node:path';
 
 import { actionBoxes, recoverAction } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
-import { runAction } from './action-runner.js';
-import { askClaude, childEnv, claudeLogin, SIGNED_OUT } from './ask.js';
+import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
+import { agent } from './agent.js';
+import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { follow } from './mirror.js';
 import { contextReader, describeMap } from './map-context.js';
@@ -161,8 +162,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   if (!memory) startMirror();
 
   // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
-  // here, headless, in the map's folder: claude -p in auto mode with nobody to ask, so anything auto mode would stop
-  // to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
+  // here, headless, in the map's folder: the agent's own chat (agent.converse) with nobody to ask, so anything it
+  // would stop to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
   // and what the owner writes there continues it, one turn at a time.
   let /** @type {any} */ building = null; const /** @type {any} */ queued = [];
   const brief = () => [
@@ -174,16 +175,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   /** @param {any} l @param {any} text */
   function converse(l, text) {
     if (building) { queued.push(text); return; }
-    const env = childEnv();
     fs.mkdirSync(home, { recursive: true });
     const first = !l.started; l.started = true; save();
-    building = spawn('claude', ['-p', ...(first ? ['--session-id', l.session, '--name', `Living Map: ${state.title}`] : ['--resume', l.session]),
-      '--permission-mode', 'auto', '--permission-prompts', 'none', '--append-system-prompt', brief(), '--output-format', 'json'], { cwd: home, env });
-    const limit = setTimeout(() => building?.kill('SIGTERM'), 20 * 60_000);
-    building.stdout.on('data', () => {}); building.stderr.on('data', () => {}); building.stdin.on('error', () => {});
-    building.on('error', () => {});
-    building.on('close', () => { clearTimeout(limit); building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); });
-    building.stdin.end(text);
+    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text,
+      onClose: () => { building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
     // its transcript appears once it starts; the pane follows it from then
     if (!l.file) {
       const PROJECTS = path.join(process.env.HOME || '', '.claude', 'projects'); let tries = 0;
@@ -379,10 +374,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     allNodes,
     canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
-    ask: (request) => askClaude({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
+    ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
-    run: (request) => { fs.mkdirSync(home, {recursive:true}); return runAction({env:childEnv(),...request}); },
+    run: (request) => { fs.mkdirSync(home, {recursive:true}); return agent.run({ schema:completionSchema, system:executionPrompt, read:readCompletion, ...request }); },
   });
 
   // Instructions (what Claude must follow) and Memory (what the team asked it to keep), each for the whole map
@@ -843,12 +838,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       fs.mkdirSync(home, { recursive: true });
       let /** @type {any} */ soon = null;
       let /** @type {any} */ stop;
-      stop = askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan), contextMaps:selectedContextMaps, who: a.by,
+      stop = askAgent({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan), contextMaps:selectedContextMaps, who: a.by,
         onLoad: (/** @type {any} */ source) => { msg.sources = [...(msg.sources || []).filter((/** @type {any} */ m) => m.id !== source.id), source]; msg.doing = `Reading ${source.title}`; push(); },
         onText: (/** @type {any} */ text, /** @type {any} */ proposing) => { msg.text = String(text).trim(); msg.doing = proposing ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (/** @type {any} */ text, /** @type {any} */ _access, /** @type {any} */ change) => {
           activeAsks.delete(stop); clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = String(text).trim(); msg.at = stamp();
-          if (text === SIGNED_OUT) msg.signin = true;
+          if (text === agent.signedOut) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
           const pr = proposal(change, a.by, autoPlan ? n.id : null);
           if (pr?.status === 'pending') for (const x of t) if (x !== msg && x.proposal?.status === 'pending') Object.assign(x.proposal, { status: 'dropped', replaced: true });
@@ -1286,7 +1281,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     actions.close();
     cloud?.close();
     mirror?.f.stop(); mirror = null;
-    building?.kill('SIGTERM'); queued.length = 0;
+    building?.(); queued.length = 0;
     for (const r of clients) r.end();
   }
 
@@ -1432,7 +1427,7 @@ const server = http.createServer(async (req, res) => {
     users.end(cookieOf(req, 'lm_session'));
     return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'lm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' }).end('{}');
   }
-  if (url.pathname === '/api/claude-login' && req.method === 'POST') return who ? json(200, { ok: await claudeLogin() }) : json(401, { ok: false });
+  if (url.pathname === '/api/claude-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(401, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
   if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   const rootLinkAPI = !PROJECT && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && main.access(who, req);

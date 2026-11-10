@@ -60,6 +60,7 @@ describe('the map\'s tools, over stdio', () => {
 async function mapServer() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-tools-')), source = import.meta.dirname;
   for (const name of fs.readdirSync(source)) if (/\.(js|json|html|md)$/.test(name) && fs.statSync(path.join(source, name)).isFile()) fs.copyFileSync(path.join(source, name), path.join(root, name));
+  fs.cpSync(path.join(source, 'agents'), path.join(root, 'agents'), { recursive: true });
   // a bare map, as one written by hand: no log, questions or chats yet
   const state = { title: 'Launch', people: [{ id: 'Duy', role: 'Admin', sees: 'all' }],
     nodes: [{ id: 'launch', label: 'Launch', sub: 'Ship the pilot', x: 90, y: 150 }, { id: 'email', label: 'Invite email', x: 430, y: 150 }], edges: [] };

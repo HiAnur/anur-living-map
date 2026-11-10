@@ -49,5 +49,5 @@ export const PROPOSE_SCHEMA = {
   },
 };
 
-export const PROPOSE_TOOL = 'mcp__map_propose__propose_change';
-export const PROPOSE_SERVER = { command: process.execPath, args: [fileURLToPath(new URL('./propose-mcp.js', import.meta.url))] };
+/** @type {McpServer} */
+export const PROPOSE_SERVER = { command: process.execPath, args: [fileURLToPath(new URL('./propose-mcp.js', import.meta.url))], tools: ['propose_change'] };
