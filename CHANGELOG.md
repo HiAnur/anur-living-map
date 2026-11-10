@@ -2,7 +2,27 @@
 
 Recent changes you can use in the current release of Living Map, newest first. Dates use America/Los_Angeles. Installed copies receive these changes when they update.
 
+## November 10, 2026
+
+<dl>
+<dt><strong>Changes Claude offers on a team map arrive whole</strong></dt>
+<dd>
+
+A change Claude offers in **Ask Claude** or **Auto plan** comes to you as its own offer with **Apply**, so it is no longer lost when Claude writes it out wrongly. [#269](https://github.com/HiAnur/anur-living-map/pull/269) <!-- merged-at: 2026-11-10T08:12:16Z -->
+
+</dd>
+</dl>
+
 ## November 9, 2026
+
+<dl>
+<dt><strong>Preparing an Action reads Claude's answer reliably</strong></dt>
+<dd>
+
+When you prepare an Action, Claude's question or brief comes back in a fixed shape, so preparation no longer fails when Claude formats its answer differently. [#268](https://github.com/HiAnur/anur-living-map/pull/268) <!-- merged-at: 2026-11-10T07:58:41Z -->
+
+</dd>
+</dl>
 
 <dl>
 <dt><strong>A running Action uses only the tools you reviewed</strong></dt>
