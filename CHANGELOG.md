@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Start a map without a prompt</strong></dt>
+<dd>
+
+On the home page, choose **+ New map** and start typing, then use Tab or Enter to build your map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/322 --> <!-- merged-at: 2026-11-10T22:38:59Z -->
+
+<img src="docs/shipping/2026-11-10/new-blank-map.png" alt="Living Map home page with the new plus New map button beside Start a new map, above the Claude prompt and saved maps." width="537">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] An Action counts as done only when the map saw it</strong></dt>
 <dd>
 
