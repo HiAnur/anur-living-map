@@ -104,7 +104,7 @@ test.afterAll(() => {
 });
 
 // Each test opens a map of its own, named after it, holding the sample.
-const openSample = async (page: Page) => {
+const openSample = async (page: Page, state: object = SAMPLE) => {
   const name = `t-${test
     .info()
     .testId.toLowerCase()
@@ -112,7 +112,7 @@ const openSample = async (page: Page) => {
   fs.mkdirSync(path.join(app, "maps", name), { recursive: true });
   fs.writeFileSync(
     path.join(app, "maps", name, "state.json"),
-    JSON.stringify(SAMPLE),
+    JSON.stringify(state),
   );
   await page.goto(`${origin}/${name}/`);
   await expect(page.locator("#nodes .node")).toHaveCount(4);
@@ -202,6 +202,27 @@ test("someone with a view link, not signed in, sees the map", async ({
     await expect(box(visitor, box_)).toBeVisible();
   expect(errors).toEqual([]);
   await guest.close();
+});
+
+test("an Action box shows where it stands", async ({ page }) => {
+  const action = (id: string, stage: object) =>
+    SAMPLE.nodes.map((n) => (n.id === id ? { ...n, action: stage } : n));
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: action("trial", {
+      by: "Duy",
+      stage: "finished",
+      completion: { status: "completed", evidence: ["Trial page is live"] },
+    }).map((n) =>
+      n.id === "audience" ? { ...n, action: { by: "Duy", stage: "ready" } } : n,
+    ),
+  });
+  await expect(
+    box(page, "Free trial").getByLabel("Action status: Executed"),
+  ).toBeVisible();
+  await expect(
+    box(page, "Audience").getByLabel("Action status: Ready to execute"),
+  ).toBeVisible();
 });
 
 test("Export image downloads the view as a picture", async ({ page }) => {
