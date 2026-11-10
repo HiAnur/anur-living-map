@@ -3,8 +3,9 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { actionLeaving } from './action-stages.js';
 import { branchIds } from './editing.js';
-import { actionExecuted, actionLeaving } from './page-action.js';
+import { actionExecuted } from './page-action.js';
 import { layoutFor } from './page-layout.js';
 
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.

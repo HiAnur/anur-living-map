@@ -1,5 +1,5 @@
 // What an Action box shows of where it stands: whether it was executed, the words and tone of its status pill,
-// and whether it can still be cancelled or turned back into an Info box. A page module: see page-modules.js.
+// and whether it can still be turned back into an Info box. A page module: see page-modules.js.
 
 /** @param {any} a */
 export const actionExecuted = (a) => a?.stage === 'finished' && a.completion?.status === 'completed' && a.completion.evidence?.length > 0;
@@ -24,21 +24,6 @@ export function actionStatus(a){
 // action-box.js decides the same on the server.
 /** @param {any} a */
 export const actionUntouched = (a) => a?.stage === 'draft' && !a.intent && !a.plan && !a.history?.length && !a.documents?.length;
-// Before it runs, an Action can be cancelled (the cancel row in action-stages.js).
-/** @param {any} a */
-export const actionCancellable = (a) => !!a && !a.session && ['draft', 'gathering', 'clarify', 'ready', 'waiting', 'error'].includes(a.stage);
-// How its box may leave the map: 'remove' before it runs, 'archive' once it has, or why not. action-leave.js
-// decides the same on the server, and action-leave.test.js holds the two together.
-/** @param {any} a @param {string} me @param {boolean} admin */
-export function actionLeaving(a, me, admin){
-  if (!a) return 'remove';
-  if (a.by !== me && !admin) return `Only ${a.by}, who started its Action, or an Admin can take this box off the map.`;
-  if (a.stage === 'running') return 'Its Action is running. Stop it first.';
-  if (a.stage === 'gathering') return 'Claude is preparing its Action. Cancel it first.';
-  if (['draft', 'clarify', 'ready', 'waiting', 'error', 'cancelled'].includes(a.stage)) return 'remove';
-  if (['finished', 'blocked', 'unconfirmed'].includes(a.stage)) return 'archive';
-  return 'Its Action cannot be taken off the map from where it stands.';
-}
 // An Action's history as the page shows it, newest first: what happened, who did it ("the map" for what the map
 // did itself), when, and what code recorded of it. action-box.js writes the steps.
 const ACTION_STEPS = /** @type {Record<string, string>} */ ({

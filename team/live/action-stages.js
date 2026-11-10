@@ -1,5 +1,6 @@
 // Where an Action can be, and what may be asked of it from there. Every check of "may this happen now?" reads
-// this one table, so a move that is not listed here cannot be allowed somewhere by accident.
+// this one table, on the server and on the page, so a move that is not listed here cannot be allowed somewhere by
+// accident. It is a page module too (see page-modules.js): it imports nothing.
 //
 //   draft ──start──► gathering ──► clarify ──answer──► gathering
 //                        │            ▲
@@ -42,3 +43,20 @@ export const can = (ask, stage) => FROM[ask].includes(/** @type {string} */ (sta
 // handed to a run whose outcome never came back: it cannot be cancelled, and Execute first checks what happened
 /** @param {unknown} stage */
 export const handedOff = (stage) => stage === 'unconfirmed';
+
+// Before it runs, an Action can be cancelled, unless it was handed to a run that never reported back.
+/** @param {any} a */
+export const actionCancellable = (a) => !!a && !a.session && can('cancel', a.stage);
+
+// How its box may leave the map, for this person: 'remove' before it runs, 'archive' once it has, or why not.
+// Only its author or an Admin may take it off, and never while Claude prepares or runs it.
+/** @param {any} a @param {string | undefined} me @param {boolean} admin */
+export function actionLeaving(a, me, admin) {
+  if (!a) return 'remove';
+  if (a.by !== me && !admin) return `Only ${a.by}, who started its Action, or an Admin can take this box off the map.`;
+  if (a.stage === 'running') return 'Its Action is running. Stop it first.';
+  if (a.stage === 'gathering') return 'Claude is preparing its Action. Cancel it first.';
+  if (can('remove', a.stage)) return 'remove';
+  if (can('archive', a.stage)) return 'archive';
+  return 'Its Action cannot be taken off the map from where it stands.';
+}
