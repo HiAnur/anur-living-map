@@ -68,7 +68,6 @@ export function createLedger(deps: LedgerDeps) {
       running: null,
       failures: 0,
       retryAt: 0,
-      nudged: false,
       lookedForNext: now(),
       snapped: 0,
       lastSweep: 0,
@@ -239,12 +238,6 @@ export function createLedger(deps: LedgerDeps) {
   const turnsOf = (root: string): Turn[] | null =>
     followers.get(root)?.turns ?? null;
 
-  // the page opened on this chat: what waits is filed now
-  function nudge(root: string) {
-    const f = followers.get(root);
-    if (f) f.nudged = true;
-  }
-
   let timer: ReturnType<typeof setInterval> | null = null;
   if (deps.everyMs !== 0) {
     timer = setInterval(() => {
@@ -265,7 +258,6 @@ export function createLedger(deps: LedgerDeps) {
     change,
     turnsOf,
     state: (root: string) => stateOf(root)?.s ?? null,
-    nudge,
     push,
     useSides(fn: (root: string) => LedgerView["sides"]) {
       sidesOf = fn;

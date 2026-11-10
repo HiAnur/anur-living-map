@@ -18,6 +18,7 @@ import {
   type Follower,
 } from "./follower.ts";
 import { commitRun } from "./run.ts";
+import { hasRead, mayRead, onRead } from "./states.ts";
 
 // how long a quiet chat waits before looking for its continuation (resumed
 // under a new id, in another file)
@@ -36,14 +37,14 @@ export function restart(ctx: Ctx, f: Follower, file: string) {
   const { now } = ctx;
   f.file = file;
   f.t = emptyTranscript();
-  f.readOnce = false;
+  onRead(f, "restart");
   f.grewAt = now();
 }
 
 export async function read(ctx: Ctx, f: Follower) {
   const { db, deps, now, push } = ctx;
-  if (f.readBusy) return;
-  f.readBusy = true;
+  if (!mayRead(f)) return;
+  onRead(f, "start");
   const before = { turns: f.turns.length, sealed: f.sealed };
   try {
     let grew = false;
@@ -59,7 +60,7 @@ export async function read(ctx: Ctx, f: Follower) {
     }
     const t = now();
     // read for the first time: still since the file was last written
-    if (!f.readOnce) f.grewAt = Math.min(t, mtimeOf(f.file) ?? t);
+    if (!hasRead(f)) f.grewAt = Math.min(t, mtimeOf(f.file) ?? t);
     else if (grew) f.grewAt = t;
     else if (
       t - f.grewAt > SUCCESSOR_MS &&
@@ -80,13 +81,13 @@ export async function read(ctx: Ctx, f: Follower) {
     const v = readView(f.t, t - f.grewAt);
     f.plan = planOf(v.path);
     f.turns = v.turns;
-    if (f.readOnce)
+    if (hasRead(f))
       for (const turn of v.turns.slice(before.sealed, v.sealed))
         f.sealedAt.set(turn.n, t);
     f.sealed = v.sealed;
     if (grew) db.setSource(f.file, f.s.conv.root, f.t.offset, t);
-    if (!f.readOnce) {
-      f.readOnce = true;
+    if (!hasRead(f)) {
+      onRead(f, "first view");
       if (f.error === "The chat's transcript can't be read.")
         f.error = undefined;
       recover(ctx, f);
@@ -96,7 +97,7 @@ export async function read(ctx: Ctx, f: Follower) {
     if (before.turns !== f.turns.length || before.sealed !== f.sealed)
       push(f.s.conv.root);
   } finally {
-    f.readBusy = false;
+    onRead(f, "end");
   }
 }
 

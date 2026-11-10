@@ -115,7 +115,6 @@ export function startLedger(
       res.status(404).json({ error: "No chat is linked to the map yet." });
       return;
     }
-    ledger.nudge(root);
     res.json(view);
   });
   // for the page's list of your maps
