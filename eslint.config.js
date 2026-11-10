@@ -78,7 +78,6 @@ export default defineConfig([
       "eval/changes-retro.ts",
       "ledger/changes/changes.test.ts",
       "ledger/changes/graph.ts",
-      "ledger/db.ts",
       "ledger/extract.test.ts",
       "ledger/follow.test.ts",
       "ledger/follow.ts",
