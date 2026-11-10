@@ -89,7 +89,6 @@ export type Follower = {
   // a backlog being read (linked late, or many turns behind): from where,
   // up to which turn
   backlog?: { from: number; to: number };
-  nudged: boolean; // the page opened: run what is waiting now
   lookedForNext: number;
   // the shadow repository (null: the chat isn't in a git work tree;
   // undefined: not looked for yet), its last snapshot, and the sealed

@@ -16,7 +16,6 @@ import {
 } from "../extract.ts";
 import type { Turn } from "../transcript.ts";
 import {
-  backoff,
   BATCH,
   continued,
   extentOfTurn,
@@ -25,6 +24,7 @@ import {
   type Ctx,
   type Follower,
 } from "./follower.ts";
+import { fileState, hasRead, onFile } from "./states.ts";
 
 // anything sealed and not yet filed is due now
 const due = (pending: Turn[]) => pending.length > 0;
@@ -32,13 +32,12 @@ const due = (pending: Turn[]) => pending.length > 0;
 export function maybeRun(ctx: Ctx, f: Follower): Promise<void> | null {
   const { deps, now, push } = ctx;
   if (f.running) return f.running;
-  if (!f.readOnce || !deps.extract || !f.s.conv.following) return null;
+  if (!hasRead(f) || !deps.extract || !f.s.conv.following) return null;
   if (ctx.active >= MAX_RUNNING) return null;
-  if (f.failures && now() < f.retryAt) return null;
+  if (fileState(f, now()) === "backing off") return null;
   const pending = pendingOf(f);
   const more = continued(f);
   if (!more && !due(pending)) return null;
-  f.nudged = false;
   // more of the last filed turn goes first, with what came after it
   const batch = more
     ? [more, ...(batches(pending, BATCH - 1)[0] ?? [])]
@@ -84,8 +83,7 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
   const base = f.s.store.read;
   const turns = batch.map((t) => t.n);
   const fail = (error: string) => {
-    f.failures++;
-    f.retryAt = now() + backoff(f.failures);
+    onFile(f, "failed", now());
     f.error = error;
   };
   try {
@@ -129,8 +127,7 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
       now(),
     );
     commitRun(ctx, f, id, answer, batch);
-    f.failures = 0;
-    f.retryAt = 0;
+    onFile(f, "succeeded", now());
     f.error = undefined;
     measure(ctx, f, batch, r.ms);
     const store = f.s.store;
