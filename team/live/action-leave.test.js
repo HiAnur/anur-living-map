@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { leaving } from './action-leave.js';
 import { taskSource } from './action-plan.js';
-import { STAGES } from './action-stages.js';
+import { actionLeaving, STAGES } from './action-stages.js';
 import { act, TOKEN } from './map.harness.js';
-import { actionLeaving } from './page-action.js';
 
 // How a box holding an Action leaves the map, asked of a real map through its API: deleted only before it has run,
 // archived after, each only by its author or an Admin, and never while Claude prepares or runs it.
@@ -107,8 +106,8 @@ describe('archiving a box whose Action has run', () => {
   });
 });
 
-describe('the page and the server', () => {
-  it('agree on what each person may do at every stage', () => {
+describe('the server\'s rule', () => {
+  it('is the page\'s, with an Admin found on the map', () => {
     const map = /** @type {any} */ (state());
     for (const stage of STAGES) for (const by of ['Duy', 'Ana', 'Sam']) {
       const n = { id: 'x', label: 'X', action: { by: 'Duy', stage } };

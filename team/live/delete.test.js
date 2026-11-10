@@ -3,7 +3,8 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
-import { actionExecuted, actionLeaving } from './page-action.js';
+import { actionLeaving } from './action-stages.js';
+import { actionExecuted } from './page-action.js';
 
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const start=html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('));
