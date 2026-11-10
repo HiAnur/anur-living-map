@@ -27,7 +27,7 @@ selected permission. Do not place them in public issues or deployment logs.
 
 ## Local setup
 
-The private file `~/.living-map-2/cloud.json` (mode 0600) contains `url` (the service's
+The private file `cloud.json` in the team map's data folder (`~/.anur-living-map`, see `data-dir.js`; mode 0600) contains `url` (the service's
 HTTPS origin) and `publishKey` (64 random hex characters). `LIVING_MAP_CLOUD_CONFIG`
 can select another file. Per-map `cloud.json` keeps its private owner key and last
 synchronized graph beside `state.json`; it must never be committed or shared.
@@ -35,8 +35,10 @@ Only local map owners can publish, change permissions, or receive sharing status
 
 ## Deployment
 
-Use `prepare.mjs` to create an allowlisted build context. It excludes maps, local
-configuration, tests and private files. Deploy that context with Cloud Run source
+Use `prepare.mjs` to create the build context. It copies the live server's code
+(every `.js` beside it and under `agents/`) and the page, and excludes maps, local
+configuration, tests and private files; `prepare.test.js` checks the cloud server
+loads from it alone. Deploy that context with Cloud Run source
 builds. Use a dedicated service account with `roles/datastore.user` and access only
 to the `living-map-publish-key` Secret Manager secret. Set `PROJECT`, `PUBLIC_URL`
 and the secret-backed `PUBLISH_KEY`. The public service's application routes enforce
