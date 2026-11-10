@@ -40,7 +40,7 @@ Team map (`AgentWorker` and `AgentConversation`):
 ## Rules
 
 - Only an agent's own folders start its process, pass its flags, read its home folder or import its modules. `server/providers/seam.test.ts` fails otherwise.
-- What an agent returns is untrusted: the map checks it (`apply.ts`, `checkProposal`, `check` in `team/live/server.js`) before it reaches a store. Hand it over as data; never parse proposals out of prose.
+- What an agent returns is untrusted: the map checks it (`apply.ts`, `checkProposal`, `check` in `team/live/proposal-check.js`) before it reaches a store. Hand it over as data; never parse proposals out of prose.
 - The team package ships by pattern; `team/live/package.test.js` fails when a packed file reaches one that is not packed.
 
 ## Check
