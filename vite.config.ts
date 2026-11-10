@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["{ledger,server,web,skill,shared}/**/*.{ts,tsx}"],
-      exclude: ["**/*.test.{ts,tsx}", "ledger/fixtures/**"],
+      exclude: ["**/*.test.{ts,tsx}", "**/*.harness.ts", "ledger/fixtures/**"],
       reporter: ["text", "html"],
       // a floor under the part every map depends on, a little below what
       // the tests reach, so a drop fails and a small move does not

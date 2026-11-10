@@ -87,16 +87,9 @@ export default defineConfig([
     },
   },
   {
-    // the files over the limit when it was set: take one off this list in
-    // the change that splits it, and add none
-    files: [
-      "eval/changes-retro.ts",
-      "ledger/changes/changes.test.ts",
-      "ledger/extract.test.ts",
-      "ledger/follow.test.ts",
-      "ledger/sides.test.ts",
-      "ledger/transcript.test.ts",
-    ],
+    // the one file still over the limit from when it was set: take it off
+    // in the change that splits it, and add none
+    files: ["eval/changes-retro.ts"],
     rules: { "max-lines": "off" },
   },
   prettierRecommended,
