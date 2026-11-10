@@ -7,248 +7,45 @@
 // The transcript's parse is not kept here: it is read again from the start
 // on every server start (the reader takes under a second for the largest
 // chats), so only the read point and what was filed are stored.
+//
+// The tables are in db/schema.ts, the rows' types in db/rows.ts and the
+// side chats' part in db/sides.ts.
 
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync, type SQLInputValue } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 import type { ChangeStatement } from "../shared/ledger.ts";
-import { emptyStore, type Item, type Store, type Writer } from "./items.ts";
+import {
+  extentOf,
+  json,
+  num,
+  parse,
+  text,
+  type Conv,
+  type LogLine,
+  type Meta,
+  type Run,
+  type RunUsage,
+  type Row,
+  type State,
+} from "./db/rows.ts";
+import { migrate } from "./db/schema.ts";
+import { sideStore } from "./db/sides.ts";
+import { emptyStore, type Item } from "./items.ts";
 
-// one of your chats as the store keeps it, under the first id it had
-export type Conv = {
-  root: string;
-  ids: string[]; // every id it went by, the root first
-  title: string;
-  cwd: string;
-  file: string; // the transcript followed now
-  lookedTurn: number; // the last turn when you last looked
-  following: boolean;
-  linkedAt: number;
-  skipped: number; // older turns left unread when it was linked late
-  // how much of the last filed turn the map has read: its reply's length and
-  // its question-tool lines. Claude can add to a turn after a notice (a
-  // background task finishing) with no new prompt; what lies past this is
-  // filed as more of that turn. Absent until first known.
-  readExtent?: Extent;
-};
-
-export type Extent = { reply: number; asked: number };
-
-// what the map keeps of an item beside the item itself
-export type Meta = {
-  order: string; // its fractional order key among its siblings
-  under: string | null; // the parent that key is under
-  folded: boolean;
-  filedAt: number;
-};
-
-export type State = {
-  conv: Conv;
-  store: Store;
-  meta: Map<string, Meta>;
-};
-
-export type RunUsage = {
-  usd: number;
-  input: number;
-  output: number;
-  model: string;
-};
-
-export type Run = {
-  id: number;
-  conv: string;
-  turns: number[];
-  base: number; // the read point it was asked from
-  answer: unknown;
-  status: "answered" | "applied" | "failed";
-  error: string;
-};
-
-export type LogLine = { writer: Writer; op: unknown };
-
-export type SideRow = {
-  id: number;
-  conv: string;
-  item: string;
-  title: string;
-  closed: boolean;
-  input: number;
-  output: number;
-  usd: number;
-  at: number;
-};
-
-export type SideMessageRow = {
-  role: "you" | "claude";
-  text: string;
-  tools: string[];
-  stopped: boolean;
-  at: number;
-};
-
-// a proposal as checked when it came: the ops in the extractor's shape
-export type ProposalRow = {
-  id: number;
-  side: number;
-  ops: unknown[];
-  dropped: { op: unknown; why: string }[];
-  status: "pending" | "applied" | "dropped";
-  at: number;
-};
-
-const MIGRATIONS: string[] = [
-  `CREATE TABLE conversations (
-     root TEXT PRIMARY KEY,
-     ids TEXT NOT NULL DEFAULT '[]',
-     title TEXT NOT NULL DEFAULT '',
-     cwd TEXT NOT NULL DEFAULT '',
-     file TEXT NOT NULL DEFAULT '',
-     looked_turn INTEGER NOT NULL DEFAULT 0,
-     following INTEGER NOT NULL DEFAULT 0,
-     linked_at INTEGER NOT NULL DEFAULT 0,
-     skipped INTEGER NOT NULL DEFAULT 0,
-     next_item INTEGER NOT NULL DEFAULT 1,
-     read_turn INTEGER NOT NULL DEFAULT 0,
-     topic_of TEXT NOT NULL DEFAULT '{}'
-   );
-   CREATE TABLE sources (
-     path TEXT PRIMARY KEY,
-     conv TEXT NOT NULL,
-     offset INTEGER NOT NULL DEFAULT 0,
-     read_at INTEGER NOT NULL DEFAULT 0
-   );
-   CREATE TABLE items (
-     conv TEXT NOT NULL,
-     id TEXT NOT NULL,
-     type TEXT NOT NULL,
-     state TEXT NOT NULL,
-     title TEXT NOT NULL,
-     body TEXT NOT NULL,
-     quote TEXT NOT NULL,
-     src TEXT NOT NULL,
-     parent TEXT,
-     owner TEXT,
-     basis TEXT NOT NULL,
-     links TEXT NOT NULL,
-     writers TEXT NOT NULL,
-     retired TEXT,
-     order_key TEXT NOT NULL,
-     under TEXT,
-     folded INTEGER NOT NULL DEFAULT 0,
-     filed_at INTEGER NOT NULL,
-     PRIMARY KEY (conv, id)
-   );
-   CREATE TABLE log (
-     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-     conv TEXT NOT NULL,
-     run INTEGER,
-     writer TEXT NOT NULL,
-     op TEXT NOT NULL,
-     at INTEGER NOT NULL
-   );
-   CREATE INDEX log_conv ON log (conv, seq);
-   CREATE TABLE runs (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     conv TEXT NOT NULL,
-     turns TEXT NOT NULL,
-     base INTEGER NOT NULL,
-     answer TEXT,
-     rejected TEXT,
-     status TEXT NOT NULL,
-     usd REAL NOT NULL DEFAULT 0,
-     input INTEGER NOT NULL DEFAULT 0,
-     output INTEGER NOT NULL DEFAULT 0,
-     model TEXT NOT NULL DEFAULT '',
-     ms INTEGER NOT NULL DEFAULT 0,
-     error TEXT NOT NULL DEFAULT '',
-     at INTEGER NOT NULL
-   );
-   CREATE INDEX runs_conv ON runs (conv, id);
-   CREATE TABLE spend (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     conv TEXT NOT NULL,
-     run INTEGER,
-     what TEXT NOT NULL,
-     model TEXT NOT NULL DEFAULT '',
-     input INTEGER NOT NULL DEFAULT 0,
-     output INTEGER NOT NULL DEFAULT 0,
-     usd REAL NOT NULL DEFAULT 0,
-     at INTEGER NOT NULL
-   );
-   CREATE TABLE changes (
-     conv TEXT NOT NULL,
-     id TEXT NOT NULL,
-     turn INTEGER NOT NULL,
-     statement TEXT NOT NULL,
-     review TEXT,
-     PRIMARY KEY (conv, id)
-   );`,
-  // side chats (sides.ts): what was said, what it cost, what it proposed;
-  // and what you did that the main chat was told, to say when it has it
-  `CREATE TABLE sides (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     conv TEXT NOT NULL,
-     item TEXT NOT NULL,
-     title TEXT NOT NULL,
-     closed INTEGER NOT NULL DEFAULT 0,
-     input INTEGER NOT NULL DEFAULT 0,
-     output INTEGER NOT NULL DEFAULT 0,
-     usd REAL NOT NULL DEFAULT 0,
-     at INTEGER NOT NULL
-   );
-   CREATE INDEX sides_conv ON sides (conv, id);
-   CREATE TABLE side_messages (
-     seq INTEGER PRIMARY KEY AUTOINCREMENT,
-     side INTEGER NOT NULL,
-     role TEXT NOT NULL,
-     text TEXT NOT NULL,
-     tools TEXT NOT NULL DEFAULT '[]',
-     stopped INTEGER NOT NULL DEFAULT 0,
-     at INTEGER NOT NULL
-   );
-   CREATE INDEX side_messages_side ON side_messages (side, seq);
-   CREATE TABLE side_proposals (
-     id INTEGER PRIMARY KEY AUTOINCREMENT,
-     side INTEGER NOT NULL,
-     ops TEXT NOT NULL,
-     dropped TEXT NOT NULL,
-     status TEXT NOT NULL,
-     at INTEGER NOT NULL
-   );
-   CREATE INDEX side_proposals_side ON side_proposals (side, id);
-   CREATE TABLE told (
-     conv TEXT NOT NULL,
-     item TEXT NOT NULL,
-     at INTEGER NOT NULL,
-     PRIMARY KEY (conv, item)
-   );`,
-  // a wait the extractor closed with no quote behind it (Item.unconfirmed)
-  `ALTER TABLE items ADD COLUMN unconfirmed TEXT;`,
-  // how much of the last filed turn was read (Conv.readExtent)
-  `ALTER TABLE conversations ADD COLUMN read_extent TEXT;`,
-];
-
-type Row = Record<string, SQLInputValue>;
-const json = (v: unknown) => JSON.stringify(v);
-const parse = <T>(v: unknown, fallback: T): T => {
-  if (typeof v !== "string") return fallback;
-  try {
-    return JSON.parse(v) as T;
-  } catch {
-    return fallback;
-  }
-};
-const text = (v: unknown) => (typeof v === "string" ? v : "");
-// a stored extent, when it is one
-const extentOf = (v: unknown): { readExtent?: Extent } => {
-  const e = parse<Partial<Extent> | null>(v, null);
-  return e && typeof e.reply === "number" && typeof e.asked === "number"
-    ? { readExtent: { reply: e.reply, asked: e.asked } }
-    : {};
-};
-const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
+export type {
+  Conv,
+  Extent,
+  LogLine,
+  Meta,
+  ProposalRow,
+  Run,
+  RunUsage,
+  SideMessageRow,
+  SideRow,
+  State,
+} from "./db/rows.ts";
 
 export type LedgerDb = ReturnType<typeof openDb>;
 
@@ -261,32 +58,7 @@ export function openDb(file: string) {
   fs.chmodSync(file, 0o600);
   const db = new DatabaseSync(file, { timeout: 5000 });
   db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;");
-  const version = num(
-    (db.prepare("PRAGMA user_version").get() as Row).user_version,
-  );
-  // Before a store that already holds maps is migrated, a copy of it as it
-  // is: a migration that fails rolls back on its own, but one that runs and
-  // turns out wrong would leave no way back. VACUUM INTO writes a whole,
-  // consistent copy (what the WAL holds included); the first copy made for
-  // a version is kept.
-  if (version > 0 && version < MIGRATIONS.length) {
-    const copy = `${file}.before-v${MIGRATIONS.length}`;
-    if (!fs.existsSync(copy)) {
-      db.exec(`VACUUM INTO '${copy.replaceAll("'", "''")}'`);
-      fs.chmodSync(copy, 0o600);
-    }
-  }
-  for (let v = version; v < MIGRATIONS.length; v++) {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      db.exec(MIGRATIONS[v]!);
-      db.exec(`PRAGMA user_version = ${v + 1}`);
-      db.exec("COMMIT");
-    } catch (e) {
-      db.exec("ROLLBACK");
-      throw e;
-    }
-  }
+  migrate(db, file);
 
   // runs `fn` in one transaction: all of it lands, or none
   function tx<T>(fn: () => T): T {
@@ -300,18 +72,6 @@ export function openDb(file: string) {
       throw e;
     }
   }
-
-  const sideOf = (r: Row): SideRow => ({
-    id: num(r.id),
-    conv: text(r.conv),
-    item: text(r.item),
-    title: text(r.title),
-    closed: num(r.closed) === 1,
-    input: num(r.input),
-    output: num(r.output),
-    usd: num(r.usd),
-    at: num(r.at),
-  });
 
   const convOf = (r: Row): Conv => ({
     root: text(r.root),
@@ -640,130 +400,7 @@ export function openDb(file: string) {
       });
     },
 
-    // ---- side chats ----
-
-    addSide(conv: string, item: string, title: string, at: number): number {
-      return Number(
-        db
-          .prepare(
-            "INSERT INTO sides (conv, item, title, at) VALUES (?, ?, ?, ?)",
-          )
-          .run(conv, item, title, at).lastInsertRowid,
-      );
-    },
-
-    // a chat's side chats, oldest first; closed ones only when asked
-    sides(conv: string, closed = false): SideRow[] {
-      return (
-        db
-          .prepare(
-            `SELECT * FROM sides WHERE conv = ?${closed ? "" : " AND closed = 0"} ORDER BY id`,
-          )
-          .all(conv) as Row[]
-      ).map(sideOf);
-    },
-
-    side(id: number): SideRow | null {
-      const r = db.prepare("SELECT * FROM sides WHERE id = ?").get(id) as
-        Row | undefined;
-      return r ? sideOf(r) : null;
-    },
-
-    closeSide(id: number) {
-      db.prepare("UPDATE sides SET closed = 1 WHERE id = ?").run(id);
-    },
-
-    addSideMessage(side: number, m: SideMessageRow) {
-      db.prepare(
-        "INSERT INTO side_messages (side, role, text, tools, stopped, at) VALUES (?, ?, ?, ?, ?, ?)",
-      ).run(side, m.role, m.text, json(m.tools), m.stopped ? 1 : 0, m.at);
-    },
-
-    sideMessages(side: number): SideMessageRow[] {
-      return (
-        db
-          .prepare("SELECT * FROM side_messages WHERE side = ? ORDER BY seq")
-          .all(side) as Row[]
-      ).map((r) => ({
-        role: r.role === "you" ? "you" : "claude",
-        text: text(r.text),
-        tools: parse<string[]>(r.tools, []),
-        stopped: num(r.stopped) === 1,
-        at: num(r.at),
-      }));
-    },
-
-    // what one answer cost, on the side chat and in the chat's spend
-    addSideSpend(side: SideRow, u: RunUsage, at: number) {
-      tx(() => {
-        db.prepare(
-          "UPDATE sides SET input = input + ?, output = output + ?, usd = usd + ? WHERE id = ?",
-        ).run(u.input, u.output, u.usd, side.id);
-        putSpend.run(
-          side.conv,
-          null,
-          "side",
-          u.model,
-          u.input,
-          u.output,
-          u.usd,
-          at,
-        );
-      });
-    },
-
-    addProposal(
-      side: number,
-      ops: unknown[],
-      dropped: ProposalRow["dropped"],
-      at: number,
-    ): number {
-      return Number(
-        db
-          .prepare(
-            "INSERT INTO side_proposals (side, ops, dropped, status, at) VALUES (?, ?, ?, 'pending', ?)",
-          )
-          .run(side, json(ops), json(dropped), at).lastInsertRowid,
-      );
-    },
-
-    proposals(side: number): ProposalRow[] {
-      return (
-        db
-          .prepare("SELECT * FROM side_proposals WHERE side = ? ORDER BY id")
-          .all(side) as Row[]
-      ).map((r) => ({
-        id: num(r.id),
-        side: num(r.side),
-        ops: parse<unknown[]>(r.ops, []),
-        dropped: parse<ProposalRow["dropped"]>(r.dropped, []),
-        status: (["applied", "dropped"].includes(text(r.status))
-          ? text(r.status)
-          : "pending") as ProposalRow["status"],
-        at: num(r.at),
-      }));
-    },
-
-    // settles a pending proposal; false when it was not pending
-    settleProposal(id: number, status: "applied" | "dropped"): boolean {
-      const r = db
-        .prepare(
-          "UPDATE side_proposals SET status = ? WHERE id = ? AND status = 'pending'",
-        )
-        .run(status, id);
-      return Number(r.changes) === 1;
-    },
-
-    // pending proposals per item, over a chat's open side chats
-    pendingByItem(conv: string): Map<string, number> {
-      const rows = db
-        .prepare(
-          `SELECT s.item AS item, COUNT(*) AS n FROM side_proposals p JOIN sides s ON s.id = p.side
-           WHERE s.conv = ? AND p.status = 'pending' GROUP BY s.item`,
-        )
-        .all(conv) as Row[];
-      return new Map(rows.map((r) => [text(r.item), num(r.n)]));
-    },
+    ...sideStore(db, tx, putSpend),
 
     // ---- what the main chat was told ----
 
