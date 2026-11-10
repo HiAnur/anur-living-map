@@ -28,6 +28,7 @@ export const COMMANDS = /** @type {const} */ ({
   actionrevise: { id: 'id' },
   actioncancel: { id: 'id' },
   actionreopen: { id: 'id' },
+  actionconfirm: { id: 'id', revision: 'any?' },
   actionexecute: { id: 'id', revision: 'any?' },
   actioncontinue: { id: 'id', revision: 'any?', answer: 'text?' },
   actionstop: { id: 'id', revision: 'any?' },

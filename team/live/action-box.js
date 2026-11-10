@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { readCompletion } from './action-completion.js';
+import { judgeRun } from './action-evidence.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
 import { can, handedOff } from './action-stages.js';
 
@@ -103,9 +104,10 @@ export function recoverAction(n) {
  *   changed: () => void,
  *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
  *   executionCwd: string,
+ *   checkPull?: (url: string) => Promise<boolean>,
  * }} deps
  */
-export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd }) {
+export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false) }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -218,7 +220,9 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   function continueAction(id, by, revision, answer = '') {
     const n = nodeOf(id), a = n?.action;
     if (!owns(n, by) || !a?.session || !can('continue', a.stage) || a.id !== revision || typeof answer !== 'string' || answer.length > 4000) return false;
-    const message = answer.trim() || 'Continue the reviewed task. Check what already finished in this conversation before doing more.';
+    // what code saw the run do, so Continue never rests on the model remembering what it already sent or changed
+    const seen = a.did?.length ? `\n\nWhat the map saw this task already do, from its tool calls (not from your words). Do not repeat any of it:\n${a.did.map((/** @type {string} */ d) => `- ${d}`).join('\n')}` : '';
+    const message = (answer.trim() || 'Continue the reviewed task. Check what already finished in this conversation before doing more.') + seen;
     a.turns.push({who:by,text:answer.trim() || 'Continue'});
     note(a, 'continued', by);
     return runTurn(id, by, a, message, true);
@@ -230,16 +234,30 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     delete a.completion;
     const job = {a,by,stop:/** @type {Stop} */ (null)}; runs.set(id,job); changed();
     const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
+    // How a run ended is decided here from what it did: its own claim of "completed" stands only with evidence code
+    // saw (a send to the brief's recipient, a pull request GitHub confirms); otherwise it is unverified, and the
+    // model's summary and claimed evidence are kept as its account.
     /** @param {RunResult} result */
     const finish = (result) => {
       if (!active()) { reconcile(); return; }
-      runs.delete(id);
-      const completion = readCompletion(result.completion);
-      a.stage = result.blocked ? 'blocked' : 'finished';
-      a.completion = completion && (!result.blocked || completion.status === 'blocked') ? completion : {status:result.blocked ? 'blocked' : 'unconfirmed',summary:'',evidence:[]};
-      a.turns.push({who:'Claude',text:String(a.completion.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
-      note(a, 'finished', 'Claude', { status:a.completion.status, ms:Date.now() - started });
-      delete a.since; delete a.progress; reconcile(); changed();
+      const claimed = readCompletion(result.completion), seen = judgeRun(a.brief || {kind:'other',goal:'',target:'',result:'',steps:[]}, result.calls);
+      a.did = [...new Set([...(a.did || []), ...seen.did])].slice(-30);
+      /** @param {string[]} pulls the pull requests GitHub confirmed */
+      const settle = (pulls) => {
+        if (!active()) { reconcile(); return; }
+        runs.delete(id);
+        const evidence = [...seen.evidence, ...pulls.map((url) => `Pull request ${url}`)];
+        const status = result.blocked ? 'blocked' : claimed?.status === 'needs_input' ? 'needs_input'
+          : evidence.length ? 'completed' : claimed?.status === 'completed' ? 'unverified' : 'unconfirmed';
+        a.stage = result.blocked ? 'blocked' : 'finished';
+        a.completion = { status, summary:claimed?.summary || '', evidence, claimed:claimed?.evidence || [] };
+        a.turns.push({who:'Claude',text:String(claimed?.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
+        note(a, 'finished', 'Claude', { status, ms:Date.now() - started, verified:evidence.length > 0, ran:[...new Set((result.calls || []).map((c) => c.tool))] });
+        delete a.since; delete a.progress; reconcile(); changed();
+      };
+      if (!seen.pulls.length) return settle([]);
+      a.progress = 'Checking the pull request with GitHub…'; changed();
+      Promise.all(seen.pulls.map((url) => checkPull(url).then((ok) => (ok ? url : null), () => null))).then((found) => settle(/** @type {string[]} */ (found.filter(Boolean))));
     };
     try {
       job.stop = run({cwd:a.cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],onText(words) {
@@ -248,6 +266,14 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       },onDone:finish});
     } catch { finish({blocked:true,text:'Could not start Claude. Continue will try to reopen this same chat.'}); }
     return true;
+  }
+  // the author's word that an unverified run did what it should: a person's click, recorded as such
+  /** @param {string} id @param {string} by @param {unknown} revision */
+  function confirm(id, by, revision) {
+    const n = nodeOf(id), a = n?.action;
+    if (!owns(n, by) || !can('confirm', a?.stage) || a.completion?.status !== 'unverified' || a.id !== revision) return false;
+    a.completion = { ...a.completion, status:'completed', evidence:[...(a.completion.evidence || []), `Confirmed done by ${by}`] };
+    note(a, 'confirmed', by); changed(); return true;
   }
   /** @param {string} id @param {string} by @param {unknown} revision */
   function stop(id, by, revision) {
@@ -282,5 +308,5 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     for (const [id, job] of runs) { runs.delete(id); job.stop?.(); if (nodeOf(id)?.action === job.a) recoverAction(nodeOf(id)); }
     changed();
   }
-  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, stop, reconcile, close };
+  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, stop, reconcile, close };
 }

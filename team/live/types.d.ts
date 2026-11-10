@@ -97,6 +97,20 @@ interface RunResult {
   text: string;
   blocked: boolean;
   completion?: ActionCompletion;
+  /** every tool call the run made, as the agent's own stream reported it */
+  calls?: ToolCall[];
+}
+
+/** One tool call a run made: its input, whether it succeeded (null when no result came back) and what it returned. */
+interface ToolCall {
+  tool: string;
+  input: unknown;
+  ok: boolean | null;
+  output: string;
+  /** the agent knows this tool only reads, so it changed nothing */
+  reads?: boolean;
+  /** a few words of what the call was, written by the agent's adapter (a shell call's command) */
+  summary?: string;
 }
 
 /** Stops a job under way; a job that never started has none. */

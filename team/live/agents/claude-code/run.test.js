@@ -15,12 +15,23 @@ function harness(resume = false, tools = undefined) {
   return {proc,calls,words,results,event,stop};
 }
 describe('background execution',()=>{
+  it('keeps every tool call the run made, with what it returned, so the map can judge the run by what it did',()=>{
+    const h=harness();
+    h.event({type:'assistant',message:{content:[{type:'text',text:'Opening the PR'},{type:'tool_use',id:'t1',name:'Bash',input:{command:'gh pr create --fill'}},{type:'tool_use',id:'t2',name:'Read',input:{file_path:'a.js'}},{type:'tool_use',id:'t3',name:'mcp__gmail__send',input:{to:'sam@example.com'}}]}});
+    h.event({type:'user',message:{content:[{type:'tool_result',tool_use_id:'t1',content:'https://github.com/acme/app/pull/7\n',is_error:false},{type:'tool_result',tool_use_id:'t2',content:[{type:'text',text:'file'}]},{type:'tool_result',tool_use_id:'t3',content:'Permission denied',is_error:true}]}});
+    h.event({type:'result',result:'Done',is_error:false});h.proc.emit('close',0);
+    expect(h.results[0].calls).toEqual([
+      {tool:'Bash',input:{command:'gh pr create --fill'},ok:true,output:'https://github.com/acme/app/pull/7\n',summary:'gh pr create --fill'},
+      {tool:'Read',input:{file_path:'a.js'},ok:true,output:'file',reads:true},
+      {tool:'mcp__gmail__send',input:{to:'sam@example.com'},ok:false,output:'Permission denied'},
+    ]);
+  });
   it('persists an exact session and resumes it with normal permissions, without opening desktop',()=>{
     for(const resume of [false,true]){const h=harness(resume),[command,args,opts]=h.calls[0];expect(command).toBe('claude');expect(args).toContain('-p');expect(args).toContain(resume?'--resume':'--session-id');expect(args).toContain('exact-chat-id');expect(args).not.toContain('--continue');expect(args).not.toContain('--no-session-persistence');expect(args).not.toContain('--dangerously-skip-permissions');expect(args).toContain('auto');expect(opts.cwd).toBe('/sample/project');h.proc.emit('close',0);}
   });
   it('streams words and waits for process exit before allowing continuation',()=>{
     const h=harness();h.event({type:'stream_event',event:{type:'content_block_delta',delta:{text:'Checking the form'}}});expect(h.words).toEqual(['Checking the form']);
-    h.event({type:'result',result:'The form is ready.',is_error:false},false);expect(h.results).toHaveLength(0);h.proc.emit('close',0);expect(h.results).toEqual([{text:'The form is ready.',blocked:false}]);
+    h.event({type:'result',result:'The form is ready.',is_error:false},false);expect(h.results).toHaveLength(0);h.proc.emit('close',0);expect(h.results).toEqual([{text:'The form is ready.',blocked:false,calls:[]}]);
   });
   it('shows permission denials and process failures as blocked, without starting a fresh chat',()=>{
     const h=harness(true);h.event({type:'result',result:'Could not send.',permission_denials:[{tool_name:'Send'}]});h.proc.emit('close',0);expect(h.results[0].blocked).toBe(true);expect(h.results[0].text).toContain('permission');expect(h.calls).toHaveLength(1);
@@ -30,7 +41,7 @@ describe('background execution',()=>{
     const h=harness();expect(JSON.parse(h.calls[0][1][h.calls[0][1].indexOf('--json-schema')+1])).toEqual(completionSchema);
     const completion={status:'completed',summary:'Sent the test email.',evidence:['Sent message: sample-123, to alex@example.com']};
     h.event({type:'result',structured_output:completion,is_error:false});h.proc.emit('close',0);
-    expect(h.results[0]).toEqual({text:completion.summary,completion,blocked:false});
+    expect(h.results[0]).toEqual({text:completion.summary,completion,blocked:false,calls:[]});
     for(const value of [null,{}, {...completion,evidence:[]}, {...completion,evidence:['']}, {...completion,evidence:[{}]}, {...completion,summary:''}, {...completion,status:'success'}])expect(readCompletion(value)).toBeNull();
   });
   it('keeps tool failures and access errors from confirming completion',()=>{
