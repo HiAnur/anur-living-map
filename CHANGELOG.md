@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
+<dt><strong>A running Action uses only the tools you reviewed</strong></dt>
+<dd>
+
+When you press **Execute** on an Action, Claude can use only the tools its reviewed brief names, plus reading and searching files; a run that needs another tool stops and says so, so you can revise the brief. [62fc75b](https://github.com/HiAnur/anur-living-map/commit/62fc75b) <!-- merged-at: 2026-11-10T07:33:12Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>A team map stays up when a map lacks its log or questions</strong></dt>
 <dd>
 
