@@ -40,7 +40,7 @@ describe('keyboard branch insertion',()=>{
 });
 
 function actions(state, sees='all'){
-  return boxActs({getState:()=>state,nodeOf:id=>state.nodes.find(n=>n.id===id),seesOf:()=>sees,sideOf:()=>false,tell(){}});
+  return boxActs({getState:()=>state,nodeOf:id=>state.nodes.find(n=>n.id===id),seesOf:()=>sees,sideOf:()=>false,tell(){},pendingProposals:()=>[],unlinkEdge:()=>false,placeProposed(){}});
 }
 describe('saving branch insertion',()=>{
   it('undoes and redoes the new child and displaced branches together',()=>{

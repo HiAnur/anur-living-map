@@ -35,13 +35,15 @@ import { appendProposed } from './proposal-layout.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
+import { mapActs } from './map-acts.js';
+import { planActs } from './plan-acts.js';
 import { diagramOf } from './diagram.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { changeAccess, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState, withoutActions } from './sharing.js';
-import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
+import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
 import { DATA } from './data-dir.js';
 
@@ -462,103 +464,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const edits = editHistory(undoState);
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
   const ACTS = {
-    ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell }),
+    ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
     ...chatActs({ getState: () => state, project, name, home, nodeOf, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
       selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
-      relayout, keepMemory }),
-    /** @param {any} a */
-    reparent(a) {
-      const sees = seesOf(a.by);
-      if (!reparentTopic(state, a, (n) => sees === 'all' || n.area === sees)) return false;
-      tell(`${a.by} moved ${nodeOf(a.id).label} under ${nodeOf(a.parent).label}`);
-      return true;
-    },
-    /** @param {any} a */
-    move(a) {
-      if (Array.isArray(a.moves)){
-        const sees = seesOf(a.by), moves = a.moves;
-        if (!moves.length || new Set(moves.map((/** @type {any} */ m) => m?.id)).size !== moves.length || moves.some((/** @type {any} */ m) => { const n = nodeOf(m?.id); return !n || (sees !== 'all' && n.area !== sees) || ![m.fromX,m.fromY,m.x,m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY; })) return false;
-        for (const m of moves) Object.assign(nodeOf(m.id),{x:Math.round(m.x),y:Math.round(m.y),moved:true});
-        return true;
-      }
-      const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
-      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
-      // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)
-      if (nodeOf(a.id)) n.moved = true;
-      return true;
-    },
-    // drawn by hand on the map: a box where it was drawn (a.view: inside that box; box-acts.js), a line from one box to another
-    // (words on it optional; drawing one that exists changes its words), and a box taken off the map, its lines with
-    // it. Someone who sees one area draws in that area and takes off only what is in it
-    // a line dragged out of a box's dot keeps the side it left from (out) and the side it arrives on (in): t r b l
-    /** @param {any} a */
-    connect(a) {
-      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
-      const out = sideOf(a.out), inn = sideOf(a.in), sides = { ...(out ? { out } : {}), ...(inn ? { in: inn } : {}) };
-      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
-      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, edges = inside ? (inside.edges ??= []) : state.edges;
-      const label = String(a.label || '').trim().slice(0, 40), had = edges.find((/** @type {any} */ e) => e.from === from.id && e.to === to.id);
-      if (had) { if (!label && !out && !inn) return false; if (label) had.label = label; Object.assign(had, sides); } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}), ...sides });
-      tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
-      return true;
-    },
-    // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
-    /** @param {any} a */
-    resize(a) {
-      const n = nodeOf(a.id); if (!n) return false;
-      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
-      const w = Math.round(Number(a.w)), h = Math.round(Number(a.h));
-      if (!(w >= 60 && w <= 800 && h >= 36 && h <= 600) || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
-      Object.assign(n, { x: Math.round(a.x), y: Math.round(a.y), w, h, moved: true });
-      return true;
-    },
-    // a line's words changed by a double click on them; empty words take them off the line
-    /** @param {any} a */
-    relabel(a) {
-      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
-      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
-      const all = [state.edges, ...state.nodes.map((/** @type {any} */ p) => p.inside?.edges || [])].flat();
-      const e = all.find((x) => x.from === from.id && x.to === to.id); if (!e) return false;
-      const label = String(a.label || '').trim().slice(0, 40); if ((e.label || '') === label) return false;
-      if (label) e.label = label; else delete e.label;
-      tell(`${a.by} ${label ? `named the line ${from.label} → ${to.label} "${label}"` : `took the words off the line ${from.label} → ${to.label}`}`);
-      return true;
-    },
-    // a line picked on the map and deleted, by hand
-    /** @param {any} a */
-    unlink(a) {
-      const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
-      const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
-      if (!unlinkEdge(from.id, to.id)) return false;
-      tell(`${a.by} took the line ${from.label} → ${to.label} off the map`);
-      return true;
-    },
-    /** @param {any} a */
-    remove(a) {
-      const roots = Array.isArray(a.ids) ? a.ids : [a.id];
-      if (!roots.length || roots.some((/** @type {any} */ id) => !nodeOf(id))) return false;
-      const ids = a.cascade ? branchIds(state, roots) : new Set(roots), sees = seesOf(a.by);
-      if ([...ids].some((id) => !nodeOf(id) || (sees !== 'all' && nodeOf(id).area !== sees))) return false;
-      const label = nodeOf(roots[0]).label;
-      const drop = (/** @type {any} */ s) => { s.nodes = s.nodes.filter((/** @type {any} */ n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((/** @type {any} */ e) => !ids.has(e.from) && !ids.has(e.to)); };
-      drop(state); for (const n of state.nodes) if (n.inside) drop(n.inside);
-      tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
-      return true;
-    },
-    // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
-    // in their window). A topic map lays out as a mind map; any other map puts its showing boxes that are off the
-    // grid on it, with no line through a box. Neither moves anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
-    /** @param {any} a */
-    tidy(a) {
-      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
-      if (!list?.length) return false;
-      const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((/** @type {any} */ s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((/** @type {any} */ s) => [s.id, {w:s.w, h:s.h}]));
-      // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start, sizes)) tidy(list, edges, only);
-      if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
-      return true;
-    },
+      relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
+    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
+    ...mapActs({ getState: () => state, contextMaps, nodeOf, seesOf, tell, ownerOf }),
     call: answerCall,
     /** @param {any} a */
     actionbox(a) { return actions.begin(a.id, a.by); },
@@ -586,30 +497,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the name someone gave the map; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch (e) { removeFailed(e, 'the outbox'); } return true; },
-    // Discovery combines this background with the current topics and decisions.
-    /** @param {any} a */
-    contextmap(a) {
-      if (!a.by || a.by === 'Guest' || seesOf(a.by) !== 'all' || typeof a.id !== 'string' || typeof a.include !== 'boolean') return false;
-      if (a.include && !(contextMaps?.(a.by) || []).some((/** @type {any} */ m) => m.id === a.id && m.allowed())) return false;
-      const ids = new Set(state.contextMapIds || []);
-      if (a.include) ids.add(a.id); else ids.delete(a.id);
-      state.contextMapIds = [...ids];
-      return true;
-    },
-    /** @param {any} a */
-    describemap(a) {
-      if (typeof a.description !== 'string' || a.description.length > 12000 || seesOf(a.by) !== 'all') return false;
-      state.desc = a.description.trim();
-      return true;
-    },
-    // Renaming changes the title, not the map's address.
-    /** @param {any} a */
-    rename(a) {
-      const title = String(a.title || '').trim().slice(0, 60);
-      if (!title) return false;
-      state.title = title; state.renamed = title;
-      return true;
-    },
     // going back to a version in the history: the map takes that version's boxes, lines and questions, while chats,
     // comments and people stay as they are; going back is a version itself, so it can be undone the same way
     /** @param {any} a */
@@ -624,170 +511,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     },
     // a chat opening the map finds it as it was left: every change saved itself, and History has the versions before
     open() { return true; },
-    // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
-    /** @param {any} a */
-    comment(a) {
-      const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
-      state.comments ??= [];
-      const c = { id: state.comments.length + 1, x: Math.round(a.x), y: Math.round(a.y), view: a.view || 'system', node: a.node || null,
-        resolved: false, msgs: [{ who: a.by, text, at: Date.now() }] };
-      state.comments.push(c);
-      tell(`${a.by} commented${c.node ? ` on ${nodeOf(c.node)?.label || c.node}` : ''}: ${text}`, ownerOf(c.node));
-      return true;
-    },
-    /** @param {any} a */
-    reply(a) {
-      const c = state.comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
-      if (!c || !text) return false;
-      c.msgs.push({ who: a.by, text, at: Date.now() });
-      tell(`${a.by} replied on comment #${c.id}: ${text}`, ownerOf(c.node));
-      return true;
-    },
-    /** @param {any} a */
-    resolve(a) { const c = state.comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
-    /** @param {any} a */
-    drop(a) {
-      const fromChat = a.proposal ? (state.proposals || []).find((/** @type {any} */ x) => x.id === a.proposal) : null;
-      const key = String(a.thread || ''), pr = fromChat || state.threads[key]?.[Number(a.index)]?.proposal;
-      if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
-      pr.status = 'dropped'; pr.by = a.by; return true;
-    },
-    // the Claude Code chat that opened this map with /anur-living-map: its owner's Claude pane follows that chat
-    /** @param {any} a */
-    link(a) {
-      const session = String(a.session || ''), file = String(a.file || '');
-      if (!chats.isChat(file, session)) return false;
-      state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((/** @type {any} */ l) => l.session !== session)].slice(0, 10);
-      delete state.starting;
-      startMirror(); return true;
-    },
-    // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once;
-    // pictures attached to it are saved in the map's folder, and the chat is told where, so Claude can open them
-    /** @param {any} a */
-    say(a) {
-      const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
-      if (!l || l.owner !== a.by) return false;
-      const pics = (Array.isArray(a.images) ? a.images : []).slice(0, 5).map(savePicture).filter(Boolean);
-      if (!text && !pics.length) return false;
-      // a chat the map started itself hears it straight away, and its transcript shows it in the pane
-      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((/** @type {any} */ p) => p.file).join(', ')})` : ''}`); return true; }
-      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      ((state.said ??= {})[l.session] ??= []).push({ id, text, at: Date.now(), ...(pics.length ? { imgs: pics.map((/** @type {any} */ p) => p.id) } : {}) });
-      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((/** @type {any} */ p) => p.file).join(', ')})` : ''}`, l.session, id);
-      setTimeout(sendMirror); return true;
-    },
-    // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
-    /** @param {any} a */
-    propose(a) {
-      const session = String(a.session || ''), l = (state.linked || []).find((/** @type {any} */ x) => x.session === session);
-      if (!l) return false;
-      const pr = check(a, l.owner); if (!pr.ops.length) return false;
-      state.proposals = [...(state.proposals || []), { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr }].slice(-30);
-      setTimeout(sendMirror); return true;
-    },
-    // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
-    /** @param {any} a */
-    newchat(a) {
-      const key = `@${a.by}`, t = state.threads[key];
-      if (!t?.length || t.some((/** @type {any} */ m) => m.thinking)) return false;
-      state.threads[`${key}#${Date.now().toString(36)}`] = t; state.threads[key] = [];
-      return true;
-    },
-    // a chat picked from your history becomes the open one, and the one open now goes into the history
-    /** @param {any} a */
-    openchat(a) {
-      const key = `@${a.by}`, from = String(a.chat || ''), old = state.threads[from], now = state.threads[key] || [];
-      if (!from.startsWith(`${key}#`) || !old || now.some((/** @type {any} */ m) => m.thinking)) return false;
-      delete state.threads[from];
-      if (now.length) state.threads[`${key}#${Date.now().toString(36)}`] = now;
-      state.threads[key] = old;
-      return true;
-    },
-    // an agent draws its plan: boxes, lines and calls are added or updated by id,
-    // so Claude Code (or Codex) can put "Billing" on the map from a chat
-    /** @param {any} a */
-    plan(a) {
-      // what a chat draws is that chat's: changes people make to it go back to that chat
-      const who = String(a.session || '').slice(0, 80);
-      if (who) { for (const it of [...(a.nodes || []), ...(a.calls || [])]) it.session = who; state.owner = who; }
-      // a plan that asks something new waits for answers again before anyone can press Execute
-      if ((a.calls || []).some((/** @type {any} */ c) => c.status === 'open')) state.executed = null;
-      draw(a, a.by, { kind: 'plan', ...(who ? { session: who } : {}) });
-      Object.assign(state.answers, a.answers || {});
-      // the ask behind the plan shows on the map's top line; a named map takes the plan's title
-      if (a.title && name && !state.renamed) state.title = String(a.title).slice(0, 60);
-      if (a.ticket) state.ticket = String(a.ticket).slice(0, 40);
-      if (a.prompt) state.prompt = String(a.prompt).slice(0, 300);
-      state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: a.note || `${(a.nodes || []).length} boxes, ${(a.calls || []).length} calls` });
-      tell(`${a.by} drew on the map: ${a.note || 'a plan'}`);
-      return true;
-    },
-    // the plan's pull request, posted by the chat that drew it: a draft holding the plan while it waits for
-    // answers, then open, with what the map checked, once the code is on it
-    /** @param {any} a */
-    pr(a) {
-      const id = String(a.id || '').slice(0, 20); if (!id) return false;
-      const had = (state.prs ||= []).find((/** @type {any} */ p) => p.id === id), s = (/** @type {any} */ v, /** @type {any} */ n) => String(v ?? '').slice(0, n);
-      const pr = { id, title: s(a.title || had?.title, 120), url: s(a.url || had?.url, 300),
-        status: ['draft', 'open', 'merged', 'closed'].includes(a.status) ? a.status : had?.status || 'draft',
-        agent: s(a.agent || had?.agent || 'Claude Code', 40), by: a.by,
-        checks: Array.isArray(a.checks) ? a.checks.slice(0, 12).map((/** @type {any} */ c) => ({ name: s(c.name, 120), ok: !!c.ok, ...(c.detail ? { detail: s(c.detail, 200) } : {}) })) : had?.checks || [],
-        files: Array.isArray(a.files) ? a.files.slice(0, 30).map((/** @type {any} */ f) => s(f, 120)) : had?.files || [] };
-      if (had) Object.assign(had, pr); else state.prs.push(pr);
-      state.pr = id;
-      tell(`${a.by} ${had ? 'updated' : 'opened'} pull request ${id}${pr.title ? `: ${pr.title}` : ''} (${pr.status})`);
-      return true;
-    },
-    // Execute: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
-    // it when it is listening; when that chat has gone quiet, the chat listening on this map now builds it instead,
-    // so pressing Execute never lands in an empty inbox
-    /** @param {any} a */
-    execute(a) {
-      const admin = state.people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
-      state.executed = { by: a.by, at: stamp() };
-      const pr = state.prs?.find((/** @type {any} */ p) => p.id === state.pr), to = state.owner && waiters.some((/** @type {any} */ w) => w.who === state.owner) ? state.owner : '*';
-      tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
-      return true;
-    },
-    // Give me plan.md: instead of building, the same chat writes the plan out as plan.md at the repo's root,
-    // and the map links to it; Execute stays for when the admin is ready
-    /** @param {any} a */
-    planmd(a) {
-      const admin = state.people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
-      state.planmd = { by: a.by, at: stamp() };
-      const to = state.owner && waiters.some((/** @type {any} */ w) => w.who === state.owner) ? state.owner : '*';
-      tell(`${a.by} asked for plan.md instead of Execute: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Execute when ready.`, to);
-      return true;
-    },
-    // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
-    // the way a plan draws them, without a new session in the map's list
-    // Instructions and Memory: only Claude adds them (Apply on its change, or the map tools); people change their
-    // words or take them away, a box's ones only within their access
-    /** @param {any} a */
-    editmemory(a) {
-      const m = state.memory?.find((/** @type {any} */ x) => x.id === a.id), text = String(a.text || '').trim().slice(0, 300), b = m?.box && nodeOf(m.box), sees = seesOf(a.by);
-      if (!m || !text || (b && sees !== 'all' && b.area !== sees)) return false;
-      m.text = text; m.by = a.by; m.at = Date.now(); return true;
-    },
-    /** @param {any} a */
-    forget(a) {
-      const i = (state.memory || []).findIndex((/** @type {any} */ x) => x.id === a.id), b = i >= 0 && state.memory[i].box && nodeOf(state.memory[i].box), sees = seesOf(a.by);
-      if (i < 0 || (b && sees !== 'all' && b.area !== sees)) return false;
-      state.memory.splice(i, 1); return true;
-    },
-    /** @param {any} a */
-    edit(a) {
-      if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
-      if (typeof a.start === 'string' && [...state.nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) state.start = a.start;
-      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });
-      if (a.tidy === true) relayout();
-      for (const m of (a.memory || []).slice(0, 10)) keepMemory(m, a.by);
-      state.log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });
-      tell(`${a.by} changed the map: ${String(a.note || 'a quick change').slice(0, 200)}`);
-      return true;
-    },
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them

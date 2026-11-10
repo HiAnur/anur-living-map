@@ -7,6 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { checkCommand, COMMANDS } from './commands.js';
 import { openMap } from './server.js';
 
+// where a map's handlers live: server.js, and the *-acts.js modules it spreads into its actions
+const HANDLERS = ['server.js', ...fs.readdirSync(import.meta.dirname).filter((f) => f.endsWith('-acts.js'))];
+
 // Each action's schema: what the page sends today passes, what a handler cannot use is refused with the field
 // named, and a map answers that with 400 before anything changes.
 describe('action schemas', () => {
@@ -72,7 +75,7 @@ describe('action schemas', () => {
   });
   it('declare every field a handler reads, in the handler or the helper it hands the action to', () => {
     const read = (/** @type {string} */ f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
-    const lines = ['server.js', 'chat-acts.js', 'box-acts.js'].map(read).join('\n').split('\n');
+    const lines = HANDLERS.map(read).join('\n').split('\n');
     // what a helper reads of the action it is handed, for the handlers that pass it on whole
     const helper = (/** @type {string} */ file, /** @type {string} */ start) => { const s = read(file); const i = s.indexOf(start); return s.slice(i, s.indexOf('\n}', i)); };
     /** @type {Record<string, string>} */
@@ -91,7 +94,7 @@ describe('action schemas', () => {
     expect([...new Set(undeclared)]).toEqual([]);
   });
   it('cover every action a map has', async () => {
-    const source = ['server.js', 'chat-acts.js', 'box-acts.js'].map((f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')).join('\n');
+    const source = HANDLERS.map((f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')).join('\n');
     const acts = source.slice(source.indexOf('const ACTS = {'));
     const named = [...source.matchAll(/\n {4}(\w+)\(a?\) \{/g)].map((m) => m[1]).filter((n) => acts.includes(`${n}(`));
     for (const n of [...named, 'call', 'undo', 'redo']) expect(COMMANDS, n).toHaveProperty(n);
