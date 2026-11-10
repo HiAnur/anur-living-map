@@ -1,18 +1,13 @@
 import { spawn } from 'node:child_process';
 
-import { addWords, claudeEnv, killer, readLines } from './claude.js';
+import { addWords, claudeEnv, killer, onlyTools, readLines } from './claude.js';
 
 // Keep the executor's catalog visible, but prevent preparation from doing the task.
 // This hook also denies tools that a person's existing settings already allow.
 const LOOKUPS = ['Read','Grep','Glob','ToolSearch','WebSearch','WebFetch',
   'mcp__claude_ai_Gmail__search_threads','mcp__claude_ai_Gmail__get_thread','mcp__claude_ai_Gmail__get_message',
   'mcp__map_context__list_maps','mcp__map_context__load_map'];
-/** @param {string} s */
-const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
-export function preparationSettings() {
-  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{};if(!${JSON.stringify(LOOKUPS)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:'Action preparation can only look up information. Review the brief and press Execute to make changes.'}}));});`;
-  return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
-}
+export const preparationSettings = () => onlyTools(LOOKUPS, 'Action preparation can only look up information. Review the brief and press Execute to make changes.');
 
 /**
  * @param {{ cwd: string, env: Record<string, string | undefined>, connected?: boolean, config?: unknown, prompt: string,

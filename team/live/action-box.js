@@ -82,7 +82,7 @@ export function recoverAction(n) {
  *   context: (n: Box, by: string) => string,
  *   ask: (job: { prompt: string, by: string, onText: (words: string) => void, onDone: (reply: string, access?: { tools?: string[], denied?: string[] }) => void }) => Stop,
  *   changed: () => void,
- *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
+ *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
  *   executionCwd: string,
  * }} deps
  */
@@ -191,7 +191,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       delete a.since; delete a.progress; reconcile(); changed();
     };
     try {
-      job.stop = run({cwd:a.cwd,session:a.session,resume,prompt,onText(words) {
+      job.stop = run({cwd:a.cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],onText(words) {
         if (!active()) { reconcile(); return; }
         a.progress = String(words).slice(-32000); changed();
       },onDone:finish});

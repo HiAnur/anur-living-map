@@ -13,6 +13,18 @@ export function claudeEnv(env) {
   return env;
 }
 
+/** @param {string} s */
+const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
+
+// Claude Code settings whose PreToolUse hook denies every tool not named in `allowed`, with `reason` as what
+// Claude is told. A hook decides before the person's own settings do, so a tool they allowed for themselves is
+// denied here too; a tool named here still goes through their usual permission checks.
+/** @param {readonly string[]} allowed @param {string} reason */
+export function onlyTools(allowed, reason) {
+  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{};if(!${JSON.stringify(allowed)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(reason).replaceAll('"', "'")}}}));});`;
+  return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
+}
+
 // every process still running, by the function that stops it: none outlives the server
 /** @type {Set<(signal: NodeJS.Signals) => void>} */
 const active = new Set();

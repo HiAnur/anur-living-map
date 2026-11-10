@@ -1,8 +1,16 @@
 import { spawn } from 'node:child_process';
 
-import { addWords, claudeEnv, killer, readLines } from './claude.js';
+import { addWords, claudeEnv, killer, onlyTools, readLines } from './claude.js';
 
 const MAX = 32_000;
+// What every run may use besides the tools its brief names: read and search files, load a connector's tools
+// before calling one, keep a task list, and return the structured result. None of them changes anything.
+export const ALWAYS = ['Read', 'Grep', 'Glob', 'ToolSearch', 'TodoWrite', 'StructuredOutput'];
+const OUTSIDE = 'This tool is not in the reviewed brief, so this run cannot use it. Finish with what the brief allows, or report that the task needs it.';
+// The run's limit: the tools the person reviewed in the brief, and the fixed read-only set. A tool named here
+// still goes through the person's own permission checks.
+/** @param {readonly string[] | undefined} tools */
+export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE);
 export const completionSchema = {
   type:'object', additionalProperties:false,
   properties:{ status:{type:'string',enum:['completed','needs_input','blocked']}, summary:{type:'string'}, evidence:{type:'array',items:{type:'string'}} },
@@ -24,13 +32,14 @@ On continuation, read this same conversation and check what already happened bef
 // Keep the chat on disk; every follow-up resumes its exact ID, never the latest chat in a folder.
 /**
  * @param {{ cwd: string, env: Record<string, string | undefined>, session: string, resume?: boolean, prompt: string,
- *   onText: (words: string) => void, onDone: (result: RunResult) => void, spawnProcess?: typeof spawn }} job
+ *   tools?: string[], onText: (words: string) => void, onDone: (result: RunResult) => void, spawnProcess?: typeof spawn }} job
  */
-export function runAction({ cwd, env, session, resume, prompt, onText, onDone, spawnProcess = spawn }) {
+export function runAction({ cwd, env, session, resume, prompt, tools, onText, onDone, spawnProcess = spawn }) {
   env = claudeEnv(env);
   const proc = spawnProcess('claude', ['-p', ...(resume ? ['--resume', session] : ['--session-id', session]),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--permission-mode', 'auto', '--permission-prompts', 'none', '--json-schema', JSON.stringify(completionSchema), '--append-system-prompt', executionPrompt],
+    '--permission-mode', 'auto', '--permission-prompts', 'none', '--settings', JSON.stringify(runSettings(tools)),
+    '--json-schema', JSON.stringify(completionSchema), '--append-system-prompt', executionPrompt],
   { cwd, env, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
   let words = '', errors = '', /** @type {RunResult | null} */ result = null, done = false, stopped = false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;
   /** @param {RunResult} value */
