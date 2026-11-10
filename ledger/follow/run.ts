@@ -13,6 +13,8 @@ import {
   sweepMessage,
   SYSTEM,
   type Answer,
+  PROMPT_ID,
+  SWEEP_PROMPT_ID,
 } from "../extract.ts";
 import type { Turn } from "../transcript.ts";
 import {
@@ -107,7 +109,11 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
       const error = r.ok
         ? "The map's answer was not in the shape asked for."
         : r.error || "The model did not answer.";
-      db.saveRun(root, { turns, base, error, usage, ms: r.ms }, now());
+      db.saveRun(
+        root,
+        { turns, base, error, usage, ms: r.ms, prompt: PROMPT_ID },
+        now(),
+      );
       fail(error);
       return;
     }
@@ -116,14 +122,21 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
     if (f.s.store.read !== base) {
       db.saveRun(
         root,
-        { turns, base, error: "the map moved on", usage, ms: r.ms },
+        {
+          turns,
+          base,
+          error: "the map moved on",
+          usage,
+          ms: r.ms,
+          prompt: PROMPT_ID,
+        },
         now(),
       );
       return;
     }
     const id = db.saveRun(
       root,
-      { turns, base, answer: r.value, usage, ms: r.ms },
+      { turns, base, answer: r.value, usage, ms: r.ms, prompt: PROMPT_ID },
       now(),
     );
     commitRun(ctx, f, id, answer, batch);
@@ -190,14 +203,21 @@ async function sweep(ctx: Ctx, f: Follower) {
   if (!answer || f.s.store.read !== base) {
     db.saveRun(
       root,
-      { turns, base, error: "sweep: no usable answer", usage, ms: r.ms },
+      {
+        turns,
+        base,
+        error: "sweep: no usable answer",
+        usage,
+        ms: r.ms,
+        prompt: SWEEP_PROMPT_ID,
+      },
       now(),
     );
     return;
   }
   const id = db.saveRun(
     root,
-    { turns, base, answer: r.value, usage, ms: r.ms },
+    { turns, base, answer: r.value, usage, ms: r.ms, prompt: SWEEP_PROMPT_ID },
     now(),
   );
   commitRun(ctx, f, id, answer, shown);

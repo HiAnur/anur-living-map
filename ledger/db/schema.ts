@@ -137,6 +137,9 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE items ADD COLUMN unconfirmed TEXT;`,
   // how much of the last filed turn was read (Conv.readExtent)
   `ALTER TABLE conversations ADD COLUMN read_extent TEXT;`,
+  // which instructions and schema produced a run (promptId in extract.ts);
+  // runs from before have none
+  `ALTER TABLE runs ADD COLUMN prompt TEXT;`,
 ];
 
 // Brings a store up to the latest version, each migration in its own

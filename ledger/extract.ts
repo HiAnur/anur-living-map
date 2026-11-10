@@ -3,6 +3,8 @@
 // change before it lands: the model never mints an id, never writes the map's
 // text, and can't file what it can't quote.
 
+import crypto from "node:crypto";
+
 import {
   isOpen,
   isWaiting,
@@ -218,6 +220,18 @@ export const SWEEP_SYSTEM = `You check a map of one Claude Code conversation for
 - dropped: the user moved on without taking up an optional offer, or the conversation made it moot;
 - not the user's: it belongs to someone else named in the chat (a teammate, a reviewer). Mark it dropped with reason "not the user's".
 Answer through the schema with "update" ops only: the item's id as "item", the new "state" (done for tasks and asks that happened, answered for questions, dropped otherwise), the "turn" that shows it, and a short "quote" from that turn. Leave out anything you are not sure about. Leave "topics" empty.`;
+
+// Which instructions and schema produced an answer, as 12 hex characters:
+// kept with each run, so a change in what the map files can be traced to a
+// change in what the model was told.
+export const promptId = (system: string, schema: unknown) =>
+  crypto
+    .createHash("sha256")
+    .update(`${system}\n${JSON.stringify(schema)}`)
+    .digest("hex")
+    .slice(0, 12);
+export const PROMPT_ID = promptId(SYSTEM, SCHEMA);
+export const SWEEP_PROMPT_ID = promptId(SWEEP_SYSTEM, SCHEMA);
 
 // the items to check and the turns since the oldest came up, newest kept
 // whole when that runs long

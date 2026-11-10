@@ -10,6 +10,7 @@ import { test } from "vitest";
 
 import { readMore } from "../server/providers/claude-transcript.ts";
 import { openDb } from "./db.ts";
+import { PROMPT_ID, SYSTEM } from "./extract.ts";
 import {
   chat,
   filing,
@@ -326,5 +327,23 @@ test("an answer saved but never applied is applied once on restart, never twice"
   assert.throws(
     () => third.db.commit(third.db.load(root)!, [], 1, { id: 1, rejected: [] }),
     /not waiting/,
+  );
+});
+
+test("every run keeps the id of the instructions it was filed with", async () => {
+  const c = chat();
+  const t = setup();
+  t.link(c);
+  c.turn("Which queue should we use?", "Redis or Kafka?");
+  t.advance(6000);
+  await t.ledger.tick();
+  assert.equal(t.calls.length, 1);
+  assert.equal(t.calls[0]!.system, SYSTEM);
+  const runs = t.db.db.prepare("SELECT prompt FROM runs").all() as {
+    prompt: string | null;
+  }[];
+  assert.deepEqual(
+    runs.map((r) => r.prompt),
+    [PROMPT_ID],
   );
 });

@@ -128,8 +128,8 @@ export function openDb(file: string) {
     "UPDATE runs SET status = 'applied', rejected = ? WHERE id = ? AND conv = ? AND status = 'answered'",
   );
   const putRun = db.prepare(
-    `INSERT INTO runs (conv, turns, base, answer, status, usd, input, output, model, ms, error, at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (conv, turns, base, answer, status, usd, input, output, model, ms, error, at, prompt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const putSpend = db.prepare(
     "INSERT INTO spend (conv, run, what, model, input, output, usd, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -271,6 +271,7 @@ export function openDb(file: string) {
         error?: string;
         usage: RunUsage | null;
         ms: number;
+        prompt?: string; // promptId of what the model was told
       },
       at: number,
     ): number {
@@ -290,6 +291,7 @@ export function openDb(file: string) {
             Math.round(r.ms),
             r.error ?? "",
             at,
+            r.prompt ?? null,
           ).lastInsertRowid,
         );
         putSpend.run(
