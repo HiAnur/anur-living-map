@@ -5,10 +5,12 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
-<dt><strong>🧹 [Layout cleanup] Clearer box-type controls</strong></dt>
+<dt><strong>✨ [New feature] Turn plans into reviewed Actions</strong></dt>
 <dd>
 
-Beside **Auto plan**, use **Make action box** or **Make info box** to switch a box before execution. [#218](https://github.com/HiAnur/anur-living-map/pull/218) <!-- merged-at: 2026-11-09T22:11:40Z -->
+**Auto plan** can add Actions with concrete tasks, prerequisites and readiness; review and prepare each Action before choosing **Execute**. The top-right **Info box / Action box** toggle leaves room for the title, status pills show progress, and **Revise** keeps earlier drafts as files in chat. In **Brain → Include other maps**, expand the checklist to choose extra context; other maps start unchecked. [#220](https://github.com/HiAnur/anur-living-map/pull/220) <!-- merged-at: 2026-11-10T00:20:28Z -->
+
+<img src="docs/shipping/2026-11-09/action-box.png" alt="A sample Action box beside its Side Chat, with the compact Action box toggle above the title and an instructions field for preparation." width="660">
 
 </dd>
 </dl>
