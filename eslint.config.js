@@ -14,6 +14,8 @@ export default defineConfig([
   globalIgnores([
     "dist/**",
     "coverage/**",
+    "test-results/**",
+    "playwright-report/**",
     "out/**",
     "cache/**",
     "data/**",
@@ -37,6 +39,7 @@ export default defineConfig([
       "eval/**/*.ts",
       "ledger/**/*.ts",
       "shared/**/*.ts",
+      "e2e/**/*.ts",
       "*.config.{js,ts}",
       ".ncurc.cjs",
     ],
@@ -57,11 +60,35 @@ export default defineConfig([
         },
       ],
       "linebreak-style": ["error", "unix"],
+      // a file past this holds more than one thing: split it by what it does
+      "max-lines": [
+        "error",
+        { max: 500, skipBlankLines: true, skipComments: true },
+      ],
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },
+  },
+  {
+    // the files over the limit when it was set: take one off this list in
+    // the change that splits it, and add none
+    files: [
+      "eval/changes-retro.ts",
+      "ledger/changes/changes.test.ts",
+      "ledger/changes/graph.ts",
+      "ledger/db.ts",
+      "ledger/extract.test.ts",
+      "ledger/follow.test.ts",
+      "ledger/follow.ts",
+      "ledger/sides.test.ts",
+      "ledger/sides.ts",
+      "ledger/transcript.test.ts",
+      "ledger/transcript.ts",
+      "web/map/MapScreen.tsx",
+    ],
+    rules: { "max-lines": "off" },
   },
   prettierRecommended,
 ]);

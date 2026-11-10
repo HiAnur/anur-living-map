@@ -17,7 +17,12 @@ jobs:
       # the husky hook is for local commits; CI runs the same checks directly
       - run: npm ci --ignore-scripts
       - run: npm run check
+      # the tests again, failing when the ledger's coverage drops under its floor
+      - run: npm run coverage
       - run: npm run build
+      # the map's screen in a real browser, on the fixture map
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui
       # the agent docs (AGENTS.md, CLAUDE.md, skills) still match the code
       - run: python3 .github/agent-docs/check.py .
 
