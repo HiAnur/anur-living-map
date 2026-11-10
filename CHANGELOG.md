@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Cancel an Action without losing it</strong></dt>
+<dd>
+
+**Cancel Action** sets an Action aside before it runs and keeps its instructions, answers and versions; **Prepare again** brings it back with its instructions. <!-- source: https://github.com/HiAnur/anur-living-map/pull/315 --> <!-- merged-at: 2026-11-10T21:53:24Z -->
+
+<img src="docs/shipping/2026-11-10/action-cancelled.png" alt="A sample map with the Free trial Action box marked Cancelled, and its details pane showing the Cancelled card with Prepare again." width="660">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Build the plan</strong></dt>
 <dd>
 
