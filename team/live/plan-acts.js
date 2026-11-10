@@ -47,8 +47,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     // so pressing Execute never lands in an empty inbox
     /** @param {any} a */
     execute(a) {
-      const admin = getState().people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
+      if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().executed = { by: a.by, at: stamp() };
       const pr = getState().prs?.find((/** @type {any} */ p) => p.id === getState().pr), to = getState().owner && waiters.some((/** @type {any} */ w) => w.who === getState().owner) ? getState().owner : '*';
       tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
@@ -58,8 +57,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     // and the map links to it; Execute stays for when the admin is ready
     /** @param {any} a */
     planmd(a) {
-      const admin = getState().people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
+      if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().planmd = { by: a.by, at: stamp() };
       const to = getState().owner && waiters.some((/** @type {any} */ w) => w.who === getState().owner) ? getState().owner : '*';
       tell(`${a.by} asked for plan.md instead of Execute: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Execute when ready.`, to);

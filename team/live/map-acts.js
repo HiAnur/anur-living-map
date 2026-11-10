@@ -3,14 +3,14 @@
 
 /**
  * @param {{ getState: () => any, contextMaps: ((by: any) => any[]) | null, nodeOf: (id: any) => any,
- *   seesOf: (by: any) => string, tell: Function, ownerOf: Function }} deps
+ *   tell: Function, ownerOf: Function }} deps
  */
-export function mapActs({ getState, contextMaps, nodeOf, seesOf, tell, ownerOf }) {
+export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
   return {
     // Discovery combines this background with the current topics and decisions.
     /** @param {any} a */
     contextmap(a) {
-      if (!a.by || a.by === 'Guest' || seesOf(a.by) !== 'all' || typeof a.id !== 'string' || typeof a.include !== 'boolean') return false;
+      if (typeof a.id !== 'string' || typeof a.include !== 'boolean') return false;
       if (a.include && !(contextMaps?.(a.by) || []).some((/** @type {any} */ m) => m.id === a.id && m.allowed())) return false;
       const ids = new Set(getState().contextMapIds || []);
       if (a.include) ids.add(a.id); else ids.delete(a.id);
@@ -19,7 +19,7 @@ export function mapActs({ getState, contextMaps, nodeOf, seesOf, tell, ownerOf }
     },
     /** @param {any} a */
     describemap(a) {
-      if (typeof a.description !== 'string' || a.description.length > 12000 || seesOf(a.by) !== 'all') return false;
+      if (typeof a.description !== 'string' || a.description.length > 12000) return false;
       getState().desc = a.description.trim();
       return true;
     },
