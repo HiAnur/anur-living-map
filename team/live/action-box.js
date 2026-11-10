@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 
 import { readCompletion } from './action-runner.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
+import { can, handedOff } from './action-stages.js';
 
 export const actionPrompt = `Prepare an Action box: a concrete task to carry out, not more planning boxes.
 Use the selected box, its planned task, accessible map context and the answers below. Reuse its goal, inputs, steps, destination and completion evidence; do not ask the person to repeat them. You may use available lookup tools to verify missing facts, but do not change files, send messages or execute anything. When access permits, this preparation session loads the executing session's project and configured tool catalog with only lookup calls allowed. Check actual tool definitions, access and lookup results. Never assume a connector is present or that a lookup denial will disappear during execution. Do not use a tool to test a write or send.
@@ -99,14 +100,14 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   }
   /** @param {string} id @param {string} by @param {any} intent */
   function start(id, by, intent) {
-    const n = nodeOf(id); if (!owns(n, by) || n.action?.stage !== 'draft' || !text(intent, 4000)) return false;
+    const n = nodeOf(id); if (!owns(n, by) || !can('start', n.action?.stage) || !text(intent, 4000)) return false;
     n.action.intent = intent.trim(); return prepare(id, by);
   }
   /** @param {string} id @param {string} by @param {any} [answer] */
   function prepare(id, by, answer) {
     const n = nodeOf(id), prior = n?.action;
-    if (!owns(n, by) || !prior?.intent || !['draft','clarify','ready','error','waiting'].includes(prior.stage) || prior.session) return false;
-    if (answer !== undefined && (prior?.stage !== 'clarify' || !text(answer, 2000))) return false;
+    if (!owns(n, by) || !prior?.intent || !can('prepare', prior.stage) || prior.session) return false;
+    if (answer !== undefined && (!can('answer', prior?.stage) || !text(answer, 2000))) return false;
     const history = [...(prior?.history || [])];
     if (answer !== undefined) history.push({ question:prior.question, answer:answer.trim() });
     const waiting = dependencyBlockers(prior.plan,nodeOf,(node) => canUse(node,by));
@@ -141,12 +142,12 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   }
   /** @param {string} id @param {string} by */
   function cancel(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || ['sent','unconfirmed'].includes(n.action.stage)) return false;
+    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || handedOff(n.action.stage)) return false;
     jobs.get(id)?.(); jobs.delete(id); delete n.action; n.boxType = 'topic'; changed(); return true;
   }
   /** @param {string} id @param {string} by */
   function revise(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || n.action?.stage !== 'ready') return false;
+    const n = nodeOf(id); if (!owns(n, by) || !can('revise', n.action?.stage)) return false;
     n.action.documents ||= [];
     n.action.documents.push(actionDocument(n.action.brief, n.action.documents.length + 1));
     Object.assign(n.action, {stage:'clarify',question:'What would you like to change about this action?',choices:[]}); changed(); return true;
@@ -154,13 +155,13 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   /** @param {string} id @param {string} by @param {unknown} revision */
   function execute(id, by, revision) {
     const n = nodeOf(id), a = n?.action;
-    if (!owns(n, by) || !['ready','sent','unconfirmed'].includes(a?.stage) || a.session || a.id !== revision) return false;
+    if (!owns(n, by) || !can('execute', a?.stage) || a.session || a.id !== revision) return false;
     const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); changed(); return false; }
     if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); changed(); return false; }
     const checked = readActionReply('```action\n'+JSON.stringify({status:'ready',brief:a.brief})+'\n```');
     if (checked?.stage !== 'ready') return false;
-    const recovery = a.stage !== 'ready';
+    const recovery = handedOff(a.stage);
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
     const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
     return runTurn(id, by, a, prompt, false);
@@ -168,7 +169,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   /** @param {string} id @param {string} by @param {unknown} revision @param {any} [answer] */
   function continueAction(id, by, revision, answer = '') {
     const n = nodeOf(id), a = n?.action;
-    if (!owns(n, by) || !a?.session || !['finished','blocked'].includes(a.stage) || a.id !== revision || typeof answer !== 'string' || answer.length > 4000) return false;
+    if (!owns(n, by) || !a?.session || !can('continue', a.stage) || a.id !== revision || typeof answer !== 'string' || answer.length > 4000) return false;
     const message = answer.trim() || 'Continue the reviewed task. Check what already finished in this conversation before doing more.';
     a.turns.push({who:by,text:answer.trim() || 'Continue'});
     return runTurn(id, by, a, message, true);
@@ -200,7 +201,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
   /** @param {string} id @param {string} by @param {unknown} revision */
   function stop(id, by, revision) {
     const n = nodeOf(id), a = n?.action, job = runs.get(id);
-    if (!owns(n, by) || a?.stage !== 'running' || a.id !== revision || !job) return false;
+    if (!owns(n, by) || !can('stop', a?.stage) || a.id !== revision || !job) return false;
     job.stop?.();
     return true;
   }
@@ -214,7 +215,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     let updated = false;
     for (const n of nodes) {
       const a = n.action;
-      if (!a?.plan || a.session || !['draft','ready','waiting'].includes(a.stage)) continue;
+      if (!a?.plan || a.session || !can('watch', a.stage)) continue;
       const waiting = dependencyBlockers(a.plan,nodeOf,(node) => canUse(node,a.by));
       if (waiting.length && (a.stage !== 'waiting' || JSON.stringify(a.waiting) !== JSON.stringify(waiting))) {
         Object.assign(a,{stage:'waiting',waiting}); updated=true;
