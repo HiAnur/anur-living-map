@@ -96,7 +96,6 @@ export default defineConfig([
       "ledger/follow.test.ts",
       "ledger/sides.test.ts",
       "ledger/transcript.test.ts",
-      "web/map/MapScreen.tsx",
     ],
     rules: { "max-lines": "off" },
   },
