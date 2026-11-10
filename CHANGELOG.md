@@ -3,6 +3,26 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] One way into a box's Side Chat</strong></dt>
+<dd>
+
+The Side Chat button beside **Auto plan** is gone; the box's **Side Chat** tab opens the chat on its newest message, ready for you to type. <!-- source: https://github.com/HiAnur/anur-living-map/pull/329 --> <!-- merged-at: 2026-11-10T23:15:07Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Archive an Action once it has run</strong></dt>
+<dd>
+
+An Action's box can be deleted only before it runs, and only by its author or an Admin; after a run, **Archive this box** takes it off the map with its whole record, and **History** lists it under **Archived Actions** to put back. <!-- source: https://github.com/HiAnur/anur-living-map/pull/328 --> <!-- merged-at: 2026-11-10T23:12:21Z -->
+
+<img src="docs/shipping/2026-11-10/archived-actions.jpg" alt="A team map with the History panel open on the right, listing the archived Free trial Action under Archived Actions with a Put back on the map button, above the map's versions." width="537">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Actions move forward when what they wait on is done</strong></dt>
 <dd>
 
