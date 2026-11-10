@@ -3,6 +3,8 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { actionExecuted, actionLeaving } from './page-action.js';
+
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const start=html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('));
 const source=html.slice(start,html.indexOf('const ago =',start));
@@ -20,7 +22,7 @@ describe('delete selected boxes',()=>{
 describe('branch deletion confirmation',()=>{
   function page(){
     const calls=[],state={nodes:[{id:'root',label:'Root',x:0,y:0},{id:'parent',label:'Parent',x:210,y:0},{id:'child',label:'Child',x:420,y:0}],edges:[{from:'root',to:'parent'},{from:'parent',to:'child'}]};let handler;
-    const ctx=vm.createContext({Set,Map,S:state,group:new Set(),selected:'parent',delAsk:null,PREVIEW:null,READ_ONLY:false,FILE:false,pendingRemovals:new Set(),pendingTopics:new Set(),keyboardSelection:true,
+    const ctx=vm.createContext({Set,Map,actionLeaving,actionExecuted,ME:'Ana',S:state,group:new Set(),selected:'parent',delAsk:null,PREVIEW:null,READ_ONLY:false,FILE:false,pendingRemovals:new Set(),pendingTopics:new Set(),keyboardSelection:true,
       nodeById:id=>state.nodes.find(n=>n.id===id),scope:()=>state,locked:()=>false,topicParent:n=>state.nodes.find(x=>state.edges.some(e=>e.from===x.id&&e.to===n.id)),
       render(){},keepInView(){},selectTopic:id=>{ctx.selected=id;},toast(){},refreshMap:async()=>{},
       hideRemoved:s=>{s.nodes=s.nodes.filter(n=>!ctx.pendingRemovals.has(n.id));s.edges=s.edges.filter(e=>!ctx.pendingRemovals.has(e.from)&&!ctx.pendingRemovals.has(e.to));},

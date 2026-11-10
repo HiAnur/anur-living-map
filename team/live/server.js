@@ -45,6 +45,7 @@ import { selfUpdate } from './self-update.js';
 import { jsonBody } from './request.js';
 import { shareRoutes } from './share-routes.js';
 import { mapActs } from './map-acts.js';
+import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { diagramOf } from './diagram.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
@@ -338,6 +339,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   const actions = actionBoxes({
     nodeOf,
+    // an archived Action still counts for the Actions that wait on it
+    prerequisiteOf: (id) => nodeOf(id) || state.archived?.find((/** @type {any} */ x) => x.box.id === id)?.box,
     allNodes,
     canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
@@ -393,7 +396,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // a new box with no place goes where its lines cross nothing
     placeNew(state.nodes, state.edges, state.start);
     merge(state.calls, (/** @type {any} */ c) => c.id, p.calls);
-    for (const id of p.remove || []) state.nodes = state.nodes.filter((/** @type {any} */ n) => n.id !== id);
+    // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing
+    for (const id of p.remove || []) if (!nodeOf(id)?.action) state.nodes = state.nodes.filter((/** @type {any} */ n) => n.id !== id);
     for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
   }
   // a line taken off the map, wherever it is drawn: the system or the inside of a box
@@ -487,7 +491,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
-    contextMapIds: state.contextMapIds || [], linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
+    archived: state.archived || [], contextMapIds: state.contextMapIds || [], linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
@@ -499,6 +503,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
+    ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     call: answerCall,
     // the schema lets an id come as a number, which finds no box, so an Action box reads every id as text
     /** @param {Act<'actionbox'>} a */

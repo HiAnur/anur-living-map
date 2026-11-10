@@ -34,6 +34,6 @@ export function sharedState(state, owner = false, guest = false) {
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
+  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
   return result;
 }

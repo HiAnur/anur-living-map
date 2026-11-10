@@ -31,9 +31,12 @@ const FROM = {
   confirm: ['finished'],
   // its prerequisites are watched: it waits while one is unfinished, and is a draft again once all are done
   watch: ['draft', 'ready', 'waiting'],
+  // its box is deleted only before it runs; once it has run, its box is archived, and what it did is kept
+  remove: ['draft', 'clarify', 'ready', 'waiting', 'error', 'cancelled'],
+  archive: ['finished', 'blocked', 'unconfirmed'],
 };
 
-/** @param {'start' | 'prepare' | 'answer' | 'revise' | 'execute' | 'continue' | 'stop' | 'cancel' | 'reopen' | 'confirm' | 'watch'} ask @param {unknown} stage */
+/** @param {'start' | 'prepare' | 'answer' | 'revise' | 'execute' | 'continue' | 'stop' | 'cancel' | 'reopen' | 'confirm' | 'watch' | 'remove' | 'archive'} ask @param {unknown} stage */
 export const can = (ask, stage) => FROM[ask].includes(/** @type {string} */ (stage));
 
 // handed to a run whose outcome never came back: it cannot be cancelled, and Execute first checks what happened

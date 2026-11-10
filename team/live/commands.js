@@ -33,6 +33,8 @@ export const COMMANDS = /** @type {const} */ ({
   actionexecute: { id: 'id', revision: 'any?' },
   actioncontinue: { id: 'id', revision: 'any?', answer: 'text?' },
   actionstop: { id: 'id', revision: 'any?' },
+  actionarchive: { id: 'id' },
+  actionunarchive: { id: 'id' },
   savenow: {},
   autosave: { on: 'boolean?' },
   reset: {},
