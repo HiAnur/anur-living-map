@@ -81,3 +81,32 @@ describe('questions, memory and the rest', () => {
     for (const args of [{ boxes: [{}] }, { tidy: true }, { start: 'x' }, { remove_lines: [{}] }]) expect(asksNothing(args)).toBe(false);
   });
 });
+
+describe('what Claude must give', () => {
+  it('leaves out a new box with no second line, and says how to put it right', () => {
+    const r = plan({ boxes: [{ label: 'Keep', sub: 'Stays' }, { label: 'Bare' }, { label: 'Blank', sub: '   ' }] });
+    expect(r.edit.nodes.map((n) => n.id)).toEqual(['keep']);
+    expect(r.skipped).toEqual([
+      'box "Bare": a new box needs a second line (sub) that says what it is, in a few words',
+      'box "Blank": a new box needs a second line (sub) that says what it is, in a few words',
+    ]);
+  });
+  it('still changes a box already on the map without one, by name or by id', () => {
+    expect(plan({ boxes: [{ label: 'Invite email', state: 'todo' }] }).edit.nodes).toEqual([{ id: 'email', state: 'todo' }]);
+    expect(plan({ boxes: [{ id: 'email', label: 'Invitation' }] }).skipped).toEqual([]);
+  });
+  it('leaves out a line with no label, and points at "under" for a box that only belongs under another', () => {
+    const r = plan({ boxes: [{ label: 'Keep', sub: 'Stays' }], lines: [{ from: 'launch', to: 'email' }, { from: 'launch', to: 'email', label: '  ' }] });
+    expect(r.edit.edges).toEqual([]);
+    expect(r.skipped).toEqual(Array(2).fill('line Launch → Invite email: say what happens on it (label), or set "under" on Invite email if it only belongs under Launch'));
+  });
+  it('hangs a box that is already on the map under another with no words, through "under"', () => {
+    const r = plan({ boxes: [{ id: 'email', under: 'launch' }] });
+    expect(r.edit.edges).toEqual([{ from: 'launch', to: 'email' }]);
+    expect(r.skipped).toEqual([]);
+  });
+  it('says nothing changed when a call held only a bare box or a bare line', () => {
+    expect(() => plan({ boxes: [{ label: 'Bare' }] })).toThrow('Nothing changed. box "Bare": a new box needs a second line');
+    expect(() => plan({ lines: [{ from: 'launch', to: 'email' }] })).toThrow('Nothing changed. line Launch → Invite email: say what happens on it');
+  });
+});

@@ -94,12 +94,12 @@ const TOOLS = [
       map: MAP,
       note: { type: 'string', description: 'One line on what this change does, for the map\'s log.' },
       boxes: { type: 'array', description: 'Boxes to add or update.', items: { type: 'object', properties: {
-        label: { type: 'string', description: 'The box\'s name. Matches an existing box by name to update it.' },
+        label: { type: 'string', description: 'The box\'s name. Required for a new box. Matches an existing box by name to update it.' },
         id: { type: 'string', description: 'An existing box\'s id to update it; a new box gets one from its name.' },
-        sub: { type: 'string', description: 'Second line under the name, a few words.' },
+        sub: { type: 'string', description: 'Second line under the name: what the box is, in a few words. Required for a new box; a new box without it is left out.' },
         notes: { type: 'string', description: 'What opens with the box: a short first line, then "- " bullets, one point each. Replaces the notes it had.' },
         state: { type: 'string', enum: STATES, description: 'todo = something to do; new = planned, not built; assumed-gone = the plan assumes it can go; gone = removed.' },
-        under: { type: 'string', description: 'A box (id or name) this one hangs under: draws a line from it to this one.' },
+        under: { type: 'string', description: 'A box (id or name) this one hangs under: draws a line from it to this one, with no words. Works on a box already on the map too, named by its id.' },
         diagram: { type: 'object', description: 'What the box opens into on a double click. Replaces the one it had; null takes it away.', required: ['kind', 'items'], properties: {
           kind: { type: 'string', enum: KINDS, description: 'timeline: items in order, oldest first, each with when. sequence: items in order, each a step from → to. venn: items, each with the groups it is in.' },
           title: { type: 'string', description: 'A heading for the diagram; the box name when left out.' },
@@ -111,8 +111,8 @@ const TOOLS = [
             to: { type: 'string', description: 'Sequence: who gets it.' },
             in: { type: 'array', items: { type: 'string' }, description: 'Venn: the groups it is in, 1 to 3 names; [] for none.' } } } } } },
         area: { type: 'string', description: '"billing" on anything about money, so the CFO can see it.' } } } },
-      lines: { type: 'array', description: 'Lines to draw between boxes, by id or name.', items: { type: 'object', required: ['from', 'to'], properties: {
-        from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'What happens to the box it points at, in a few plain words ("Sends the link").' } } } },
+      lines: { type: 'array', description: 'Lines that say what one box does to another, by id or name. A box that only belongs under another needs no line here: set "under" on that box.', items: { type: 'object', required: ['from', 'to', 'label'], properties: {
+        from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string', description: 'Required: what happens to the box it points at, in a few plain words ("Sends the link"). A line without it is left out.' } } } },
       remove_lines: { type: 'array', description: 'Lines to take off the map, by the boxes they join (id or name); the boxes stay.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' } } } },
       tidy: { type: 'boolean', description: 'true lays out the whole map again after this change, every box beside the box it hangs under, boxes people dragged included. '

@@ -37,6 +37,8 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   for (const b of boxes.slice(0, 40)) {
     const old = b.id ? had.find((/** @type {any} */ n) => n.id === b.id) : find(b.label);
     if (!old && !b.label) { skipped.push(`a box with no name${b.id ? ` (${b.id})` : ''}`); continue; }
+    // a new box says what it is under its name; a box already on the map is changed as it is
+    if (!old && !String(b.sub ?? '').trim()) { skipped.push(`box "${b.label}": a new box needs a second line (sub) that says what it is, in a few words`); continue; }
     if (b.state && !STATES.includes(b.state)) { skipped.push(`state "${b.state}" on ${b.label || b.id}: use ${STATES.join(', ')}`); delete b.state; }
     if (b.diagram && !KINDS.includes(b.diagram.kind)) { skipped.push(`diagram "${b.diagram.kind}" on ${b.label || b.id}: use ${KINDS.join(', ')}`); delete b.diagram; }
     let id = old?.id || (b.id && /^[a-z0-9-]{1,40}$/.test(b.id) ? b.id : slug(b.label));
@@ -56,6 +58,8 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   for (const l of lines.slice(0, 40)) {
     const a = find(l.from), z = find(l.to);
     if (!a || !z) { skipped.push(`line ${l.from} → ${l.to}: ${!a ? l.from : l.to} is not on the map`); continue; }
+    // a line drawn here says what one box does to the other; a box that only belongs under another has `under`
+    if (!String(l.label ?? '').trim()) { skipped.push(`line ${label(a.id)} → ${label(z.id)}: say what happens on it (label), or set "under" on ${label(z.id)} if it only belongs under ${label(a.id)}`); continue; }
     edges.push({ from: a.id, to: z.id, ...(l.label ? { label: clip(l.label, 40) } : {}) });
     done.push(`Line ${a.label} → ${z.label}${l.label ? ` (${l.label})` : ''}`);
   }
