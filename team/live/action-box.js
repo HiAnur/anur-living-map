@@ -4,7 +4,7 @@ import { readCompletion } from './action-completion.js';
 import { judgeRun } from './action-evidence.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
 import { KINDS, kindOf, kindsInWords } from './action-kinds.js';
-import { can, handedOff } from './action-stages.js';
+import { actionCancellable, can, handedOff } from './action-stages.js';
 
 export const actionPrompt = `Prepare an Action box: a concrete task to carry out, not more planning boxes.
 Use the selected box, its planned task, accessible map context and the answers below. Reuse its goal, inputs, steps, destination and completion evidence; do not ask the person to repeat them. You may use available lookup tools to verify missing facts, but do not change files, send messages or execute anything. When access permits, this preparation session loads the executing session's project and configured tool catalog with only lookup calls allowed. Check actual tool definitions, access and lookup results. Never assume a connector is present or that a lookup denial will disappear during execution. Do not use a tool to test a write or send.
@@ -187,7 +187,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   const untouched = (a) => a.stage === 'draft' && !a.intent && !a.plan && !a.history?.length && !a.documents?.length;
   /** @param {string} id @param {string} by */
   function cancel(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || !can('cancel', n.action.stage)) return false;
+    const n = nodeOf(id); if (!owns(n, by) || !actionCancellable(n.action)) return false;
     jobs.get(id)?.(); jobs.delete(id);
     if (untouched(n.action)) { delete n.action; n.boxType = 'topic'; }
     else {

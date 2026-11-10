@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-import { actionCancellable, actionExecuted, actionHistory, actionStatus, actionUntouched } from './page-action.js';
+import { actionCancellable } from './action-stages.js';
+import { actionExecuted, actionHistory, actionStatus, actionUntouched } from './page-action.js';
 
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const esc=s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
