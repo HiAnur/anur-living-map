@@ -45,7 +45,7 @@ npm run check        # ESLint, TypeScript, Prettier, tests
 The same checks run in the pre-commit hook and in CI. Please don't bypass the hook with `--no-verify`.
 
 - Add or update a test for any behaviour you change. The map's logic lives in `ledger/`; its tests run against a scripted model and transcripts written on the spot, so they need no network or API key.
-- Changing what Claude is asked to do (the extractor's prompt in `ledger/extract.ts`, a side chat's in `ledger/sides.ts`)? Describe what you tried and what changed in the PR. `node eval/extract-run.ts` runs the extractor over your own chats offline and `node eval/extract-score.ts` scores it; they call the model and cost real money.
+- Changing what Claude is asked to do (the extractor's prompt in `ledger/extract.ts`, a side chat's in `ledger/sides/brief.ts`)? Describe what you tried and what changed in the PR. `node eval/extract-run.ts` runs the extractor over your own chats offline and `node eval/extract-score.ts` scores it; they call the model and cost real money.
 - Keep changes focused: one fix or feature per pull request.
 
 ## Updating dependencies

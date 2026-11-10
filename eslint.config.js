@@ -83,7 +83,6 @@ export default defineConfig([
       "ledger/follow.test.ts",
       "ledger/follow.ts",
       "ledger/sides.test.ts",
-      "ledger/sides.ts",
       "ledger/transcript.test.ts",
       "ledger/transcript.ts",
       "web/map/MapScreen.tsx",

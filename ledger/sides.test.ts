@@ -18,15 +18,9 @@ import type { Spawn } from "../server/providers/claude-code.ts";
 import type { LedgerEvent, SideChat } from "../shared/ledger.ts";
 import { openDb, type Conv } from "./db.ts";
 import { createLedger } from "./follow.ts";
-import {
-  checkProposal,
-  createSides,
-  itemsPage,
-  parseProposal,
-  sideArgs,
-  SIDE_TOOLS,
-  turnsPage,
-} from "./sides.ts";
+import { itemsPage, sideArgs, SIDE_TOOLS, turnsPage } from "./sides/brief.ts";
+import { checkProposal, parseProposal } from "./sides/proposal.ts";
+import { createSides } from "./sides.ts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lm-sides-"));
 let n = 0;
