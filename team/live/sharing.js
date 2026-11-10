@@ -22,12 +22,12 @@ export function changeSharing(state, who, mode) {
   return true;
 }
 export const LINK_EDITS = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename', 'undo', 'redo', 'comment', 'reply', 'resolve', 'cursor']);
-export const withoutActions = (nodes) => nodes.map(({ action, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
+export const withoutActions = (nodes) => nodes.map(({ action, task, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
 export function sharedState(state, owner = false, guest = false) {
   const result = { ...state, linkSharing: owner ? state.linkSharing || { mode: 'restricted' } : { mode: state.linkSharing?.mode || 'restricted' } };
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], project: undefined });
+  if (guest) Object.assign(result, { threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
   return result;
 }

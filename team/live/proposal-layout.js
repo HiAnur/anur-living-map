@@ -9,7 +9,7 @@ const lines = (text, room, char) => {
   }
   return count;
 };
-const height = (n) => Math.max(n.h || 0, 50 + (lines(n.label, width(n) - 26, 7.4) - 1) * 17 + (Math.min(3, lines(n.sub, width(n) - 26, 6.7)) - 1) * 16);
+const height = (n) => Math.max(n.h || 0, (n.action || n.boxType === 'action' ? 18 : 0) + 50 + (lines(n.label, width(n) - 26, 7.4) - 1) * 17 + (Math.min(3, lines(n.sub, width(n) - 26, 6.7)) - 1) * 16);
 const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 
 export function appendProposed(existing, edges, additions, newEdges) {

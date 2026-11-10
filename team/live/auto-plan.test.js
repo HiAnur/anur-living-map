@@ -4,25 +4,30 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
+import { actionBoxes } from './action-box.js';
+import { readPlannedTask } from './action-plan.js';
 
 const server = fs.readFileSync(new URL('./server.js', import.meta.url), 'utf8');
 function harness() {
   const state = { title: 'Launch', nodes: [{id:'launch',label:'Launch',area:'product'},{id:'audience',label:'Audience',area:'product'},{id:'private',label:'Private budget',area:'finance'}], edges: [{from:'launch',to:'audience'}], people: [{id:'Tester',sees:'product'}], calls: [], threads: {}, log: [] };
   const calls = [];
-  const ctx = vm.createContext({ contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions,
+  const actionRequests=[],runs=[];
+  const actions=actionBoxes({nodeOf:id=>state.nodes.find(n=>n.id===id),allNodes:()=>state.nodes,canUse:()=>true,context:()=>'',ask:r=>actionRequests.push(r),changed(){},run:r=>runs.push(r)});
+  const ctx = vm.createContext({ contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
     nodeOf:id=>state.nodes.find(n=>n.id===id), allNodes:()=>state.nodes, allEdges:()=>state.edges,
     stamp:()=> '12:00', fs:{mkdirSync(){}}, askClaude:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, SIGNED_OUT:'signed out',
     withoutBlock:text=>text.split('```map')[0].trim(), placeProposed(){},
     mineChat:(key,by)=>key.startsWith(`@${by}>`), ownerOf:()=>null, tell(){},
     draw:plan=>{state.nodes.push(...plan.nodes);state.edges.push(...plan.edges);},
   });
+  vm.runInContext(server.slice(server.indexOf('  const selectedContextMaps ='),server.indexOf('  const updateBoxDates =')),ctx);
   vm.runInContext(server.slice(server.indexOf('  const seesOf ='),server.indexOf('  const actions = actionBoxes(')),ctx);
   vm.runInContext(server.slice(server.indexOf('  function proposal('),server.indexOf('  // a proposed change')),ctx);
   const checkStart=server.indexOf('  function check('), checkEnd=server.indexOf('\n  }',checkStart)+4;
   vm.runInContext(server.slice(checkStart,checkEnd),ctx);
   vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  const withoutBlock =')),ctx);
   vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
-  return {state,calls,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
+  return {state,calls,actions,actionRequests,runs,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 const reply = plan => `Suggested next steps.\n\`\`\`map\n${JSON.stringify(plan)}\n\`\`\``;
 
@@ -173,6 +178,28 @@ describe('Auto plan',()=>{
   it('bounds and validates malformed suggestions and ignores model supplied operations',()=>{
     expect(autoPlanAdditions(null,'root',[],[])).toEqual({nodes:[],edges:[]});
     const plan=autoPlanAdditions({nodes:[null,{id:{},label:'Bad'},{id:'empty',label:' '},{id:'one',label:'One'},{id:'one',label:'Other'},...Array.from({length:9},(_,i)=>({id:`n${i}`,label:`Next ${i}`}))]},'root',[{id:'root',label:'Root'}],[]);
-    expect(plan.nodes).toHaveLength(5);expect(plan.edges.every(e=>e.from==='root')).toBe(true);
+    expect(plan.nodes).toHaveLength(10);expect(plan.edges.every(e=>e.from==='root')).toBe(true);
+  });
+  it('applies nested Topics and real draft Actions with their task details, without preparing or executing',()=>{
+    const h=harness(),task={goal:'Research pilot participants',result:'A shortlist with supporting sources',destination:'Attach to this Action',inputs:['Audience'],steps:['Read the audience notes'],evidence:['Shortlist with sources'],dependsOn:[],readiness:'ready',blockers:[]};
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'research',label:'Research participants',boxType:'action',task,action:{stage:'ready',session:'injected'}},{id:'pilot',label:'Pilot planning',boxType:'topic'}],edges:[{from:'launch',to:'pilot'},{from:'pilot',to:'research'}]}));
+    expect(h.state.nodes).toHaveLength(3);expect(h.apply()).toBe(true);
+    const n=h.state.nodes.find(n=>n.id==='research');expect(n.boxType).toBe('action');expect(n.action).toMatchObject({by:'Tester',stage:'draft',intent:task.goal,plan:task});expect(n.action.session).toBeUndefined();expect(n.task).toBeUndefined();
+    expect(h.actionRequests).toHaveLength(0);expect(h.runs).toHaveLength(0);expect(h.state.edges).toContainEqual({from:'pilot',to:'research',state:'new'});
+    h.actions.start('research','Tester',n.action.intent);expect(h.actionRequests[0].prompt).toContain(task.result);expect(h.runs).toHaveLength(0);
+  });
+  it('drops cyclic, missing or Topic prerequisites and their dependent proposals',()=>{
+    const task=(dependsOn)=>({goal:'Do the task',result:'A checked result',steps:['Do the work'],evidence:['Saved result'],dependsOn});
+    const nodes=[{id:'a',label:'A',boxType:'action',task:task(['b'])},{id:'b',label:'B',boxType:'action',task:task(['a'])},{id:'c',label:'C',boxType:'action',task:task(['a'])},{id:'t',label:'Topic',boxType:'topic'},{id:'d',label:'D',boxType:'action',task:task(['t'])},{id:'e',label:'E',boxType:'action',task:task(['missing'])},{id:'ok',label:'Independent',boxType:'action',task:task([])}];
+    const p=autoPlanAdditions({nodes},'root',[{id:'root',label:'Root'}],[]);expect(p.nodes.map(n=>n.id)).toEqual(['t','ok']);expect(p.dropped).toHaveLength(5);
+  });
+  it('rechecks prerequisite access at Apply without removing independent work',()=>{
+    const h=harness();h.state.nodes.push({id:'research',label:'Existing research',area:'product',action:{stage:'draft'}});
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'write',label:'Write shortlist',boxType:'action',task:{goal:'Write a shortlist',result:'A saved shortlist',steps:['Write shortlist'],evidence:['Saved shortlist'],dependsOn:['research']}},{id:'schedule',label:'Pilot schedule',boxType:'topic'}]}));
+    h.state.nodes.find(n=>n.id==='research').area='finance';expect(h.apply()).toBe(true);expect(h.state.nodes.some(n=>n.id==='write')).toBe(false);expect(h.state.nodes.some(n=>n.id==='schedule')).toBe(true);
+  });
+  it('does not put someone else\'s private Action details into the planner context',()=>{
+    const h=harness();h.state.nodes[1].action={by:'Other',stage:'ready',plan:{goal:'Private account lookup'},completion:{evidence:['Private message ID']}};
+    h.ask();expect(h.calls[0].prompt).not.toContain('Private account lookup');expect(h.calls[0].prompt).not.toContain('Private message ID');
   });
 });

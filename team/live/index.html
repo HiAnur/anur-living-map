@@ -349,7 +349,7 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 #side #side-name.side-summary-input{flex:none;width:100%;margin:4px 0 12px;min-height:60px;resize:vertical;font-size:13.5px;line-height:1.45}
 #side .action-card{border:1px solid var(--rule-2);border-radius:10px;padding:14px;margin:0 0 16px;background:var(--canvas);flex-shrink:0;max-height:48vh;overflow:auto}
 .action-card h3{font-size:14px;font-weight:500;margin:0 0 8px;display:flex;gap:8px;align-items:center}
-.action-card p{margin:7px 0;line-height:1.5}.action-card .action-note{color:var(--text-2);font-size:12px}.action-card ol{padding-left:20px;margin:8px 0}.action-card li{margin:4px 0}
+.action-card p{margin:7px 0;line-height:1.5;overflow-wrap:anywhere}.action-card .action-note{color:var(--text-2);font-size:12px}.action-card ol,.action-card ul{padding-left:20px;margin:8px 0}.action-card li{margin:4px 0;overflow-wrap:anywhere}
 .action-card textarea{display:block;width:100%;min-height:76px;resize:vertical;padding:9px;margin:10px 0;border:1px solid var(--rule-2);border-radius:7px;background:var(--box);user-select:text}
 .action-card .action-controls,.action-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.action-card button{height:auto;min-height:30px;white-space:normal;padding:5px 10px}
 .action-card .action-execute{background:var(--claude);color:var(--box);border-color:var(--claude)}.action-card .action-plain{border:0;background:none;color:var(--text-2);padding-left:0}
@@ -362,6 +362,10 @@ body.deep #queue{top:calc(var(--topbar) + 64px)}
 #side .ct-r{flex-shrink:0;white-space:nowrap}
 #side .chat-h{white-space:nowrap}
 #side > .ct{gap:8px}
+#side > .box-heading{flex-direction:column;align-items:stretch;gap:4px}
+#side .box-heading > .ct-r{order:-1;justify-content:flex-end;min-height:24px}
+#side .box-heading > [data-rename-box]{width:100%;overflow-wrap:anywhere}
+#side .box-heading .action-type-toggle{font-size:11px;font-weight:400;margin-left:0}
 #side .refs{margin-top:auto;padding-bottom:4px}
 /* Claude references fold away like Claude's own "Context ▾": closed at first, a click on the heading opens them */
 #side details.refs > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;user-select:none}
@@ -738,7 +742,6 @@ body.resizing{cursor:col-resize;user-select:none}
 .cbox .add{width:30px;height:30px;border:1px solid var(--rule-2);border-radius:9px;background:#fff;color:var(--text-2);font-size:18px;line-height:1;cursor:pointer}
 .cbox .add:hover{background:#f3f2ee;color:var(--text)}
 .cbox .send{margin-left:auto;width:30px;height:30px;border:0;border-radius:9px;background:var(--claude);color:#fff;display:grid;place-items:center;cursor:pointer}
-.execution-node,.execution-chat{--action:var(--execution);--action-tint:var(--execution-tint);--action-line:var(--execution-line)}
 .node .map-execute{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);height:24px;padding:0 12px;border:1px solid var(--action);border-radius:7px;background:var(--action);color:#fff;font:500 12px var(--plex);cursor:pointer;white-space:nowrap}
 .map-execute:focus-visible{outline:2px solid var(--action);outline-offset:3px}
 .action-chat .continue-send{width:auto;padding:0 12px;font:500 13px var(--plex)}
@@ -749,14 +752,27 @@ body.resizing{cursor:col-resize;user-select:none}
 .node.action-node .n{color:var(--text)}
 .node.action-node .s{color:var(--text-2);opacity:1}
 .node.action-node .action-tag{color:var(--action)}
+.ct-r .action-type-toggle{display:inline-flex;align-items:center;gap:8px;padding:4px 0;margin-left:4px;border:0;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+.action-type-track{display:inline-block;position:relative;width:32px;height:20px;border-radius:999px;background:var(--text-2);flex:none}
+.action-type-track::before{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--card)}
+.action-type-toggle[aria-checked="true"] .action-type-track{background:var(--action)}
+.action-type-toggle[aria-checked="true"] .action-type-track::before{transform:translateX(12px)}
+.action-type-toggle:focus-visible{outline:2px solid var(--action);outline-offset:3px;border-radius:4px}
+.ct-r .action-type-toggle:disabled{opacity:.5;cursor:default}
 .topic-actions .action-create{color:var(--action);border-color:var(--action-line);background:var(--action-tint)}
 .action-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;color:var(--action);font-size:12px;font-weight:500;flex-shrink:0}
 .action-plain{border:0;background:none;color:var(--text-2);font-size:12px;cursor:pointer;padding:4px 0}
 .action-result{border:1px solid var(--action-line);border-radius:10px;background:var(--action-tint);padding:14px}
 .action-result h3{font-size:13px;font-weight:500;margin:0 0 10px;color:var(--action)}
-.action-result .result-pill,.node .action-done-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--completed);color:var(--box);font-size:11px;font-weight:500;line-height:16px;white-space:nowrap}
-.node .action-done-pill{position:absolute;right:8px;top:-11px;border:1px solid var(--box)}
-.node .action-done-pill.below{top:auto;bottom:-11px;right:8px}
+.action-result .result-pill,.action-status-pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;background:var(--completed);color:var(--box);font-size:11px;font-weight:500;line-height:16px;white-space:nowrap}
+.node .action-status-pill{position:absolute;right:8px;top:-11px;border:1px solid var(--box)}
+.node .action-status-pill.below{top:auto;bottom:-11px;right:8px}
+.action-status-pill{gap:4px;background:var(--action);color:var(--box)}
+.action-status-pill[data-tone="waiting"]{background:var(--execution)}
+.action-status-pill[data-tone="blocked"]{background:var(--gone)}
+.action-status-pill[data-tone="completed"]{background:var(--completed)}
+.action-status-pill .action-spin{width:9px;height:9px;border-color:color-mix(in srgb,currentColor 35%,transparent);border-top-color:currentColor}
+.action-chat-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .action-result .result-summary{margin:10px 0 0;line-height:1.5}
 .action-result .result-details{margin-top:12px;border-top:1px solid var(--action-line);padding-top:10px}
 .action-result .result-details summary{cursor:pointer;color:var(--action);font-size:12px;list-style:none;display:flex;align-items:center;gap:6px}
@@ -764,6 +780,10 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-result .result-details summary::before{content:'›';font-size:16px;transition:transform .12s}
 .action-result .result-details[open] summary::before{transform:rotate(90deg)}
 .action-result .result-detail-body{font-size:13px;line-height:1.5;margin-top:12px;overflow-wrap:anywhere}
+.action-document{margin:12px 0;padding:12px;border:1px solid var(--action-line);border-radius:10px;background:var(--box)}
+.action-document a{color:var(--action);font-weight:500}
+.action-document summary{margin-top:8px;cursor:pointer;color:var(--text-2);font-size:12px}
+.action-document pre{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font:13px/1.5 var(--plex);margin-top:10px}
 .action-evidence{font-size:13px;border-top:1px solid var(--action-line);margin-top:12px;padding-top:12px;overflow-wrap:anywhere}
 .action-evidence ul{margin:6px 0;padding-left:20px}
 .action-progress{display:flex;align-items:center;gap:8px;color:var(--action)}
@@ -820,6 +840,11 @@ body.resizing{cursor:col-resize;user-select:none}
 #mem .mem-h{display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 2px;font-weight:600;font-size:14px}
 #mem .map-description{white-space:pre-wrap;line-height:1.5;font-size:13px}
 #mem .map-description-edit textarea{box-sizing:border-box;width:100%;min-height:150px;padding:10px;border:1px solid var(--rule);border-radius:8px;background:var(--card);color:var(--text);font:inherit;resize:vertical}
+#mem .context-maps{margin-top:16px}
+#mem .context-maps > summary{font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px}
+#mem .context-choice{display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer;border-bottom:1px solid var(--rule)}
+#mem .context-choice input{width:16px;height:16px;accent-color:var(--action);flex:none}
+#mem .context-choice small{display:block;color:var(--text-2);font-size:12px}
 #mem .context-overview{white-space:pre-wrap;font:12px/1.5 var(--plex);max-height:350px;overflow:auto;padding:12px;background:var(--canvas);border-radius:8px}
 .context-sources{font-size:12px;color:var(--text-2);margin-top:8px}
 .context-sources a{color:var(--new);margin-left:8px}
@@ -1269,8 +1294,7 @@ const subLines = (n) => {
 };
 // Boxes grow for every wrapped line in their name and subtitle.
 const actionExecuted = (a) => a?.stage === 'finished' && a.completion?.status === 'completed' && a.completion.evidence?.length > 0;
-const executionBox = (a) => a && (['ready','sent','unconfirmed'].includes(a.stage) || !!a.session);
-const HT = (n) => (n.action ? 18 : 0) + (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
+const HT = (n) => (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -2045,17 +2069,16 @@ function render(){
   let html = '';
   for (const n of nodes){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
-    const actionAsk = !locked(n) && n.action?.stage === 'clarify';
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', n.action && !locked(n) ? `action-node${executionBox(n.action) ? ' execution-node' : ''}` : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
-      ${!locked(n) && n.action ? `<div class="action-tag">${['gathering','running'].includes(n.action.stage) ? actionSpinner(n.action) : ''}${executionBox(n.action) ? 'Execution box' : 'Action box'}</div>` : ''}
+      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
       <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
-      ${actionAsk ? `<span class="mk q" title="${esc(n.action.question || '')}">Need clarify</span>` : mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
+      ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${!locked(n) && actionExecuted(n.action) ? `<span class="action-done-pill${actionAsk || open.length || S.calls.some((c) => c.node === n.id) ? ' below' : ''}">Executed</span>` : ''}
+      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
@@ -2575,7 +2598,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
     : claudes(`${md(m.text)}${contextSources(m)}${change(m, sideKey, i)}${signin(m)}`)).join('');
-  const chat = n.action ? actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}</div>
+  const chat = n.action ? actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}${n.proposed && n.boxType === 'action' && n.task ? plannedActionCard(n,n.task) : ''}</div>
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -2586,11 +2609,11 @@ function renderSide(){
   const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea');
   const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart || actionInput.closest('form').dataset.actionContinue,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button>${!n.action && !n.proposed ? `<button class="gb chat-h action-create" data-box-action="actionbox" data-action-id="${esc(n.id)}" ${READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>Action box</button>` : ''}</div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>✳ ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button><button class="gb chat-h" data-chat-box>✳ Side Chat</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ` action-chat${executionBox(n.action) ? ' execution-chat' : ''}` : ''}">${chat}</div>` : `<div class="info-body">
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">
     ${(() => {
       // the box at a glance, read top to bottom: what was decided, green and bold (hovering it says who decided
       // it and when), then its notes as plain lines; "Why them: …" reads "Why them? …", a catch or a risk carries
@@ -2634,29 +2657,60 @@ function renderSide(){
   if (actionDraft?.id === n.id) { const input = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea'); if (input) { input.value = actionDraft.value; if (actionDraft.focus) { input.focus(); input.setSelectionRange(actionDraft.start, actionDraft.end); } } }
   // only the Side Chat scrolls: opening a box, or a new message, shows its newest message; any other redraw keeps your place
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}:${n.action?.turns?.length || 0}:${n.action?.progress?.length || 0}`, msgs = el.querySelector('.sc-msgs');
-  if (msgs){ if (seen !== sideSeen) msgs.scrollTop = msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
+  if (msgs){ if (seen !== sideSeen) msgs.scrollTop = n.action?.stage === 'draft' && n.action.plan ? 0 : msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
 
+function actionStatus(a){
+  if (!a?.stage || a.stage === 'draft') return null;
+  if (actionExecuted(a)) return {label:'Executed',tone:'completed'};
+  if (a?.stage === 'finished') return a.completion?.status === 'needs_input' ? {label:'Needs clarity',tone:'waiting'} : a.completion?.status === 'blocked' ? {label:'Blocked',tone:'blocked'} : {label:'Unconfirmed',tone:'waiting'};
+  return ({
+    gathering:{label:'Preparing',tone:'active'},
+    clarify:{label:'Needs clarity',tone:'waiting'},
+    waiting:{label:'Waiting',tone:'waiting'},
+    ready:{label:'Ready to execute',tone:'active'},
+    running:{label:'Executing',tone:'active'},
+    error:{label:'Blocked',tone:'blocked'},
+    blocked:{label:'Blocked',tone:'blocked'},
+    sent:{label:'Unconfirmed',tone:'waiting'},
+    unconfirmed:{label:'Unconfirmed',tone:'waiting'},
+  })[a.stage] || {label:'Unconfirmed',tone:'waiting'};
+}
+function actionStatusPill(a, below = false){
+  const status = actionStatus(a);
+  if (!status) return '';
+  return `<span class="action-status-pill${below ? ' below' : ''}" data-tone="${status.tone}" aria-label="Action status: ${status.label}">${['gathering','running'].includes(a?.stage) ? actionSpinner(a) : ''}${status.label}</span>`;
+}
 function actionSpinner(action){
   // A redraw keeps the spinner at the same point in its turn.
   const elapsed = Math.max(0, Date.now() - (Number(action.since) || Date.now()));
   return `<span class="action-spin" aria-hidden="true" style="animation-delay:-${elapsed}ms"></span>`;
 }
+function actionDocuments(a){
+  return (a.documents || []).map((file) => {
+    const key = `action-document:${file.id}`;
+    return `<section class="action-document" aria-label="Previous action document"><a download="${esc(file.name)}" href="data:text/markdown;charset=utf-8,${esc(encodeURIComponent(file.content))}">${esc(file.name)}</a><details data-open-key="${esc(key)}" ${openSecs.has(key) ? 'open' : ''}><summary>View document</summary><pre>${esc(file.content)}</pre></details></section>`;
+  }).join('');
+}
+function boxTypeButton(n){
+  if (n.proposed) return '';
+  const disabled = READ_ONLY || FILE || PREVIEW || n.action && (n.action.by !== ME || n.action.session || ['sent','unconfirmed'].includes(n.action.stage));
+  return `<button class="action-type-toggle" role="switch" aria-checked="${!!n.action}" data-box-action="${n.action ? 'actioncancel' : 'actionbox'}" data-action-id="${esc(n.id)}" ${disabled ? 'disabled' : ''}><span>${n.action ? 'Action box' : 'Info box'}</span><span class="action-type-track" aria-hidden="true"></span></button>`;
+}
 function actionChat(n, previousChat){
   const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
   const asking = a.stage === 'draft' || a.stage === 'clarify';
-  const label = executionBox(a) ? 'Execution box' : 'Action box';
   const back = mine && !a.session && !['sent','unconfirmed'].includes(a.stage) ? `<button class="action-plain" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Back to topic</button>` : '';
-  const turns = `${a.intent ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
+  const turns = `${a.intent && a.stage !== 'draft' ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
   const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
-  const current = a.stage === 'draft' ? claudes('<p>What do you want to do?</p>')
+  const current = a.stage === 'draft' ? a.plan ? plannedActionCard(n,a.plan) : claudes('<p>What do you want to do?</p>')
     : a.stage === 'clarify' ? claudes(`${md(a.question)}${choices}${mine ? '' : `<p class="quiet">Waiting for ${esc(a.by)}.</p>`}`)
     : a.stage === 'gathering' ? claudes(`<div class="action-progress">${actionSpinner(a)}<span>Gathering information…</span></div>`)
     : a.session ? `${(a.turns || []).map((t, i) => t.who === 'Claude' ? claudes(actionResult(t, `${n.id}:${i}`)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
     : actionCard(n);
   const continuing = a.session && ['finished','blocked'].includes(a.stage);
-  const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required></textarea><button class="send" type="submit" title="${a.stage === 'draft' ? 'Gather information' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Gather information' : 'Send answer'}">${SEND_ICON}</button></div></form>` : '';
-  return `<div class="action-chat-head"><span>${label}</span>${back}</div><div class="sc-msgs">${previousChat}${turns}${current}</div>${composer}`;
+  const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required>${a.stage === 'draft' ? esc(a.intent || '') : ''}</textarea><button class="send${a.plan && a.stage === 'draft' ? ' continue-send' : ''}" type="submit" title="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'}">${a.plan && a.stage === 'draft' ? 'Prepare' : SEND_ICON}</button></div></form>` : '';
+  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${back}</div><div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}</div>${composer}`;
 }
 function actionSummary(turn){
   const text = String(turn.completion?.summary || turn.text || '').split(/\n\s*\n/, 1)[0].replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s+/g, ' ').trim();
@@ -2665,7 +2719,7 @@ function actionSummary(turn){
 function actionResult(turn, key){
   const c = turn.completion, openKey = `action-result:${key}`;
   const done = c?.status === 'completed' && c.evidence?.length > 0;
-  const label = done ? 'Executed' : {needs_input:'Needs your answer',blocked:'Blocked'}[c?.status] || 'Completion unconfirmed';
+  const label = done ? 'Executed' : {needs_input:'Needs clarity',blocked:'Blocked'}[c?.status] || 'Completion unconfirmed';
   const evidence = c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '';
   return `<section class="action-result" aria-label="Task result"><h3>${done ? `<span class="result-pill">Executed</span>` : label}</h3>${done ? `<p class="result-summary">${esc(actionSummary(turn))}</p><details class="result-details" data-open-key="${esc(openKey)}" ${openSecs.has(openKey) ? 'open' : ''}><summary>View details</summary><div class="result-detail-body">${md(turn.text)}${evidence}</div></details>` : `${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${evidence}`}</section>`;
 }
@@ -2678,8 +2732,18 @@ function actionCard(n){
   if (a.stage === 'ready' || legacy) {
     const b = a.brief;
     content = `<h3>${legacy ? 'Completion unconfirmed' : 'Ready to execute'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p>${legacy ? '<p>No result came back from the earlier attempt. This task is not marked complete.</p>' : `<ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Expected result:</b> ${esc(b.result)}</p>`}${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}<p class="action-note">${legacy ? 'Execute here checks for prior work before doing more, then returns the result to this chat.' : 'Execute runs this task and replies here.'}</p><div class="action-controls">${button('actionexecute',legacy ? 'Execute here' : 'Execute','action-execute')}${legacy ? '' : button('actionrevise','Revise')}</div>`;
-  } else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
-  return `<section class="action-card" aria-label="${a.stage === 'ready' || legacy ? 'Execution box' : 'Action box'}">${content}</section>`;
+  } else if (a.stage === 'waiting') content = `<h3>Waiting on a dependency</h3><ul>${(a.waiting || []).map((w) => `<li>${esc(w.detail)}</li>`).join('')}</ul><p class="action-note">Finish the prerequisite Actions first. This Action will still need preparation and review.</p><div class="action-controls">${button('actionretry','Check again')}</div>`;
+  else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
+  return `<section class="action-card" aria-label="Action box">${content}</section>`;
+}
+function plannedActionCard(n, plan){
+  const list = (title, items) => items?.length ? `<p><b>${title}</b></p><ul>${items.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : '';
+  const deps = (plan.dependsOn || []).map((id) => { const box=nodeById(id); return box && !locked(box) ? `${box.label}${actionExecuted(box.action) ? ' · Completed' : ''}` : 'A prerequisite that is not available'; });
+  const released = n.action?.stage === 'draft' && plan.readiness === 'waiting';
+  const readiness = released ? 'Prerequisites completed. Ready for preparation' : {ready:'Ready for preparation',needs_information:'Needs information',waiting:'Waiting on a dependency'}[plan.readiness] || 'Needs information';
+  const key = `action-plan:${n.id}`;
+  const notes = list('Planner notes', (plan.blockers || []).map((b) => `${b.detail} (${b.resolver})`));
+  return `<section class="action-card" aria-label="Planned Action"><h3>Planned Action</h3><p><b>${esc(plan.goal)}</b></p><p><b>Expected result:</b> ${esc(plan.result)}</p><p><b>Save to:</b> ${esc(plan.destination || 'Confirm during preparation')}</p><p class="action-note">${readiness}. Preparation checks the plan and available tools before you can review and Execute.</p>${released ? '' : notes}${list('Prerequisite Actions',deps)}<details data-open-key="${esc(key)}" ${openSecs.has(key) ? 'open' : ''}><summary>Task details</summary>${list('Inputs',plan.inputs)}${list('Steps',plan.steps)}${list('Completion evidence',plan.evidence)}${released ? notes : ''}</details></section>`;
 }
 async function runBoxAction(type, id, data = {}) {
   if (READ_ONLY || FILE || PREVIEW) return;
@@ -2913,12 +2977,25 @@ function openBrainBox(){
    in mind), each for the whole map first, then box by box. Only Claude adds them, when asked in a chat; here people
    change their words or remove them */
 let mapDescriptionEdit = false, mapDescriptionDraft = '';
+let contextChoices = null, contextLoading = false, contextError = false;
+function contextChoicesHTML(){
+  if (contextError) return '<button class="gb" data-context-retry>Retry loading maps</button>';
+  if (!contextChoices) return '<div class="mem-sub">Loading maps…</div>';
+  return contextChoices.map((m) => `<label class="context-choice"><input type="checkbox" data-context-map="${esc(m.id)}" ${(S.contextMapIds || []).includes(m.id) ? 'checked' : ''} ${READ_ONLY || PREVIEW ? 'disabled' : ''}><span>${esc(m.title)}<small>${m.boxes} ${m.boxes === 1 ? 'box' : 'boxes'}</small></span></label>`).join('') || '<div class="mem-sub">No other maps available.</div>';
+}
+async function loadContextChoices(){
+  if (contextLoading) return;
+  contextLoading = true; contextError = false;
+  try { const r = await fetch('api/context-options'); if (!r.ok) throw new Error(); contextChoices = (await r.json()).maps; }
+  catch { contextError = true; }
+  finally { contextLoading = false; const el = document.querySelector('[data-context-choices]'); if (el) el.innerHTML = contextChoicesHTML(); }
+}
 let memEdit = null; // the item you are editing
 const memSeen = () => (S.memory || []).filter((m) => !m.box || (nodeById(m.box) && canSee(nodeById(m.box))));
 function renderMem(){
   renderSideChats(); // the rail's other list, drawn on every redraw with this one
   const el = $('mem'), open = railTab === 'memory' && !selected;
-  el.classList.toggle('on', open); if (!open) return;
+  el.classList.toggle('on', open); if (!open) { contextChoices = null; contextError = false; return; }
   const all = memSeen();
   const item = (m) => memEdit === m.id
     ? `<form class="mem-f" data-memedit="${m.id}"><input id="mem-in" value="${prose(m.text)}" autocomplete="off"><button class="gb" type="submit">Save</button></form>`
@@ -2934,8 +3011,10 @@ function renderMem(){
   el.innerHTML = `<div class="ct"><span>Brain</span><span class="x" data-close-rail>×</span></div>
     <div class="mem-h">Map description</div>${description}
     ${!CLOUD && !FILE ? '<details data-context-overview><summary>Description used by other maps</summary><pre class="context-overview">Loading…</pre></details>' : ''}
+    ${!CLOUD && !FILE ? `<details class="context-maps" data-open-key="context-maps" ${openSecs.has('context-maps') ? 'open' : ''}><summary>Include other maps</summary><div class="mem-sub">Unchecked by default. Check maps Claude can use as extra context for this map.</div><div data-context-choices>${contextChoicesHTML()}</div></details>` : ''}
     ${list('instruction', 'Instructions', 'Claude follows these in every chat on this map. Ask Claude to make something a rule.')}
     ${list('memory', 'Memory', 'Claude keeps these in mind. They can go out of date. Ask Claude to remember something.')}`;
+  if (!CLOUD && !FILE && !contextChoices && !contextError) void loadContextChoices();
   el.querySelector('[data-context-overview]')?.addEventListener('toggle', async (e) => {
     if (!e.target.open) return;
     const target = e.target.querySelector('pre');
@@ -3679,14 +3758,14 @@ canvas.addEventListener('pointerdown', (e) => {
   // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);
-    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, proposed: true }; canvas.setPointerCapture(e.pointerId); }
+    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY, proposed: true }; canvas.setPointerCapture(e.pointerId); }
     return;
   }
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
     if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
-    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy };
+    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY };
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
       const all = view === 'system' ? S : nodeById(view)?.inside;
       if (all) drag.source = structuredClone({nodes:all.nodes,edges:all.edges || []});
@@ -3708,27 +3787,51 @@ canvas.addEventListener('pointermove', (e) => {
     if (moved){ const m = marquee; group = new Set(marqueeHits(m)); selected = null; pickedLine = null; render();
       $('rubber').innerHTML = `<rect class="mq" x="${Math.min(m.x0, m.x1)}" y="${Math.min(m.y0, m.y1)}" width="${Math.abs(m.x1 - m.x0)}" height="${Math.abs(m.y1 - m.y0)}"/>`; }
     return; }
+  // A click can include tiny pointer movements. Start dragging only beyond four screen pixels.
+  if (drag && !moved){
+    if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) <= 4) return;
+    clearTimeout(tapTimer);
+  }
   if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
   else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
   if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
-// a double click is two taps on the same box within 350ms: the first tap
-// redraws the box, so the browser's own dblclick never sees the same element
+// Recognize double clicks even if a live update replaces a box between taps.
 let lastTap = { id: null, at: 0 };
 // Select immediately so a quick Tab uses this box. Only its details card waits for a possible double click.
 const DBL = 320;
 let tapTimer = null;
+function renderPickedBox(details = true){
+  // Keep the existing boxes and lines so selection does not restart their animations.
+  if (selected && nodeById(selected)) lastTopics.set(view, selected);
+  for (const el of nodesEl.querySelectorAll('.node')) el.classList.toggle('sel', el.dataset.id === selected || el.dataset.id === lit || group.has(el.dataset.id));
+  for (const el of canvas.querySelectorAll('.pick')) el.classList.remove('pick');
+  for (const el of canvas.querySelectorAll('.delq')) el.remove();
+  for (const el of nodesEl.querySelectorAll('.file')) el.remove();
+  const n = selected && nodeById(selected);
+  if (n?.file){
+    const label = document.createElement('div'), warn = n.warn && !locked(n) && S.calls.some((c) => c.node === n.id && c.status === 'open');
+    label.className = 'file'; label.textContent = n.file;
+    label.style.cssText = `left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5) + 22}px`;
+    nodesEl.append(label);
+  }
+  if (!details) return;
+  renderSide(); renderChat(); renderDecs(); renderHist(); renderMem(); renderComments(); fitPane();
+}
 const pick = (n) => {
   clearTimeout(tapTimer);
   const session = ++nameSession;
-  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = true; render();
-  const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; render(); keepInView(selected); };
+  // Keep an open details pane in place while distinguishing a click from a double click.
+  const cardOpen = $('side').classList.contains('on');
+  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = !cardOpen;
+  renderPickedBox(cardOpen);
+  const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; if (!cardOpen) renderPickedBox(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
 function tapTopic(n, field = null, proposed = false){
   const now = Date.now(), twice = lastTap.id === n.id && lastTap.field === field && now - lastTap.at < DBL;
-  lastTap = { id:n.id, field, at:now };
+  lastTap = twice ? {id:null,at:0} : { id:n.id, field, at:now };
   if (twice && !locked(n) && !field && (n.inside || n.diagram || (!proposed && diagramChange(n.id)))){
     clearTimeout(tapTimer); if (n.inside) enter(n.id); else openDiagram(n.id); return;
   }
@@ -3923,6 +4026,7 @@ document.addEventListener('click', (e) => {
     }
   }
   else if (t.closest('[data-scopen]')){ t.closest('#box-metadata')?.hidePopover(); const id = t.closest('[data-scopen]').dataset.scopen; if (nodeById(id)){ selected = id; sideFor = id; sideTab = 'chat'; backTo = 'sidechats'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; centerOn(id); } }
+  else if (t.closest('[data-context-retry]')){ void loadContextChoices(); }
   else if (t.closest('[data-description-edit]')){ mapDescriptionDraft = S.desc || S.prompt || ''; mapDescriptionEdit = true; renderMem(); $('mem').querySelector('textarea')?.focus(); }
   else if (t.closest('[data-description-cancel]')){ mapDescriptionEdit = false; renderMem(); }
   else if (t.closest('[data-memedit-open]')){ memEdit = t.closest('[data-memedit-open]').dataset.memeditOpen; render(); $('mem-in')?.focus(); }
@@ -3999,6 +4103,13 @@ const addPics = (files) => {
   Promise.all(ok.map((f) => new Promise((done) => { const r = new FileReader(); r.onload = () => done(r.result); r.onerror = () => done(null); r.readAsDataURL(f); })))
     .then((urls) => { chatPics = [...chatPics, ...urls.filter(Boolean)]; renderChat(); document.querySelector('#chat form[data-chat] textarea')?.focus(); });
 };
+document.addEventListener('change', async (e) => {
+  const input = e.target.closest?.('[data-context-map]'); if (!input) return;
+  const include = input.checked; input.disabled = true;
+  try { const r = await act('contextmap', {id:input.dataset.contextMap,include}); if (!r?.ok) throw new Error(); }
+  catch { input.checked = !include; toast('Could not save the map selection. Try again.'); }
+  finally { input.disabled = false; }
+});
 document.addEventListener('change', (e) => { if (e.target.matches?.('#chat [data-pick]')) addPics(e.target.files); });
 document.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])]; if (MIRROR && f.length && e.target.closest?.('#chat')){ e.preventDefault(); addPics(f); } });
 $('chat').addEventListener('dragover', (e) => { if (MIRROR && e.dataTransfer?.types.includes('Files')){ e.preventDefault(); $('chat').classList.add('drop'); } });
