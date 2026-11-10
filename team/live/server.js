@@ -30,19 +30,22 @@ import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
-import { contextReader, describeMap } from './map-context.js';
+import { contextReader } from './map-context.js';
 import { appendProposed } from './proposal-layout.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
+import { readRoutes } from './read-routes.js';
+import { body, jsonBody } from './request.js';
+import { shareRoutes } from './share-routes.js';
 import { mapActs } from './map-acts.js';
 import { planActs } from './plan-acts.js';
 import { diagramOf } from './diagram.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
-import { changeAccess, managesAccess, removedFrom } from './access.js';
+import { managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
-import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState, withoutActions } from './sharing.js';
+import { linkRole, LINK_EDITS, localTool, permission, sharedState } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
 import { DATA } from './data-dir.js';
@@ -518,91 +521,16 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const allowed = (/** @type {any} */ who, /** @type {any} */ req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
+  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here });
+  const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST });
   /** @param {any} req @param {any} res @param {any} p */
   async function handle(req, res, p, who = null) {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
     const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
     const deny = () => { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This link does not allow that change.' })); return true; };
     if (guest && !(req.method === 'GET' && (['/', '/index.html', '/editing.js', '/api/state', '/api/events', '/api/file', '/api/history'].includes(p) || /^\/api\/history\/\w+$/.test(p))) && !(p === '/api/act' && req.method === 'POST' && role === 'edit')) return deny();
-    if (p === '/api/cloud' && req.method === 'GET') {
-      if (role !== 'owner') return deny();
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(cloud?.status() || { configured: false })); return true;
-    }
-    if (p === '/api/cloud/delete' && req.method === 'POST') {
-      if (role !== 'owner' || !who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
-      let a = await jsonBody(req, undefined);
-      if (a?.confirm !== true) return deny();
-      try { await cloud?.remove(); }
-      catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
-      changeSharing(state, who, 'restricted'); save(); push();
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...state.linkSharing, cloud: cloud?.status() || { configured: false } })); return true;
-    }
-    if (p === '/api/sharing' && req.method === 'POST') {
-      if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
-      let a = await jsonBody(req, undefined);
-      if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
-      if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
-        try { await cloud.publish(a.mode); }
-        catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
-      }
-      if (!changeSharing(state, who, a?.mode)) return deny();
-      save(); push();
-      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ ...state.linkSharing, cloud: cloud?.status() })); return true;
-    }
-    if (p === '/api/access' && req.method === 'POST') {
-      const origin = req.headers.origin;
-      if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
-      /** @type {any} */ let a = await jsonBody(req, {});
-      if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
-      if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
-      save();
-      if (!a.restore) {
-        delete cursors[a.person];
-        for (const r of clients) if (viewers.get(r) === a.person) { send(r, 'access-removed', {}); clients.delete(r); viewers.delete(r); r.end(); }
-      }
-      push(); here();
-      res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
-    }
-    if (p === '/api/context-options' && req.method === 'GET') {
-      const maps = (contextMaps?.(who) || []).filter((/** @type {any} */ m) => m.allowed()).map((/** @type {any} */ m) => {
-        const d = describeMap(m.id,m.snapshot(),who);
-        return {id:m.id,title:d.name,boxes:d.counts.boxes};
-      });
-      res.writeHead(200, {'content-type':'application/json','cache-control':'no-store'}).end(JSON.stringify({maps})); return true;
-    }
-    if (p === '/api/context-description' && req.method === 'GET') {
-      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(describeMap(name || mapName(project) || 'map', state, who))); return true;
-    }
-    if (p === '/api/state') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(sharedState(state, role === 'owner', guest))); return true; }
-    // Share as a file: the map's page with the map's own data written into it, named <title>.html. It opens on its
-    // own anywhere, drawn from that data, and POST /api/maps/load brings the same data back as a map here
-    if (p === '/api/file') {
-      const exported = sharedState(state, false, guest); exported.nodes = withoutActions(exported.nodes);
-      const data = JSON.stringify(exported).replace(/<\//g, '<\\/');
-      const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
-        .replace('</head>', `<meta name="lm-file" content="${new Date().toISOString()}">\n<script id="lm-data" type="application/json">${data}</script>\n</head>`);
-      const file = `${String(state.title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html`;
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-disposition': `attachment; filename="${file.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(file)}` }).end(html);
-      return true;
-    }
-    // the plan.md Claude wrote for this map, read from the repo's root
-    if (p === '/api/planmd') {
-      const f = project && path.join(project, 'plan.md');
-      if (!f || !fs.existsSync(f)) res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Claude has not written plan.md yet. It appears here once it has.');
-      else res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }).end(fs.readFileSync(f));
-      return true;
-    }
-    // the map's versions, newest first, and one version's boxes, lines and questions
-    if (p === '/api/history') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(history)); return true; }
-    const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((/** @type {any} */ h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
-    if (ver) { if (!vfile || !fs.existsSync(vfile)) res.writeHead(404).end(); else res.writeHead(200, { 'content-type': 'application/json' }).end(fs.readFileSync(vfile)); return true; }
-    // with ?session=, that chat now has these rules, so its next message carries only the news
-    if (p === '/api/rules') {
-      const rules = chatRules(address()), session = new URL(req.url, 'http://x').searchParams.get('session');
-      if (session && rules) rulesSeen.set(session, crypto.createHash('sha1').update(rules).digest('hex'));
-      res.writeHead(200, { 'content-type': 'text/plain' }).end(rules + '\n'); return true;
-    }
-    if (p === '/api/outbox') { res.writeHead(200, { 'content-type': 'text/plain' }).end(fs.existsSync(OUTBOX) ? fs.readFileSync(OUTBOX, 'utf8') : ''); return true; }
+    if (await shared(req, res, p, { who, role, deny })) return true;
+    if (reads(req, res, p, { who, role, guest })) return true;
     // a chat's listener waits here until the map has something for that chat; after 4 minutes it gets
     // an empty answer and asks again
     if (p === '/api/wait') {
@@ -716,11 +644,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
-const body = (/** @type {any} */ req) => new Promise((ok) => { let b = ''; req.on('data', (/** @type {any} */ c) => (b += c)); req.on('end', () => ok(b)); });
-// A request's JSON body, or `fallback` when it is not JSON: every route then checks what it got, so a body
-// that does not parse reads as an empty request and is refused there.
-/** @param {any} req @param {any} fallback */
-const jsonBody = async (req, fallback) => { try { return JSON.parse(await body(req)); } catch { return fallback; } };
 // A file to remove that is already gone is fine; anything else (permissions, a full disk) is said once.
 /** @param {any} e @param {string} what */
 const removeFailed = (e, what) => { if (e?.code !== 'ENOENT' && e?.code !== 'ENOTEMPTY') console.error(`[map] could not remove ${what}: ${e?.message}`); };
