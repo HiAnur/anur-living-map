@@ -6,17 +6,19 @@ const spawned = vi.hoisted(() => ({ calls: /** @type {any[]} */ ([]), next: /** 
 vi.mock('node:child_process', () => ({ spawn: (...args) => { spawned.calls.push(args); return spawned.next; } }));
 
 const { SIGNED_OUT, streamClaude } = await import('./ask.js');
+const { PROPOSE_TOOL } = await import('./propose.js');
 
 // Ask Claude on a box, on a stand-in for the `claude` process: what it may do, what its answer is in each way a
 // run can end, and that an answer is given once.
 function harness(config) {
   /** @type {any} */ const proc = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn() });
   spawned.next = proc; spawned.calls.length = 0;
-  const words = [], answers = [];
-  const stop = streamClaude({ cwd: '/sample/project', prompt: 'What is this box for?', onText: (t) => words.push(t), onDone: (t) => answers.push(t), config });
+  const words = [], answers = [], proposing = [], proposals = [];
+  const stop = streamClaude({ cwd: '/sample/project', prompt: 'What is this box for?', onText: (t, p) => { words.push(t); proposing.push(p); },
+    onDone: (t, _access, p) => { answers.push(t); proposals.push(p); }, config });
   const event = (d) => proc.stdout.write(JSON.stringify(d) + '\n');
   const say = (text) => event({ type: 'stream_event', event: { type: 'content_block_delta', delta: { text } } });
-  return { proc, words, answers, stop, event, say, args: spawned.calls[0][1], opts: spawned.calls[0][2] };
+  return { proc, words, answers, proposing, proposals, stop, event, say, args: spawned.calls[0][1], opts: spawned.calls[0][2] };
 }
 const flag = (args, name) => args[args.indexOf(name) + 1];
 
@@ -29,20 +31,22 @@ describe('Ask Claude on a box', () => {
     const h = harness();
     expect(spawned.calls[0][0]).toBe('claude');
     expect(flag(h.args, '--tools')).toBe('Read,Grep,Glob');
-    expect(flag(h.args, '--allowedTools')).toBe('Read,Grep,Glob');
+    expect(flag(h.args, '--allowedTools')).toBe(`Read,Grep,Glob,${PROPOSE_TOOL}`);
     expect(flag(h.args, '--disallowedTools')).toBe('WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit');
     for (const name of ['-p', '--restricted', '--no-session-persistence', '--strict-mcp-config']) expect(h.args).toContain(name);
     expect(flag(h.args, '--setting-sources')).toBe('');
-    expect(JSON.parse(flag(h.args, '--mcp-config'))).toEqual({ mcpServers: {} });
+    expect(Object.keys(JSON.parse(flag(h.args, '--mcp-config')).mcpServers)).toEqual(['map_propose']);
     expect(h.opts.cwd).toBe('/sample/project');
     expect(h.opts.env.CLAUDECODE).toBeUndefined();
     expect(h.opts.env.PATH).toBe(process.env.PATH);
   });
   it('may read the other maps you checked, and nothing more, when given their context', () => {
     const config = { mcpServers: { map_context: { command: 'node' } } }, h = harness(config);
-    expect(flag(h.args, '--allowedTools')).toBe('Read,Grep,Glob,mcp__map_context__list_maps,mcp__map_context__load_map');
+    expect(flag(h.args, '--allowedTools')).toBe(`Read,Grep,Glob,${PROPOSE_TOOL},mcp__map_context__list_maps,mcp__map_context__load_map`);
     expect(flag(h.args, '--tools')).toBe('Read,Grep,Glob');
-    expect(JSON.parse(flag(h.args, '--mcp-config'))).toEqual(config);
+    const servers = JSON.parse(flag(h.args, '--mcp-config')).mcpServers;
+    expect(Object.keys(servers)).toEqual(['map_context', 'map_propose']);
+    expect(servers.map_context).toEqual(config.mcpServers.map_context);
   });
   it('shows the words as they come, a new paragraph for each message, and answers with the result', () => {
     const h = harness();
@@ -55,6 +59,22 @@ describe('Ask Claude on a box', () => {
     h.proc.emit('close', 0); vi.advanceTimersByTime(200_000);
     expect(h.answers).toHaveLength(1);
     expect(h.proc.kill).not.toHaveBeenCalled();
+  });
+  it('offers the last propose_change call\'s input as the change, and says so while it is written', () => {
+    const h = harness();
+    h.say('Adding a box.');
+    h.event({ type: 'stream_event', event: { type: 'content_block_start', content_block: { type: 'tool_use', name: PROPOSE_TOOL } } });
+    const call = (input) => h.event({ type: 'assistant', message: { content: [{ type: 'text', text: 'x' }, { type: 'tool_use', name: PROPOSE_TOOL, input }] } });
+    call({ nodes: [{ id: 'one' }] }); call({ nodes: [{ id: 'two' }] });
+    h.event({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Read', input: { file_path: 'a' } }, { type: 'tool_use', name: PROPOSE_TOOL, input: 'not an object' }] } });
+    h.say(' Done.');
+    h.event({ type: 'result', result: 'Adding a box.', is_error: false });
+    expect(h.proposing).toEqual([false, true, true]);
+    expect(h.proposals).toEqual([{ nodes: [{ id: 'two' }] }]);
+  });
+  it('offers no change when Claude calls no propose_change', () => {
+    const h = harness(); h.say('```map\n{"nodes":[{"id":"x"}]}\n```'); h.event({ type: 'result', is_error: false });
+    expect(h.proposals).toEqual([undefined]);
   });
   it('answers with the words so far when the result has none', () => {
     const h = harness(); h.say('Only words.'); h.event({ type: 'result', is_error: false });
