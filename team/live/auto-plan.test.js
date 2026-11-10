@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { actionBoxes } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
+import { askContext } from './ask-context.js';
+import { proposalChecks } from './proposal-check.js';
 
 const server = fs.readFileSync(new URL('./server.js', import.meta.url), 'utf8');
 function harness() {
@@ -13,7 +15,10 @@ function harness() {
   const calls = [];
   const actionRequests=[],runs=[];
   const actions=actionBoxes(/** @type {any} */ ({nodeOf:id=>state.nodes.find(n=>n.id===id),allNodes:()=>state.nodes,canUse:()=>true,context:()=>'',ask:r=>actionRequests.push(r),changed(){},run:r=>runs.push(r)}));
-  const ctx = vm.createContext({ contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
+  const nodeOf=id=>state.nodes.find(n=>n.id===id), allNodes=()=>state.nodes, allEdges=()=>state.edges;
+  const { seesOf, askPrompt } = askContext({ getState: () => state, project: '', nodeOf, allNodes, allEdges });
+  const { proposal, checkAutoPlan, check } = proposalChecks({ getState: () => state, nodeOf, allNodes, allEdges, seesOf, placeProposed() {} });
+  const ctx = vm.createContext({ seesOf, askPrompt, proposal, checkAutoPlan, check, contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
     nodeOf:id=>state.nodes.find(n=>n.id===id), allNodes:()=>state.nodes, allEdges:()=>state.edges,
     stamp:()=> '12:00', fs:{mkdirSync(){}}, askAgent:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, agent:{signedOut:'signed out'},
     placeProposed(){},
@@ -21,10 +26,6 @@ function harness() {
     draw:plan=>{state.nodes.push(...plan.nodes);state.edges.push(...plan.edges);},
   });
   vm.runInContext(server.slice(server.indexOf('  const selectedContextMaps ='),server.indexOf('  const updateBoxDates =')),ctx);
-  vm.runInContext(server.slice(server.indexOf('  const seesOf ='),server.indexOf('  const actions = actionBoxes(')),ctx);
-  vm.runInContext(server.slice(server.indexOf('  function proposal('),server.indexOf('  // a proposed change')),ctx);
-  const checkStart=server.indexOf('  function check('), checkEnd=server.indexOf('\n  }',checkStart)+4;
-  vm.runInContext(server.slice(checkStart,checkEnd),ctx);
   vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  // History: every change saves itself')),ctx);
   vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
   return {state,calls,actions,actionRequests,runs,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),check:(p)=>ctx.check(p,'Tester'),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
