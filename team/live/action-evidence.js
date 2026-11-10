@@ -3,6 +3,8 @@
 // The model's summary and the evidence it claims are kept beside this as its account.
 import { execFile } from 'node:child_process';
 
+import { kindOf } from './action-kinds.js';
+
 const PULL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
 /** @param {ToolCall} call */
@@ -21,12 +23,13 @@ export function judgeRun(brief, calls = []) {
   const did = ok.filter((c) => !c.reads).map((c) => `${c.tool}${c.summary ? `: ${c.summary}` : ''}`);
   /** @type {string[]} */
   const evidence = [];
-  if (brief.kind === 'email' && brief.email) {
+  const proof = kindOf(brief)?.proof;
+  if (proof === 'sent' && brief.email) {
     const to = brief.email.to.toLowerCase();
     const sent = ok.find((c) => /send/i.test(c.tool) && said(c).includes(to));
     if (sent) evidence.push(`Sent to ${brief.email.to} (${sent.tool})`);
   }
-  const pulls = brief.kind === 'build' ? [...new Set(ok.flatMap((c) => String(c.output || '').match(PULL) || []))] : [];
+  const pulls = proof === 'pull' ? [...new Set(ok.flatMap((c) => String(c.output || '').match(PULL) || []))] : [];
   return { evidence, pulls, did: [...new Set(did)].slice(0, 30) };
 }
 
