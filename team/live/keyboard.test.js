@@ -14,18 +14,19 @@ function harness(){
   let input, handler, pickTimer;
   const ctx = vm.createContext({ console, Promise, Set, Map });
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
-  const rubber = { innerHTML: '' };
+  const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
   Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
-    branchIds, keepInView(){}, render(){}, renderSide(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
+    lit:null,nodesEl:{querySelectorAll:()=>[]},branchIds, keepInView(){}, render(){}, renderSide(){},renderChat(){},renderDecs(){},renderHist(){},renderMem(){},renderComments(){}, fitPane(){}, place(){}, saveFolds(){}, toast(){},
     setTool(t){ctx.tool=t;}, toStage:(x,y)=>[x,y], locked:n=>!!n.locked,
     nodeById:id=>ctx.S.nodes.find(n=>n.id===id), scope:()=>ctx.S,
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
   });
+  ctx.canvas.querySelectorAll=()=>[];
   vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
   vm.runInContext(source,ctx);
   vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
@@ -34,6 +35,20 @@ function harness(){
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
+  it('keeps an open details pane visible when clicking the selected box or another box',()=>{
+    const h=harness(),frames=[];h.rubber.classList.contains=()=>true;
+    h.ctx.S.nodes.push({id:'rivals',label:'Rivals',x:300,y:0});
+    const paint=h.ctx.renderPickedBox;h.ctx.renderPickedBox=(details)=>{frames.push(h.ctx.keyboardSelection);paint(details);};
+    h.pick('root');h.flushPick();h.pick('rivals');h.flushPick();
+    expect(frames).toEqual([false,false]);expect(h.ctx.selected).toBe('rivals');
+    h.key('Tab');expect(h.ctx.naming.link.id).toBe('rivals');
+  });
+  it('selects and opens a box on the first click without redrawing the map',()=>{
+    const h=harness(),panels=[];h.ctx.render=()=>{throw Error('Full map redraw during selection');};
+    h.ctx.renderSide=()=>panels.push(h.ctx.selected);
+    h.pick('root');expect(h.ctx.selected).toBe('root');expect(panels).toEqual([]);
+    h.flushPick();expect(panels).toEqual(['root']);expect(h.ctx.keyboardSelection).toBe(false);
+  });
   it('does not create, rename, or delete topics through a view link',()=>{
     const h=harness();h.ctx.READ_ONLY=true;h.ctx.VIEW_SAYS='View only';
     for(const key of ['Tab','Enter','F2','x']) h.key(key);

@@ -92,6 +92,14 @@ const env=config.mcpServers.map_context.env;
 const read=async(method,args)=>{const r=await fetch(env.LM_CONTEXT_URL,{method:'POST',headers:{authorization:'Bearer '+env.LM_CONTEXT_TOKEN},body:JSON.stringify({method,args})});return r.json();};
 const catalog=await read('list_maps',{});
 if(prompt.includes('Hidden map')||catalog.maps.some(m=>m.id==='current'||m.id==='hidden'))throw Error('Scope failed');
+const excluded=await read('load_map',{id:'unrelated'});
+if(!excluded.error)throw Error('Unchecked map was readable');
+if(!catalog.maps.length){
+ const denied=await read('load_map',{id:'pricing'});
+ if(!denied.error)throw Error('Default leaked map context');
+ console.log(JSON.stringify({type:'result',result:'No external maps selected.'}));process.exit(0);
+}
+if(catalog.maps.length!==1||catalog.maps[0].id!=='pricing'||prompt.includes('Vegetable planting dates'))throw Error('Unchecked description leaked');
 const selected=await read('load_map',{id:'pricing',sections:['map']});
 console.log(JSON.stringify({type:'result',result:'Reference: ['+selected.name+']('+selected.href+'). '+selected.map.description}));
 `,{mode:0o755});
@@ -108,11 +116,23 @@ console.log(JSON.stringify({type:'result',result:'Reference: ['+selected.name+']
     const catalog=await (await fetch(base+'/api/map-context')).json();expect(catalog.maps.some(m=>m.id==='pricing')).toBe(true);
     expect((await fetch(base+'/api/map-context',{headers:{'sec-fetch-site':'same-origin'}})).status).toBe(401);
     const objects=await (await fetch(base+'/api/map-context?tool=load_map&id=pricing&sections=map')).json();expect(objects.map.title).toBe('Pilot pricing');expect(objects.memory).toBeUndefined();
+    const ask=async()=>{
+      expect((await act({type:'ask',text:'How should we price this feature?'})).status).toBe(200);
+      for(let i=0;i<80;i++){const s=await (await fetch(base+'/current/api/state')).json();const m=s.threads['@Duy']?.at(-1);if(m?.who==='Claude'&&!m.thinking)return m;await new Promise(r=>setTimeout(r,50));}
+      throw Error('No reply');
+    };
+    expect((await ask()).text).toBe('No external maps selected.');
+    expect((await act({type:'contextmap',id:'hidden',include:true})).status).toBe(400);
+    expect((await act({type:'contextmap',id:'pricing',include:true})).status).toBe(200);
     expect((await act({type:'ask',text:'How should we price this feature?'})).status).toBe(200);
     let reply;
     for(let i=0;i<80;i++){const s=await (await fetch(base+'/current/api/state')).json();reply=s.threads['@Duy']?.at(-1);if(reply?.who==='Claude'&&!reply.thinking)break;await new Promise(r=>setTimeout(r,50));}
     expect(reply.text).toContain('Per-seat pricing research');expect(reply.sources.map(m=>m.id)).toEqual(['pricing']);
     await stop();await start();
-    expect((await (await fetch(base+'/current/api/state')).json()).desc).toContain('small design teams');
+    const restored=await (await fetch(base+'/current/api/state')).json();
+    expect(restored.desc).toContain('small design teams');expect(restored.contextMapIds).toEqual(['pricing']);
+    expect((await act({type:'contextmap',id:'pricing',include:false})).status).toBe(200);
+    // Earlier sourced replies remain in the conversation, but cannot unlock new reads.
+    expect((await ask()).text).toBe('No external maps selected.');
   } finally {await stop();fs.rmSync(root,{recursive:true,force:true});}
 },15000);

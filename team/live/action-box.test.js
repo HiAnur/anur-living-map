@@ -46,6 +46,24 @@ describe('action boxes',()=>{
     expect(h.api.revise('form','Duy')).toBe(true);expect(h.api.execute('form','Duy',old)).toBe(false);
     h.api.prepare('form','Duy','Use the dashboard instead');expect(h.node.action.id).not.toBe(old);h.ready();expect(h.launches).toHaveLength(0);
   });
+  it('keeps immutable downloadable drafts through revision, reload and execution',()=>{
+    const h=harness();h.start();
+    const email={kind:'email',goal:'Email a colleague',target:'sam@example.com',result:'Email sent',steps:['Send reviewed email'],email:{to:'sam@example.com',subject:'Original subject',body:'Original message\nSecond line'}};
+    h.requests.at(-1).onDone(reply({status:'ready',brief:email}));
+    expect(h.api.revise('form','Other')).toBe(false);expect(h.node.action.documents).toBeUndefined();
+    expect(h.api.revise('form','Duy')).toBe(true);
+    const first=structuredClone(h.node.action.documents[0]);
+    expect(first.name).toBe('Action version 1.md');expect(first.content).toContain('Subject: Original subject');expect(first.content).toContain(email.email.body);
+    expect(h.api.revise('form','Duy')).toBe(false);expect(h.node.action.documents).toHaveLength(1);
+    h.api.prepare('form','Duy','Use a warmer opening');
+    expect(h.requests.at(-1).prompt).toContain(JSON.stringify(email));expect(h.node.action.documents[0]).toEqual(first);
+    h.requests.at(-1).onDone(reply({status:'ready',brief:{...email,email:{...email.email,body:'New message'}}}));
+    expect(h.api.revise('form','Duy')).toBe(true);expect(h.node.action.documents).toHaveLength(2);
+    expect(h.node.action.documents[0]).toEqual(first);expect(h.node.action.documents[1].content).toContain('New message');
+    h.node.action=JSON.parse(JSON.stringify(h.node.action));recoverAction(h.node);
+    h.api.prepare('form','Duy','Keep this one');h.ready();
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(true);expect(h.node.action.documents[0]).toEqual(first);
+  });
   it('cancels preparation and ignores late replies',()=>{
     const h=harness();h.start();expect(h.api.cancel('form','Duy')).toBe(true);h.ready();expect(h.node.action).toBeUndefined();expect(h.stops).toHaveLength(1);
   });
