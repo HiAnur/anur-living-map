@@ -41,6 +41,33 @@ export type ExtractResult = {
   usage: ModelUsage | null;
 };
 
+// A chat that stays open and can only read: the folder it runs in, and one
+// more it is given. One question after another goes to the same chat, so it
+// keeps what it has read. Behind a side chat.
+export type ChatRequest = {
+  cwd: string; // the folder it runs in and may read
+  dir: string; // one more folder it may read
+  model?: string; // a model name, or empty for the provider's default
+};
+
+// What a chat says as it answers, in the order it happens.
+export type ChatEvent =
+  | { type: "start" } // a new message begins: a new paragraph, if words follow
+  | { type: "text"; text: string }
+  | { type: "tool"; name: string; target: string } // what it reads or looks for
+  | {
+      type: "result"; // the answer is whole, or it failed
+      ok: boolean;
+      error?: string; // why, in words for you, when the provider knows
+      usage: { input: number; output: number; usd: number; model: string };
+    };
+
+export interface Chat {
+  send(message: string): void;
+  stop(): void;
+  readonly alive: boolean; // false once it has ended or been stopped
+}
+
 export interface ModelProvider {
   readonly name: string;
   // Optional: one structured answer (see ExtractRequest). A provider without
@@ -49,4 +76,10 @@ export interface ModelProvider {
   // Optional: find one of your conversations to link a map to, by its id or
   // else the newest one in a folder. A provider without it links nothing.
   findConversation?(hint: { id?: string; cwd?: string }): Conversation | null;
+  // Optional: open a read-only chat (see ChatRequest). `close` is called once
+  // it has ended, however it ended. A provider without it runs no side chats.
+  openChat?(
+    request: ChatRequest,
+    on: { event(e: ChatEvent): void; close(): void },
+  ): Chat;
 }

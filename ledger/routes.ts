@@ -85,6 +85,9 @@ export function startLedger(
     ledger,
     emit: (e) => hub.emit(e),
     home: HOME,
+    openChat: provider.openChat
+      ? (req, on) => provider.openChat!(req, on)
+      : undefined,
     model: () => ledgerModel(),
   });
 

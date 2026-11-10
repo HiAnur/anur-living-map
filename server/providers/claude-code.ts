@@ -8,6 +8,9 @@ import path from "node:path";
 
 import { findConversation } from "./claude-sessions.ts";
 import type {
+  Chat,
+  ChatEvent,
+  ChatRequest,
   ExtractRequest,
   ExtractResult,
   ModelProvider,
@@ -115,6 +118,60 @@ export function priceOf(model: string, usage: CliResult["usage"]): number {
   return usd;
 }
 
+// A chat's tools: read-only, and nothing that reaches the network or runs
+// anything
+export const CHAT_TOOLS = "Read,Grep,Glob";
+const NEVER = "WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit";
+
+// The arguments of every chat's process. Kept apart so a test can prove
+// what a chat may and may not do.
+export function chatArgs(o: {
+  dir: string; // the one folder it may read beside the one it runs in
+  emptyMcp: string;
+  model?: string;
+}): string[] {
+  const args = [
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
+    "--tools",
+    CHAT_TOOLS,
+    "--allowedTools",
+    CHAT_TOOLS,
+    "--disallowedTools",
+    NEVER,
+    "--restricted",
+    "--add-dir",
+    o.dir,
+    "--no-session-persistence",
+    "--strict-mcp-config",
+    "--mcp-config",
+    o.emptyMcp,
+    "--setting-sources",
+    "",
+  ];
+  if (o.model) args.push("--model", o.model);
+  return args;
+}
+
+// every chat's process, ended when the server exits
+const CHATS = new Set<ChildProcess>();
+let exitHook = false;
+function track(p: ChildProcess) {
+  CHATS.add(p);
+  p.once("close", () => CHATS.delete(p));
+  if (!exitHook) {
+    exitHook = true;
+    process.once("exit", () => {
+      for (const x of CHATS) x.kill("SIGTERM");
+    });
+  }
+}
+
 export function claudeCode({
   home,
   spawn = nodeSpawn as Spawn,
@@ -185,7 +242,9 @@ export function claudeCode({
         end({ ok: false, error: "could not start claude", usage: null }),
       );
       proc.stderr?.on("data", () => {});
-      proc.stdout?.on("data", (chunk: Buffer) => {
+      // as text, so a character split across two chunks stays whole
+      proc.stdout?.setEncoding("utf8");
+      proc.stdout?.on("data", (chunk: string) => {
         out += chunk;
       });
       proc.on("close", () => {
@@ -231,9 +290,115 @@ export function claudeCode({
     });
   }
 
+  // One long-lived `claude -p` (stream-json in and out): further messages go
+  // to the same process, so its prompt cache keeps what it read. Its output
+  // is one event a line; what a side chat needs of each is passed on.
+  function openChat(
+    req: ChatRequest,
+    on: { event(e: ChatEvent): void; close(): void },
+  ): Chat {
+    const proc = spawn(
+      "claude",
+      chatArgs({ dir: req.dir, emptyMcp, model: req.model }),
+      { cwd: req.cwd, env: childEnv() },
+    );
+    track(proc);
+    let cost = 0; // the CLI's running total for this process
+    let model = ""; // the model answering the message under way
+    proc.on("error", () => {});
+    proc.stderr?.on("data", () => {});
+    proc.stdin?.on("error", () => {});
+    // as text, so a character split across two chunks stays whole
+    proc.stdout?.setEncoding("utf8");
+    let buf = "";
+    proc.stdout?.on("data", (chunk: string) => {
+      buf += chunk;
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const raw = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        let d: Record<string, unknown>;
+        try {
+          d = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        if (!d || typeof d !== "object") continue;
+        if (d.type === "stream_event") {
+          const e = d.event as {
+            type?: string;
+            message?: { model?: string };
+            delta?: { text?: string };
+          };
+          if (e?.type === "message_start") {
+            if (typeof e.message?.model === "string") model = e.message.model;
+            on.event({ type: "start" });
+          }
+          if (e?.type === "content_block_delta" && e.delta?.text)
+            on.event({ type: "text", text: e.delta.text });
+        } else if (d.type === "assistant") {
+          const content = (d.message as { content?: unknown[] })?.content;
+          for (const c of Array.isArray(content) ? content : []) {
+            const b = c as {
+              type?: string;
+              name?: string;
+              input?: Record<string, unknown>;
+            };
+            if (b.type !== "tool_use") continue;
+            on.event({
+              type: "tool",
+              name: `${b.name}`,
+              target: String(
+                b.input?.file_path ?? b.input?.pattern ?? b.input?.path ?? "",
+              ),
+            });
+          }
+        } else if (d.type === "result") {
+          const u = (d.usage ?? {}) as Tokens;
+          const total =
+            typeof d.total_cost_usd === "number" ? d.total_cost_usd : 0;
+          // the CLI's total runs on over the process's life: this answer's
+          // share is what it grew by
+          const usd = total ? Math.max(0, total - cost) : priceOf(model, u);
+          if (total) cost = total;
+          on.event({
+            type: "result",
+            ok: !d.is_error,
+            ...(d.is_error && signedOut(d.result) ? { error: SIGNED_OUT } : {}),
+            usage: {
+              usd,
+              input:
+                (u.input_tokens ?? 0) +
+                (u.cache_creation_input_tokens ?? 0) +
+                (u.cache_read_input_tokens ?? 0),
+              output: u.output_tokens ?? 0,
+              model,
+            },
+          });
+        }
+      }
+    });
+    proc.on("close", () => on.close());
+    return {
+      send(message) {
+        model = "";
+        proc.stdin?.write(
+          `${JSON.stringify({ type: "user", message: { role: "user", content: message } })}\n`,
+        );
+      },
+      stop() {
+        proc.kill("SIGTERM");
+      },
+      get alive() {
+        return proc.exitCode === null && !proc.killed;
+      },
+    };
+  }
+
   return {
     name: "Claude Code",
     extract,
     findConversation: (hint) => findConversation(hint),
+    openChat,
   };
 }
