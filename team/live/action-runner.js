@@ -7,11 +7,12 @@ export const completionSchema = {
   properties:{ status:{type:'string',enum:['completed','needs_input','blocked']}, summary:{type:'string'}, evidence:{type:'array',items:{type:'string'}} },
   required:['status','summary','evidence'],
 };
+/** @param {any} value what the run returned: read field by field, trusted for nothing */
 export function readCompletion(value) {
   if (!value || !['completed','needs_input','blocked'].includes(value.status) || typeof value.summary !== 'string' || !value.summary.trim() || value.summary.length > MAX) return null;
-  if (!Array.isArray(value.evidence) || value.evidence.length > 8 || value.evidence.some((e) => typeof e !== 'string' || !e.trim() || e.length > 2000)) return null;
+  if (!Array.isArray(value.evidence) || value.evidence.length > 8 || value.evidence.some((/** @type {unknown} */ e) => typeof e !== 'string' || !e.trim() || e.length > 2000)) return null;
   if (value.status === 'completed' && !value.evidence.length) return null;
-  return {status:value.status,summary:value.summary.trim(),evidence:value.evidence.map((e) => e.trim())};
+  return {status:value.status,summary:value.summary.trim(),evidence:value.evidence.map((/** @type {string} */ e) => e.trim())};
 }
 process.once('exit', () => { for (const kill of active) kill('SIGKILL'); });
 export const executionPrompt = `You are carrying out a reviewed Living Map action. Your replies appear in this box's Side Chat.
@@ -21,6 +22,10 @@ If something essential is missing, ask a concise question in your reply and wait
 On continuation, read this same conversation and check what already happened before doing more. Never repeat a send or another completed action just because the person said Continue. Finish with the requested structured result: status completed only when the approved task is actually done and verified, needs_input when you need an answer, or blocked when access or an error prevents completion. Write the summary as one short plain sentence describing the result, without emojis, headings, repeated recipient details or a play-by-play. Put supporting details in at most three concise evidence items, with concrete tool results, message IDs, file paths, checks or links. Never put an expected result or a plan in evidence. A normal process exit or opening another app is not completion.`;
 
 // Keep the chat on disk; every follow-up resumes its exact ID, never the latest chat in a folder.
+/**
+ * @param {{ cwd: string, env: Record<string, string | undefined>, session: string, resume?: boolean, prompt: string,
+ *   onText: (words: string) => void, onDone: (result: RunResult) => void, spawnProcess?: typeof spawn }} job
+ */
 export function runAction({ cwd, env, session, resume, prompt, onText, onDone, spawnProcess = spawn }) {
   env = {...env};
   for (const key of Object.keys(env)) if (key.startsWith('CLAUDE') && !['CLAUDE_CONFIG_DIR','CLAUDE_CODE_OAUTH_TOKEN'].includes(key)) delete env[key];
@@ -28,12 +33,15 @@ export function runAction({ cwd, env, session, resume, prompt, onText, onDone, s
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--permission-mode', 'auto', '--permission-prompts', 'none', '--json-schema', JSON.stringify(completionSchema), '--append-system-prompt', executionPrompt],
   { cwd, env, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
-  let buffer = '', words = '', errors = '', result = null, done = false, stopped = false, killTimer;
+  let buffer = '', words = '', errors = '', /** @type {RunResult | null} */ result = null, done = false, stopped = false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;
+  /** @param {RunResult} value */
   const finish = (value) => { if (done) return; done = true; clearTimeout(killTimer); active.delete(kill); onDone(value); };
+  /** @param {NodeJS.Signals} signal */
   const kill = (signal) => {
     try { if (process.platform !== 'win32' && proc.pid) process.kill(-proc.pid, signal); else proc.kill(signal); } catch { /* Already exited. */ }
   };
   active.add(kill);
+  /** @param {string} line */
   const read = (line) => {
     let d; try { d = JSON.parse(line); } catch { return; }
     if (!d || typeof d !== 'object') return;
@@ -41,7 +49,7 @@ export function runAction({ cwd, env, session, resume, prompt, onText, onDone, s
     if (e?.type === 'message_start' && words) words += '\n\n';
     if (e?.type === 'content_block_delta' && typeof e.delta?.text === 'string') { words = (words + e.delta.text).slice(-MAX); onText(words); }
     if (d.type === 'assistant' && !words) {
-      words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n\n').slice(-MAX);
+      words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((/** @type {any} */ b) => b?.type === 'text' && typeof b.text === 'string').map((/** @type {any} */ b) => b.text).join('\n\n').slice(-MAX);
       if (words) onText(words);
     }
     if (d.type === 'result') {

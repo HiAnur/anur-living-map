@@ -63,6 +63,7 @@ const claudeLogin = () => signingIn ??= new Promise((resolve) => {
   proc.on('error', () => done(false));
   proc.on('close', (code) => done(code === 0));
 });
+/** @param {any} job */
 function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoad, prepare = false, connected = false }) {
   let context = null, stop = null, cancelled = false;
   const start = async () => {

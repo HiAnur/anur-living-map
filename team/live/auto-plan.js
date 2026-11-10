@@ -2,6 +2,7 @@ import { readPlannedTask } from './action-plan.js';
 
 export const AUTO_PLAN_QUESTION = 'Find what is missing in this topic and its children, using the whole map.';
 
+/** @param {string} id */
 export const autoPlanPrompt = (id) => `This is Auto plan for the selected box (${id}) and its entire branch.
 Read the entire accessible map below, not just the selected box or what is currently on screen. This applies equally when the selected box is a parent or a leaf.
 Follow the lines by id to inspect all children and deeper descendants, their descriptions, and the selected box's ancestors, siblings and related topics elsewhere on the map. Use the map's questions, decisions, memory and this side chat too.
@@ -20,6 +21,7 @@ Other branches are context: mention a related gap there if useful, but only prop
 Use the exact existing parent ids, new lowercase ids, short labels, a brief sub description visible on each box, and a short desc explaining each suggestion. Do not edit or remove existing boxes, reorganize the map or change its instructions.`;
 
 // Follow only accessible boxes, with a visited set for maps containing cross-links or cycles.
+/** @param {string} parent @param {Box[]} existing @param {Line[]} edges @param {Set<string>} accessible */
 function branchIds(parent, existing, edges, accessible) {
   const available = new Set(existing.filter((n) => accessible.has(n.id)).map((n) => n.id));
   const branch = new Set(available.has(parent) ? [parent] : []);
@@ -30,9 +32,14 @@ function branchIds(parent, existing, edges, accessible) {
 }
 
 // Recheck the destination and duplicates on Apply, when the map or access may have changed.
+/**
+ * @param {any} plan what Claude proposed: read field by field, trusted for nothing
+ * @param {string} parent @param {Box[]} existing @param {Line[]} edges @param {Set<string>} [accessible]
+ */
 export function autoPlanAdditions(plan, parent, existing, edges, accessible = new Set(existing.map((n) => n.id))) {
   const ids = new Set(existing.map((n) => n.id));
   const branch = branchIds(parent, existing, edges, accessible);
+  /** @param {unknown} label */
   const name = (label) => String(label || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const labels = new Set(existing.filter((n) => accessible.has(n.id)).map((n) => name(n.label)));
   const candidates = new Map(), destinations = new Map(), dropped = [];
@@ -44,7 +51,7 @@ export function autoPlanAdditions(plan, parent, existing, edges, accessible = ne
     if (n.boxType !== undefined && !['topic','action'].includes(n.boxType)) continue;
     const task = n.boxType === 'action' ? readPlannedTask(n.task) : null;
     if (n.boxType === 'action' && !task) { dropped.push({text:label,why:'Action needs a valid goal, result and task details'}); continue; }
-    const incoming = proposedEdges.filter((e) => e?.to === n.id);
+    const incoming = proposedEdges.filter((/** @type {any} */ e) => e?.to === n.id);
     const from = incoming.length === 0 ? parent : incoming.length === 1 ? incoming[0].from : null;
     if (!from) continue;
     ids.add(n.id); labels.add(key);
@@ -53,12 +60,13 @@ export function autoPlanAdditions(plan, parent, existing, edges, accessible = ne
       ...(n.boxType ? {boxType:n.boxType} : {}),...(task ? {task} : {}),state:'new' });
     destinations.set(n.id, from);
   }
-  const existingTasks = new Map(existing.filter((n) => accessible.has(n.id) && n.action).map((n) => [n.id,n.action.plan || {dependsOn:[]} ]));
+  const existingTasks = new Map(existing.filter((n) => accessible.has(n.id) && n.action).map((n) => [n.id,/** @type {BoxAction} */ (n.action).plan || {dependsOn:[]} ]));
+  /** @type {(id: string, goal: string, seen?: Set<string>) => boolean} */
   const reaches = (id, goal, seen = new Set()) => {
     if (id === goal) return true;
     if (seen.has(id)) return false;
     seen.add(id);
-    return (candidates.get(id)?.task || existingTasks.get(id))?.dependsOn?.some((next) => reaches(next, goal, seen)) || false;
+    return (candidates.get(id)?.task || existingTasks.get(id))?.dependsOn?.some((/** @type {string} */ next) => reaches(next, goal, seen)) || false;
   };
   // Removing a prerequisite or parent also removes dependent proposals, never silently reroutes them.
   let changed = true;
@@ -67,7 +75,7 @@ export function autoPlanAdditions(plan, parent, existing, edges, accessible = ne
     const reachable = new Set(branch);
     for (const id of reachable) for (const n of candidates.values()) if (destinations.get(n.id) === id) reachable.add(n.id);
     for (const [id,n] of candidates) {
-      const badDependency = n.task?.dependsOn.some((dep) => !(candidates.get(dep)?.task || existingTasks.has(dep)) || reaches(dep,id));
+      const badDependency = n.task?.dependsOn.some((/** @type {string} */ dep) => !(candidates.get(dep)?.task || existingTasks.has(dep)) || reaches(dep,id));
       if (!reachable.has(id) || badDependency) {
         candidates.delete(id); changed = true;
         dropped.push({text:n.label,why:badDependency ? 'a prerequisite is unavailable, not an Action, or forms a cycle' : 'its parent is outside the accessible branch'});

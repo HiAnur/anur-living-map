@@ -37,7 +37,7 @@ interface ActionCompletion {
 
 /** A box's Action: the task planned for it and how far it got. */
 interface BoxAction {
-  stage?: string;
+  stage: string;
   source?: string;
   plan?: unknown;
   completion?: ActionCompletion;
@@ -73,6 +73,27 @@ interface MapState extends Shared {
   edges: Line[];
   [more: string]: any;
 }
+
+/** What an Action is to do, once it is ready to review. */
+interface Brief {
+  kind: string; // "email", "build" or "other"
+  goal: string;
+  target: string;
+  result: string;
+  steps: string[];
+  tools?: string[];
+  email?: { to: string; subject: string; body: string };
+}
+
+/** What a run of an Action came back with. */
+interface RunResult {
+  text: string;
+  blocked: boolean;
+  completion?: ActionCompletion;
+}
+
+/** Stops a job under way; a job that never started has none. */
+type Stop = (() => void) | null | undefined | void;
 
 /** The part of node:sqlite this code uses; a row comes back untyped. */
 interface Sqlite {
