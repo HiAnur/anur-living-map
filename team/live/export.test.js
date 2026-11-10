@@ -1,11 +1,8 @@
-import fs from 'node:fs';
-import vm from 'node:vm';
-
 import { describe, expect, it } from 'vitest';
 
-const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
-const ctx=vm.createContext({});
-vm.runInContext(html.slice(html.indexOf('function imageExportSize('),html.indexOf('const blobDataURL =')),ctx);
+import { imageExportSize } from './page-share.js';
+
+const ctx={ imageExportSize };
 describe('map image export size',()=>{
   it('renders ordinary maps at double resolution',()=>{
     expect(ctx.imageExportSize(600,400)).toEqual({width:1200,height:800});

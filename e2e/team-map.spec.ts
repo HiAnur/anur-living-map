@@ -204,6 +204,22 @@ test("someone with a view link, not signed in, sees the map", async ({
   await guest.close();
 });
 
+test("Export image downloads the view as a picture", async ({ page }) => {
+  await openSample(page);
+  await page.getByRole("button", { name: "Share" }).click();
+  await expect(page.getByText("Local only")).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("[data-share-image]").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.png$/);
+  const file = path.join(root, "view.png");
+  await download.saveAs(file);
+  // a PNG, and not an empty one
+  expect(fs.readFileSync(file).subarray(1, 4).toString()).toBe("PNG");
+  expect(fs.statSync(file).size).toBeGreaterThan(1000);
+});
+
 test("Share as a file opens on its own, with no server", async ({
   page,
   browser,

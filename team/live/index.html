@@ -1073,6 +1073,8 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 
 <script type="module">
 import { layoutFor } from './page-layout.js';
+import { searchBoxes } from './page-search.js';
+import { imageExportSize, sharingLocation } from './page-share.js';
 const $ = (id) => document.getElementById(id);
 // who you are: the person signed in (the server writes it into the page), or, while no one has a password yet, ?as=
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
@@ -1378,31 +1380,6 @@ function unfolded({ nodes, edges }){
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
 // a box you go to (from a question, the Inbox, a search) comes out from under whatever folded it away
 const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ folded.delete(f); out = true; } if (out) saveFolds(); return out; };
-// Search reads the complete map, including folded branches and boxes inside another box.
-function searchBoxes(state, additions, query, allowed){
-  const normalize = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const terms = normalize(query).trim().split(/\s+/).filter(Boolean);
-  if (!terms.length || !state) return [];
-  const rows = [];
-  const collect = (nodes, edges, container, location) => {
-    for (const n of nodes){
-      if (!allowed(n)) continue;
-      const parent = nodes.find((p) => edges.some((e) => e.from === p.id && e.to === n.id));
-      const fields = [n.label, n.sub, n.desc, n.note].map((v) => typeof v === 'string' ? v : '');
-      const text = normalize(fields.join(' '));
-      if (terms.every((t) => text.includes(t))){
-        const matched = fields.slice(1).find((f) => terms.some((t) => normalize(f).includes(t))) || n.sub || '';
-        const first = Math.min(...terms.map((t) => normalize(matched).indexOf(t)).filter((i) => i >= 0));
-        const start = Number.isFinite(first) ? Math.max(0, first - 45) : 0;
-        const snippet = (start ? '…' : '') + matched.slice(start, start + 160) + (matched.length > start + 160 ? '…' : '');
-        rows.push({id:n.id, label:n.label, container, location:[location, parent && allowed(parent) ? parent.label : ''].filter(Boolean).join(' / '), snippet, rank:terms.every((t) => normalize(n.label).includes(t)) ? 0 : 1});
-      }
-      if (n.inside) collect(n.inside.nodes || [], n.inside.edges || [], n.id, n.label);
-    }
-  };
-  collect([...state.nodes, ...additions.nodes], [...state.edges, ...additions.edges], 'system', '');
-  return rows.sort((a,b) => a.rank - b.rank);
-}
 let searchOpen = false, searchMatches = [], searchIndex = 0;
 function closeMapSearch(){
   searchOpen = false; $('search-popover').hidden = true;
@@ -2095,17 +2072,6 @@ function renderSave(){
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
 }
-// Storage and link access are separate: revoking a link does not delete the hosted copy.
-function sharingLocation(status, {cloud = false, file = false, uploading = false} = {}){
-  if (file) return {label:'Downloaded file', detail:'You are viewing a saved file. Its original map may also be shared online.'};
-  if (cloud || status?.published){
-    if (status?.mode === 'restricted') return {label:'In cloud · link off', detail:'Link access is off. A cloud copy of this map is still stored.', online:true};
-    return {label:'Shared online', detail:'A cloud copy is available through the shared link, even when this Mac is off.', online:true};
-  }
-  if (uploading) return {label:'Uploading to cloud…', detail:'Creating the shared copy. Your private chats stay on this Mac.'};
-  if (!status) return {label:'Checking sharing status…', detail:'Confirming whether this map has a cloud copy.'};
-  return {label:'Local only', detail:status.configured ? 'Stored on this Mac. Sharing a link uploads a cloud copy; your private chats stay here.' : 'Stored on this Mac. Cloud sharing is not set up.'};
-}
 function cancelCloudPublish(){
   cloudPublishConfirm = false; renderShare(); document.querySelector('[data-copy-link]')?.focus();
 }
@@ -2230,10 +2196,6 @@ async function updatePersonAccess(person){
     if (!r.ok) throw new Error();
     toast(`${person} no longer has access to this project.`);
   } catch { toast('Access could not be changed. Only an owner can remove a member.'); }
-}
-function imageExportSize(width, height){
-  const scale = Math.min(2, 8192 / width, 8192 / height, Math.sqrt(16000000 / (width * height)));
-  return { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
 }
 const blobDataURL = (blob) => new Promise((resolve, reject) => {
   const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob);

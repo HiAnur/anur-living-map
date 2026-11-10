@@ -19,14 +19,17 @@ describe('the page modules', () => {
     const imported = [...script(html).matchAll(/^import .* from '\.\/([\w-]+\.js)';$/gm)].map((m) => m[1]);
     expect(imported.sort()).toEqual([...PAGE_MODULES].sort());
   });
-  it('import nothing, and declare one name the page does not', () => {
-    const page = declared(script(html));
+  it('import nothing, and declare no name the page or another module declares', () => {
+    const seen = declared(script(html));
     for (const f of PAGE_MODULES) {
       const code = read(f);
       expect(code, f).not.toMatch(/^\s*import\b/m);
       const names = [...declared(code)];
-      expect(names, f).toHaveLength(1);
-      expect(page.has(names[0]), `${f}: ${names[0]}`).toBe(false);
+      expect(names.length, f).toBeGreaterThan(0);
+      for (const name of names) {
+        expect(seen.has(name), `${f}: ${name}`).toBe(false);
+        seen.add(name);
+      }
     }
   });
 });
