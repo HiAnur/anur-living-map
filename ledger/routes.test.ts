@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, test } from "vitest";
 
-import type { ModelProvider } from "../server/providers/types.ts";
+import type { Agent } from "../server/providers/types.ts";
 import type { LedgerView } from "../shared/ledger.ts";
 import type { ServerEvent } from "../shared/model.ts";
 
@@ -52,7 +52,7 @@ fs.writeFileSync(
 const ago = (Date.now() - 60_000) / 1000;
 fs.utimesSync(transcript, ago, ago);
 
-const provider: ModelProvider = {
+const provider: Agent = {
   name: "scripted",
   findConversation: () => ({
     id: "chat-1",

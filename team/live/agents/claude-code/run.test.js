@@ -46,7 +46,8 @@ describe('background execution',()=>{
   });
 });
 
-describe('the tools a run may use',()=>{
+// each check runs the real hook in its own node process, which takes seconds on a busy machine
+describe('the tools a run may use',{timeout:30_000},()=>{
   /** @param {any} settings @param {unknown} tool_name */
   const decide=(settings,tool_name)=>{const out=execFileSync('/bin/sh',['-c',settings.hooks.PreToolUse[0].hooks[0].command],{input:JSON.stringify({tool_name}),encoding:'utf8'});return out?JSON.parse(out).hookSpecificOutput.permissionDecision:'asks as usual';};
   it('limits the run with a hook built from the reviewed tools, and pre-approves nothing',()=>{

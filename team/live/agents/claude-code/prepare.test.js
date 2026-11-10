@@ -13,7 +13,8 @@ function harness(connected=true){
   const event=(d,newline=true)=>proc.stdout.write(JSON.stringify(d)+(newline?'\n':''));
   return {proc,calls,results,event,stop};
 }
-describe('Action preparation access',()=>{
+// the hook checks run the real hook in its own node process, which takes seconds on a busy machine
+describe('Action preparation access',{timeout:30_000},()=>{
   it('loads configured tools in the execution project without saving a session or enabling writes',()=>{
     const h=harness(),[command,args,opts]=h.calls[0];expect(command).toBe('claude');expect(opts.cwd).toBe('/sample/project');expect(opts.env.CLAUDECODE).toBeUndefined();expect(opts.env.CLAUDE_CONFIG_DIR).toBe('/sample/config');
     expect(args).toContain('--no-session-persistence');expect(args).toContain('dontAsk');expect(args).not.toContain('--restricted');expect(args).not.toContain('--strict-mcp-config');expect(args).not.toContain('--dangerously-skip-permissions');expect(args[args.indexOf('--permission-prompts')+1]).toBe('none');

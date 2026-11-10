@@ -22,7 +22,7 @@ import path from "node:path";
 import type {
   Chat,
   ChatEvent,
-  ModelProvider,
+  AgentWorker,
 } from "../server/providers/types.ts";
 import type {
   LedgerAction,
@@ -70,7 +70,7 @@ export type SideDeps = {
   emit: (e: LedgerEvent) => void;
   home: string; // sides/<chat>/ is rendered here
   // the provider's read-only chat; without it a side chat can't start
-  openChat?: ModelProvider["openChat"];
+  openChat?: AgentWorker["openChat"];
   model?: () => string;
   now?: () => number;
   idleMs?: number;
@@ -105,11 +105,8 @@ export function createSides(deps: SideDeps) {
   const turnsNow = (conv: string) =>
     ledger.turnsOf(conv) ?? lastTurns.get(conv) ?? [];
 
-  // judgment never runs on Haiku: Claude Code's default instead
-  const model = () => {
-    const m = deps.model?.() ?? "";
-    return /haiku/i.test(m) ? "" : m;
-  };
+  // the model for side chats, as the agent judges it (routes.ts); empty for its default
+  const model = () => deps.model?.() ?? "";
 
   const dirOf = (conv: string) => path.join(deps.home, "sides", conv);
 

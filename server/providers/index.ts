@@ -1,17 +1,17 @@
-// Which model the map talks to. Set LIVING_MAP_PROVIDER to pick another
+// Which agent the map works with. Set LIVING_MAP_PROVIDER to pick another
 // once one is added; Claude Code is the default.
 
 import { claudeCode } from "./claude-code.ts";
-import type { ModelProvider } from "./types.ts";
+import type { Agent } from "./types.ts";
 
-const PROVIDERS: Record<string, (opts: { home: string }) => ModelProvider> = {
+const PROVIDERS: Record<string, (opts: { home: string }) => Agent> = {
   "claude-code": claudeCode,
 };
 
 export function pickProvider(
   name: string | undefined,
   opts: { home: string },
-): ModelProvider {
+): Agent {
   const make = PROVIDERS[name || "claude-code"];
   if (!make)
     throw new Error(
@@ -20,4 +20,4 @@ export function pickProvider(
   return make(opts);
 }
 
-export type { ModelProvider } from "./types.ts";
+export type { Agent } from "./types.ts";
