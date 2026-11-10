@@ -3,6 +3,33 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Actions move forward when what they wait on is done</strong></dt>
+<dd>
+
+When the Actions an Action depends on finish, it prepares itself with what they produced and stops at **Ready to execute** for you; your ready Actions now wait in your **Inbox**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/323 --> <!-- merged-at: 2026-11-10T22:41:43Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Hand an Action to someone else</strong></dt>
+<dd>
+
+An Admin can **Hand over** an Action to another member of the map, so it never waits on someone who is away. <!-- source: https://github.com/HiAnur/anur-living-map/pull/321 --> <!-- merged-at: 2026-11-10T22:35:48Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Build Actions end in a pull request</strong></dt>
+<dd>
+
+A build Action works on its own branch, never in your checkout, and the map commits its changes, pushes the branch and opens the pull request for you. <!-- source: https://github.com/HiAnur/anur-living-map/pull/320 --> <!-- merged-at: 2026-11-10T22:27:41Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] An Action counts as done only when the map saw it</strong></dt>
 <dd>
 
