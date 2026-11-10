@@ -33,6 +33,7 @@ const args = process.argv.slice(2);
 if (args[0] === 'mcp') {
   await import('./mcp.js');
 } else {
+  /** @param {string} name */
   const flag = (name) => { const i = args.indexOf(name); return i < 0 ? '' : args[i + 1] || 'true'; };
   const port = Number(flag('--port') || process.env.LIVING_MAP_PORT || 4323);
   const folder = path.resolve(args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--port') || process.cwd());
@@ -59,6 +60,7 @@ if (args[0] === 'mcp') {
   }
 
   // Claude Code reaches the map through this same package, so the path never goes stale
+  /** @param {...string} a */
   const claude = (...a) => { try { execFileSync('claude', a, { stdio: 'pipe' }); return true; } catch { return false; } };
   if (!claude('mcp', 'get', 'living-map')) {
     if (claude('mcp', 'add', '--scope', 'user', 'living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp')) {

@@ -23,6 +23,9 @@
     "live/mirror.js",
     "live/proposal-layout.js",
     "live/editing.js",
-    "live/map-context.js"
+    "live/map-context.js",
+    "live/mcp.js",
+    "live/bin.js",
+    "login/server.js"
   ]
 }

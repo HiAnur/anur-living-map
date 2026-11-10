@@ -35,16 +35,19 @@ async function accessToken() {
   const r = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token', { headers: { 'Metadata-Flavor': 'Google' } });
   return (await r.json()).access_token;
 }
+/** @param {string} method @param {string} path @param {object} [body] */
 async function fs(method, path, body) {
   const r = await fetch(`${DOCS}${path}`, { method, headers: { authorization: `Bearer ${await accessToken()}`, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`Firestore ${method} ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
 }
-const doc = (email) => `/people/${encodeURIComponent(email)}`, pw = (name) => `/passwords/${encodeURIComponent(name)}`;
-const nameOf = async (email) => (await fs('GET', doc(email)))?.fields?.name?.stringValue || null;
+const doc = (/** @type {string} */ email) => `/people/${encodeURIComponent(email)}`, pw = (/** @type {string} */ name) => `/passwords/${encodeURIComponent(name)}`;
+const nameOf = async (/** @type {string} */ email) => (await fs('GET', doc(email)))?.fields?.name?.stringValue || null;
+/** @param {unknown} password @param {string} salt */
 const scramble = (password, salt) => crypto.scryptSync(String(password), salt, 64).toString('hex');
 // the name a password signs in as, or null
+/** @param {unknown} name @param {unknown} password */
 async function passwordOf(name, password) {
   const f = (await fs('GET', pw(String(name || '').trim().toLowerCase())))?.fields;
   if (!f) return null;
@@ -56,9 +59,9 @@ const [cmd, a1, a2] = process.argv.slice(2);
 if (cmd) {
   const email = String(a1 || '').trim().toLowerCase();
   if (cmd === 'list') {
-    const rows = ((await fs('GET', '/people?pageSize=300'))?.documents || []).map((d) => `${decodeURIComponent(d.name.split('/').pop())}  as ${d.fields.name.stringValue}`);
+    const rows = ((await fs('GET', '/people?pageSize=300'))?.documents || []).map((/** @type {any} */ d) => `${decodeURIComponent(d.name.split('/').pop())}  as ${d.fields.name.stringValue}`);
     console.log(rows.length ? `Google:\n${rows.sort().join('\n')}` : 'No Google address is on the list yet.');
-    const pws = ((await fs('GET', '/passwords?pageSize=300'))?.documents || []).map((d) => `${d.fields.name.stringValue}  (set ${d.fields.set_at.timestampValue.slice(0, 10)})`);
+    const pws = ((await fs('GET', '/passwords?pageSize=300'))?.documents || []).map((/** @type {any} */ d) => `${d.fields.name.stringValue}  (set ${d.fields.set_at.timestampValue.slice(0, 10)})`);
     if (pws.length) console.log(`\nPassword:\n${pws.sort().join('\n')}`);
   } else if (cmd === 'password' && /^[\w.-]{1,40}$/.test(a1 || '')) {
     let password = ''; for await (const c of process.stdin) password += c;
@@ -81,13 +84,17 @@ if (cmd) {
 
 // ── sealing what a sign-in carries between steps ──
 const TTL = 10 * 60_000, CODE_TTL = 2 * 60_000;
+/** @param {number} n */
 const token = (n) => crypto.randomBytes(n).toString('base64url');
+/** @param {unknown} s */
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('base64url');
+/** @param {string} kind @param {object} obj */
 function seal(kind, obj) {
   const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', /** @type {Buffer} */ (KEY), iv);
   const ct = Buffer.concat([c.update(JSON.stringify({ ...obj, kind, at: Date.now() })), c.final()]);
   return Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64url');
 }
+/** @param {string} kind @param {unknown} s @param {number} ttl */
 function unseal(kind, s, ttl) {
   try {
     const b = Buffer.from(String(s), 'base64url'), d = crypto.createDecipheriv('aes-256-gcm', /** @type {Buffer} */ (KEY), b.subarray(0, 12));
@@ -100,12 +107,18 @@ function unseal(kind, s, ttl) {
 // ── the web side ──
 // only a map on the person's own Mac may be sent back to
 const BACK = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/auth\/done$/;
+/** @param {import('node:http').ServerResponse} res @param {string} to */
 const go = (res, to) => res.writeHead(302, { location: to, 'cache-control': 'no-store' }).end();
+/** @param {import('node:http').ServerResponse} res @param {{ back: string, state: string }} f @param {Record<string, string>} q */
 const back = (res, f, q) => go(res, `${f.back}?${new URLSearchParams({ ...q, state: f.state })}`);
+/** @param {import('node:http').ServerResponse} res @param {number} code @param {string} s */
 const text = (res, code, s) => res.writeHead(code, { 'content-type': 'text/plain; charset=utf-8' }).end(s);
+/** @param {import('node:http').ServerResponse} res @param {number} code @param {unknown} d */
 const json = (res, code, d) => res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(d));
+/** @type {(req: import('node:http').IncomingMessage) => Promise<string>} */
 const body = (req) => new Promise((ok) => { let s = ''; req.on('data', (c) => { s += c; if (s.length > 8192) req.destroy(); }); req.on('end', () => ok(s)); });
 
+/** @param {string} code @param {string} verifier */
 async function google(code, verifier) {
   const r = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -126,6 +139,7 @@ async function google(code, verifier) {
 http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), PUBLIC_URL), q = url.searchParams;
   if (url.pathname === '/start' && req.method === 'GET') {
+    /** @type {{ back: string, state: string, challenge: string, verifier?: string }} */
     const f = { back: q.get('return') || '', state: q.get('state') || '', challenge: q.get('challenge') || '' };
     if (!BACK.test(f.back) || !/^[\w-]{16,100}$/.test(f.state) || !/^[\w-]{43}$/.test(f.challenge)) return text(res, 400, 'This sign-in link is not from a Living Map.');
     if (!ID || !SECRET || !KEY) return text(res, 503, 'Google sign-in is not set up here yet.');
@@ -146,6 +160,7 @@ http.createServer(async (req, res) => {
     return back(res, f, { code: seal('code', { email, name, listed, challenge: f.challenge }) });
   }
   if (url.pathname === '/exchange' && req.method === 'POST') {
+    /** @type {any} what the map's server sent */
     let a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const c = KEY && unseal('code', a.code, CODE_TTL);
     if (!c || sha(a.verifier || '') !== c.challenge) return json(res, 400, { error: 'That sign-in code is not good. Sign in again.' });
@@ -153,6 +168,7 @@ http.createServer(async (req, res) => {
     return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed });
   }
   if (url.pathname === '/password' && req.method === 'POST') {
+    /** @type {any} what the map's server sent */
     let a = {}, name = null; try { a = JSON.parse(await body(req)); } catch {}
     try { name = await passwordOf(a.name, a.password); } catch (/** @type {any} */ e) { console.error(e.message); return json(res, 503, { error: 'The sign-in list could not be read. Try again.' }); }
     if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(res, 401, { error: 'That name and password are not right.' }); }
