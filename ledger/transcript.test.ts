@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "vitest";
 
+import { readMore } from "../server/providers/claude-transcript.ts";
 import {
   attachment,
   call,
@@ -19,7 +20,7 @@ import {
   typed,
   user,
 } from "./transcript.harness.ts";
-import { emptyTranscript, readMore, view } from "./transcript.ts";
+import { emptyTranscript, view } from "./transcript.ts";
 test("each uuid is kept once, the first copy winning, with no cap", () => {
   const rows: object[] = [typed("p1", null, "hello"), claude("c1", "p1", "hi")];
   let prev = "c1";

@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, test } from "vitest";
 
+import { readMore } from "../server/providers/claude-transcript.ts";
 import type { Agent } from "../server/providers/types.ts";
 import type { LedgerView } from "../shared/ledger.ts";
 import type { ServerEvent } from "../shared/model.ts";
@@ -53,6 +54,7 @@ const ago = (Date.now() - 60_000) / 1000;
 fs.utimesSync(transcript, ago, ago);
 
 const provider: Agent = {
+  readMore,
   name: "scripted",
   findConversation: () => ({
     id: "chat-1",

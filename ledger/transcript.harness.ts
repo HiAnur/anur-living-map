@@ -6,12 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach } from "vitest";
 
-import {
-  emptyTranscript,
-  ingest,
-  view,
-  type Transcript,
-} from "./transcript.ts";
+import { ingest } from "../server/providers/claude-transcript.ts";
+import { emptyTranscript, view, type Transcript } from "./transcript.ts";
 // ---- fixtures in the observed shapes -------------------------------------------
 
 export let clock = Date.parse("2026-01-01T00:00:00Z");

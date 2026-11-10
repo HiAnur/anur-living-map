@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, test } from "vitest";
 
+import { readMore } from "./providers/claude-transcript.ts";
 import type { Agent } from "./providers/types.ts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lm-auth-"));
@@ -28,6 +29,7 @@ const port = await new Promise<number>((done) => {
 });
 
 const provider: Agent = {
+  readMore,
   name: "none",
   findConversation: () => null,
 };

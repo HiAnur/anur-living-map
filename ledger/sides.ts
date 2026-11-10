@@ -49,8 +49,8 @@ import {
 import { readEvent, type Reply } from "./sides/stream.ts";
 import {
   emptyTranscript,
-  readMore,
   view as readView,
+  type ReadMore,
   type Turn,
 } from "./transcript.ts";
 
@@ -74,14 +74,16 @@ export type SideDeps = {
   model?: () => string;
   now?: () => number;
   idleMs?: number;
+  // the agent's reader of a chat's transcript (AgentConversation.readMore)
+  read: ReadMore;
   // a chat's turns when it isn't followed now
   readTurns?: (file: string) => Promise<Turn[]>;
 };
 
-async function turnsFromFile(file: string): Promise<Turn[]> {
+async function turnsFromFile(read: ReadMore, file: string): Promise<Turn[]> {
   try {
     const t = emptyTranscript();
-    await readMore(t, file);
+    await read(t, file);
     return readView(t, Infinity).turns;
   } catch {
     return [];
@@ -268,7 +270,9 @@ export function createSides(deps: SideDeps) {
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const turns =
       ledger.turnsOf(row.conv) ??
-      (await (deps.readTurns ?? turnsFromFile)(s.conv.file));
+      (await (deps.readTurns ?? ((f) => turnsFromFile(deps.read, f)))(
+        s.conv.file,
+      ));
     lastTurns.set(row.conv, turns);
     const files = {
       items: path.join(dir, "items.md"),

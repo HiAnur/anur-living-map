@@ -2,7 +2,7 @@
 // is new into a map of each (app/ledger/), and pushes every change to the
 // page beside the chat.
 //
-//   chat transcript ──new turns──► ledger ──► provider (claude -p) ──► ~/.living-map/ledger.db
+//   chat transcript ──new turns──► ledger ──► agent (server/providers/) ──► ~/.living-map/ledger.db
 //   page ◄── GET /api/events (server-sent events) ── every change
 //
 // Run with Node 23.6+ (types are stripped natively): node server/index.ts

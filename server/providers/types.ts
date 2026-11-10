@@ -2,6 +2,8 @@
 // agent (the Anthropic API, another vendor, a local model), add a file next
 // to claude-code.ts that implements Agent and register it in index.ts.
 
+import type { ReadMore } from "../../ledger/transcript.ts";
+
 // One of your own conversations with the model: the chat a map follows.
 export type Conversation = {
   id: string;
@@ -101,6 +103,11 @@ export interface AgentWorker {
 // Your own conversations with the agent, as the map finds and follows them.
 export interface AgentConversation {
   readonly name: string;
+  // what was appended to a chat's transcript since `t.offset`, as the map's
+  // entries; a transcript shorter than what was read is read again
+  readMore: ReadMore;
+  // where a chat goes on once you resumed it under a new id, if it has
+  successor?(file: string, id: string): { file: string; id: string } | null;
   // Optional: find one of your conversations to link a map to, by its id or
   // else the newest one in a folder. Without it the map links nothing.
   findConversation?(hint: { id?: string; cwd?: string }): Conversation | null;

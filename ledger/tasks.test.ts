@@ -5,6 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { taskSteps } from "../server/providers/claude-transcript.ts";
 import { planOf } from "./tasks.ts";
 import type { Entry } from "./transcript.ts";
 
@@ -17,7 +18,7 @@ const call = (tool: string, input: unknown): Entry => ({
   type: "assistant",
   kind: "assistant",
   ts: n,
-  plan: [{ tool, input }],
+  tasks: taskSteps(tool, input),
 });
 const plan = (input: unknown) => call("mcp__ccd_turn__update_plan", input);
 

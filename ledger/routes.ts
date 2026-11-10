@@ -13,7 +13,7 @@ import path from "node:path";
 
 import { HOME } from "../server/config.ts";
 import type { Hub } from "../server/events.ts";
-import type { AgentWorker } from "../server/providers/types.ts";
+import type { Agent } from "../server/providers/types.ts";
 import type { LedgerAction } from "../shared/ledger.ts";
 import { compare, shadowFor, snapshot } from "./changes/snapshot.ts";
 import { summarize } from "./chats.ts";
@@ -60,7 +60,7 @@ export type LedgerServer = {
 };
 
 export function startLedger(
-  provider: AgentWorker,
+  provider: Agent,
   hub: Hub,
   file = DB_FILE,
 ): LedgerServer {
@@ -72,6 +72,10 @@ export function startLedger(
   };
   const ledger = createLedger({
     db,
+    read: provider.readMore,
+    findSuccessor: provider.successor
+      ? (file, id) => provider.successor!(file, id)
+      : undefined,
     extract: provider.extract ? (req) => provider.extract!(req) : undefined,
     emit: (e) => hub.emit(e),
     tell: tellChat,
@@ -90,6 +94,7 @@ export function startLedger(
     ledger,
     emit: (e) => hub.emit(e),
     home: HOME,
+    read: provider.readMore,
     openChat: provider.openChat
       ? (req, on) => provider.openChat!(req, on)
       : undefined,

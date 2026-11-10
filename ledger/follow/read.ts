@@ -6,15 +6,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { successor } from "../../server/providers/claude-sessions.ts";
 import { checkAnswer } from "../apply.ts";
 import { planOf } from "../tasks.ts";
-import {
-  emptyTranscript,
-  readMore,
-  view as readView,
-  type Turn,
-} from "../transcript.ts";
+import { emptyTranscript, view as readView, type Turn } from "../transcript.ts";
 import {
   BATCH,
   continued,
@@ -54,7 +48,7 @@ export async function read(ctx: Ctx, f: Follower) {
   try {
     let grew = false;
     try {
-      const r = await readMore(f.t, f.file);
+      const r = await deps.read(f.t, f.file);
       grew = r.added > 0 || r.reset;
     } catch {
       if (f.error !== "The chat's transcript can't be read.") {
@@ -73,13 +67,13 @@ export async function read(ctx: Ctx, f: Follower) {
     ) {
       f.lookedForNext = t;
       const id = f.s.conv.ids.at(-1) ?? f.s.conv.root;
-      const next = (deps.findSuccessor ?? successor)(f.file, id);
+      const next = deps.findSuccessor?.(f.file, id) ?? null;
       if (next) {
         const conv = f.s.conv;
-        conv.ids = unique([...conv.ids, path.basename(next, ".jsonl")]);
-        conv.file = next;
+        conv.ids = unique([...conv.ids, next.id]);
+        conv.file = next.file;
         db.saveConv(conv);
-        restart(ctx, f, next);
+        restart(ctx, f, next.file);
         return;
       }
     }
