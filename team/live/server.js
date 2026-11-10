@@ -51,7 +51,7 @@ const READ = 'Read,Grep,Glob';
 // Claude Code keeps a sign-in of its own, apart from the Claude app's; when that one can no longer be renewed,
 // every answer fails until it is signed in again, however signed in the app is
 const SIGNED_OUT = 'Claude Code on this Mac is signed out, so it can\'t answer.';
-const signedOut = (text) => /authenticat|oauth|\/login|not logged in|invalid api key/i.test(String(text ?? ''));
+const signedOut = (/** @type {any} */ text) => /authenticat|oauth|\/login|not logged in|invalid api key/i.test(String(text ?? ''));
 const childEnv = () => { const env = { ...process.env }; for (const k of SESSION_VARS) delete env[k]; return env; };
 // Sign in, on a signed-out answer: Claude Code's own `claude auth login`, with no Terminal. It opens the browser
 // and hears back from it by itself, so the answer comes once you approve there; one at a time, given up after 5 minutes
@@ -59,13 +59,13 @@ let signingIn = null;
 const claudeLogin = () => signingIn ??= new Promise((resolve) => {
   const proc = spawn('claude', ['auth', 'login'], { env: childEnv(), stdio: 'ignore' });
   const limit = setTimeout(() => proc.kill('SIGTERM'), 300_000);
-  const done = (ok) => { clearTimeout(limit); signingIn = null; resolve(ok); };
+  const done = (/** @type {any} */ ok) => { clearTimeout(limit); signingIn = null; resolve(ok); };
   proc.on('error', () => done(false));
   proc.on('close', (code) => done(code === 0));
 });
 /** @param {any} job */
 function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoad, prepare = false, connected = false }) {
-  let context = null, stop = null, cancelled = false;
+  let /** @type {any} */ context = null, /** @type {any} */ stop = null, cancelled = false;
   const start = async () => {
     try {
       if (contextMaps) context = await openContext({ maps: () => contextMaps(who), who, onLoad });
@@ -78,13 +78,13 @@ function askClaude({ cwd, prompt, onText, onDone, contextMaps, who, onLoad, prep
   void start();
   return () => { cancelled = true; context?.close(); stop?.(); };
 }
-function streamClaude({ cwd, prompt, onText, onDone, config }) {
+function streamClaude(/** @type {any} */ { cwd, prompt, onText, onDone, config }) {
   const env = childEnv();
   const proc = spawn('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', READ, '--allowedTools', config ? `${READ},mcp__map_context__list_maps,mcp__map_context__load_map` : READ, '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
     '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify(config || {mcpServers:{}}), '--setting-sources', ''], { cwd, env });
   let text = '', buf = '', done = false;
-  const end = (t) => { if (done) return; done = true; clearTimeout(limit); onDone(t); };
+  const end = (/** @type {any} */ t) => { if (done) return; done = true; clearTimeout(limit); onDone(t); };
   const limit = setTimeout(() => { proc.kill('SIGTERM'); end(text.trim() || 'Claude took too long to answer. Ask again.'); }, 180_000);
   proc.on('error', () => end('Claude Code is not installed here, so the map cannot answer.'));
   proc.stderr.on('data', () => {});
@@ -117,15 +117,15 @@ const DIR = import.meta.dirname;
 // remembered in projects.json so they are still listed after a restart
 const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
-const mapName = (folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+const mapName = (/** @type {any} */ folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 // how a chat answers what the map sends it, sent with every message, so a chat that started before an update
 // never works from rules the map has outgrown; read each time, so an update reaches chats already running
-const chatRules = (base) => { try { return fs.readFileSync(path.join(DIR, 'chat-rules.md'), 'utf8').replaceAll('{{BASE}}', base).trim(); } catch { return ''; } };
+const chatRules = (/** @type {any} */ base) => { try { return fs.readFileSync(path.join(DIR, 'chat-rules.md'), 'utf8').replaceAll('{{BASE}}', base).trim(); } catch { return ''; } };
 
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
-const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
+const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
 /** @param {any} options */
 export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null }) {
@@ -137,7 +137,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // a team map's people are whoever has signed in on it, from the moment they open it; nobody is listed who
   // never came. The story's seed is only the role book: the role a seated name carries when they join. Everyone
   // sees the whole map; only the story keeps its cast and their areas.
-  const roleOf = (id) => demo().people.find((p) => p.id === id)?.role;
+  const roleOf = (/** @type {any} */ id) => demo().people.find((/** @type {any} */ p) => p.id === id)?.role;
   const seed = () => {
     if (!project && !name) return demo();
     const drawn = project ? readProject(project) : { title: name, desc: '', nodes: [], edges: [] };
@@ -148,15 +148,16 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // All chat is one place: each person's chat with Claude (threads['@Duy']). A question about a box
   // carries the box as `about`. Older maps kept a thread per box; those messages move into the chat of
   // whoever asked, keep their box, and fall into time order by the log, which kept the moment of each ask.
+  /** @param {any} s */
   function oneChat(s) {
     const boxes = Object.keys(s.threads || {}).filter((k) => !k.startsWith('@'));
     if (!boxes.length) return;
-    const used = new Set(), when = (m) => {
-      const i = (s.log || []).findIndex((l, j) => !used.has(j) && l.action === 'asked' && l.who === m.who && l.text === m.text);
+    const used = new Set(), when = (/** @type {any} */ m) => {
+      const i = (s.log || []).findIndex((/** @type {any} */ l, /** @type {any} */ j) => !used.has(j) && l.action === 'asked' && l.who === m.who && l.text === m.text);
       if (i < 0) return null; used.add(i); return s.log[i].at;
     };
-    const into = {};
-    const add = (key, list, about) => {
+    const into = /** @type {Record<string, any>} */ ({});
+    const add = (/** @type {any} */ key, /** @type {any} */ list, /** @type {any} */ about) => {
       let t = 0, who = key.startsWith('@') ? key.slice(1) : null;
       for (const m of list) {
         if (m.who !== 'Claude') { who = m.who; t = when(m) ?? t; } else t += 0.001;
@@ -164,34 +165,34 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       }
     };
     // a person's earlier chats (threads['@Duy#<when>']) and their box chats (threads['@Duy>billing']) stay as they are
-    const own = (k) => k.includes('#') || k.includes('>');
+    const own = (/** @type {any} */ k) => k.includes('#') || k.includes('>');
     const kept = Object.entries(s.threads).filter(([k]) => own(k));
     for (const [key, list] of Object.entries(s.threads)) if (!own(key)) add(key, list, key.startsWith('@') ? null : key);
-    s.threads = { ...Object.fromEntries(kept), ...Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((a, b) => a.t - b.t).map((x) => x.m)])) };
+    s.threads = { ...Object.fromEntries(kept), ...Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((/** @type {any} */ a, /** @type {any} */ b) => a.t - b.t).map((/** @type {any} */ x) => x.m)])) };
   }
   // a chat that is this person's: the one open now, one in their history, or one on a box
-  const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
+  const mineChat = (/** @type {any} */ key, /** @type {any} */ by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
   let state = initialState ? structuredClone(initialState) : fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh();
   // A map is usable as extra context only while it remains checked in Brain.
-  const selectedContextMaps = (who) => (contextMaps?.(who) || []).filter((m) => state.contextMapIds?.includes(m.id)).map((m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
+  const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
-  if (!memory && (project || name)) state.people = (state.people || []).filter((p) => p.joined).map((p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
+  if (!memory && (project || name)) state.people = (state.people || []).filter((/** @type {any} */ p) => p.joined).map((/** @type {any} */ p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
-  for (const n of state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])) recoverAction(n);
+  for (const n of state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])) recoverAction(n);
   oneChat(state);
   const clients = new Set();
   const activeAsks = new Set();
   const clientAccess = new Map();
-  const cursors = {}; // by name: {x, y, view, at}; never saved
+  const cursors = /** @type {Record<string, any>} */ ({}); // by name: {x, y, view, at}; never saved
   // who has this map open right now: each signed-in window, told to every window as people come and go
   const viewers = new Map();
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
   // a named map gets its folder the first time something is written to it
   const save = () => { updateBoxDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
-  const send = (res, ev, data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
+  const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
     if (!role || role !== c.role) {
@@ -207,16 +208,16 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // The Claude pane, synced: the Claude Code chat linked last (state.linked[0]) is followed through its
   // transcript, and its owner's windows get it as a "mirror" event: that chat's messages, what the owner
   // wrote from the map, and the changes it proposed here, in time order. Nobody else is sent it.
-  let mirror = null;
+  let /** @type {any} */ mirror = null;
   const linkOf = () => state.linked?.[0] || null;
-  const ownsChat = (session, by) => (state.linked || []).some((l) => l.session === session && l.owner === by);
+  const ownsChat = (/** @type {any} */ session, /** @type {any} */ by) => (state.linked || []).some((/** @type {any} */ l) => l.session === session && l.owner === by);
   function mirrorView() {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
     // handed: the chat's listener has taken the message; one written before this was tracked counts as taken
-    const said = (state.said?.[l.session] || []).map((s) => ({ who: 'you', text: s.text, at: s.at, map: true, handed: !s.id || !!s.handed, ...(s.imgs ? { imgs: s.imgs } : {}) }));
-    const props = (state.proposals || []).filter((p) => p.session === l.session).map((p) => ({ who: 'claude', at: p.made, proposal: p }));
+    const said = (state.said?.[l.session] || []).map((/** @type {any} */ s) => ({ who: 'you', text: s.text, at: s.at, map: true, handed: !s.id || !!s.handed, ...(s.imgs ? { imgs: s.imgs } : {}) }));
+    const props = (state.proposals || []).filter((/** @type {any} */ p) => p.session === l.session).map((/** @type {any} */ p) => ({ who: 'claude', at: p.made, proposal: p }));
     // listening: the chat's listener is waiting for the map right now, so what is written next reaches it at once
-    return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), listening: waiters.some((w) => w.who === l.session),
+    return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), listening: waiters.some((/** @type {any} */ w) => w.who === l.session),
       msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
   }
   const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
@@ -232,13 +233,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // here, headless, in the map's folder: claude -p in auto mode with nobody to ask, so anything auto mode would stop
   // to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
   // and what the owner writes there continues it, one turn at a time.
-  let building = null; const queued = [];
+  let /** @type {any} */ building = null; const /** @type {any} */ queued = [];
   const brief = () => [
     `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
     'It began as a blank canvas from the prompt you are given. Find what it needs with the tools you have (files, the web, and the apps this Claude Code is connected to), then draw it with living_map_change: boxes for the parts, lines between them, and a question for a teammate where something is not known.',
     'Read, never act: do not send, post, book, buy, or change anything outside this map.',
     'Your replies show in the chat beside the map: say in two or three short lines what you drew, what you found, and what you could not reach.',
   ].join('\n');
+  /** @param {any} l @param {any} text */
   function converse(l, text) {
     if (building) { queued.push(text); return; }
     const env = { ...process.env }; for (const k of SESSION_VARS) delete env[k];
@@ -267,7 +269,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // writes the chat's transcript into ~/.claude/projects/<the map's folder, - for every other character> as the chat
   // starts, so the server links the new file holding "map:<name>" itself, without waiting the half minute until
   // the skill's own link step (which then changes nothing).
-  function build({ prompt, by }) {
+  function build(/** @type {any} */ { prompt, by }) {
     const words = prompt.replace(/\s+/g, ' ').split(' ');
     let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
     state.title = state.renamed = (title || 'New map').replace(/^./, (c) => c.toUpperCase());
@@ -287,38 +289,40 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
   // a picture from the chat itself is read from its transcript; both go by the same kind of id
   const PICS = path.join(home, 'chat-images'), EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+  /** @param {any} p */
   function savePicture(p) {
     const m = String(p || '').match(/^data:(image\/(?:png|jpeg|gif|webp));base64,([A-Za-z0-9+/=]+)$/);
     if (!m) return null;
     const buf = Buffer.from(m[2], 'base64'); if (!buf.length || buf.length > 10e6) return null;
-    const id = crypto.createHash('sha1').update(m[2]).digest('hex').slice(0, 16), file = path.join(PICS, `${id}.${EXT[m[1]]}`);
+    const id = crypto.createHash('sha1').update(m[2]).digest('hex').slice(0, 16), file = path.join(PICS, `${id}.${/** @type {Record<string, any>} */ (EXT)[m[1]]}`);
     fs.mkdirSync(PICS, { recursive: true }); if (!fs.existsSync(file)) fs.writeFileSync(file, buf);
     return { id, file };
   }
+  /** @param {any} id */
   function picture(id) {
     const t = mirror?.f.img(id); if (t) return { type: t.type, buf: Buffer.from(t.data, 'base64') };
     const f = fs.existsSync(PICS) && fs.readdirSync(PICS).find((n) => n.startsWith(`${id}.`));
-    return f ? { type: Object.keys(EXT).find((k) => f.endsWith(`.${EXT[k]}`)), buf: fs.readFileSync(path.join(PICS, f)) } : null;
+    return f ? { type: Object.keys(EXT).find((k) => f.endsWith(`.${/** @type {Record<string, any>} */ (EXT)[k]}`)), buf: fs.readFileSync(path.join(PICS, f)) } : null;
   }
 
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
-  const waiters = [];
+  const /** @type {any} */ waiters = [];
   // this map's address, for the rules a chat follows
   const address = () => `http://localhost:${PORT}${name ? `/${name}` : project ? `/${mapName(project)}` : ''}`;
   // which version of the rules each chat last got: they go out again only when they are new to that chat,
   // and otherwise one line says where to read them, for a chat that has lost them from view
   const rulesSeen = new Map();
-  const rulesFor = (session) => {
+  const rulesFor = (/** @type {any} */ session) => {
     const rules = chatRules(address()); if (!rules) return '';
     const v = crypto.createHash('sha1').update(rules).digest('hex');
     if (rulesSeen.get(session) === v) return `\nAnswer by the map's rules, unchanged since you last got them (${address()}/api/rules).\n`;
     rulesSeen.set(session, v); return `\nHOW TO ANSWER IT (from the map server):\n${rules}\n`;
   };
   // what the change being made told the outbox; the history names that version with it
-  let told = null;
+  let /** @type {any} */ told = null;
   // said: the id of what the owner wrote in the pane, marked handed once a listener takes it
-  const tell = (text, to = '', said = '') => {
+  const tell = (/** @type {any} */ text, to = '', said = '') => {
     told = text;
     if (!memory) { fs.mkdirSync(home, { recursive: true }); fs.appendFileSync(OUTBOX, `- ${new Date().toTimeString().slice(0, 5)} ${text}\n`); }
     if (to) { state.forChats = [...(state.forChats || []), { to, text, at: stamp(), ...(said ? { said } : {}) }].slice(-50); setTimeout(wake); }
@@ -327,32 +331,34 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   function wake() {
     let changed = false;
     for (const w of [...waiters].reverse()) {
-      const mine = (state.forChats || []).filter((m) => m.to === w.who || m.to === '*');
+      const mine = (state.forChats || []).filter((/** @type {any} */ m) => m.to === w.who || m.to === '*');
       if (!mine.length) continue;
-      state.forChats = state.forChats.filter((m) => !mine.includes(m));
+      state.forChats = state.forChats.filter((/** @type {any} */ m) => !mine.includes(m));
       waiters.splice(waiters.indexOf(w), 1); clearTimeout(w.timer);
-      w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
-      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((x) => x.id === m.said); if (s) s.handed = Date.now(); }
+      w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((/** @type {any} */ m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
+      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((/** @type {any} */ x) => x.id === m.said); if (s) s.handed = Date.now(); }
       changed = true;
     }
     if (changed) { save(); setTimeout(sendMirror); }
   }
   // which chat a change belongs to: the one that drew the call or box, else the last one that drew on this map
+  /** @type {(nodeId: any, call?: any) => any} */
   const ownerOf = (nodeId, call) => call?.session || nodeOf(nodeId)?.session || state.owner || '*';
   const stamp = () => new Date().toTimeString().slice(0, 5);
 
-  const allNodes = () => state.nodes.flatMap((n) => [n, ...(n.inside?.nodes ?? [])]);
-  const allEdges = () => state.edges.concat(state.nodes.flatMap((n) => n.inside?.edges ?? []));
-  const nodeOf = (id) => allNodes().find((n) => n.id === id);
+  const allNodes = () => state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes ?? [])]);
+  const allEdges = () => state.edges.concat(state.nodes.flatMap((/** @type {any} */ n) => n.inside?.edges ?? []));
+  const nodeOf = (/** @type {any} */ id) => allNodes().find((/** @type {any} */ n) => n.id === id);
 
   // what a person's answer does to the map, from the call's own seed. A yes-or-no call takes
   // confirm or dispute; a call with options takes one of them, or the person's own words.
+  /** @param {any} a */
   function answerCall(a) {
-    const c = state.calls.find((x) => x.id === a.id);
+    const c = state.calls.find((/** @type {any} */ x) => x.id === a.id);
     if (!c || c.status !== 'open') return false;
     let fx;
     if (c.options?.length) {
-      const o = c.options.find((x) => x.id === a.option), own = String(a.other || '').trim().slice(0, 400);
+      const o = c.options.find((/** @type {any} */ x) => x.id === a.option), own = String(a.other || '').trim().slice(0, 400);
       if (!o && !own) return false;
       fx = o || {};
       c.status = 'answered'; c.pickedId = o ? o.id : 'other'; c.picked = o ? o.label : own;
@@ -369,7 +375,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (fx.sub !== undefined) n.sub = fx.sub;
       n.decided = { who: a.by, at: c.at, what: fx.sub || c.picked || c.status, call: c.id };
     }
-    if (fx.edge) { const [f, t] = fx.edge.split('>'); const e = allEdges().find((x) => x.from === f && x.to === t); if (e) e.state = fx.edgeState || ''; }
+    if (fx.edge) { const [f, t] = fx.edge.split('>'); const e = allEdges().find((/** @type {any} */ x) => x.from === f && x.to === t); if (e) e.state = fx.edgeState || ''; }
     state.log.push({ at: Date.now(), who: a.by, action: c.status, call: c.id, node: c.node, text: c.text, said: c.said, picked: c.picked });
     tell(c.status === 'answered'
       ? `${a.by} answered "${c.text}": ${c.pickedId === 'other' ? `in their own words, "${c.picked}"` : `"${c.picked}"${fx.says ? ` — ${fx.says}` : ''}`}`
@@ -378,27 +384,28 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
 
   // what Claude reads to answer on a box: who asks, the box, the map as far as the asker can see it, the thread so far
-  const seesOf = (by) => state.people?.find((p) => p.id === by)?.sees || 'all';
+  const seesOf = (/** @type {any} */ by) => state.people?.find((/** @type {any} */ p) => p.id === by)?.sees || 'all';
   // side: the question comes from the box's side chat, which reads the map and the box, never anyone's own chat
+  /** @param {any} by @param {any} n @param {any} q @param {any} before */
   function askPrompt(by, n, q, before, side = false, autoPlan = false) {
-    const person = state.people?.find((p) => p.id === by), sees = seesOf(by);
-    const nodes = allNodes().filter((x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((x) => x.id));
-    const label = (id) => nodeOf(id)?.label || id;
+    const person = state.people?.find((/** @type {any} */ p) => p.id === by), sees = seesOf(by);
+    const nodes = allNodes().filter((/** @type {any} */ x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((/** @type {any} */ x) => x.id));
+    const label = (/** @type {any} */ id) => nodeOf(id)?.label || id;
     // a reply of Claude's that offered a change says so, and what became of it, so Claude never offers it again
-    const offer = (m) => { const p = m.proposal; if (!p?.ops?.length) return '';
+    const offer = (/** @type {any} */ m) => { const p = m.proposal; if (!p?.ops?.length) return '';
       const what = p.status === 'applied' ? `applied by ${p.by}, so it is on the map now` : p.status === 'pending' ? 'still waiting for Apply'
         : p.replaced ? 'replaced by a later offer' : 'not applied';
       return ` [This reply offered a change to the map: ${p.ops.join('; ')}. It was ${what}.]`; };
-    const box = (x) => [`- ${x.label} [id: ${x.id}]${x.sub ? ` (${x.sub})` : ''}${x.state ? ` [${x.state}]` : ''}${x.file ? ` in ${x.file}` : ''}`,
+    const box = (/** @type {any} */ x) => [`- ${x.label} [id: ${x.id}]${x.sub ? ` (${x.sub})` : ''}${x.state ? ` [${x.state}]` : ''}${x.file ? ` in ${x.file}` : ''}`,
       x.desc && `  ${x.desc}`, x.action?.by === by && `  Action: ${JSON.stringify({plan:x.action.plan,stage:x.action.stage,completion:x.action.completion})}`, x.fact && `  Found: ${x.fact.text} (${x.fact.from})`,
       x.decided && `  Decided by ${x.decided.who} at ${x.decided.at}: ${x.decided.what}`].filter(Boolean).join('\n');
-    const lines = allEdges().filter((e) => ids.has(e.from) && ids.has(e.to))
-      .map((e) => `- ${label(e.from)} [id: ${e.from}] -> ${label(e.to)} [id: ${e.to}]${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
-    const mine = (kind) => (state.memory || []).filter((m) => m.kind === kind && (!m.box || ids.has(m.box)))
-      .map((m) => `- ${m.box ? `On ${label(m.box)}` : 'Whole map'}: ${m.text} (${m.by})`);
-    const calls = state.calls.filter((c) => ids.has(c.node)).map((c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
+    const lines = allEdges().filter((/** @type {any} */ e) => ids.has(e.from) && ids.has(e.to))
+      .map((/** @type {any} */ e) => `- ${label(e.from)} [id: ${e.from}] -> ${label(e.to)} [id: ${e.to}]${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
+    const mine = (/** @type {any} */ kind) => (state.memory || []).filter((/** @type {any} */ m) => m.kind === kind && (!m.box || ids.has(m.box)))
+      .map((/** @type {any} */ m) => `- ${m.box ? `On ${label(m.box)}` : 'Whole map'}: ${m.text} (${m.by})`);
+    const calls = state.calls.filter((/** @type {any} */ c) => ids.has(c.node)).map((/** @type {any} */ c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
       + (c.status === 'open' ? '(waiting)' : `(${c.status === 'answered' ? `"${c.picked}"` : c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}${c.said && c.said !== c.picked ? `: "${c.said}"` : ''})`)
-      + (c.options?.length ? c.options.map((o) => `\n  Option: ${o.label}${o.means ? `: ${o.means}` : ''}`).join('')
+      + (c.options?.length ? c.options.map((/** @type {any} */ o) => `\n  Option: ${o.label}${o.means ? `: ${o.means}` : ''}`).join('')
         : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));
     return [
       `You answer a question asked on Living Map, a map a team and its coding agents plan on together. This map is "${state.title}"${state.prompt ? `, drawn for "${state.prompt}"` : ''}.`,
@@ -434,7 +441,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       '', `## Every box${sees === 'all' ? '' : ` ${by} can see (their access covers ${sees})`}`, ...nodes.map(box),
       lines.length ? ['', '## Lines between boxes', ...lines] : [],
       calls.length ? ['', '## Questions on the map', ...calls] : [],
-      before.length ? ['', `## Earlier in this ${side ? 'side ' : ''}chat`, ...before.map((m) => `${m.who}${m.about && !side ? ` (about ${label(m.about)})` : ''}: ${m.text}${offer(m)}`)] : [],
+      before.length ? ['', `## Earlier in this ${side ? 'side ' : ''}chat`, ...before.map((/** @type {any} */ m) => `${m.who}${m.about && !side ? ` (about ${label(m.about)})` : ''}: ${m.text}${offer(m)}`)] : [],
       '', '## The question', q,
     ].flat().join('\n');
   }
@@ -443,7 +450,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     nodeOf,
     allNodes,
     canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
-    context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((m) => !m.thinking).slice(-20), true),
+    context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
     ask: (request) => askClaude({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
@@ -452,6 +459,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   // Instructions (what Claude must follow) and Memory (what the team asked it to keep), each for the whole map
   // (box null) or one box. Claude reads both before every answer; people add, edit and remove them on the map.
+  /** @param {any} m @param {any} by */
   function keepMemory(m, by) {
     const kind = ['instruction', 'memory'].includes(m?.kind) ? m.kind : null, text = String(m?.text || '').trim().slice(0, 300);
     const box = m?.box ? nodeOf(m.box) : null, sees = seesOf(by);
@@ -462,29 +470,32 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // boxes, lines and calls are added or updated by id; removed boxes go
   // what a box opens into on a double click: a timeline (items with when), a sequence (items from → to),
   // or a Venn (items in 1 to 3 groups); null when there is nothing to draw
+  /** @param {any} d */
   function diagramOf(d) {
     if (!d || !['timeline', 'sequence', 'venn'].includes(d.kind)) return null;
-    const s = (t, n) => String(t ?? '').slice(0, n);
-    const items = (Array.isArray(d.items) ? d.items : []).slice(0, 40).filter((m) => m?.label).map((m) => ({ label: s(m.label, 80),
+    const s = (/** @type {any} */ t, /** @type {any} */ n) => String(t ?? '').slice(0, n);
+    const items = (Array.isArray(d.items) ? d.items : []).slice(0, 40).filter((/** @type {any} */ m) => m?.label).map((/** @type {any} */ m) => ({ label: s(m.label, 80),
       ...(m.when ? { when: s(m.when, 30) } : {}), ...(m.note ? { note: s(m.note, 120) } : {}),
       ...(m.from && m.to ? { from: s(m.from, 40), to: s(m.to, 40) } : {}),
-      ...(Array.isArray(m.in) ? { in: m.in.map((g) => s(g, 40)).filter(Boolean).slice(0, 3) } : {}) }));
+      ...(Array.isArray(m.in) ? { in: m.in.map((/** @type {any} */ g) => s(g, 40)).filter(Boolean).slice(0, 3) } : {}) }));
     return items.length ? { kind: d.kind, ...(d.title ? { title: s(d.title, 80) } : {}), items } : null;
   }
   // what a change does to a box's diagram, in plain words: how many parts come and how many go
+  /** @param {any} was @param {any} now */
   function diagramSaid(was, now) {
     if (!now) return was ? `take its ${was.kind} away` : 'no diagram';
-    const key = (m) => JSON.stringify([m.when, m.label, m.note, m.from, m.to, (m.in || []).slice().sort()]);
+    const key = (/** @type {any} */ m) => JSON.stringify([m.when, m.label, m.note, m.from, m.to, (m.in || []).slice().sort()]);
     const left = (was?.kind === now.kind ? was.items : []).map(key); let added = 0;
     for (const m of now.items) { const i = left.indexOf(key(m)); if (i >= 0) left.splice(i, 1); else added++; }
-    const part = { timeline: 'moment', sequence: 'step', venn: 'item' }[now.kind], n = (k) => `${k} ${part}${k === 1 ? '' : 's'}`;
+    const part = /** @type {Record<string, any>} */ ({ timeline: 'moment', sequence: 'step', venn: 'item' })[now.kind], n = (/** @type {any} */ k) => `${k} ${part}${k === 1 ? '' : 's'}`;
     return was?.kind === now.kind ? `its ${now.kind}: ${n(added)} added, ${n(left.length)} taken out` : `a ${now.kind} of ${n(now.items.length)}`;
   }
+  /** @param {any} p @param {any} by @param {any} source */
   function draw(p, by, source) {
     // A drawing can change a box's content, but its original creator, source and dates come from the map.
-    const markCreators = (nodes, previous) => {
+    const markCreators = (/** @type {any} */ nodes, /** @type {any} */ previous) => {
       for (const n of nodes || []) if (n) {
-        const prior = previous?.find((box) => box.id === n.id);
+        const prior = previous?.find((/** @type {any} */ box) => box.id === n.id);
         delete n.createdAt; delete n.updatedAt; delete n.updatedBy; delete n.source;
         delete n.by;
         if (prior?.by) n.by = prior.by;
@@ -496,48 +507,52 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     };
     markCreators(p.nodes, state.nodes);
     for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
-    const merge = (list, key, items = []) => {
+    const merge = (/** @type {any} */ list, /** @type {any} */ key, /** @type {any} */ items = []) => {
       for (const it of items) {
-        const k = key(it), had = list.find((x) => key(x) === k);
+        const k = key(it), had = list.find((/** @type {any} */ x) => key(x) === k);
         if (had) Object.assign(had, it); else list.push(it);
       }
     };
-    merge(state.nodes, (n) => n.id, p.nodes);
-    merge(state.edges, (e) => `${e.from}>${e.to}`, p.edges);
+    merge(state.nodes, (/** @type {any} */ n) => n.id, p.nodes);
+    merge(state.edges, (/** @type {any} */ e) => `${e.from}>${e.to}`, p.edges);
     // a new box with no place goes where its lines cross nothing
     placeNew(state.nodes, state.edges, state.start);
-    merge(state.calls, (c) => c.id, p.calls);
-    for (const id of p.remove || []) state.nodes = state.nodes.filter((n) => n.id !== id);
+    merge(state.calls, (/** @type {any} */ c) => c.id, p.calls);
+    for (const id of p.remove || []) state.nodes = state.nodes.filter((/** @type {any} */ n) => n.id !== id);
     for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
   }
   // a line taken off the map, wherever it is drawn: the system or the inside of a box
+  /** @param {any} from @param {any} to */
   function unlinkEdge(from, to) {
     let gone = false;
-    for (const s of [state, ...state.nodes.map((n) => n.inside).filter(Boolean)]) {
-      const before = (s.edges || []).length; s.edges = (s.edges || []).filter((e) => !(e.from === from && e.to === to)); gone ||= s.edges.length < before;
+    for (const s of [state, ...state.nodes.map((/** @type {any} */ n) => n.inside).filter(Boolean)]) {
+      const before = (s.edges || []).length; s.edges = (s.edges || []).filter((/** @type {any} */ e) => !(e.from === from && e.to === to)); gone ||= s.edges.length < before;
     }
     return gone;
   }
 
   // the change Claude proposes in a chat, as a ```map block, checked against the map: what it would do
   // in plain words, and what was left out and why. Nothing changes until someone presses Apply.
+  /** @param {any} text @param {any} by */
   function proposal(text, by, autoPlanAbout = null) {
     const m = String(text).match(/```map\s*([\s\S]*?)```/);
     if (!m) return null;
     let p; try { p = JSON.parse(m[1]); } catch { return { status: 'dropped', ops: [], dropped: [{ text: 'the change', why: 'Claude wrote it in a form the map cannot read' }] }; }
     return autoPlanAbout ? checkAutoPlan(p, by, autoPlanAbout) : check(p, by);
   }
+  /** @param {any} p @param {any} by @param {any} id */
   function checkAutoPlan(p, by, id) {
     const parent = nodeOf(id), sees = seesOf(by);
     if (!parent || (sees !== 'all' && parent.area !== sees)) return { status: 'dropped', ops: [], dropped: [] };
-    const additions = autoPlanAdditions(p, id, allNodes(), allEdges(), new Set(allNodes().filter((n) => sees === 'all' || n.area === sees).map((n) => n.id)));
+    const additions = autoPlanAdditions(p, id, allNodes(), allEdges(), new Set(allNodes().filter((/** @type {any} */ n) => sees === 'all' || n.area === sees).map((/** @type {any} */ n) => n.id)));
     const checked = check(additions, by, 100);
     checked.dropped.push(...(additions.dropped || []));
     return { ...checked, autoPlanAbout:id };
   }
   // a proposed change ({nodes, edges, remove}) checked against the map for the person it is for
+  /** @param {any} p @param {any} by */
   function check(p, by, limit = 12) {
-    const sees = seesOf(by), mayTouch = (n) => sees === 'all' || n.area === sees;
+    const sees = seesOf(by), mayTouch = (/** @type {any} */ n) => sees === 'all' || n.area === sees;
     const ops = [], dropped = [], plan = /** @type {any} */ ({ nodes: [], edges: [], remove: [], unlink: [], memory: [] }), slug = /^[a-z0-9-]{1,40}$/;
     for (const n of (p.nodes || []).slice(0, limit)) {
       const had = nodeOf(n?.id);
@@ -558,12 +573,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (!had && sees !== 'all') box.area = sees;
       if (!had) box.by = 'Claude';
       plan.nodes.push(box);
-      const said = (k) => k === 'diagram' ? diagramSaid(had?.diagram, box.diagram) : `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`;
+      const said = (/** @type {any} */ k) => k === 'diagram' ? diagramSaid(had?.diagram, box.diagram) : `${k === 'sub' ? 'second line' : k === 'desc' ? 'notes' : k} "${box[k]}"`;
       ops.push(had ? `Change ${had.label}: ${Object.keys(box).filter((k) => k !== 'id' && box[k] !== had[k]).map(said).join(', ')}`
         : `Add ${box.boxType === 'action' ? 'the Action' : 'the box'} ${box.label}${box.sub ? ` (${box.sub})` : ''}${box.diagram ? ` opening into a ${box.diagram.kind} of ${box.diagram.items.length}` : ''}`);
     }
-    const there = (id) => nodeOf(id) || plan.nodes.some((n) => n.id === id);
-    const name = (id) => nodeOf(id)?.label || plan.nodes.find((n) => n.id === id)?.label || id;
+    const there = (/** @type {any} */ id) => nodeOf(id) || plan.nodes.some((/** @type {any} */ n) => n.id === id);
+    const name = (/** @type {any} */ id) => nodeOf(id)?.label || plan.nodes.find((/** @type {any} */ n) => n.id === id)?.label || id;
     for (const e of (p.edges || []).slice(0, limit)) {
       if (!e || !there(e.from) || !there(e.to)) { dropped.push({ text: `a line ${e?.from} → ${e?.to}`, why: 'a box it names is not on the map' }); continue; }
       plan.edges.push({ from: e.from, to: e.to, ...(e.label ? { label: String(e.label).slice(0, 40) } : {}), state: 'new' });
@@ -574,7 +589,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (!had || !mayTouch(had)) { dropped.push({ text: `remove ${id}`, why: had ? 'outside your access' : 'no such box' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
     }
-    const lineOn = (from, to) => [state, ...state.nodes.map((n) => n.inside).filter(Boolean)].some((s) => (s.edges || []).some((e) => e.from === from && e.to === to));
+    const lineOn = (/** @type {any} */ from, /** @type {any} */ to) => [state, ...state.nodes.map((/** @type {any} */ n) => n.inside).filter(Boolean)].some((s) => (s.edges || []).some((/** @type {any} */ e) => e.from === from && e.to === to));
     for (const e of (p.unlink || []).slice(0, 12)) {
       const a = nodeOf(e?.from), z = nodeOf(e?.to);
       if (!a || !z || !lineOn(a.id, z.id)) { dropped.push({ text: `remove the line ${e?.from} → ${e?.to}`, why: 'no such line' }); continue; }
@@ -597,13 +612,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     placeProposed(plan);
     return { status: ops.length ? 'pending' : 'dropped', ops, dropped, plan };
   }
+  /** @param {any} plan */
   function placeProposed(plan) {
-    const fresh = plan.nodes.filter((n) => !nodeOf(n.id)).map(({ x, y, ...n }) => n);
+    const fresh = plan.nodes.filter((/** @type {any} */ n) => !nodeOf(n.id)).map((/** @type {any} */ { x, y, ...n }) => n);
     plan.layout = [];
     if (!fresh.length) return;
     plan.layout = appendProposed(state.nodes, state.edges, fresh, plan.edges);
-    placeNew([...state.nodes.map((n) => ({ ...n, ...plan.layout.find((m) => m.id === n.id) })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
-    for (const f of fresh) Object.assign(plan.nodes.find((n) => n.id === f.id), { x: f.x, y: f.y });
+    placeNew([...state.nodes.map((/** @type {any} */ n) => ({ ...n, ...plan.layout.find((/** @type {any} */ m) => m.id === n.id) })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
+    for (const f of fresh) Object.assign(plan.nodes.find((/** @type {any} */ n) => n.id === f.id), { x: f.x, y: f.y });
   }
   // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
   // read as one tree; the boxes are Claude's to place again until someone drags one
@@ -614,25 +630,27 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // every change Claude proposed that nobody has applied or set aside yet, from the map's chats and the linked
   // chat; with a person, only the ones that person may apply
-  const pendingProposals = (by) => [...(state.proposals || []).filter((p) => !by || ownsChat(p.session, by)),
-    ...Object.entries(state.threads || {}).filter(([k]) => !by || mineChat(k, by)).flatMap(([, t]) => t.map((m) => m?.proposal))]
+  /** @type {(by?: any) => any[]} */
+  const pendingProposals = (by) => [...(state.proposals || []).filter((/** @type {any} */ p) => !by || ownsChat(p.session, by)),
+    ...Object.entries(state.threads || {}).filter(([k]) => !by || mineChat(k, by)).flatMap(([, t]) => t.map((/** @type {any} */ m) => m?.proposal))]
     .filter((p) => p?.status === 'pending' && p.plan);
   // Older pending offers also adopt the branch preview when their map opens.
   for (const p of pendingProposals()) placeProposed(p.plan);
-  const withoutBlock = (text) => String(text).split('```map')[0].trim();
+  const withoutBlock = (/** @type {any} */ text) => String(text).split('```map')[0].trim();
 
   // History: every change saves itself, and each one is a version of the map you can open and go back to,
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
   const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
-  const contentOf = (s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
-  const clock = (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+  const contentOf = (/** @type {any} */ s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
+  const clock = (/** @type {any} */ t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
+  /** @param {any} v @param {any} json */
   function keepVersion(v, json) {
     if (memory) return;
     fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
-    history = [v, ...history.filter((h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
+    history = [v, ...history.filter((/** @type {any} */ h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
     for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch {}
     fs.writeFileSync(HIST_LIST, JSON.stringify(history));
   }
@@ -641,15 +659,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const LABEL = { move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
+  /** @param {any} type @param {any} by */
   function remember(type, by, force = false) {
     if (state.autosave === false && !force) return;
     const json = contentOf(state); if (json === lastContent) return;
     lastContent = json;
     const top = history[0], now = Date.now();
     const run = top && RUNS.has(type) && top.kind === type && top.by === by && now - top.at < RUN_MS;
-    keepVersion({ id: run ? top.id : now.toString(36), at: now, by, kind: type, what: told || `${by} ${LABEL[type] || 'changed the map'}`, boxes: state.nodes.length }, json);
+    keepVersion({ id: run ? top.id : now.toString(36), at: now, by, kind: type, what: told || `${by} ${/** @type {Record<string, any>} */ (LABEL)[type] || 'changed the map'}`, boxes: state.nodes.length }, json);
   }
   // Save now: the map as it is becomes a version, saved by this person (nothing new to keep when no change was made)
+  /** @param {any} by */
   function saveNow(by, what = `${by} saved the map`, at = Date.now()) {
     const json = contentOf(state); if (json === lastContent) return;
     lastContent = json;
@@ -683,16 +703,18 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const edits = editHistory(undoState);
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
   const ACTS = {
+    /** @param {any} a */
     reparent(a) {
       const sees = seesOf(a.by);
       if (!reparentTopic(state, a, (n) => sees === 'all' || n.area === sees)) return false;
       tell(`${a.by} moved ${nodeOf(a.id).label} under ${nodeOf(a.parent).label}`);
       return true;
     },
+    /** @param {any} a */
     move(a) {
       if (Array.isArray(a.moves)){
         const sees = seesOf(a.by), moves = a.moves;
-        if (!moves.length || new Set(moves.map((m) => m?.id)).size !== moves.length || moves.some((m) => { const n = nodeOf(m?.id); return !n || (sees !== 'all' && n.area !== sees) || ![m.fromX,m.fromY,m.x,m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY; })) return false;
+        if (!moves.length || new Set(moves.map((/** @type {any} */ m) => m?.id)).size !== moves.length || moves.some((/** @type {any} */ m) => { const n = nodeOf(m?.id); return !n || (sees !== 'all' && n.area !== sees) || ![m.fromX,m.fromY,m.x,m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY; })) return false;
         for (const m of moves) Object.assign(nodeOf(m.id),{x:Math.round(m.x),y:Math.round(m.y),moved:true});
         return true;
       }
@@ -705,6 +727,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // drawn by hand on the map: a box where it was drawn (a.view: inside that box), a line from one box to another
     // (words on it optional; drawing one that exists changes its words), and a box taken off the map, its lines with
     // it. Someone who sees one area draws in that area and takes off only what is in it
+    /** @param {any} a */
     add(a) {
       const label = String(a.label || '').trim().slice(0, 80);
       if (!label || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
@@ -717,8 +740,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // Keyboard insertion moves later branches in the same action, so undo restores their positions too.
       const reflow = a.reflow ?? [];
       if (!Array.isArray(reflow) || reflow.length > list.length || new Set(reflow.map((m) => m?.id)).size !== reflow.length) return false;
-      if (reflow.some((m) => { const n = list.find((n) => n.id === m?.id); return !n || !Number.isFinite(m.fromY) || !Number.isFinite(m.y) || n.y !== m.fromY || (sees !== 'all' && n.area !== sees); })) return false;
-      for (const m of reflow) list.find((n) => n.id === m.id).y = Math.round(m.y);
+      if (reflow.some((m) => { const n = list.find((/** @type {any} */ n) => n.id === m?.id); return !n || !Number.isFinite(m.fromY) || !Number.isFinite(m.y) || n.y !== m.fromY || (sees !== 'all' && n.area !== sees); })) return false;
+      for (const m of reflow) list.find((/** @type {any} */ n) => n.id === m.id).y = Math.round(m.y);
       list.push({ id, label, x: Math.round(a.x), y: Math.round(a.y), by: a.by, source: { kind: 'map' }, moved: true, ...(w >= 60 && w <= 800 ? { w } : {}), ...(h >= 36 && h <= 600 ? { h } : {}), ...(sees !== 'all' ? { area: sees } : {}) });
       // drawn by dragging a line out of another box's dot onto empty map: the line comes with it
       const from = a.from ? nodeOf(a.from) : null;
@@ -728,17 +751,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     },
     // a line dragged out of a box's dot keeps the side it left from (out) and the side it arrives on (in): t r b l
+    /** @param {any} a */
     connect(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
       const out = sideOf(a.out), inn = sideOf(a.in), sides = { ...(out ? { out } : {}), ...(inn ? { in: inn } : {}) };
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, edges = inside ? (inside.edges ??= []) : state.edges;
-      const label = String(a.label || '').trim().slice(0, 40), had = edges.find((e) => e.from === from.id && e.to === to.id);
+      const label = String(a.label || '').trim().slice(0, 40), had = edges.find((/** @type {any} */ e) => e.from === from.id && e.to === to.id);
       if (had) { if (!label && !out && !inn) return false; if (label) had.label = label; Object.assign(had, sides); } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}), ...sides });
       tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
       return true;
     },
     // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
+    /** @param {any} a */
     resize(a) {
       const n = nodeOf(a.id); if (!n) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
@@ -748,10 +773,11 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     },
     // a line's words changed by a double click on them; empty words take them off the line
+    /** @param {any} a */
     relabel(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
-      const all = [state.edges, ...state.nodes.map((p) => p.inside?.edges || [])].flat();
+      const all = [state.edges, ...state.nodes.map((/** @type {any} */ p) => p.inside?.edges || [])].flat();
       const e = all.find((x) => x.from === from.id && x.to === to.id); if (!e) return false;
       const label = String(a.label || '').trim().slice(0, 40); if ((e.label || '') === label) return false;
       if (label) e.label = label; else delete e.label;
@@ -759,6 +785,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     },
     // a line picked on the map and deleted, by hand
+    /** @param {any} a */
     unlink(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
@@ -766,16 +793,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       tell(`${a.by} took the line ${from.label} → ${to.label} off the map`);
       return true;
     },
+    /** @param {any} a */
     renamebox(a) {
       const label = String(a.label || '').trim().slice(0, 80);
       if (a.proposed){
         if (!label) return false;
-        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((n) => n.id === a.id));
+        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((/** @type {any} */ n) => n.id === a.id));
         if (!p || nodeOf(a.id)) return false;
-        const plan = {...p.plan, nodes:p.plan.nodes.map((n) => n.id === a.id ? {...n,label} : {...n})};
+        const plan = {...p.plan, nodes:p.plan.nodes.map((/** @type {any} */ n) => n.id === a.id ? {...n,label} : {...n})};
         const checked = p.autoPlanAbout ? checkAutoPlan(plan,a.by,p.autoPlanAbout) : check(plan,a.by);
-        if (!checked.plan?.nodes.some((n) => n.id === a.id)) return false;
-        p.plan.nodes.find((n) => n.id === a.id).label = label;
+        if (!/** @type {any} */ (checked).plan?.nodes.some((/** @type {any} */ n) => n.id === a.id)) return false;
+        p.plan.nodes.find((/** @type {any} */ n) => n.id === a.id).label = label;
         p.ops = checked.ops;
         return true;
       }
@@ -785,16 +813,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       tell(`${a.by} renamed a box to ${label}`);
       return true;
     },
+    /** @param {any} a */
     describebox(a) {
       if (a.proposed){
         if (typeof a.sub !== 'string') return false;
-        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((n) => n.id === a.id));
+        const p = pendingProposals(a.by).find((p) => p.plan.nodes.some((/** @type {any} */ n) => n.id === a.id));
         if (!p || nodeOf(a.id)) return false;
         const sub = a.sub.trim().slice(0, 240);
-        const plan = {...p.plan, nodes:p.plan.nodes.map((n) => n.id === a.id ? {...n,sub} : {...n})};
+        const plan = {...p.plan, nodes:p.plan.nodes.map((/** @type {any} */ n) => n.id === a.id ? {...n,sub} : {...n})};
         const checked = p.autoPlanAbout ? checkAutoPlan(plan,a.by,p.autoPlanAbout) : check(plan,a.by);
-        if (!checked.plan?.nodes.some((n) => n.id === a.id)) return false;
-        p.plan.nodes.find((n) => n.id === a.id).sub = sub;
+        if (!/** @type {any} */ (checked).plan?.nodes.some((/** @type {any} */ n) => n.id === a.id)) return false;
+        p.plan.nodes.find((/** @type {any} */ n) => n.id === a.id).sub = sub;
         p.ops = checked.ops;
         return true;
       }
@@ -804,13 +833,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       tell(`${a.by} changed the description of ${n.label}`);
       return true;
     },
+    /** @param {any} a */
     remove(a) {
       const roots = Array.isArray(a.ids) ? a.ids : [a.id];
-      if (!roots.length || roots.some((id) => !nodeOf(id))) return false;
+      if (!roots.length || roots.some((/** @type {any} */ id) => !nodeOf(id))) return false;
       const ids = a.cascade ? branchIds(state, roots) : new Set(roots), sees = seesOf(a.by);
       if ([...ids].some((id) => !nodeOf(id) || (sees !== 'all' && nodeOf(id).area !== sees))) return false;
       const label = nodeOf(roots[0]).label;
-      const drop = (s) => { s.nodes = s.nodes.filter((n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((e) => !ids.has(e.from) && !ids.has(e.to)); };
+      const drop = (/** @type {any} */ s) => { s.nodes = s.nodes.filter((/** @type {any} */ n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((/** @type {any} */ e) => !ids.has(e.from) && !ids.has(e.to)); };
       drop(state); for (const n of state.nodes) if (n.inside) drop(n.inside);
       tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
       return true;
@@ -818,26 +848,37 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
     // in their window). A topic map lays out as a mind map; any other map puts its showing boxes that are off the
     // grid on it, with no line through a box. Neither moves anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
+    /** @param {any} a */
     tidy(a) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : state.nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : state.edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((s) => [s.id, {w:s.w, h:s.h}]));
+      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((/** @type {any} */ s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((/** @type {any} */ s) => [s.id, {w:s.w, h:s.h}]));
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
       if (!tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : state.start, sizes)) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;
     },
     call: answerCall,
+    /** @param {any} a */
     actionbox(a) { return actions.begin(a.id, a.by); },
+    /** @param {any} a */
     actionstart(a) { return actions.start(a.id, a.by, a.intent); },
+    /** @param {any} a */
     actionretry(a) { return actions.prepare(a.id, a.by); },
+    /** @param {any} a */
     actionanswer(a) { return actions.prepare(a.id, a.by, a.answer); },
+    /** @param {any} a */
     actionrevise(a) { return actions.revise(a.id, a.by); },
+    /** @param {any} a */
     actioncancel(a) { return actions.cancel(a.id, a.by); },
+    /** @param {any} a */
     actionexecute(a) { return actions.execute(a.id, a.by, a.revision); },
+    /** @param {any} a */
     actioncontinue(a) { return actions.continue(a.id, a.by, a.revision, a.answer); },
+    /** @param {any} a */
     actionstop(a) { return actions.stop(a.id, a.by, a.revision); },
+    /** @param {any} a */
     ask(a) {
       // every question goes into the asker's one chat with Claude; one about a box carries the box with it
       const boxId = a.about || a.node, n = boxId ? nodeOf(boxId) : null, sees = seesOf(a.by);
@@ -846,17 +887,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // a question in a box's own chat stays on that box: Claude reads the main chat as it is now, and the main chat never sees it
       const side = Boolean((a.side || a.autoPlan) && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
       const t = (state.threads[key] ??= []), answer = typeof a.text === 'string' ? a.text.trim().slice(0, 400) : '';
-      if ((a.autoPlan || t.at(-1)?.autoPlanAbout) && t.some((m) => m.thinking)) return false;
+      if ((a.autoPlan || t.at(-1)?.autoPlanAbout) && t.some((/** @type {any} */ m) => m.thinking)) return false;
       if (!a.autoPlan && !answer) return false;
       const autoPlan = Boolean(a.autoPlan || (side && t.at(-1)?.autoPlanAbout === n.id && !t.at(-1)?.proposal));
       const q = answer || AUTO_PLAN_QUESTION;
-      const before = t.filter((m) => !m.staged && !m.thinking).slice(-20);
+      const before = t.filter((/** @type {any} */ m) => !m.staged && !m.thinking).slice(-20);
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
       state.log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: q });
       // the scripted demo answers from its seed; a project's map or a named one asks Claude
       if (!project && !name) {
         // asking to see a flow opens it; the page does the drawing
-        const hasFlow = n && (n.flow || n.inside?.nodes?.some((x) => x.flow));
+        const hasFlow = n && (n.flow || n.inside?.nodes?.some((/** @type {any} */ x) => x.flow));
         const answer = hasFlow && /flow|visuali|diagram|draw|sequence/i.test(a.text)
           ? 'Drew the payment flow on the map: the upgrade, Payment confirmed, and where an annual customer gets billed twice.'
           : state.answers[n?.id] || state.answers['*'];
@@ -867,12 +908,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       /** @type {any} */ const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(autoPlan ? {autoPlanAbout:n.id} : {}), ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
-      let soon = null;
-      let stop;
+      let /** @type {any} */ soon = null;
+      let /** @type {any} */ stop;
       stop = askClaude({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan), contextMaps:selectedContextMaps, who: a.by,
-        onLoad: (source) => { msg.sources = [...(msg.sources || []).filter((m) => m.id !== source.id), source]; msg.doing = `Reading ${source.title}`; push(); },
-        onText: (text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
-        onDone: (text) => {
+        onLoad: (/** @type {any} */ source) => { msg.sources = [...(msg.sources || []).filter((/** @type {any} */ m) => m.id !== source.id), source]; msg.doing = `Reading ${source.title}`; push(); },
+        onText: (/** @type {any} */ text) => { msg.text = withoutBlock(text); msg.doing = text.includes('```map') ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
+        onDone: (/** @type {any} */ text) => {
           activeAsks.delete(stop); clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = withoutBlock(text); msg.at = stamp();
           if (text === SIGNED_OUT) msg.signin = true;
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
@@ -886,25 +927,30 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     },
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
+    /** @param {any} a */
     savenow(a) { saveNow(a.by); return true; },
+    /** @param {any} a */
     autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the name someone gave the map; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
     // Discovery combines this background with the current topics and decisions.
+    /** @param {any} a */
     contextmap(a) {
       if (!a.by || a.by === 'Guest' || seesOf(a.by) !== 'all' || typeof a.id !== 'string' || typeof a.include !== 'boolean') return false;
-      if (a.include && !(contextMaps?.(a.by) || []).some((m) => m.id === a.id && m.allowed())) return false;
+      if (a.include && !(contextMaps?.(a.by) || []).some((/** @type {any} */ m) => m.id === a.id && m.allowed())) return false;
       const ids = new Set(state.contextMapIds || []);
       if (a.include) ids.add(a.id); else ids.delete(a.id);
       state.contextMapIds = [...ids];
       return true;
     },
+    /** @param {any} a */
     describemap(a) {
       if (typeof a.description !== 'string' || a.description.length > 12000 || seesOf(a.by) !== 'all') return false;
       state.desc = a.description.trim();
       return true;
     },
     // Renaming changes the title, not the map's address.
+    /** @param {any} a */
     rename(a) {
       const title = String(a.title || '').trim().slice(0, 60);
       if (!title) return false;
@@ -913,8 +959,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     },
     // going back to a version in the history: the map takes that version's boxes, lines and questions, while chats,
     // comments and people stay as they are; going back is a version itself, so it can be undone the same way
+    /** @param {any} a */
     restore(a) {
-      const v = history.find((h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
+      const v = history.find((/** @type {any} */ h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
       if (!file || !fs.existsSync(file)) return false;
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
@@ -925,6 +972,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // a chat opening the map finds it as it was left: every change saved itself, and History has the versions before
     open() { return true; },
     // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
+    /** @param {any} a */
     comment(a) {
       const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
       state.comments ??= [];
@@ -934,29 +982,32 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       tell(`${a.by} commented${c.node ? ` on ${nodeOf(c.node)?.label || c.node}` : ''}: ${text}`, ownerOf(c.node));
       return true;
     },
+    /** @param {any} a */
     reply(a) {
-      const c = state.comments?.find((x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
+      const c = state.comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
       if (!c || !text) return false;
       c.msgs.push({ who: a.by, text, at: Date.now() });
       tell(`${a.by} replied on comment #${c.id}: ${text}`, ownerOf(c.node));
       return true;
     },
-    resolve(a) { const c = state.comments?.find((x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
+    /** @param {any} a */
+    resolve(a) { const c = state.comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
     // Apply on a change Claude proposed in a chat: the map takes it, and the chat that drew those boxes hears it.
     // Your own chat's changes are yours to apply. The chat told is the one that drew the first box the
     // change touches or links to, else the box the question was about.
     // A change the linked Claude chat proposed (a.proposal) is its owner's to apply, and that chat hears it.
+    /** @param {any} a */
     apply(a) {
-      const fromChat = a.proposal ? (state.proposals || []).find((x) => x.id === a.proposal) : null;
+      const fromChat = a.proposal ? (state.proposals || []).find((/** @type {any} */ x) => x.id === a.proposal) : null;
       const key = String(a.thread || ''), m = fromChat ? null : state.threads[key]?.[Number(a.index)], pr = fromChat || m?.proposal;
       if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       if (pr.autoPlanAbout) {
         Object.assign(pr, checkAutoPlan(pr.plan, a.by, pr.autoPlanAbout));
         if (pr.status !== 'pending') return true;
       }
-      if (pr.plan.layout?.some((m) => { const n = nodeOf(m.id); return !n || n.x !== m.fromX || n.y !== m.fromY; })) placeProposed(pr.plan);
+      if (pr.plan.layout?.some((/** @type {any} */ m) => { const n = nodeOf(m.id); return !n || n.x !== m.fromX || n.y !== m.fromY; })) placeProposed(pr.plan);
       for (const m of pr.plan.layout || []) { const n = nodeOf(m.id); if (n) { n.x = m.x; n.y = m.y; } }
-      const touched = [...pr.plan.nodes.map((n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((e) => [e.from, e.to])].find((id) => nodeOf(id));
+      const touched = [...pr.plan.nodes.map((/** @type {any} */ n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((/** @type {any} */ e) => [e.from, e.to])].find((id) => nodeOf(id));
       const to = fromChat ? fromChat.session : ownerOf(touched || m.about || null);
       if (pr.plan.start) state.start = pr.plan.start;
       const source = fromChat ? { kind: 'proposal', session: fromChat.session }
@@ -974,53 +1025,59 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       tell(`${a.by} applied Claude's change on the map: ${pr.ops.join('; ')}`, to);
       return true;
     },
+    /** @param {any} a */
     drop(a) {
-      const fromChat = a.proposal ? (state.proposals || []).find((x) => x.id === a.proposal) : null;
+      const fromChat = a.proposal ? (state.proposals || []).find((/** @type {any} */ x) => x.id === a.proposal) : null;
       const key = String(a.thread || ''), pr = fromChat || state.threads[key]?.[Number(a.index)]?.proposal;
       if (!pr || pr.status !== 'pending' || !(fromChat ? ownsChat(fromChat.session, a.by) : mineChat(key, a.by))) return false;
       pr.status = 'dropped'; pr.by = a.by; return true;
     },
     // the Claude Code chat that opened this map with /anur-living-map: its owner's Claude pane follows that chat
+    /** @param {any} a */
     link(a) {
       const session = String(a.session || ''), file = String(a.file || '');
       if (!/^[\w-]{8,80}$/.test(session) || !file.endsWith(`/${session}.jsonl`) || !file.includes('/.claude/projects/') || !fs.existsSync(file)) return false;
-      state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((l) => l.session !== session)].slice(0, 10);
+      state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((/** @type {any} */ l) => l.session !== session)].slice(0, 10);
       delete state.starting;
       startMirror(); return true;
     },
     // what the owner types in the pane goes to that chat through its listener, and shows in the pane at once;
     // pictures attached to it are saved in the map's folder, and the chat is told where, so Claude can open them
+    /** @param {any} a */
     say(a) {
       const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
       if (!l || l.owner !== a.by) return false;
       const pics = (Array.isArray(a.images) ? a.images : []).slice(0, 5).map(savePicture).filter(Boolean);
       if (!text && !pics.length) return false;
       // a chat the map started itself hears it straight away, and its transcript shows it in the pane
-      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((p) => p.file).join(', ')})` : ''}`); return true; }
+      if (l.built) { converse(l, `${text}${pics.length ? `\n\n(attached ${pics.map((/** @type {any} */ p) => p.file).join(', ')})` : ''}`); return true; }
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      ((state.said ??= {})[l.session] ??= []).push({ id, text, at: Date.now(), ...(pics.length ? { imgs: pics.map((p) => p.id) } : {}) });
-      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((p) => p.file).join(', ')})` : ''}`, l.session, id);
+      ((state.said ??= {})[l.session] ??= []).push({ id, text, at: Date.now(), ...(pics.length ? { imgs: pics.map((/** @type {any} */ p) => p.id) } : {}) });
+      tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((/** @type {any} */ p) => p.file).join(', ')})` : ''}`, l.session, id);
       setTimeout(sendMirror); return true;
     },
     // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
+    /** @param {any} a */
     propose(a) {
-      const session = String(a.session || ''), l = (state.linked || []).find((x) => x.session === session);
+      const session = String(a.session || ''), l = (state.linked || []).find((/** @type {any} */ x) => x.session === session);
       if (!l) return false;
       const pr = check(a, l.owner); if (!pr.ops.length) return false;
       state.proposals = [...(state.proposals || []), { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr }].slice(-30);
       setTimeout(sendMirror); return true;
     },
     // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
+    /** @param {any} a */
     newchat(a) {
       const key = `@${a.by}`, t = state.threads[key];
-      if (!t?.length || t.some((m) => m.thinking)) return false;
+      if (!t?.length || t.some((/** @type {any} */ m) => m.thinking)) return false;
       state.threads[`${key}#${Date.now().toString(36)}`] = t; state.threads[key] = [];
       return true;
     },
     // a chat picked from your history becomes the open one, and the one open now goes into the history
+    /** @param {any} a */
     openchat(a) {
       const key = `@${a.by}`, from = String(a.chat || ''), old = state.threads[from], now = state.threads[key] || [];
-      if (!from.startsWith(`${key}#`) || !old || now.some((m) => m.thinking)) return false;
+      if (!from.startsWith(`${key}#`) || !old || now.some((/** @type {any} */ m) => m.thinking)) return false;
       delete state.threads[from];
       if (now.length) state.threads[`${key}#${Date.now().toString(36)}`] = now;
       state.threads[key] = old;
@@ -1028,12 +1085,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     },
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
+    /** @param {any} a */
     plan(a) {
       // what a chat draws is that chat's: changes people make to it go back to that chat
       const who = String(a.session || '').slice(0, 80);
       if (who) { for (const it of [...(a.nodes || []), ...(a.calls || [])]) it.session = who; state.owner = who; }
       // a plan that asks something new waits for answers again before anyone can press Execute
-      if ((a.calls || []).some((c) => c.status === 'open')) state.executed = null;
+      if ((a.calls || []).some((/** @type {any} */ c) => c.status === 'open')) state.executed = null;
       draw(a, a.by, { kind: 'plan', ...(who ? { session: who } : {}) });
       Object.assign(state.answers, a.answers || {});
       // the ask behind the plan shows on the map's top line; a named map takes the plan's title
@@ -1046,14 +1104,15 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     },
     // the plan's pull request, posted by the chat that drew it: a draft holding the plan while it waits for
     // answers, then open, with what the map checked, once the code is on it
+    /** @param {any} a */
     pr(a) {
       const id = String(a.id || '').slice(0, 20); if (!id) return false;
-      const had = (state.prs ||= []).find((p) => p.id === id), s = (v, n) => String(v ?? '').slice(0, n);
+      const had = (state.prs ||= []).find((/** @type {any} */ p) => p.id === id), s = (/** @type {any} */ v, /** @type {any} */ n) => String(v ?? '').slice(0, n);
       const pr = { id, title: s(a.title || had?.title, 120), url: s(a.url || had?.url, 300),
         status: ['draft', 'open', 'merged', 'closed'].includes(a.status) ? a.status : had?.status || 'draft',
         agent: s(a.agent || had?.agent || 'Claude Code', 40), by: a.by,
-        checks: Array.isArray(a.checks) ? a.checks.slice(0, 12).map((c) => ({ name: s(c.name, 120), ok: !!c.ok, ...(c.detail ? { detail: s(c.detail, 200) } : {}) })) : had?.checks || [],
-        files: Array.isArray(a.files) ? a.files.slice(0, 30).map((f) => s(f, 120)) : had?.files || [] };
+        checks: Array.isArray(a.checks) ? a.checks.slice(0, 12).map((/** @type {any} */ c) => ({ name: s(c.name, 120), ok: !!c.ok, ...(c.detail ? { detail: s(c.detail, 200) } : {}) })) : had?.checks || [],
+        files: Array.isArray(a.files) ? a.files.slice(0, 30).map((/** @type {any} */ f) => s(f, 120)) : had?.files || [] };
       if (had) Object.assign(had, pr); else state.prs.push(pr);
       state.pr = id;
       tell(`${a.by} ${had ? 'updated' : 'opened'} pull request ${id}${pr.title ? `: ${pr.title}` : ''} (${pr.status})`);
@@ -1062,21 +1121,23 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // Execute: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
     // it when it is listening; when that chat has gone quiet, the chat listening on this map now builds it instead,
     // so pressing Execute never lands in an empty inbox
+    /** @param {any} a */
     execute(a) {
-      const admin = state.people?.find((p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((c) => c.status === 'open')) return false;
+      const admin = state.people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
+      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       state.executed = { by: a.by, at: stamp() };
-      const pr = state.prs?.find((p) => p.id === state.pr), to = state.owner && waiters.some((w) => w.who === state.owner) ? state.owner : '*';
+      const pr = state.prs?.find((/** @type {any} */ p) => p.id === state.pr), to = state.owner && waiters.some((/** @type {any} */ w) => w.who === state.owner) ? state.owner : '*';
       tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
       return true;
     },
     // Give me plan.md: instead of building, the same chat writes the plan out as plan.md at the repo's root,
     // and the map links to it; Execute stays for when the admin is ready
+    /** @param {any} a */
     planmd(a) {
-      const admin = state.people?.find((p) => p.id === a.by)?.role === 'Admin';
-      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((c) => c.status === 'open')) return false;
+      const admin = state.people?.find((/** @type {any} */ p) => p.id === a.by)?.role === 'Admin';
+      if (!admin || state.executed || !(state.prompt || state.owner) || state.calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       state.planmd = { by: a.by, at: stamp() };
-      const to = state.owner && waiters.some((w) => w.who === state.owner) ? state.owner : '*';
+      const to = state.owner && waiters.some((/** @type {any} */ w) => w.who === state.owner) ? state.owner : '*';
       tell(`${a.by} asked for plan.md instead of Execute: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Execute when ready.`, to);
       return true;
     },
@@ -1084,16 +1145,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // the way a plan draws them, without a new session in the map's list
     // Instructions and Memory: only Claude adds them (Apply on its change, or the map tools); people change their
     // words or take them away, a box's ones only within their access
+    /** @param {any} a */
     editmemory(a) {
-      const m = state.memory?.find((x) => x.id === a.id), text = String(a.text || '').trim().slice(0, 300), b = m?.box && nodeOf(m.box), sees = seesOf(a.by);
+      const m = state.memory?.find((/** @type {any} */ x) => x.id === a.id), text = String(a.text || '').trim().slice(0, 300), b = m?.box && nodeOf(m.box), sees = seesOf(a.by);
       if (!m || !text || (b && sees !== 'all' && b.area !== sees)) return false;
       m.text = text; m.by = a.by; m.at = Date.now(); return true;
     },
+    /** @param {any} a */
     forget(a) {
-      const i = (state.memory || []).findIndex((x) => x.id === a.id), b = i >= 0 && state.memory[i].box && nodeOf(state.memory[i].box), sees = seesOf(a.by);
+      const i = (state.memory || []).findIndex((/** @type {any} */ x) => x.id === a.id), b = i >= 0 && state.memory[i].box && nodeOf(state.memory[i].box), sees = seesOf(a.by);
       if (i < 0 || (b && sees !== 'all' && b.area !== sees)) return false;
       state.memory.splice(i, 1); return true;
     },
+    /** @param {any} a */
     edit(a) {
       if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
       if (typeof a.start === 'string' && [...state.nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) state.start = a.start;
@@ -1107,10 +1171,11 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   };
 
   // the map's API, at <map address>/api/...; false when the path is not one of them
-  const access = (who, req) => permission(state, who, req);
-  const allowed = (who, req) => !closed && !!access(who, req);
+  const access = (/** @type {any} */ who, /** @type {any} */ req) => permission(state, who, req);
+  const allowed = (/** @type {any} */ who, /** @type {any} */ req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
-  const canDelete = (who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
+  const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
+  /** @param {any} req @param {any} res @param {any} p */
   async function handle(req, res, p, who = null) {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
     const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
@@ -1156,7 +1221,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
     }
     if (p === '/api/context-options' && req.method === 'GET') {
-      const maps = (contextMaps?.(who) || []).filter((m) => m.allowed()).map((m) => {
+      const maps = (contextMaps?.(who) || []).filter((/** @type {any} */ m) => m.allowed()).map((/** @type {any} */ m) => {
         const d = describeMap(m.id,m.snapshot(),who);
         return {id:m.id,title:d.name,boxes:d.counts.boxes};
       });
@@ -1186,7 +1251,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     // the map's versions, newest first, and one version's boxes, lines and questions
     if (p === '/api/history') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(history)); return true; }
-    const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
+    const ver = p.match(/^\/api\/history\/(\w+)$/), vfile = ver && history.some((/** @type {any} */ h) => h.id === ver[1]) && path.join(HIST, `${ver[1]}.json`);
     if (ver) { if (!vfile || !fs.existsSync(vfile)) res.writeHead(404).end(); else res.writeHead(200, { 'content-type': 'application/json' }).end(fs.readFileSync(vfile)); return true; }
     // with ?session=, that chat now has these rules, so its next message carries only the news
     if (p === '/api/rules') {
@@ -1222,13 +1287,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
       // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any
-      if (who && !guest && !state.people?.some((p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
+      if (who && !guest && !state.people?.some((/** @type {any} */ p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
       if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
     }
     if (p === '/api/act' && req.method === 'POST') {
-      let a = {};
+      let /** @type {any} */ a = {};
       try { a = JSON.parse(await body(req)); } catch {}
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end(); return true; }
       if (guest && (!LINK_EDITS.has(a.type) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
@@ -1245,9 +1310,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
-      const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!ACTS[a.type]?.(a) };
+      const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
       if (result.ok) {
-        actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]));
+        actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]));
         updateBoxDates(state, undefined, a.by);
         if (before) edits.record(a.by, before, editSnapshot(state));
         remember(a.type, a.by, big); save(); push();
@@ -1263,20 +1328,20 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const online = cloud?.status(), inCloud = !!online?.published;
     const shared = inCloud ? ['view', 'edit'].includes(online.mode)
       : !!state.linkSharing?.token && ['view', 'edit'].includes(state.linkSharing.mode);
-    return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((c) => c.status === 'open').length,
+    return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((/** @type {any} */ c) => c.status === 'open').length,
       at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud };
   };
 
   // what waits on a person here, for the Inbox: questions for them, and comment threads waiting on
   // their reply (they wrote in it, or someone @-named them); only on boxes they may see
-  const asks = (who) => {
-    const sees = seesOf(who), seen = (id) => { const n = id && nodeOf(id); return !n || sees === 'all' || n.area === sees; };
+  const asks = (/** @type {any} */ who) => {
+    const sees = seesOf(who), seen = (/** @type {any} */ id) => { const n = id && nodeOf(id); return !n || sees === 'all' || n.area === sees; };
     const mention = new RegExp(`@${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
     return [
-      ...state.calls.filter((c) => c.for === who && c.status === 'open' && seen(c.node))
-        .map((c) => ({ kind: 'call', id: c.id, node: c.node, text: c.ask || c.text, on: nodeOf(c.node)?.label || '', from: c.from || 'Claude' })),
-      ...(state.comments || []).filter((c) => !c.resolved && seen(c.node) && c.msgs.at(-1).who !== who && c.msgs.some((m) => m.who === who || mention.test(m.text)))
-        .map((c) => ({ kind: 'comment', id: c.id, node: c.node, text: c.msgs.at(-1).text, on: nodeOf(c.node)?.label || '', from: c.msgs.at(-1).who })),
+      ...state.calls.filter((/** @type {any} */ c) => c.for === who && c.status === 'open' && seen(c.node))
+        .map((/** @type {any} */ c) => ({ kind: 'call', id: c.id, node: c.node, text: c.ask || c.text, on: nodeOf(c.node)?.label || '', from: c.from || 'Claude' })),
+      ...(state.comments || []).filter((/** @type {any} */ c) => !c.resolved && seen(c.node) && c.msgs.at(-1).who !== who && c.msgs.some((/** @type {any} */ m) => m.who === who || mention.test(m.text)))
+        .map((/** @type {any} */ c) => ({ kind: 'comment', id: c.id, node: c.node, text: c.msgs.at(-1).text, on: nodeOf(c.node)?.label || '', from: c.msgs.at(-1).who })),
     ];
   };
 
@@ -1293,18 +1358,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
 
   // Cloud requests use the same editing rules without local files, processes, or routes.
+  /** @param {any} a */
   function editShared(a) {
     if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
-    const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!ACTS[a.type]?.(a) };
-    if (result.ok) { actions.reconcile(state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
+    const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
+    if (result.ok) { actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
   return { handle, summary, asks, build, close, allowed, access, canDelete, editShared,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
-const body = (req) => new Promise((ok) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => ok(b)); });
+const body = (/** @type {any} */ req) => new Promise((ok) => { let b = ''; req.on('data', (/** @type {any} */ c) => (b += c)); req.on('end', () => ok(b)); });
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename) {
@@ -1314,11 +1380,12 @@ const { handleRecovery } = await import('./recovery.js');
 const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
 const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
 const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
+/** @param {any} options */
 function connectedMap(options) {
-  let map;
+  let /** @type {any} */ map;
   const own = options.name || (options.project ? mapName(options.project) : '');
   const req = { url: '/', headers: { 'sec-fetch-site': 'same-origin' } };
-  map = openMap({ ...options, contextMaps: (who) => {
+  map = openMap({ ...options, contextMaps: (/** @type {any} */ who) => {
     if (!who || who === 'Guest' || !map.allowed(who, req)) return [];
     return everyMap().filter(([id]) => id !== own).map(([id, other]) => ({ id,
       allowed: () => map.allowed(who, req) && everyMap().some(([key, value]) => key === id && value === other) && other.allowed(who, req),
@@ -1333,7 +1400,7 @@ function connectedMap(options) {
 const projects = new Map(PROJECT && main ? [[mapName(PROJECT), main]] : []);
 const folders = new Map(PROJECT && main ? [[mapName(PROJECT), PROJECT]] : []);
 const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
-const addProject = (folder, restore = false) => {
+const addProject = (/** @type {any} */ folder, restore = false) => {
   const name = mapName(folder);
   if (deletedMaps.has(name) && !restore) return false;
   if (folders.has(name)) return folders.get(name) === folder;
@@ -1347,22 +1414,23 @@ const addProject = (folder, restore = false) => {
 if (PROJECT) for (const f of remembered()) addProject(f);
 const named = new Map();
 // a name no map here has yet, from the first words of what it is about (a prompt, a shared file's title)
+/** @param {any} text */
 function freeName(text) {
   const base = text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 4).join('-').slice(0, 40) || 'map';
-  const taken = (n) => deletedMaps.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
+  const taken = (/** @type {any} */ n) => deletedMaps.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api' || (PROJECT && n === mapName(PROJECT));
   let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
   return name;
 }
-const mapCalled = (name) => named.get(name) ?? named.set(name, connectedMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
+const mapCalled = (/** @type {any} */ name) => named.get(name) ?? named.set(name, connectedMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
 // Existing archives are readable in Trash too, including maps removed before Restore was available.
-const trashRecords = (who) => {
+const trashRecords = (/** @type {any} */ who) => {
   const bin = path.dirname(DELETED);
   if (!who || !fs.existsSync(bin)) return [];
   return fs.readdirSync(bin, { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) => {
     try {
       const archive = path.join(bin, d.name), state = JSON.parse(fs.readFileSync(path.join(archive, 'state.json'), 'utf8'));
       let meta; try { meta = JSON.parse(fs.readFileSync(path.join(archive, 'trash.json'), 'utf8')); } catch {}
-      if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || demo().people.some((p) => p.id === who && p.role === 'Admin'))) return [];
+      if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || demo().people.some((/** @type {any} */ p) => p.id === who && p.role === 'Admin'))) return [];
       const name = meta?.name || d.name.replace(/-(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|[a-z0-9]{8,12})$/, '');
       if (!/^[a-z0-9-]+$/.test(name)) return [];
       const project = meta ? meta.project : [PROJECT, ...remembered()].find((f) => f && mapName(f) === name) || '';
@@ -1378,10 +1446,10 @@ const everyMap = () => {
 };
 
 // a page, with the signed-in person written into it for the page's own script
-const page = (res, file, who, access = 'edit', shared = false) => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
+const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false) => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
     googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
-const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
+const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');
@@ -1390,11 +1458,12 @@ const server = http.createServer(async (req, res) => {
   // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
   // answers on this Mac; a signed-in browser always acts as the person who signed in.
   const who = users.whoIs(cookieOf(req, 'lm_session'));
+  /** @type {(code: any, data: any, cookie?: any) => any} */
   const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
-  const signIn = (name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
+  const signIn = (/** @type {any} */ name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
   if (url.pathname === '/login') { res.setHeader('cache-control', 'no-store'); return page(res, 'login.html', who); }
   // Sign in with Google, through Living Map login (google.js); it comes back to this map's own address
-  const signInError = (e) => res.writeHead(302, { location: `/login?error=${encodeURIComponent(e)}` }).end();
+  const signInError = (/** @type {any} */ e) => res.writeHead(302, { location: `/login?error=${encodeURIComponent(e)}` }).end();
   if (url.pathname === '/auth/google' && req.method === 'GET') {
     if (!googleOn()) return signInError('Google sign-in is not set up on this map.');
     const host = /^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host || '') ? req.headers.host : `localhost:${PORT}`;
@@ -1409,7 +1478,7 @@ const server = http.createServer(async (req, res) => {
     return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
   }
   if (url.pathname === '/api/login' && req.method === 'POST') {
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const one = users.person(a.name);
     // a person with no password yet: the page asks them to choose one
     if (one && !users.has(one)) return json(409, { first: one, min: MIN });
@@ -1419,7 +1488,7 @@ const server = http.createServer(async (req, res) => {
     return signIn(name);
   }
   if (url.pathname === '/api/first' && req.method === 'POST') {
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const one = users.person(a.name);
     if (!one) return json(400, { error: 'There is no one called that on this map.' });
     if (users.has(one)) return json(400, { error: `${one} already has a password. Sign in instead.` });
@@ -1441,7 +1510,7 @@ const server = http.createServer(async (req, res) => {
   // session in the Claude app drawing it, for the person who asked, signed in
   if (url.pathname === '/api/newmap' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const prompt = String(a.prompt || '').trim().slice(0, 4000);
     if (!prompt) return json(400, { error: 'Say what the map is about.' });
     const name = freeName(prompt);
@@ -1465,7 +1534,7 @@ const server = http.createServer(async (req, res) => {
   if (['/api/maps/trash', '/api/maps/delete'].includes(url.pathname) && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
     if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to move a map to Trash.' });
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const name = String(a.name || '');
     if (!/^[a-z0-9-]+$/.test(name) || deletedMaps.has(name)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
     const project = folders.get(name), dir = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
@@ -1493,7 +1562,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/maps/restore' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
     if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to restore a map.' });
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const record = trashRecords(who).find((r) => r.id === a.id);
     if (!record) return json(404, { error: 'That map is not in your Trash.' });
     const { name, project, archive } = record, home = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
@@ -1523,7 +1592,7 @@ const server = http.createServer(async (req, res) => {
   // the Update button: everything Anur (the clone, so the server, the MCP tools and the skill's copy) is brought
   // to main. The answer comes once the download is done, so the page can show each step; then the server restarts
   if (url.pathname === '/api/update' && req.method === 'POST') {
-    const send = (a) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(a));
+    const send = (/** @type {any} */ a) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(a));
     const why = (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
     if (why) return send({ ok: false, why });
     const got = await pull();
@@ -1553,7 +1622,7 @@ const server = http.createServer(async (req, res) => {
   }
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
   if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
-    let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
     const folder = a.folder ? path.resolve(String(a.folder)) : '', name = mapName(folder);
     if (!folder || !addProject(folder, true)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
     if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
@@ -1575,7 +1644,7 @@ const server = http.createServer(async (req, res) => {
   if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
-  res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
+  res.writeHead(200, { 'content-type': /** @type {Record<string, any>} */ (types)[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
 });
 
 // ── keeps itself current ──
@@ -1586,7 +1655,7 @@ const server = http.createServer(async (req, res) => {
 // ~/.living-map-2/server.rev, which /anur-living-map reads to tell a server on older code.
 const REPO = path.resolve(DIR, '..', '..');
 const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
-const git = (...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
+const git = (/** @type {any[]} */ ...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
 const EVERY = 10 * 60_000;
 // the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
 // by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line

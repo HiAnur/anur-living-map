@@ -9,16 +9,17 @@ import { mapData, mergeMap, viewData, signedLink } from '../live/cloud-data.js';
 import { FirestoreStore } from './store.js';
 
 const DIR = path.resolve(import.meta.dirname, '../live');
-const hash = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
-const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-const fail = (status, message) => Object.assign(new Error(message), { status });
+const hash = (/** @type {any} */ s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+const equal = (/** @type {any} */ a, /** @type {any} */ b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const fail = (/** @type {any} */ status, /** @type {any} */ message) => Object.assign(new Error(message), { status });
+/** @param {any} req */
 async function body(req) {
   if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Send JSON.');
   let size = 0, chunks = [];
   for await (const chunk of req) { size += chunk.length; if (size > 6 * 1024 * 1024) throw fail(413, 'This map is too large.'); chunks.push(chunk); }
   try { return JSON.parse(/** @type {any} */ (Buffer.concat(chunks))); } catch { throw fail(400, 'Invalid JSON.'); }
 }
-export function createCloudServer({ store, publishKey, publicUrl }) {
+export function createCloudServer(/** @type {any} */ { store, publishKey, publicUrl }) {
   if (!publishKey || publishKey.length < 40) throw new Error('A strong publisher key is required.');
   const origin = new URL(publicUrl).origin;
   const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
@@ -26,7 +27,7 @@ export function createCloudServer({ store, publishKey, publicUrl }) {
   return http.createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store'); res.setHeader('referrer-policy', 'no-referrer'); res.setHeader('x-content-type-options', 'nosniff');
     res.setHeader('content-security-policy', `default-src 'none'; script-src 'self' ${scriptHashes}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`);
-    const json = (code, value) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
+    const json = (/** @type {any} */ code, /** @type {any} */ value) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
     const publisher = equal(req.headers.authorization || '', `Bearer ${publishKey}`);
     try {
       const url = new URL(/** @type {string} */ (req.url), origin);

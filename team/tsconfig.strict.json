@@ -1,32 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "noImplicitAny": true
-  },
-  "include": [
-    "live/types.d.ts",
-    "live/wait.js",
-    "live/map-context-mcp.js",
-    "live/google.js",
-    "live/access.js",
-    "live/sharing.js",
-    "live/action-plan.js",
-    "live/recovery.js",
-    "live/users.js",
-    "cloud/store.js",
-    "live/action-preparation.js",
-    "live/action-runner.js",
-    "live/auto-plan.js",
-    "live/action-box.js",
-    "live/cloud-data.js",
-    "live/cloud-client.js",
-    "live/mirror.js",
-    "live/proposal-layout.js",
-    "live/editing.js",
-    "live/map-context.js",
-    "live/mcp.js",
-    "live/bin.js",
-    "login/server.js",
-    "live/project.js"
-  ]
+  "compilerOptions": { "noImplicitAny": true },
+  "include": ["live/**/*.js", "live/**/*.d.ts", "login/**/*.js", "cloud/**/*.js"],
+  "exclude": ["**/*.test.js"]
 }
