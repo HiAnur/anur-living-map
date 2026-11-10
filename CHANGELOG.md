@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
+<dt><strong>One command installs both skills</strong></dt>
+<dd>
+
+In your copy of the repo, `npm run skill` now installs the team map's **/anur-living-map** skill along with **/living-map**, so you no longer copy it by hand. [#225](https://github.com/HiAnur/anur-living-map/pull/225) <!-- merged-at: 2026-11-10T03:32:28Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Turn plans into reviewed Actions</strong></dt>
 <dd>
 
