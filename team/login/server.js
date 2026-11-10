@@ -141,7 +141,7 @@ http.createServer(async (req, res) => {
     // the name the list gives this address, else the name Google has for the person, else the address's first part
     let email, name;
     let listed = false;
-    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
+    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (/** @type {any} */ e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
     console.log(`signed in ${email} as ${name}`);
     return back(res, f, { code: seal('code', { email, name, listed, challenge: f.challenge }) });
   }
@@ -154,7 +154,7 @@ http.createServer(async (req, res) => {
   }
   if (url.pathname === '/password' && req.method === 'POST') {
     let a = {}, name = null; try { a = JSON.parse(await body(req)); } catch {}
-    try { name = await passwordOf(a.name, a.password); } catch (e) { console.error(e.message); return json(res, 503, { error: 'The sign-in list could not be read. Try again.' }); }
+    try { name = await passwordOf(a.name, a.password); } catch (/** @type {any} */ e) { console.error(e.message); return json(res, 503, { error: 'The sign-in list could not be read. Try again.' }); }
     if (!name) { await new Promise((ok) => setTimeout(ok, 400)); return json(res, 401, { error: 'That name and password are not right.' }); }
     console.log(`signed in ${name} with a password`);
     return json(res, 200, { name });

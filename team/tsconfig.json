@@ -8,6 +8,12 @@
     "checkJs": true,
     "noEmit": true,
     "strict": false,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictBuiltinIteratorReturn": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "useUnknownInCatchVariables": true,
     "skipLibCheck": true,
     "types": ["node"]
   },

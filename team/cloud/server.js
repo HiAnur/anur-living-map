@@ -111,7 +111,7 @@ export function createCloudServer({ store, publishKey, publicUrl }) {
         v.revision++; await store.put(id, v, record.version);
         return json(200, { ...(result.id ? { id: result.id } : {}), revision: v.revision });
       } finally { engine.close(); }
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       // Request URLs contain bearer links, so do not log them or request bodies.
       if (!res.headersSent) json(e.status || 400, { error: e.status ? e.message : 'This map contains unsupported data. No changes were saved.' });
       else res.end();
