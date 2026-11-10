@@ -409,7 +409,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (memory) return;
     fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
     history = [v, ...history.filter((/** @type {any} */ h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
-    for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch {}
+    for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch (e) { removeFailed(e, 'an old version'); }
     fs.writeFileSync(HIST_LIST, JSON.stringify(history));
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
@@ -440,7 +440,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       keepVersion({ id: s.id, at: s.at, by: s.by, kind: 'save', what: `${s.by} saved the map as "${s.name}"`, boxes: s.boxes }, contentOf(JSON.parse(fs.readFileSync(file, 'utf8'))));
       fs.unlinkSync(file);
     }
-    delete state.saves; try { fs.rmdirSync(SAVES); } catch {}
+    delete state.saves; try { fs.rmdirSync(SAVES); } catch (e) { removeFailed(e, 'the old saves folder'); }
     save();
     if (history[0]) lastContent = fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8');
   }
@@ -584,7 +584,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     /** @param {any} a */
     autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the name someone gave the map; History keeps the map before
-    reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch {} return true; },
+    reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch (e) { removeFailed(e, 'the outbox'); } return true; },
     // Discovery combines this background with the current topics and decisions.
     /** @param {any} a */
     contextmap(a) {
@@ -806,7 +806,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     if (p === '/api/cloud/delete' && req.method === 'POST') {
       if (role !== 'owner' || !who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
-      let a; try { a = JSON.parse(await body(req)); } catch {}
+      let a = await jsonBody(req, undefined);
       if (a?.confirm !== true) return deny();
       try { await cloud?.remove(); }
       catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
@@ -815,7 +815,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     if (p === '/api/sharing' && req.method === 'POST') {
       if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
-      let a; try { a = JSON.parse(await body(req)); } catch {}
+      let a = await jsonBody(req, undefined);
       if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
       if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
         try { await cloud.publish(a.mode); }
@@ -828,7 +828,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (p === '/api/access' && req.method === 'POST') {
       const origin = req.headers.origin;
       if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
-      /** @type {any} */ let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+      /** @type {any} */ let a = await jsonBody(req, {});
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
       if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
       save();
@@ -912,8 +912,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     }
     if (p === '/api/act' && req.method === 'POST') {
-      let /** @type {any} */ a = {};
-      try { a = JSON.parse(await body(req)); } catch {}
+      let /** @type {any} */ a = await jsonBody(req, {});
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end(); return true; }
       if (guest && (!LINK_EDITS.has(a.type) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
       // A link cannot impersonate a member or start Claude on this Mac.
@@ -990,6 +989,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 }
 
 const body = (/** @type {any} */ req) => new Promise((ok) => { let b = ''; req.on('data', (/** @type {any} */ c) => (b += c)); req.on('end', () => ok(b)); });
+// A request's JSON body, or `fallback` when it is not JSON: every route then checks what it got, so a body
+// that does not parse reads as an empty request and is refused there.
+/** @param {any} req @param {any} fallback */
+const jsonBody = async (req, fallback) => { try { return JSON.parse(await body(req)); } catch { return fallback; } };
+// A file to remove that is already gone is fine; anything else (permissions, a full disk) is said once.
+/** @param {any} e @param {string} what */
+const removeFailed = (e, what) => { if (e?.code !== 'ENOENT' && e?.code !== 'ENOTEMPTY') console.error(`[map] could not remove ${what}: ${e?.message}`); };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename) {
@@ -1048,7 +1054,7 @@ const trashRecords = (/** @type {any} */ who) => {
   return fs.readdirSync(bin, { withFileTypes: true }).filter((d) => d.isDirectory()).flatMap((d) => {
     try {
       const archive = path.join(bin, d.name), state = JSON.parse(fs.readFileSync(path.join(archive, 'state.json'), 'utf8'));
-      let meta; try { meta = JSON.parse(fs.readFileSync(path.join(archive, 'trash.json'), 'utf8')); } catch {}
+      let meta; try { meta = JSON.parse(fs.readFileSync(path.join(archive, 'trash.json'), 'utf8')); } catch { /* an older archive has no trash.json */ }
       if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || demo().people.some((/** @type {any} */ p) => p.id === who && p.role === 'Admin'))) return [];
       const name = meta?.name || d.name.replace(/-(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|[a-z0-9]{8,12})$/, '');
       if (!/^[a-z0-9-]+$/.test(name)) return [];
@@ -1097,7 +1103,7 @@ const server = http.createServer(async (req, res) => {
     return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
   }
   if (url.pathname === '/api/login' && req.method === 'POST') {
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const one = users.person(a.name);
     // a person with no password yet: the page asks them to choose one
     if (one && !users.has(one)) return json(409, { first: one, min: MIN });
@@ -1107,7 +1113,7 @@ const server = http.createServer(async (req, res) => {
     return signIn(name);
   }
   if (url.pathname === '/api/first' && req.method === 'POST') {
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const one = users.person(a.name);
     if (!one) return json(400, { error: 'There is no one called that on this map.' });
     if (users.has(one)) return json(400, { error: `${one} already has a password. Sign in instead.` });
@@ -1129,7 +1135,7 @@ const server = http.createServer(async (req, res) => {
   // session in the Claude app drawing it, for the person who asked, signed in
   if (url.pathname === '/api/newmap' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const prompt = String(a.prompt || '').trim().slice(0, 4000);
     if (!prompt) return json(400, { error: 'Say what the map is about.' });
     const name = freeName(prompt);
@@ -1140,7 +1146,7 @@ const server = http.createServer(async (req, res) => {
   // exactly as it was saved, and opens
   if (url.pathname === '/api/maps/load' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
-    let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch {}
+    let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch { /* not a map file: s stays null and the answer says so */ }
     if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
     delete s.linkSharing;
     const name = freeName(String(s.title || 'map'));
@@ -1153,7 +1159,7 @@ const server = http.createServer(async (req, res) => {
   if (['/api/maps/trash', '/api/maps/delete'].includes(url.pathname) && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
     if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to move a map to Trash.' });
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const name = String(a.name || '');
     if (!/^[a-z0-9-]+$/.test(name) || deletedMaps.has(name)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
     const project = folders.get(name), dir = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
@@ -1181,7 +1187,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/maps/restore' && req.method === 'POST') {
     if (!who) return json(401, { error: 'Sign in first.' });
     if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to restore a map.' });
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const record = trashRecords(who).find((r) => r.id === a.id);
     if (!record) return json(404, { error: 'That map is not in your Trash.' });
     const { name, project, archive } = record, home = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
@@ -1241,7 +1247,7 @@ const server = http.createServer(async (req, res) => {
   }
   // a chat opening the map from another code folder adds that folder to the list, and it stays there
   if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
-    let /** @type {any} */ a = {}; try { a = JSON.parse(await body(req)); } catch {}
+    let /** @type {any} */ a = await jsonBody(req, {});
     const folder = a.folder ? path.resolve(String(a.folder)) : '', name = mapName(folder);
     if (!folder || !addProject(folder, true)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
     if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
@@ -1309,7 +1315,7 @@ async function pull() {
   const was = await git('rev-parse', 'HEAD');
   if ((await git(...GIT_NET, 'pull', '-q', '--ff-only', 'origin', 'main')) === null) return null;
   const now = await git('rev-parse', 'HEAD'), count = now === was ? 0 : Number(await git('rev-list', '--count', `${was}..${now}`)) || 0;
-  if (count) { try { refreshSkill(); } catch {} console.log(`update: ${count} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`); }
+  if (count) { try { refreshSkill(); } catch (e) { console.error(`[update] could not refresh the skill's installed copy: ${/** @type {any} */ (e)?.message}`); } console.log(`update: ${count} new commits pulled, starting again: ${await git('log', '-1', '--format=%s')}`); }
   return { count };
 }
 // starts this server again on the code now in the clone
@@ -1325,7 +1331,7 @@ server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
   const head = await git('rev-parse', 'HEAD');
   if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; VERSION.build = Number(await git('rev-list', '--count', 'HEAD')) || 0; }
-  if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch {} }
+  if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch (e) { console.error(`[update] could not record the running revision: ${/** @type {any} */ (e)?.message}`); } }
   keepCurrent(); setInterval(keepCurrent, EVERY).unref();
 });
 
