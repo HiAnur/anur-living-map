@@ -42,6 +42,6 @@ describe('planned Action readiness',()=>{
   });
   it('removes planned details from export and guest data, including nested nodes',()=>{
     const n={id:'a',boxType:'action',task:plan,action:{plan},inside:{nodes:[{id:'b',task:plan,action:{plan}}]}};
-    expect(withoutActions([n])).toEqual([{id:'a',boxType:'action',inside:{nodes:[{id:'b'}]}}]);
+    expect(withoutActions(/** @type {any} */ ([n]))).toEqual([{id:'a',boxType:'action',inside:{nodes:[{id:'b'}]}}]);
   });
 });

@@ -152,7 +152,7 @@ describe('action boxes',()=>{
   it('keeps task details private from links and cloud sharing',()=>{
     const node={id:'one',label:'One',x:0,y:0,action:{stage:'ready',brief,by:'Duy'}};
     const s={nodes:[{...node,inside:{nodes:[{...node,id:'inside'}],edges:[]}}],edges:[]};
-    const guest=sharedState(s,false,true);expect(guest.nodes[0].action).toBeUndefined();expect(guest.nodes[0].inside.nodes[0].action).toBeUndefined();expect(s.nodes[0].action).toBeDefined();
+    const guest=sharedState(s,false,true);expect(guest.nodes[0].action).toBeUndefined();expect(/** @type {any} */ (guest.nodes[0].inside).nodes[0].action).toBeUndefined();expect(s.nodes[0].action).toBeDefined();
     expect(mapData(s).nodes[0].action).toBeUndefined();
     for(const type of ['actionbox','actionstart','actionretry','actionanswer','actionexecute','actioncontinue','actionstop','actioncancel','actionrevise'])expect(LINK_EDITS.has(type)).toBe(false);
   });

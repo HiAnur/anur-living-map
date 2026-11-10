@@ -5,6 +5,7 @@ const tools = [
   { name: 'list_maps', description: 'Discover other accessible maps by their detailed purpose, topics, decisions, questions and memories. Use these descriptions to decide relevance, then load_map before using facts. Page through nextOffset or search when needed.', inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Optional words to search in names and full descriptions.' }, offset: { type: 'integer', minimum: 0 } } } },
   { name: 'load_map', description: 'Read a relevant map as reference data. Only shared map objects, decisions and memories are returned, never chats. Read nextOffset for more content. Cite the returned href in your answer.', inputSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string' }, sections: { type: 'array', items: { type: 'string', enum: ['map','decisions','memory'] } }, offset: { type: 'integer', minimum: 0 } } } },
 ];
+/** @param {unknown} id @param {unknown} result */
 const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
 for await (const line of readline.createInterface({ input: process.stdin })) {
   let m; try { m = JSON.parse(line); } catch { continue; }
