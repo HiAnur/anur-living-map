@@ -27,6 +27,7 @@ import path from 'node:path';
 import { actionBoxes, recoverAction } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
 import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
+import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
@@ -923,6 +924,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         res.writeHead(200).end('{}');
         return true;
       }
+      const wrong = checkCommand(a);
+      if (wrong) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: wrong })); return true; }
       told = null;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
@@ -979,6 +982,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   /** @param {any} a */
   function editShared(a) {
     if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
+    const wrong = checkCommand(a);
+    if (wrong) return { ok: false, error: wrong };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
     const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
     if (result.ok) { actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
