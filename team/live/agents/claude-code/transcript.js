@@ -1,4 +1,4 @@
-// The map's Claude pane, synced with a Claude Code chat: follow that chat's transcript
+// The map's chat pane, synced with a Claude Code chat: follow that chat's transcript
 // (~/.claude/projects/<project>/<chat id>.jsonl) as it grows and keep what you typed, the pictures you
 // attached, and what Claude wrote back, one Claude message per turn. Tool calls and their output, reminders, side
 // agents and anything the app sent in your place (task notifications, messages from other chats)

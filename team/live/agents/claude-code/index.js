@@ -1,7 +1,9 @@
 // Claude Code as the team map's agent: every process the map starts for its own work runs `claude` with the
-// flags in this folder, and nothing outside it does. Another agent implements the same AgentWorker.
+// flags in this folder, and nothing outside it does. Another agent implements the same AgentWorker and
+// AgentConversation.
 import { childEnv, claudeLogin, SIGNED_OUT, streamClaude } from './ask.js';
 import { converse } from './converse.js';
+export { claudeCodeChats } from './conversation.js';
 import { prepareAction } from './prepare.js';
 import { runAction } from './run.js';
 

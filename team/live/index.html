@@ -2787,7 +2787,7 @@ const signin = (m) => !m.signin || FILE ? '' : `<div class="prop${loginState ===
   ${loginState === 'waiting' || loginState === 'done' ? '' : '<div class="btns"><span class="gb yes" data-claude-login>Sign in</span></div>'}</div>`;
 const claudeLogin = () => {
   loginState = 'waiting'; render();
-  fetch('/api/claude-login', { method: 'POST' }).then((r) => r.json()).catch(() => ({}))
+  fetch('/api/agent-login', { method: 'POST' }).then((r) => r.json()).catch(() => ({}))
     .then((r) => { loginState = r.ok ? 'done' : 'failed'; render(); });
 };
 /* a change Claude proposed in a chat: what it does, in plain words, and Apply; nothing changes until someone presses it */

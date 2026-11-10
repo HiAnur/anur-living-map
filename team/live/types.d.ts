@@ -128,6 +128,20 @@ interface AgentWorker {
   // one turn of a headless chat the map runs itself, resumed by session id
   converse(job: ConverseJob): () => void;
 }
+// Your own chats with the agent, as the map follows and opens them (agent.js `chats`).
+interface AgentConversation {
+  // follow a chat's transcript as it grows: your words, its replies, what it is doing now
+  follow(file: string, onChange: (msgs: any[]) => void, options?: { anyUser?: boolean }): {
+    stop(): void; msgs(): any[]; img(id: string): { type: string; data: string } | undefined;
+    model(): { id: string; effort: string | null } | null; status(): { working: boolean; doing: string; at: number; since?: number };
+  };
+  findChat(session: string): string | null; // a chat's transcript by its id, once it exists
+  findNewChat(o: { folder: string; since: number; holding: string }): string | null; // a chat started in `folder` since then, whose words hold `holding`
+  isChat(file: string, session: string): boolean; // whether `file` is that chat's transcript
+  openNew(o: { prompt: string; folder: string }): void; // a new chat in the agent's app, starting with `prompt`
+  skillDir(name: string): string; // where the agent keeps an installed skill
+  connectTools(): string; // register the map's MCP server with the agent; what to tell you, or '' when it already was
+}
 interface AskJob {
   cwd: string;
   prompt: string;

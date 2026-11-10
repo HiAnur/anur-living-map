@@ -5,9 +5,9 @@
 //   anur-living-map mcp                                   what Claude Code runs to talk to the map
 //
 // It starts the team map server for the folder if none is running, or adds the folder to
-// the server already running; registers the map with Claude Code once (`claude mcp add`);
+// the server already running; registers the map's MCP server with the agent once (agent.js);
 // and opens the folder's map in the browser.
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -59,16 +59,10 @@ if (args[0] === 'mcp') {
     if (!(await up())) { console.log(`The map server did not start. Its log is ${log}.`); process.exit(1); }
   }
 
-  // Claude Code reaches the map through this same package, so the path never goes stale
-  /** @param {...string} a */
-  const claude = (...a) => { try { execFileSync('claude', a, { stdio: 'pipe' }); return true; } catch { return false; } };
-  if (!claude('mcp', 'get', 'living-map')) {
-    if (claude('mcp', 'add', '--scope', 'user', 'living-map', '--', 'npx', '-y', 'anur-living-map', 'mcp')) {
-      console.log('Claude Code can now read and change the map (living-map MCP). Start a new chat to use it.');
-    } else {
-      console.log('Claude Code was not found on PATH, so the map is not registered with it yet. Later: claude mcp add --scope user living-map -- npx -y anur-living-map mcp');
-    }
-  }
+  // the agent reaches the map through its MCP server, registered once
+  const { chats } = await import('./agent.js');
+  const told = chats.connectTools();
+  if (told) console.log(told);
 
   const url = `${base}/${name}/`;
   console.log(`Living Map for ${folder}: ${url}`);
