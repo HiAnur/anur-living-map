@@ -65,13 +65,36 @@ describe('action boxes',()=>{
     h.api.prepare('form','Duy','Keep this one');h.ready();
     expect(h.api.execute('form','Duy',h.node.action.id)).toBe(true);expect(h.node.action.documents[0]).toEqual(first);
   });
-  it('cancels preparation and ignores late replies',()=>{
-    const h=harness();h.start();expect(h.api.cancel('form','Duy')).toBe(true);h.ready();expect(h.node.action).toBeUndefined();expect(h.stops).toHaveLength(1);
+  it('cancels preparation, keeps the Action, and ignores the late reply',()=>{
+    const h=harness();h.start();expect(h.api.cancel('form','Duy')).toBe(true);expect(h.stops).toHaveLength(1);
+    h.ready();expect(h.node.action.stage).toBe('cancelled');expect(h.node.action.brief).toBeUndefined();
+    expect(h.node.action.intent).toBe('Build a contact form for the website');
+    expect(h.node.action.cancelled).toMatchObject({by:'Duy',from:'gathering'});expect(h.node.boxType).toBe('action');
   });
   it('keeps a replacement request cancellable if a cancelled request replies late',()=>{
-    const h=harness();h.start();const old=h.requests[0];h.api.cancel('form','Duy');h.start();
+    const h=harness();h.start();const old=h.requests[0];h.api.cancel('form','Duy');
+    expect(h.api.reopen('form','Duy')).toBe(true);h.start();
     old.onDone('',undefined,reply({status:'ready',brief}));expect(h.node.action.stage).toBe('gathering');
     h.api.cancel('form','Duy');expect(h.stops).toHaveLength(2);
+  });
+  it('turns an untouched draft back into an Info box, and keeps anything more',()=>{
+    const h=harness();h.api.begin('form','Duy');expect(h.api.cancel('form','Duy')).toBe(true);
+    expect(h.node.action).toBeUndefined();expect(h.node.boxType).toBe('topic');
+    h.api.begin('form','Duy',{goal:'Build a contact form',result:'Visitors can submit',inputs:['The site'],steps:['Add it'],evidence:['A submission'],dependsOn:[]});
+    expect(h.api.cancel('form','Duy')).toBe(true);expect(h.node.action.stage).toBe('cancelled');expect(h.node.action.plan.goal).toBe('Build a contact form');
+  });
+  it('reopens a cancelled Action as a draft with its instructions, and keeps its brief as a version',()=>{
+    const h=harness();h.start();h.ready();expect(h.node.action.stage).toBe('ready');
+    expect(h.api.reopen('form','Duy')).toBe(false);expect(h.api.cancel('form','Duy')).toBe(true);
+    const cancelledId=h.node.action.id;expect(h.node.action.brief).toEqual(brief);
+    expect(h.api.reopen('form','Other')).toBe(false);expect(h.api.reopen('form','Duy')).toBe(true);
+    expect(h.node.action).toMatchObject({stage:'draft',intent:'Build a contact form for the website'});expect(h.node.action.id).not.toBe(cancelledId);
+    expect(h.node.action.cancelled).toBeUndefined();expect(h.node.action.brief).toBeUndefined();
+    expect(h.node.action.documents.at(-1).brief).toEqual(brief);expect(h.launches).toHaveLength(0);
+  });
+  it('never cancels an Action that has run',()=>{
+    const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
+    expect(h.api.cancel('form','Duy')).toBe(false);expect(h.node.action.stage).toBe('running');
   });
   it('ignores a completed request after deletion or access removal',()=>{
     for(const change of ['remove','revoke']){const h=harness();h.start();const before=h.changes;h[change]();h.ready();expect(h.changes).toBe(before+(change==='revoke'?1:0));if(change==='revoke')expect(h.node.action.stage).toBe('error');expect(h.launches).toHaveLength(0);}

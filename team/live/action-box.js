@@ -72,7 +72,8 @@ function actionDocument(brief, version) {
 const source = taskSource;
 /** @param {Box} n */
 export function recoverAction(n) {
-  if (n.action?.stage === 'sent') n.action.stage = 'unconfirmed';
+  // `sent` is how releases before `unconfirmed` stored a run that never reported back
+  if (/** @type {string | undefined} */ (n.action?.stage) === 'sent') n.action.stage = 'unconfirmed';
   if (n.action?.stage === 'gathering') Object.assign(n.action, { stage:'error', error:'Preparation stopped when the map restarted. Try again.' });
   if (n.action?.stage === 'running') {
     n.action.stage = 'blocked';
@@ -131,6 +132,8 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     try {
       const stop = ask({ prompt, by, onText() {}, onDone(reply, access, value) {
         if (nodeOf(id)?.action === current) jobs.delete(id);
+        // cancelled while Claude was looking: the Action keeps what it had, and the answer is dropped
+        if (current.stage !== 'gathering') return;
         if (!active()) {
           if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); delete /** @type {any} */ (current).since; changed(); }
           return;
@@ -152,10 +155,27 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     }
     return true;
   }
+  // A draft nobody wrote anything in is still an Info box at heart; anything more is kept when it is cancelled.
+  /** @param {BoxAction} a */
+  const untouched = (a) => a.stage === 'draft' && !a.intent && !a.plan && !a.history?.length && !a.documents?.length;
   /** @param {string} id @param {string} by */
   function cancel(id, by) {
-    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || handedOff(n.action.stage)) return false;
-    jobs.get(id)?.(); jobs.delete(id); delete n.action; n.boxType = 'topic'; changed(); return true;
+    const n = nodeOf(id); if (!owns(n, by) || !n.action || n.action.session || !can('cancel', n.action.stage)) return false;
+    jobs.get(id)?.(); jobs.delete(id);
+    if (untouched(n.action)) { delete n.action; n.boxType = 'topic'; }
+    else {
+      Object.assign(n.action, { stage:'cancelled', cancelled:{ by, at:Date.now(), from:n.action.stage } });
+      delete /** @type {any} */ (n.action).since;
+    }
+    changed(); return true;
+  }
+  // a cancelled Action becomes a draft again with its instructions; a brief it had is kept as a version first
+  /** @param {string} id @param {string} by */
+  function reopen(id, by) {
+    const n = nodeOf(id), a = n?.action; if (!owns(n, by) || !can('reopen', a?.stage)) return false;
+    if (a.brief) { a.documents ||= []; a.documents.push(actionDocument(a.brief, a.documents.length + 1)); }
+    for (const key of ['cancelled', 'brief', 'question', 'choices', 'error', 'waiting']) delete /** @type {any} */ (a)[key];
+    Object.assign(a, { id:crypto.randomUUID(), stage:'draft' }); changed(); return true;
   }
   /** @param {string} id @param {string} by */
   function revise(id, by) {
@@ -242,5 +262,5 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     for (const [id, job] of runs) { runs.delete(id); job.stop?.(); if (nodeOf(id)?.action === job.a) recoverAction(nodeOf(id)); }
     changed();
   }
-  return { begin, start, prepare, cancel, revise, execute, continue:continueAction, stop, reconcile, close };
+  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, stop, reconcile, close };
 }
