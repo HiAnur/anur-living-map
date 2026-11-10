@@ -74,7 +74,7 @@ Every push to `main` that passes CI publishes a GitHub release `v0.1.<run>` (the
 - Anything model-specific lives in a provider.
 - The model's output is untrusted: check every op before it reaches the store (`apply.ts`, `checkProposal`).
 - Colours come only from the roles in `web/brand.css` (`bg-canvas`, `text-ink`, `bg-primary`, `border-success-line`, …): no Tailwind palette colours or hex codes in components. Every role has a light value and a dark one (under `prefers-color-scheme: dark`); set both, with text at 4.5:1 or more on the surfaces it sits on. The logo mark is `web/lib/mark.ts`; the favicon is drawn from it at startup.
-- A file holds at most 500 lines of code (ESLint `max-lines`, blank lines and comments not counted). `eslint.config.js` lists the files over it: split one and take it off the list in the same change; add none.
+- A file holds at most 500 lines of code (ESLint `max-lines`, blank lines and comments not counted). `eslint.config.js` lists the one file still over it: add none. What several test files share (fixtures, a fake process, a scripted model) lives beside them in `<name>.harness.ts`, which is not counted as covered source.
 - No `setState` inside effects: derive the value, or reset state when its key changes during render.
 - One filled button per screen, marked `data-primary` (an open card or side chat owns it); everything else is outlined or behind a ⋯ (`web/components/More.tsx`). Subject matter Claude wrote (titles, quotes, answers) carries `data-content`, so interface words can be counted apart.
 - Copy the user reads says "you", in plain words.
