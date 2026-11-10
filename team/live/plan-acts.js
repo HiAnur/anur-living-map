@@ -1,4 +1,4 @@
-// What a chat draws and builds on the map: its plan, its pull request, Execute and plan.md, quick changes from
+// What a chat draws and builds on the map: its plan, its pull request, Build the plan and plan.md, quick changes from
 // the map's tools, and the memory people may reword or take away. The map passes in its state and the helpers each needs.
 
 /**
@@ -14,7 +14,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
       // what a chat draws is that chat's: changes people make to it go back to that chat
       const who = String(a.session || '').slice(0, 80);
       if (who) { for (const it of [...(a.nodes || []), ...(a.calls || [])]) it.session = who; getState().owner = who; }
-      // a plan that asks something new waits for answers again before anyone can press Execute
+      // a plan that asks something new waits for answers again before anyone can press Build the plan
       if ((a.calls || []).some((/** @type {any} */ c) => c.status === 'open')) getState().executed = null;
       draw(a, a.by, { kind: 'plan', ...(who ? { session: who } : {}) });
       Object.assign(getState().answers, a.answers || {});
@@ -42,25 +42,25 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
       tell(`${a.by} ${had ? 'updated' : 'opened'} pull request ${id}${pr.title ? `: ${pr.title}` : ''} (${pr.status})`);
       return true;
     },
-    // Execute: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
+    // Build the plan: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
     // it when it is listening; when that chat has gone quiet, the chat listening on this map now builds it instead,
-    // so pressing Execute never lands in an empty inbox
+    // so pressing Build the plan never lands in an empty inbox
     /** @param {Act<'execute'>} a */
     execute(a) {
       if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().executed = { by: a.by, at: stamp() };
       const pr = getState().prs?.find((/** @type {any} */ p) => p.id === getState().pr), to = getState().owner && waiters.some((/** @type {any} */ w) => w.who === getState().owner) ? getState().owner : '*';
-      tell(`${a.by} pressed Execute: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
+      tell(`${a.by} pressed Build the plan: every question on the map is answered. Build the plan now from what was decided${pr ? `, on pull request ${pr.id}'s branch` : ''}.`, to);
       return true;
     },
     // Give me plan.md: instead of building, the same chat writes the plan out as plan.md at the repo's root,
-    // and the map links to it; Execute stays for when the admin is ready
+    // and the map links to it; Build the plan stays for when the admin is ready
     /** @param {Act<'planmd'>} a */
     planmd(a) {
       if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().planmd = { by: a.by, at: stamp() };
       const to = getState().owner && waiters.some((/** @type {any} */ w) => w.who === getState().owner) ? getState().owner : '*';
-      tell(`${a.by} asked for plan.md instead of Execute: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Execute when ready.`, to);
+      tell(`${a.by} asked for plan.md instead of Build the plan: write this map's plan to plan.md at the repo's root (what changes, step by step, from what was decided, and what could break), then stop. Do not build; ${a.by} presses Build the plan when ready.`, to);
       return true;
     },
     // a quick change from a chat's Living Map tools (mcp.js): boxes, lines and questions added or updated by id,
