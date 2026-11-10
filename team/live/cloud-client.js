@@ -15,7 +15,9 @@ export function cloudConfig() {
   } catch { return null; }
 }
 // Public graph fields replace their previous values; local-only box metadata stays local.
+/** @param {MapState} state @param {any} data what mapData passed */
 export function installCloudData(state, data) {
+  /** @type {(old: any[], fresh: any[]) => any[]} */
   const nodes = (old, fresh) => fresh.map((n) => {
     const prior = old.find((p) => p.id === n.id), out = { ...prior };
     if (prior) for (const key of Object.keys(mapData({ nodes: [prior], edges: [] }).nodes[0])) delete out[key];
@@ -27,15 +29,23 @@ export function installCloudData(state, data) {
   Object.assign(state, data, { nodes: graph });
   if (!data.start) delete state.start;
 }
+/**
+ * @param {{ home: string, read: () => MapState, write: (data: any) => void, notify: () => void,
+ *   config?: { url: string, publishKey: string, [more: string]: any } | null }} map
+ */
 export function cloudMirror({ home, read, write, notify, config = cloudConfig() }) {
   const file = path.join(home, 'cloud.json');
+  /** @type {any} what cloud.json holds for this map */
   let saved; try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  /** @type {Promise<void> | null} */
   let busy = null, error = '', closed = false, pending = Promise.resolve(), queued = 0;
   // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
+  /** @param {() => Promise<any>} task */
   const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => {}); return next.finally(() => { queued--; }); };
   const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => config && saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
   const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
+  /** @param {string} route @param {unknown} [data] @param {string} [etag] @param {boolean} [missingOK] */
   const request = async (route, data, etag, missingOK = false) => {
     if (!config) throw new Error('Cloud sharing is not set up on this Mac.');
     const r = await fetch(config.url + route, { method: data === undefined ? 'GET' : 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${config.publishKey}`, 'x-map-owner': saved?.ownerKey || '', ...(etag ? { 'if-none-match': etag } : {}) }, body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(30000) });
@@ -68,6 +78,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     })();
     return busy;
   }
+  /** @param {string} mode */
   async function publish(mode) {
     if (closed) throw new Error('This local map is closed.');
     if (!['view','edit','restricted'].includes(mode)) throw new Error('Choose view or edit.');
@@ -100,5 +111,5 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
   }
   // Poll only already-published maps. Each exchange merges changes made while offline.
   const timer = setInterval(() => { void sync(); }, 5000); timer.unref();
-  return { status, publish: (mode) => exclusive(() => publish(mode)), remove: () => exclusive(remove), sync, close() { closed = true; clearInterval(timer); } };
+  return { status, publish: (/** @type {string} */ mode) => exclusive(() => publish(mode)), remove: () => exclusive(remove), sync, close() { closed = true; clearInterval(timer); } };
 }

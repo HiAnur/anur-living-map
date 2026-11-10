@@ -17,6 +17,12 @@
     "live/action-preparation.js",
     "live/action-runner.js",
     "live/auto-plan.js",
-    "live/action-box.js"
+    "live/action-box.js",
+    "live/cloud-data.js",
+    "live/cloud-client.js",
+    "live/mirror.js",
+    "live/proposal-layout.js",
+    "live/editing.js",
+    "live/map-context.js"
   ]
 }

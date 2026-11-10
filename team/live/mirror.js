@@ -11,12 +11,15 @@ import crypto from 'node:crypto';
 const KEEP = 600;
 
 // what a transcript entry says in words: a string, or its text blocks
+/** @param {unknown} c */
 const words = (c) => typeof c === 'string' ? c
   : Array.isArray(c) ? c.filter((b) => b?.type === 'text').map((b) => b.text).join('\n') : '';
 // the pictures attached to it, as they sit in the transcript: base64 with their type
+/** @param {unknown} c */
 const pictures = (c) => Array.isArray(c) ? c.filter((b) => b?.type === 'image' && b.source?.type === 'base64' && b.source.data) : [];
 
 // your words without what the app wraps around them; a slash command reads as you typed it
+/** @param {string} text */
 function yours(text) {
   const cmd = text.match(/<command-name>\/?([^<]+)<\/command-name>/);
   if (cmd) { const args = text.match(/<command-args>([\s\S]*?)<\/command-args>/)?.[1]?.trim(); return `/${cmd[1].trim()}${args ? ` ${args}` : ''}`; }
@@ -25,8 +28,9 @@ function yours(text) {
 }
 
 // a step Claude takes, said the way the Claude app says it while it works
+/** @param {any} b a tool call as the transcript has it */
 function plainStep(b) {
-  const n = String(b.name || ''), i = b.input || {}, file = (p) => String(p || '').split('/').pop();
+  const n = String(b.name || ''), i = b.input || {}, file = (/** @type {unknown} */ p) => String(p || '').split('/').pop();
   if (n === 'Read') return `Reading ${file(i.file_path)}`;
   if (n === 'Grep' || n === 'Glob') return 'Searching files';
   if (n === 'Bash') return i.description || 'Running a command';
@@ -34,7 +38,7 @@ function plainStep(b) {
   if (n === 'WebSearch') return i.query ? `Searching the web: ${i.query}` : 'Searching the web';
   if (n === 'WebFetch') return 'Reading a web page';
   if (n === 'Skill') return `Using ${i.skill || 'a skill'}`;
-  if (n === 'Agent' || n === 'Task') return i.description ? `A helper is ${i.description.replace(/^./, (c) => c.toLowerCase())}` : 'Asking a helper';
+  if (n === 'Agent' || n === 'Task') return i.description ? `A helper is ${i.description.replace(/^./, (/** @type {string} */ c) => c.toLowerCase())}` : 'Asking a helper';
   if (n === 'ToolSearch') return 'Loading its tools';
   if (/living_map_change$/.test(n)) return 'Drawing on the map';
   if (/living_map_read$/.test(n)) return 'Reading the map';
@@ -44,20 +48,26 @@ function plainStep(b) {
 
 // anyUser: a chat the map started itself (claude -p) records your words without marking them as typed by a
 // person, so every user entry with words counts as yours there
+/** @param {string} file @param {(msgs: any[]) => void} onChange @param {{ anyUser?: boolean }} [options] */
 export function follow(file, onChange, { anyUser = false } = {}) {
-  let offset = 0, rest = '', msgs = [], busy = false, model = null;
+  let offset = 0, rest = '', /** @type {any[]} */ msgs = [], busy = false, /** @type {{ id: string, effort: string | null } | null} */ model = null;
   // whether Claude is in the middle of a turn, what it is doing now, when it last did anything, and since when it works
+  /** @type {{ working: boolean, doing: string, at: number, since?: number }} */
   let state = { working: false, doing: '', at: 0 };
   // each picture you attached, once, by a hash of its bytes; a message names its pictures by that id
   const imgs = new Map();
+  /** @param {unknown} c */
   const keep = (c) => pictures(c).map((b) => {
     const id = crypto.createHash('sha1').update(b.source.data).digest('hex').slice(0, 16);
     imgs.set(id, { type: b.source.media_type || 'image/png', data: b.source.data }); return id;
   });
   // each piece of Claude's words keeps its own time, so what you write from the map falls between them
   // in the right place; the page draws a run of Claude's pieces as one message
+  /** @param {string} who @param {string} text @param {number} at @param {string[]} [pics] */
   const add = (who, text, at, pics = []) => msgs.push({ who, text, at, ...(pics.length ? { imgs: pics } : {}) });
+  /** @param {unknown} c @param {number} at */
   const yourTurn = (c, at) => { const t = yours(words(c)), p = keep(c); if (t || p.length) add('you', t, at, p); };
+  /** @param {string} raw */
   function line(raw) {
     let j; try { j = JSON.parse(raw); } catch { return; }
     if (j.isSidechain) return;
@@ -71,10 +81,10 @@ export function follow(file, onChange, { anyUser = false } = {}) {
     } else if (j.type === 'assistant') {
       // the model and effort the chat answers with, as of its latest reply
       if (/^claude-/.test(j.message?.model || '')) model = { id: j.message.model, effort: j.effort || j.perTurnEffort || null };
-      const t = (j.message?.content || []).filter((b) => b?.type === 'text').map((b) => b.text).join('\n').trim();
+      const t = (j.message?.content || []).filter((/** @type {any} */ b) => b?.type === 'text').map((/** @type {any} */ b) => b.text).join('\n').trim();
       if (t) add('claude', t, at);
       // still at it until a reply ends the turn; the step it is on, in plain words
-      const step = (j.message?.content || []).filter((b) => b?.type === 'tool_use').at(-1);
+      const step = (j.message?.content || []).filter((/** @type {any} */ b) => b?.type === 'tool_use').at(-1);
       state = j.message?.stop_reason === 'end_turn' ? { working: false, doing: '', at } : { working: true, doing: step ? plainStep(step) : state.doing, at, since: state.working ? state.since : at };
     } else if (j.type === 'user' && state.working) state = { ...state, at };
   }
@@ -100,5 +110,5 @@ export function follow(file, onChange, { anyUser = false } = {}) {
   }
   const timer = setInterval(read, 1000);
   setImmediate(read);
-  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (id) => imgs.get(id), model: () => model, status: () => state };
+  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (/** @type {string} */ id) => imgs.get(id), model: () => model, status: () => state };
 }

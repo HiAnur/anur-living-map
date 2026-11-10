@@ -1,5 +1,7 @@
 // Preview additions in branch order. Existing positions are copied, never changed until Apply.
+/** @param {Box} n */
 const width = (n) => Math.min(220, Math.max(n.kind === 'actor' ? 110 : 140, String(n.label || '').length * 7.4 + 28));
+/** @param {unknown} text @param {number} room @param {number} char */
 const lines = (text, room, char) => {
   let count = 1, used = 0;
   for (const word of String(text || '').split(/\s+/)) {
@@ -9,21 +11,30 @@ const lines = (text, room, char) => {
   }
   return count;
 };
+/** @param {Box} n */
 const height = (n) => Math.max(n.h || 0, (n.action || n.boxType === 'action' ? 18 : 0) + 50 + (lines(n.label, width(n) - 26, 7.4) - 1) * 17 + (Math.min(3, lines(n.sub, width(n) - 26, 6.7)) - 1) * 16);
+/** @param {Record<string, any>} n */
 const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 
+/** @param {Box[]} existing @param {Line[]} edges @param {Box[]} additions @param {Line[]} newEdges */
 export function appendProposed(existing, edges, additions, newEdges) {
-  const by = new Map(existing.map((n) => [n.id, {...n}])), parents = new Map(), kids = new Map();
+  /** @type {Map<string, any>} a copy of every box by id: positions are worked out on the copies */
+  const by = new Map(existing.map((n) => [n.id, {...n}])), parents = new Map(), /** @type {Map<string, string[]>} */ kids = new Map();
+  /** @param {string} from @param {string} to */
   const attach = (from, to) => {
     if (!by.has(from) || !by.has(to) || from === to || parents.has(to)) return;
     for (let up = from; up; up = parents.get(up)) if (up === to) return;
-    parents.set(to, from); if (!kids.has(from)) kids.set(from, []); kids.get(from).push(to);
+    parents.set(to, from); if (!kids.has(from)) kids.set(from, []); /** @type {string[]} */ (kids.get(from)).push(to);
   };
   for (const e of edges) attach(e.from, e.to);
   for (const list of kids.values()) list.sort((a,b) => by.get(a).y - by.get(b).y);
+  /** @param {string} id */
   const subtree = (id) => { const out = [id]; for (let i = 0; i < out.length; i++) out.push(...(kids.get(out[i]) || [])); return out; };
+  /** @param {string} id */
   const top = (id) => Math.min(...subtree(id).filter(k=>placed(by.get(k))).map(k=>by.get(k).y-height(by.get(k))/2));
+  /** @param {string} id */
   const bottom = (id) => Math.max(...subtree(id).filter(k=>placed(by.get(k))).map(k=>by.get(k).y+height(by.get(k))/2));
+  /** @param {string} id @param {{ x: number }} p */
   const side = (id, p) => by.get(id).x < p.x ? -1 : 1;
   const queue = [...additions];
   // Parents may come after children in the model's response.
