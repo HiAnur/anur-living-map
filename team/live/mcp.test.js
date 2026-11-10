@@ -31,7 +31,7 @@ function server(url = 'http://127.0.0.1:9', file = new URL('./mcp.js', import.me
 describe('the map\'s tools, over stdio', () => {
   it('starts, names itself and lists its four tools', async () => {
     const s = server();
-    expect((await s.ask('initialize', { protocolVersion: '2025-06-18' })).result.serverInfo.name).toBe('living-map');
+    expect((await s.ask('initialize', { protocolVersion: '2025-06-18' })).result.serverInfo.name).toBe('anur-living-map');
     const { tools } = (await s.ask('tools/list')).result;
     expect(tools.map((t) => t.name)).toEqual(['living_map_catalog', 'living_map_load', 'living_map_read', 'living_map_change']);
     expect(tools.every((t) => !('run' in t))).toBe(true);

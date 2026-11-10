@@ -2,7 +2,7 @@
 // Living Map tools for every Claude chat on this Mac: read a map, and change it in one call (boxes, lines,
 // to-dos and questions for a teammate). An MCP server over stdio with no packages; each tool is one or two
 // requests to the map server, so a call takes milliseconds. Registered once for every Claude Code chat:
-//   claude mcp add --scope user living-map -- node <this file>
+//   claude mcp add --scope user anur-living-map -- node <this file>
 // LIVING_MAP_URL points it at another server (a test one); stdout carries only the protocol.
 
 import { asksNothing, clip, KINDS, planChange, STATES } from './draw.js';
@@ -149,7 +149,7 @@ const send = (m) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...
 async function onMessage(m) {
   if (m.id === undefined) return; // a notification, such as notifications/initialized
   if (m.method === 'initialize') return send({ id: m.id, result: { protocolVersion: m.params?.protocolVersion || '2025-06-18',
-    capabilities: { tools: {} }, serverInfo: { name: 'living-map', version: '1.0.0' }, instructions: INSTRUCTIONS } });
+    capabilities: { tools: {} }, serverInfo: { name: 'anur-living-map', version: '1.0.0' }, instructions: INSTRUCTIONS } });
   if (m.method === 'ping') return send({ id: m.id, result: {} });
   if (m.method === 'tools/list') return send({ id: m.id, result: { tools: TOOLS.map(({ run, ...t }) => t) } });
   if (m.method === 'tools/call') {

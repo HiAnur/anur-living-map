@@ -1,5 +1,5 @@
 // Who may sign in to the team map: a person from the map's people (seed.json) and a password, kept
-// scrambled with scrypt in one SQLite file outside the repo, ~/.living-map-2/users.db. A person chooses
+// scrambled with scrypt in one SQLite file outside the repo, users.db in the team map's data folder (data-dir.js). A person chooses
 // their password the first time they sign in; later they can recover it through a verified email. Signing in gives
 // the browser a cookie; the session behind it is kept in the same file, so a server restart keeps you in.
 // Both scrypt and SQLite are built into Node: nothing to install.
@@ -10,14 +10,14 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 
 import { recoveryStore } from './recovery.js';
+import { DATA } from './data-dir.js';
 
-const FILE = process.env.LIVING_MAP_USERS || path.join(os.homedir(), '.living-map-2', 'users.db');
+const FILE = process.env.LIVING_MAP_USERS || path.join(DATA, 'users.db');
 const DAYS = 30;
 /** @type {string[]} */
 const PEOPLE = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'seed.json'), 'utf8')).people.map((/** @type {{ id: string }} */ p) => p.id);
