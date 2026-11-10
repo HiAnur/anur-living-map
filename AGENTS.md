@@ -17,6 +17,8 @@ npm start              # build, then serve http://localhost:4317 under server/la
 npm run dev            # server with --watch, plus Vite on :5173 (?fixture=1 draws a fixture map, no server)
 npm run check          # ESLint, tsc, Prettier, Vitest: the same as the pre-commit hook
 npm test               # Vitest only
+npm run coverage       # Vitest with coverage (report in coverage/); fails when ledger/ drops under the floor in vite.config.ts
+npm run test:ui        # Playwright on the fixture map, starting its own Vite on :5199 (once: npx playwright install chromium)
 npm run upgrade:check  # list dependency upgrades .ncurc.cjs allows (week-old releases, peer- and engine-compatible)
 npm run upgrade        # minor and patch upgrades; npm-check-updates doctor reverts any that fail upgrade:test (rewrites package.json and the lockfile; only when asked)
 npm run upgrade:latest # the same, majors included (only when asked)
@@ -38,6 +40,8 @@ The pre-commit hook (husky, `.husky/pre-commit`) runs lint-staged, then the full
 npm run check && npm run build && python3 .github/agent-docs/check.py
 ```
 
+For a change under `web/`, also `npm run test:ui`; for one under `ledger/`, also `npm run coverage`. CI runs both.
+
 For a UI change, also try it in the browser on a test server (below), on a linked chat.
 
 ## Layout
@@ -55,6 +59,7 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 - `server/update.ts` and `server/launcher.ts`: the one-click update (compare with the latest GitHub release, pull, `npm ci`, build, restart).
 - `web/`: `App.tsx` signs in; with `?conv=<chat>` it asks `GET /api/ledger/view` for that chat once (`map/probe.ts`) and lazy-loads `map/MapScreen.tsx`; with no chat it lists every mapped chat (`Chats.tsx`, `GET /api/ledger/chats`), each opening in a new tab. `map/layout.ts` places nodes from the items alone (column = depth, rows in tree order, newest first by `order` key), so a new item never moves a node above it, and `holdView` moves the camera by what moved below so the box you are looking at stays put; `layout.test.ts` holds that over a 300-step growth. Node size follows the pane's width class (`sizeFor`: narrower than 640 px gets `NARROW`), never its exact width.
 - `skill/`: the `living-map` skill for users' own Claude Code. `SKILL.md` is a template (`{{APP_DIR}}`, `{{PORT}}`), `install.ts` writes it to `~/.claude/skills/living-map/` (the server rewrites an installed copy on start and after a one-click update, never a test server), `start.ts` starts the server detached so it outlives the chat that asked.
+- `e2e/`: browser tests of the map's screen on the fixture map (`playwright.config.ts`); Vitest skips this folder.
 - `team/`: Anur Living Map, the team's shared map of a codebase, kept apart from the chat map above: its server (`team/live/`), the `/anur-living-map` skill users copy into `~/.claude/skills/` (`team/skill/`), login service, landing page and story boards. The chat map's own install and use page is `docs/chat-map.md`. Not linted or built here; only its layout tests (`team/live/project.test.js`) run with `vitest`. Its own README says how it runs.
 - A test server: `LIVING_MAP_HOME=<test home> PORT=<not 4317> node server/index.ts` keeps its own store and token and leaves the installed skill alone.
 
@@ -68,6 +73,7 @@ Every push to `main` that passes CI publishes a GitHub release `v0.1.<run>` (the
 - Anything model-specific lives in a provider.
 - The model's output is untrusted: check every op before it reaches the store (`apply.ts`, `checkProposal`).
 - Colours come only from the roles in `web/brand.css` (`bg-canvas`, `text-ink`, `bg-primary`, `border-success-line`, …): no Tailwind palette colours or hex codes in components. Every role has a light value and a dark one (under `prefers-color-scheme: dark`); set both, with text at 4.5:1 or more on the surfaces it sits on. The logo mark is `web/lib/mark.ts`; the favicon is drawn from it at startup.
+- A file holds at most 500 lines of code (ESLint `max-lines`, blank lines and comments not counted). `eslint.config.js` lists the files over it: split one and take it off the list in the same change; add none.
 - No `setState` inside effects: derive the value, or reset state when its key changes during render.
 - One filled button per screen, marked `data-primary` (an open card or side chat owns it); everything else is outlined or behind a ⋯ (`web/components/More.tsx`). Subject matter Claude wrote (titles, quotes, answers) carries `data-content`, so interface words can be counted apart.
 - Copy the user reads says "you", in plain words.
