@@ -22,6 +22,7 @@ const MAX_OPS = 12;
 // How a side chat proposes: one call to this tool, its input the ops. The
 // extractor's op shape, with the turn optional (checkProposal fills it in).
 const OP = SCHEMA.properties.ops.items;
+const said = (description: string) => ({ type: "string", description });
 export const PROPOSE_TOOL: ChatTool = {
   name: "propose_change",
   description:
@@ -34,7 +35,30 @@ export const PROPOSE_TOOL: ChatTool = {
       ops: {
         type: "array",
         maxItems: MAX_OPS,
-        items: { ...OP, required: ["op"] },
+        items: {
+          ...OP,
+          required: ["op"],
+          properties: {
+            ...OP.properties,
+            op: {
+              ...OP.properties.op,
+              description:
+                '"update" changes an item (state, title, body, owner, parent); "create" adds one (type, title, body, parent, state, owner); "retire" takes one off (reason).',
+            },
+            item: said(
+              "The id of the item to update or retire, as on the map.",
+            ),
+            ref: said(
+              'A name such as "new1" for an item you create, to use as a parent later in the same call.',
+            ),
+            turn: {
+              type: "integer",
+              description:
+                "The main chat's turn that shows it: the item's latest source turn unless another does.",
+            },
+            quote: said("Optional: words copied exactly from that turn."),
+          },
+        },
       },
     },
   },

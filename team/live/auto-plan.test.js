@@ -40,6 +40,8 @@ describe('Auto plan',()=>{
     expect(h.state.threads['@Tester>launch'][1]).toMatchObject({thinking:true,autoPlanAbout:'launch'});
     expect(h.calls[0].prompt).toContain('Audience [id: audience]');
     expect(h.calls[0].prompt).toContain('If the available context supports a useful plan, proceed directly.');
+    // the change's shape is the propose_change tool's schema, never JSON spelled out in the prompt
+    expect(h.calls[0].prompt).not.toMatch(/\{"|\[\{/);
     h.calls[0].onDone(...reply({nodes:[{id:'pilot',label:'Pilot participants',sub:'What it is'}],edges:[{from:'audience',to:'pilot'}]}));
     expect(h.state.threads['@Tester>launch'][1].proposal.autoPlanAbout).toBe('launch');
   });
