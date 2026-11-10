@@ -50,9 +50,40 @@ export const COMMANDS = {
   planmd: {},
   editmemory: { id: 'id', text: 'text?' },
   forget: { id: 'id' },
+  // drawing on the map
+  add: { label: 'text?', x: 'number', y: 'number', view: 'string?', w: 'text?', h: 'text?', from: 'id?', out: 'any?', in: 'any?', reflow: 'array?' },
+  move: { id: 'id?', moves: 'array?', x: 'number?', y: 'number?', view: 'string?' },
+  reparent: { id: 'id?', ids: 'array?', parent: 'id', view: 'string?' },
+  resize: { id: 'id', x: 'number', y: 'number', w: 'text?', h: 'text?' },
+  connect: { from: 'id', to: 'id', label: 'text?', out: 'any?', in: 'any?', view: 'string?' },
+  relabel: { from: 'id', to: 'id', label: 'text?', view: 'string?' },
+  unlink: { from: 'id', to: 'id' },
+  remove: { id: 'id?', ids: 'array?', cascade: 'boolean?', only: 'any?' },
+  tidy: { only: 'array?', sizes: 'array?', view: 'string?' },
+  renamebox: { id: 'id', label: 'text?', proposed: 'any?' },
+  describebox: { id: 'id', sub: 'string', proposed: 'any?' },
+  // questions on the map, and Claude's chats and changes
+  call: { id: 'id', option: 'any?', other: 'text?', answer: 'text?' },
+  ask: { about: 'id?', node: 'id?', text: 'text?', side: 'any?', autoPlan: 'any?' },
+  apply: { proposal: 'id?', thread: 'text?', index: 'text?' },
+  drop: { proposal: 'id?', thread: 'text?', index: 'text?' },
+  link: { session: 'text?', file: 'text?' },
+  say: { text: 'text?', images: 'array?' },
+  propose: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', remove: 'array?', unlink: 'array?', memory: 'array?', start: 'any?', tidy: 'any?' },
+  plan: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', remove: 'array?', unlink: 'array?', answers: 'object?', title: 'text?', ticket: 'text?', prompt: 'text?' },
+  edit: { note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', memory: 'array?', unlink: 'array?', start: 'any?', tidy: 'any?' },
+  pr: { id: 'id', title: 'text?', url: 'text?', status: 'any?', agent: 'text?', checks: 'array?', files: 'array?' },
 };
 
-// What is wrong with an action, in words, or null when it fits its schema (or has none yet).
+// Actions that take one field or another: a rule beyond each field's kind.
+/** @type {Record<string, (a: any) => string | null>} */
+const ALSO = {
+  move: (a) => Array.isArray(a.moves) || (a.id != null && KINDS.number(a.x) && KINDS.number(a.y)) ? null : 'move needs moves, or id with x and y.',
+  remove: (a) => Array.isArray(a.ids) || a.id != null ? null : 'remove needs id or ids.',
+  reparent: (a) => Array.isArray(a.ids) || a.id != null ? null : 'reparent needs id or ids.',
+};
+
+// What is wrong with an action, in words, or null when it fits its schema.
 /** @param {any} a */
 export function checkCommand(a) {
   const schema = COMMANDS[a?.type];
@@ -62,5 +93,5 @@ export function checkCommand(a) {
     if (v === undefined || v === null) { if (optional) continue; return `${a.type} needs ${field}.`; }
     if (!KINDS[kind](v)) return `${a.type}: ${field} must be ${SAID[kind]}.`;
   }
-  return null;
+  return ALSO[a.type]?.(a) ?? null;
 }
