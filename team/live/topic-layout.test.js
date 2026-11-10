@@ -3,6 +3,7 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { boxActs } from './box-acts.js';
 import { editHistory, editSnapshot } from './editing.js';
 
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
@@ -38,11 +39,8 @@ describe('keyboard branch insertion',()=>{
   });
 });
 
-const server=fs.readFileSync(new URL('./server.js',import.meta.url),'utf8');
 function actions(state, sees='all'){
-  const ctx=vm.createContext({state,nodeOf:id=>state.nodes.find(n=>n.id===id),seesOf:()=>sees,sideOf:()=>false,tell(){}});
-  vm.runInContext(`var acts={${server.slice(server.indexOf('    add(a) {'),server.indexOf('    // a line dragged out'))}};`,ctx);
-  return ctx.acts;
+  return boxActs({getState:()=>state,nodeOf:id=>state.nodes.find(n=>n.id===id),seesOf:()=>sees,sideOf:()=>false,tell(){}});
 }
 describe('saving branch insertion',()=>{
   it('undoes and redoes the new child and displaced branches together',()=>{

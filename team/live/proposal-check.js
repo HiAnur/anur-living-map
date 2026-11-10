@@ -4,6 +4,17 @@ import { readPlannedTask } from './action-plan.js';
 import { autoPlanAdditions } from './auto-plan.js';
 import { diagramOf, diagramSaid } from './diagram.js';
 
+// a person's chats with Claude: their own (`@Duy`), the ones they kept (`@Duy#…`) and their side chats (`@Duy>box`)
+/** @param {string} key @param {any} by */
+export const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
+
+// every change Claude proposed that nobody has applied or set aside yet, from the map's chats and the linked
+// chat; with a person, only the ones that person may apply
+/** @param {any} state @param {any} by @param {(session: any, by: any) => boolean} ownsChat @returns {any[]} */
+export const pendingIn = (state, by, ownsChat) => [...(state.proposals || []).filter((/** @type {any} */ p) => !by || ownsChat(p.session, by)),
+  ...Object.entries(state.threads || {}).filter(([k]) => !by || mineChat(k, by)).flatMap(([, t]) => t.map((/** @type {any} */ m) => m?.proposal))]
+  .filter((p) => p?.status === 'pending' && p.plan);
+
 /**
  * @param {{ getState: () => any, nodeOf: (id: any) => any, allNodes: () => any[], allEdges: () => any[],
  *   seesOf: (by: any) => string, placeProposed: (plan: any) => void }} deps
