@@ -9,7 +9,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
   return {
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
-    /** @param {any} a */
+    /** @param {Act<'plan'>} a */
     plan(a) {
       // what a chat draws is that chat's: changes people make to it go back to that chat
       const who = String(a.session || '').slice(0, 80);
@@ -28,7 +28,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     },
     // the plan's pull request, posted by the chat that drew it: a draft holding the plan while it waits for
     // answers, then open, with what the map checked, once the code is on it
-    /** @param {any} a */
+    /** @param {Act<'pr'>} a */
     pr(a) {
       const id = String(a.id || '').slice(0, 20); if (!id) return false;
       const had = (getState().prs ||= []).find((/** @type {any} */ p) => p.id === id), s = (/** @type {any} */ v, /** @type {any} */ n) => String(v ?? '').slice(0, n);
@@ -45,7 +45,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     // Execute: the map's admin says go once nothing on the plan waits on anyone. The chat that drew the plan builds
     // it when it is listening; when that chat has gone quiet, the chat listening on this map now builds it instead,
     // so pressing Execute never lands in an empty inbox
-    /** @param {any} a */
+    /** @param {Act<'execute'>} a */
     execute(a) {
       if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().executed = { by: a.by, at: stamp() };
@@ -55,7 +55,7 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     },
     // Give me plan.md: instead of building, the same chat writes the plan out as plan.md at the repo's root,
     // and the map links to it; Execute stays for when the admin is ready
-    /** @param {any} a */
+    /** @param {Act<'planmd'>} a */
     planmd(a) {
       if (getState().executed || !(getState().prompt || getState().owner) || getState().calls.some((/** @type {any} */ c) => c.status === 'open')) return false;
       getState().planmd = { by: a.by, at: stamp() };
@@ -67,19 +67,19 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     // the way a plan draws them, without a new session in the map's list
     // Instructions and Memory: only Claude adds them (Apply on its change, or the map tools); people change their
     // words or take them away, a box's ones only within their access
-    /** @param {any} a */
+    /** @param {Act<'editmemory'>} a */
     editmemory(a) {
       const m = getState().memory?.find((/** @type {any} */ x) => x.id === a.id), text = String(a.text || '').trim().slice(0, 300), b = m?.box && nodeOf(m.box), sees = seesOf(a.by);
       if (!m || !text || (b && sees !== 'all' && b.area !== sees)) return false;
       m.text = text; m.by = a.by; m.at = Date.now(); return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'forget'>} a */
     forget(a) {
       const i = (getState().memory || []).findIndex((/** @type {any} */ x) => x.id === a.id), b = i >= 0 && getState().memory[i].box && nodeOf(getState().memory[i].box), sees = seesOf(a.by);
       if (i < 0 || (b && sees !== 'all' && b.area !== sees)) return false;
       getState().memory.splice(i, 1); return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'edit'>} a */
     edit(a) {
       if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
       if (typeof a.start === 'string' && [...getState().nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;

@@ -289,7 +289,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   // what a person's answer does to the map, from the call's own seed. A yes-or-no call takes
   // confirm or dispute; a call with options takes one of them, or the person's own words.
-  /** @param {any} a */
+  /** @param {Act<'call'>} a */
   function answerCall(a) {
     const c = state.calls.find((/** @type {any} */ x) => x.id === a.id);
     if (!c || c.status !== 'open') return false;
@@ -479,35 +479,36 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
     call: answerCall,
-    /** @param {any} a */
-    actionbox(a) { return actions.begin(a.id, a.by); },
-    /** @param {any} a */
-    actionstart(a) { return actions.start(a.id, a.by, a.intent); },
-    /** @param {any} a */
-    actionretry(a) { return actions.prepare(a.id, a.by); },
-    /** @param {any} a */
-    actionanswer(a) { return actions.prepare(a.id, a.by, a.answer); },
-    /** @param {any} a */
-    actionrevise(a) { return actions.revise(a.id, a.by); },
-    /** @param {any} a */
-    actioncancel(a) { return actions.cancel(a.id, a.by); },
-    /** @param {any} a */
-    actionexecute(a) { return actions.execute(a.id, a.by, a.revision); },
-    /** @param {any} a */
-    actioncontinue(a) { return actions.continue(a.id, a.by, a.revision, a.answer); },
-    /** @param {any} a */
-    actionstop(a) { return actions.stop(a.id, a.by, a.revision); },
+    // the schema lets an id come as a number, which finds no box, so an Action box reads every id as text
+    /** @param {Act<'actionbox'>} a */
+    actionbox(a) { return actions.begin(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actionstart'>} a */
+    actionstart(a) { return actions.start(/** @type {string} */ (a.id), a.by, a.intent); },
+    /** @param {Act<'actionretry'>} a */
+    actionretry(a) { return actions.prepare(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actionanswer'>} a */
+    actionanswer(a) { return actions.prepare(/** @type {string} */ (a.id), a.by, a.answer); },
+    /** @param {Act<'actionrevise'>} a */
+    actionrevise(a) { return actions.revise(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actioncancel'>} a */
+    actioncancel(a) { return actions.cancel(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actionexecute'>} a */
+    actionexecute(a) { return actions.execute(/** @type {string} */ (a.id), a.by, a.revision); },
+    /** @param {Act<'actioncontinue'>} a */
+    actioncontinue(a) { return actions.continue(/** @type {string} */ (a.id), a.by, a.revision, a.answer); },
+    /** @param {Act<'actionstop'>} a */
+    actionstop(a) { return actions.stop(/** @type {string} */ (a.id), a.by, a.revision); },
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
-    /** @param {any} a */
+    /** @param {Act<'savenow'>} a */
     savenow(a) { saveNow(a.by); return true; },
-    /** @param {any} a */
+    /** @param {Act<'autosave'>} a */
     autosave(a) { state.autosave = a.on !== false; return true; },
     // starting over keeps the name someone gave the map; History keeps the map before
     reset() { state = { ...fresh(), ...kept() }; try { fs.unlinkSync(OUTBOX); } catch (e) { removeFailed(e, 'the outbox'); } return true; },
     // going back to a version in the history: the map takes that version's boxes, lines and questions, while chats,
     // comments and people stay as they are; going back is a version itself, so it can be undone the same way
-    /** @param {any} a */
+    /** @param {Act<'restore'>} a */
     restore(a) {
       const v = history.find((/** @type {any} */ h) => h.id === String(a.id)), file = v && path.join(HIST, `${v.id}.json`);
       if (!file || !fs.existsSync(file)) return false;

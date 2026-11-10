@@ -9,7 +9,7 @@ import { tidy, tidyTree } from './project.js';
  */
 export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }) {
   return {
-    /** @param {any} a */
+    /** @param {Act<'add'>} a */
     add(a) {
       const label = String(a.label || '').trim().slice(0, 80);
       if (!label || !Number.isFinite(a.x) || !Number.isFinite(a.y)) return false;
@@ -32,14 +32,14 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       tell(`${a.by} drew the box ${label}${from ? `, with a line from ${from.label}` : ''}`);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'reparent'>} a */
     reparent(a) {
       const sees = seesOf(a.by);
       if (!reparentTopic(getState(), a, (n) => sees === 'all' || n.area === sees)) return false;
       tell(`${a.by} moved ${nodeOf(a.id).label} under ${nodeOf(a.parent).label}`);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'move'>} a */
     move(a) {
       if (Array.isArray(a.moves)){
         const sees = seesOf(a.by), moves = a.moves;
@@ -47,8 +47,9 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
         for (const m of moves) Object.assign(nodeOf(m.id),{x:Math.round(m.x),y:Math.round(m.y),moved:true});
         return true;
       }
+      // an id without both x and y never gets here: move's rule in commands.js refuses it
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
-      if (!n) return false; n.x = Math.round(a.x); n.y = Math.round(a.y);
+      if (!n) return false; n.x = Math.round(/** @type {number} */ (a.x)); n.y = Math.round(/** @type {number} */ (a.y));
       // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)
       if (nodeOf(a.id)) n.moved = true;
       return true;
@@ -57,7 +58,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     // (words on it optional; drawing one that exists changes its words), and a box taken off the map, its lines with
     // it. Someone who sees one area draws in that area and takes off only what is in it
     // a line dragged out of a box's dot keeps the side it left from (out) and the side it arrives on (in): t r b l
-    /** @param {any} a */
+    /** @param {Act<'connect'>} a */
     connect(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to || from === to) return false;
       const out = sideOf(a.out), inn = sideOf(a.in), sides = { ...(out ? { out } : {}), ...(inn ? { in: inn } : {}) };
@@ -69,7 +70,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       return true;
     },
     // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
-    /** @param {any} a */
+    /** @param {Act<'resize'>} a */
     resize(a) {
       const n = nodeOf(a.id); if (!n) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
@@ -79,7 +80,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       return true;
     },
     // a line's words changed by a double click on them; empty words take them off the line
-    /** @param {any} a */
+    /** @param {Act<'relabel'>} a */
     relabel(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
@@ -91,7 +92,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       return true;
     },
     // a line picked on the map and deleted, by hand
-    /** @param {any} a */
+    /** @param {Act<'unlink'>} a */
     unlink(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
@@ -99,7 +100,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       tell(`${a.by} took the line ${from.label} → ${to.label} off the map`);
       return true;
     },
-    /** @param {any} a */
+    /** @param {Act<'remove'>} a */
     remove(a) {
       const roots = Array.isArray(a.ids) ? a.ids : [a.id];
       if (!roots.length || roots.some((/** @type {any} */ id) => !nodeOf(id))) return false;
@@ -114,7 +115,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
     // in their window). A topic map lays out as a mind map; any other map puts its showing boxes that are off the
     // grid on it, with no line through a box. Neither moves anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
-    /** @param {any} a */
+    /** @param {Act<'tidy'>} a */
     tidy(a) {
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : getState().nodes;
       if (!list?.length) return false;

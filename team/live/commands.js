@@ -19,9 +19,8 @@ const KINDS = {
 /** @type {Record<Kind, string>} */
 const SAID = { id: 'an id', text: 'text', string: 'text', number: 'a number', boolean: 'true or false', array: 'a list', object: 'an object', any: 'anything' };
 
-// `name?` may be left out (or null).
-/** @type {Record<string, Record<string, string>>} */
-export const COMMANDS = {
+// `name?` may be left out (or null). Kept as written, so types.d.ts can read each action's type from it (Act).
+export const COMMANDS = /** @type {const} */ ({
   actionbox: { id: 'id' },
   actionstart: { id: 'id', intent: 'text?' },
   actionretry: { id: 'id' },
@@ -73,7 +72,7 @@ export const COMMANDS = {
   plan: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', remove: 'array?', unlink: 'array?', answers: 'object?', title: 'text?', ticket: 'text?', prompt: 'text?' },
   edit: { note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', memory: 'array?', unlink: 'array?', start: 'any?', tidy: 'any?' },
   pr: { id: 'id', title: 'text?', url: 'text?', status: 'any?', agent: 'text?', checks: 'array?', files: 'array?' },
-};
+});
 
 // Actions that take one field or another: a rule beyond each field's kind.
 /** @type {Record<string, (a: any) => string | null>} */
@@ -86,7 +85,7 @@ const ALSO = {
 // What is wrong with an action, in words, or null when it fits its schema.
 /** @param {any} a */
 export function checkCommand(a) {
-  const schema = COMMANDS[a?.type];
+  const schema = /** @type {Record<string, Record<string, string>>} */ (COMMANDS)[a?.type];
   if (!schema) return null;
   for (const [field, spec] of Object.entries(schema)) {
     const optional = spec.endsWith('?'), kind = /** @type {Kind} */ (optional ? spec.slice(0, -1) : spec), v = a[field];

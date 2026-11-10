@@ -264,3 +264,25 @@ interface ObjectGap {
   kind: "box" | "line" | "memory";
   lacks: "name" | "description" | "dates";
 }
+
+// An action as its handler gets it, read from its schema in commands.js: each field it names, typed by its kind
+// (an `id` may be text or a number; a field marked `?` may be missing or null), plus who takes it. `created` is
+// what add hands back: the id of the box it drew. `type` is missing when the map calls a handler itself.
+type Commands = typeof import("./commands.js").COMMANDS;
+interface KindType {
+  id: string | number;
+  text: string | number;
+  string: string;
+  number: number;
+  boolean: boolean;
+  array: any[];
+  object: Record<string, any>;
+  any: any;
+}
+type KindOf<S> = S extends `${infer K}?` ? K : S;
+type FieldType<S> = KindType[KindOf<S> & keyof KindType];
+type Act<T extends keyof Commands> = { type?: T; by: string; created?: string } & {
+  -readonly [F in keyof Commands[T] as Commands[T][F] extends `${string}?` ? never : F]: FieldType<Commands[T][F]>;
+} & {
+  -readonly [F in keyof Commands[T] as Commands[T][F] extends `${string}?` ? F : never]?: FieldType<Commands[T][F]> | null;
+};
