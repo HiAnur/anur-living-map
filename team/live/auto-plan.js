@@ -56,6 +56,7 @@ export function autoPlanAdditions(plan, parent, existing, edges, accessible = ne
     if (!from) continue;
     ids.add(n.id); labels.add(key);
     const sub = (typeof n.sub === 'string' ? n.sub : typeof n.desc === 'string' ? n.desc.split('\n')[0] : '').trim().slice(0, 160);
+    if (!sub) { dropped.push({text:label,why:'a new box needs a second line that says what it is'}); continue; }
     candidates.set(n.id, { id:n.id,label,...(sub ? {sub} : {}),...(typeof n.desc === 'string' ? {desc:n.desc.slice(0, 4000)} : {}),
       ...(n.boxType ? {boxType:n.boxType} : {}),...(task ? {task} : {}),state:'new' });
     destinations.set(n.id, from);

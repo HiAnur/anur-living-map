@@ -27,7 +27,7 @@ function harness() {
   vm.runInContext(server.slice(checkStart,checkEnd),ctx);
   vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  const withoutBlock =')),ctx);
   vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
-  return {state,calls,actions,actionRequests,runs,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
+  return {state,calls,actions,actionRequests,runs,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),check:(p)=>ctx.check(p,'Tester'),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 const reply = plan => `Suggested next steps.\n\`\`\`map\n${JSON.stringify(plan)}\n\`\`\``;
 
@@ -39,7 +39,7 @@ describe('Auto plan',()=>{
     expect(h.state.threads['@Tester>launch'][1]).toMatchObject({thinking:true,autoPlanAbout:'launch'});
     expect(h.calls[0].prompt).toContain('Audience [id: audience]');
     expect(h.calls[0].prompt).toContain('If the available context supports a useful plan, proceed directly.');
-    h.calls[0].onDone(reply({nodes:[{id:'pilot',label:'Pilot participants'}],edges:[{from:'audience',to:'pilot'}]}));
+    h.calls[0].onDone(reply({nodes:[{id:'pilot',label:'Pilot participants',sub:'What it is'}],edges:[{from:'audience',to:'pilot'}]}));
     expect(h.state.threads['@Tester>launch'][1].proposal.autoPlanAbout).toBe('launch');
   });
   it('keeps working through visible prose and hidden map generation, then clears the status',()=>{
@@ -109,7 +109,7 @@ describe('Auto plan',()=>{
   });
   it('drops a destination that is removed, moved out of the branch or no longer accessible before Apply',()=>{
     for (const change of ['removed','moved','private']) {
-      const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'founder',label:'Founder'}],edges:[{from:'audience',to:'founder'}]}));
+      const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'founder',label:'Founder',sub:'What it is'}],edges:[{from:'audience',to:'founder'}]}));
       if(change==='removed') h.state.nodes=h.state.nodes.filter(n=>n.id!=='audience');
       if(change==='moved') h.state.edges=[];
       if(change==='private') h.state.nodes[1].area='finance';
@@ -119,39 +119,39 @@ describe('Auto plan',()=>{
   });
   it('rejects private, unrelated, ambiguous and nonexistent destinations without relocating them',()=>{
     const h=harness();h.state.nodes.push({id:'other',label:'Other',area:'product'});
-    h.ask();h.calls[0].onDone(reply({nodes:[{id:'a',label:'A'},{id:'b',label:'B'},{id:'c',label:'C'},{id:'d',label:'D'}],edges:[{from:'private',to:'a'},{from:'other',to:'b'},{from:'missing',to:'c'},{from:'launch',to:'d'},{from:'audience',to:'d'}]}));
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'a',label:'A',sub:'What it is'},{id:'b',label:'B',sub:'What it is'},{id:'c',label:'C',sub:'What it is'},{id:'d',label:'D',sub:'What it is'}],edges:[{from:'private',to:'a'},{from:'other',to:'b'},{from:'missing',to:'c'},{from:'launch',to:'d'},{from:'audience',to:'d'}]}));
     expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');
   });
   it('avoids duplicate names across the accessible map, including additions arriving before Apply',()=>{
     const h=harness();h.state.nodes.push({id:'pricing',label:'Pricing',area:'product'});
-    h.ask();h.calls[0].onDone(reply({nodes:[{id:'copy',label:' pricing '},{id:'timing',label:'Timing'}]}));
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'copy',label:' pricing ',sub:'What it is'},{id:'timing',label:'Timing',sub:'What it is'}]}));
     const p=h.state.threads['@Tester>launch'][1].proposal;expect(p.plan.nodes.map(n=>n.id)).toEqual(['timing']);
     h.state.nodes.push({id:'new-date',label:'Timing',area:'product'});h.apply();expect(p.status).toBe('dropped');
   });
   it('traverses cycles safely and never reaches a visible descendant through a private box',()=>{
     const existing=[{id:'root',label:'Root'},{id:'child',label:'Child'},{id:'private',label:'Secret'},{id:'behind',label:'Behind'}];
     const edges=[{from:'root',to:'child'},{from:'child',to:'root'},{from:'root',to:'private'},{from:'private',to:'behind'}];
-    const plan=autoPlanAdditions({nodes:[{id:'a',label:'A'},{id:'b',label:'B'}],edges:[{from:'child',to:'a'},{from:'behind',to:'b'}]},'root',existing,edges,new Set(['root','child','behind']));
+    const plan=autoPlanAdditions({nodes:[{id:'a',label:'A',sub:'What it is'},{id:'b',label:'B',sub:'What it is'}],edges:[{from:'child',to:'a'},{from:'behind',to:'b'}]},'root',existing,edges,new Set(['root','child','behind']));
     expect(plan.edges).toEqual([{from:'child',to:'a'}]);
   });
   it('requires an accessible selected box',()=>{
     const h=harness();expect(h.ask({node:undefined})).toBe(false);expect(h.ask({node:'private'})).toBe(false);expect(h.ask({node:'missing'})).toBe(false);expect(h.calls).toHaveLength(0);
   });
   it('only proposes new children, then adds them on Apply',()=>{
-    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'launch',label:'Overwrite'},{id:'copy',label:' audience '},{id:'timing',label:'Timing',desc:'Choose when to launch',state:'gone'}],edges:[{from:'launch',to:'timing'}],remove:['audience'],start:'timing',tidy:true,memory:[{text:'An instruction'}]}));
+    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'launch',label:'Overwrite',sub:'What it is'},{id:'copy',label:' audience ',sub:'What it is'},{id:'timing',label:'Timing',desc:'Choose when to launch',state:'gone'}],edges:[{from:'launch',to:'timing'}],remove:['audience'],start:'timing',tidy:true,memory:[{text:'An instruction'}]}));
     const p=h.state.threads['@Tester>launch'][1].proposal;
     expect(h.state.nodes).toHaveLength(3);expect(p.status).toBe('pending');expect(p.plan.nodes).toEqual([{id:'timing',label:'Timing',sub:'Choose when to launch',desc:'Choose when to launch',state:'new',area:'product',by:'Claude'}]);
     expect(p.plan.edges).toEqual([{from:'launch',to:'timing',state:'new'}]);expect(p.plan.remove).toEqual([]);expect(p.plan.memory).toEqual([]);expect(p.plan.start).toBeUndefined();expect(p.plan.tidy).toBeUndefined();
     expect(h.apply()).toBe(true);expect(h.state.nodes).toHaveLength(4);expect(p.status).toBe('applied');expect(h.apply()).toBe(false);
   });
   it('does not overwrite a box added while suggestions were waiting',()=>{
-    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing'}]}));h.state.nodes.push({id:'timing',label:'Someone else’s box'});
+    const h=harness();h.ask();h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing',sub:'What it is'}]}));h.state.nodes.push({id:'timing',label:'Someone else’s box'});
     expect(h.apply()).toBe(true);expect(h.state.nodes.filter(n=>n.id==='timing')).toEqual([{id:'timing',label:'Someone else’s box'}]);expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');
   });
   it('drops additions when their parent disappears or access changes',()=>{
     for(const stage of ['reply','apply']) {
-      const h=harness();h.ask();if(stage==='apply')h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing'}]}));
-      h.state.nodes[0].area='finance';if(stage==='reply')h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing'}]}));else h.apply();
+      const h=harness();h.ask();if(stage==='apply')h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing',sub:'What it is'}]}));
+      h.state.nodes[0].area='finance';if(stage==='reply')h.calls[0].onDone(reply({nodes:[{id:'timing',label:'Timing',sub:'What it is'}]}));else h.apply();
       expect(h.state.threads['@Tester>launch'][1].proposal.status).toBe('dropped');expect(h.state.nodes).toHaveLength(3);
     }
   });
@@ -177,12 +177,12 @@ describe('Auto plan',()=>{
   });
   it('bounds and validates malformed suggestions and ignores model supplied operations',()=>{
     expect(autoPlanAdditions(null,'root',[],[])).toEqual({nodes:[],edges:[]});
-    const plan=autoPlanAdditions({nodes:[null,{id:{},label:'Bad'},{id:'empty',label:' '},{id:'one',label:'One'},{id:'one',label:'Other'},...Array.from({length:9},(_,i)=>({id:`n${i}`,label:`Next ${i}`}))]},'root',[{id:'root',label:'Root'}],[]);
+    const plan=autoPlanAdditions({nodes:[null,{id:{},label:'Bad',sub:'What it is'},{id:'empty',label:' ',sub:'What it is'},{id:'one',label:'One',sub:'What it is'},{id:'one',label:'Other',sub:'What it is'},...Array.from({length:9},(_,i)=>({id:`n${i}`,label:`Next ${i}`,sub:'What it is'}))]},'root',[{id:'root',label:'Root'}],[]);
     expect(plan.nodes).toHaveLength(10);expect(plan.edges.every(e=>e.from==='root')).toBe(true);
   });
   it('applies nested Topics and real draft Actions with their task details, without preparing or executing',()=>{
     const h=harness(),task={goal:'Research pilot participants',result:'A shortlist with supporting sources',destination:'Attach to this Action',inputs:['Audience'],steps:['Read the audience notes'],evidence:['Shortlist with sources'],dependsOn:[],readiness:'ready',blockers:[]};
-    h.ask();h.calls[0].onDone(reply({nodes:[{id:'research',label:'Research participants',boxType:'action',task,action:{stage:'ready',session:'injected'}},{id:'pilot',label:'Pilot planning',boxType:'topic'}],edges:[{from:'launch',to:'pilot'},{from:'pilot',to:'research'}]}));
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'research',label:'Research participants',sub:'What it is',boxType:'action',task,action:{stage:'ready',session:'injected'}},{id:'pilot',label:'Pilot planning',sub:'What it is',boxType:'topic'}],edges:[{from:'launch',to:'pilot'},{from:'pilot',to:'research'}]}));
     expect(h.state.nodes).toHaveLength(3);expect(h.apply()).toBe(true);
     const n=h.state.nodes.find(n=>n.id==='research');expect(n.boxType).toBe('action');expect(n.action).toMatchObject({by:'Tester',stage:'draft',intent:task.goal,plan:task});expect(n.action.session).toBeUndefined();expect(n.task).toBeUndefined();
     expect(h.actionRequests).toHaveLength(0);expect(h.runs).toHaveLength(0);expect(h.state.edges).toContainEqual({from:'pilot',to:'research',state:'new'});
@@ -190,16 +190,52 @@ describe('Auto plan',()=>{
   });
   it('drops cyclic, missing or Topic prerequisites and their dependent proposals',()=>{
     const task=(dependsOn)=>({goal:'Do the task',result:'A checked result',steps:['Do the work'],evidence:['Saved result'],dependsOn});
-    const nodes=[{id:'a',label:'A',boxType:'action',task:task(['b'])},{id:'b',label:'B',boxType:'action',task:task(['a'])},{id:'c',label:'C',boxType:'action',task:task(['a'])},{id:'t',label:'Topic',boxType:'topic'},{id:'d',label:'D',boxType:'action',task:task(['t'])},{id:'e',label:'E',boxType:'action',task:task(['missing'])},{id:'ok',label:'Independent',boxType:'action',task:task([])}];
+    const nodes=[{id:'a',label:'A',sub:'What it is',boxType:'action',task:task(['b'])},{id:'b',label:'B',sub:'What it is',boxType:'action',task:task(['a'])},{id:'c',label:'C',sub:'What it is',boxType:'action',task:task(['a'])},{id:'t',label:'Topic',sub:'What it is',boxType:'topic'},{id:'d',label:'D',sub:'What it is',boxType:'action',task:task(['t'])},{id:'e',label:'E',sub:'What it is',boxType:'action',task:task(['missing'])},{id:'ok',label:'Independent',sub:'What it is',boxType:'action',task:task([])}];
     const p=autoPlanAdditions({nodes},'root',[{id:'root',label:'Root'}],[]);expect(p.nodes.map(n=>n.id)).toEqual(['t','ok']);expect(p.dropped).toHaveLength(5);
   });
   it('rechecks prerequisite access at Apply without removing independent work',()=>{
     const h=harness();h.state.nodes.push({id:'research',label:'Existing research',area:'product',action:{stage:'draft'}});
-    h.ask();h.calls[0].onDone(reply({nodes:[{id:'write',label:'Write shortlist',boxType:'action',task:{goal:'Write a shortlist',result:'A saved shortlist',steps:['Write shortlist'],evidence:['Saved shortlist'],dependsOn:['research']}},{id:'schedule',label:'Pilot schedule',boxType:'topic'}]}));
+    h.ask();h.calls[0].onDone(reply({nodes:[{id:'write',label:'Write shortlist',sub:'What it is',boxType:'action',task:{goal:'Write a shortlist',result:'A saved shortlist',steps:['Write shortlist'],evidence:['Saved shortlist'],dependsOn:['research']}},{id:'schedule',label:'Pilot schedule',sub:'What it is',boxType:'topic'}]}));
     h.state.nodes.find(n=>n.id==='research').area='finance';expect(h.apply()).toBe(true);expect(h.state.nodes.some(n=>n.id==='write')).toBe(false);expect(h.state.nodes.some(n=>n.id==='schedule')).toBe(true);
   });
   it('does not put someone else\'s private Action details into the planner context',()=>{
     const h=harness();h.state.nodes[1].action={by:'Other',stage:'ready',plan:{goal:'Private account lookup'},completion:{evidence:['Private message ID']}};
     h.ask();expect(h.calls[0].prompt).not.toContain('Private account lookup');expect(h.calls[0].prompt).not.toContain('Private message ID');
+  });
+});
+
+describe('what a proposal must give',()=>{
+  const reasons=p=>p.dropped.map(d=>`${d.text}: ${d.why}`);
+  it('leaves out a new box with no second line, and keeps one that has it or notes to take it from',()=>{
+    const h=harness();
+    const p=h.check({nodes:[{id:'bare',label:'Bare'},{id:'blank',label:'Blank',sub:'  '},{id:'kept',label:'Kept',sub:'Stays'}],edges:[{from:'launch',to:'bare'},{from:'launch',to:'kept'}]});
+    expect(p.plan.nodes.map(n=>n.id)).toEqual(['kept']);
+    expect(reasons(p)).toEqual(['Bare: a new box needs a second line that says what it is','Blank: a new box needs a second line that says what it is','a line launch → bare: a box it names is not on the map']);
+    expect(h.check({nodes:[{id:'audience',label:'Audience',state:'todo'}]}).plan.nodes).toEqual([{id:'audience',label:'Audience',state:'todo'}]);
+  });
+  it('lets a line with no words hang a box under another only when it is the one line into that box',()=>{
+    const h=harness();h.state.nodes.push({id:'pricing',label:'Pricing',area:'product'});
+    // a new box's first line, and a box with no line into it yet
+    const first=h.check({nodes:[{id:'new',label:'New',sub:'s'}],edges:[{from:'launch',to:'new'},{from:'audience',to:'pricing'}]});
+    expect(first.plan.edges).toEqual([{from:'launch',to:'new',state:'new'},{from:'audience',to:'pricing',state:'new'}]);
+    // a box moved under another: its old line taken away in the same change
+    const moved=h.check({edges:[{from:'pricing',to:'audience'}],unlink:[{from:'launch',to:'audience'}]});
+    expect(moved.plan.edges).toEqual([{from:'pricing',to:'audience',state:'new'}]);expect(moved.dropped).toEqual([]);
+  });
+  it('leaves out a line with no words into a box that already hangs under another, and keeps it with words',()=>{
+    const h=harness();h.state.nodes.push({id:'pricing',label:'Pricing',area:'product'});
+    const bare=h.check({edges:[{from:'pricing',to:'audience'},{from:'pricing',to:'audience',label:'  '}]});
+    expect(bare.status).toBe('dropped');
+    expect(reasons(bare)).toEqual(Array(2).fill('a line Pricing → Audience: say what happens on it: Audience already hangs under another box'));
+    const said=h.check({edges:[{from:'pricing',to:'audience',label:'Sets the price'}]});
+    expect(said.plan.edges).toEqual([{from:'pricing',to:'audience',label:'Sets the price',state:'new'}]);
+    // two lines with no words into one new box: the box has two, so neither is only the line it hangs from
+    const two=h.check({nodes:[{id:'new',label:'New',sub:'s'}],edges:[{from:'launch',to:'new'},{from:'audience',to:'new'}]});
+    expect(two.plan.edges).toEqual([]);
+  });
+  it('drops an Auto plan box with nothing under its name, and the boxes it was to hold',()=>{
+    const p=autoPlanAdditions({nodes:[{id:'bare',label:'Bare'},{id:'child',label:'Child',sub:'Under bare'},{id:'noted',label:'Noted',desc:'From the notes\nmore'}],edges:[{from:'bare',to:'child'}]},'root',[{id:'root',label:'Root'}],[]);
+    expect(p.nodes.map(n=>[n.id,n.sub])).toEqual([['noted','From the notes']]);
+    expect(p.dropped).toEqual([{text:'Bare',why:'a new box needs a second line that says what it is'},{text:'Child',why:'its parent is outside the accessible branch'}]);
   });
 });
