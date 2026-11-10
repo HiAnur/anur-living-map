@@ -5,10 +5,19 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
-<dt><strong>Claude names every box and line it draws</strong></dt>
+<dt><strong>A team map stays up when a map lacks its log or questions</strong></dt>
 <dd>
 
-When a chat draws on a team map, every new box now has a second line saying what it is, and every line between boxes says what happens on it; Claude is told what it left out and draws it again. [#250](https://github.com/HiAnur/anur-living-map/pull/250) <!-- merged-at: 2026-11-10T06:20:33Z -->
+A map written by hand or by an older copy no longer stops the team map server for every map on it. [#253](https://github.com/HiAnur/anur-living-map/pull/253) <!-- merged-at: 2026-11-10T06:34:39Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Claude names every box and line it adds</strong></dt>
+<dd>
+
+Whether Claude draws on a team map, proposes a change from a chat, or runs **Auto plan**, every new box has a second line saying what it is, and every line between boxes says what happens on it unless it only hangs a box under another; what lacks them is left out, with the reason. [#250](https://github.com/HiAnur/anur-living-map/pull/250), [#252](https://github.com/HiAnur/anur-living-map/pull/252) <!-- merged-at: 2026-11-10T06:29:32Z -->
 
 </dd>
 </dl>
