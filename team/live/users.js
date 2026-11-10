@@ -19,7 +19,8 @@ import { recoveryStore } from './recovery.js';
 
 const FILE = process.env.LIVING_MAP_USERS || path.join(os.homedir(), '.living-map-2', 'users.db');
 const DAYS = 30;
-const PEOPLE = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'seed.json'), 'utf8')).people.map((p) => p.id);
+/** @type {string[]} */
+const PEOPLE = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'seed.json'), 'utf8')).people.map((/** @type {{ id: string }} */ p) => p.id);
 
 fs.mkdirSync(path.dirname(FILE), { recursive: true, mode: 0o700 });
 const db = new DatabaseSync(FILE);
@@ -27,11 +28,15 @@ fs.chmodSync(FILE, 0o600);
 db.exec(`CREATE TABLE IF NOT EXISTS users (name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, set_at TEXT NOT NULL DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL);`);
 
+/** @param {unknown} password @param {string} salt */
 const scramble = (password, salt) => crypto.scryptSync(String(password), salt, 64).toString('hex');
+/** @param {unknown} token */
 const sha = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 // a person's name as the map writes it, whatever case it was typed in
+/** @param {unknown} name */
 const person = (name) => PEOPLE.find((p) => p.toLowerCase() === String(name || '').trim().toLowerCase()) || null;
 
+/** @param {string} who @param {string} password */
 const setPassword = (who, password) => {
   const salt = crypto.randomBytes(16).toString('hex');
   db.prepare(`INSERT INTO users (name, salt, hash) VALUES (?, ?, ?)
@@ -45,30 +50,36 @@ export const recovery = recoveryStore(db, setPassword);
 export const users = {
   person,
   // whether this person has chosen a password yet
+  /** @param {string} who */
   has: (who) => !!db.prepare('SELECT 1 FROM users WHERE name = ?').get(who),
   // a person's first password, chosen on the sign-in page
+  /** @param {unknown} name @param {unknown} password */
   first(name, password) {
     const who = person(name);
     if (!who || users.has(who) || String(password || '').length < MIN) return null;
     setPassword(who, String(password)); return who;
   },
   // the person a name and password belong to, or null
+  /** @param {unknown} name @param {unknown} password */
   check(name, password) {
     const who = person(name), row = who && /** @type {any} */ (db.prepare('SELECT salt, hash FROM users WHERE name = ?').get(who));
     if (!row) return null;
     return crypto.timingSafeEqual(Buffer.from(scramble(password, row.salt), 'hex'), Buffer.from(row.hash, 'hex')) ? who : null;
   },
+  /** @param {string} name */
   start(name) {
     const token = crypto.randomBytes(32).toString('hex');
     db.prepare('INSERT INTO sessions (token_hash, name, at) VALUES (?, ?, ?)').run(sha(token), name, Date.now());
     return token;
   },
   // who a browser's cookie belongs to, or null once it is unknown or older than 30 days
+  /** @param {unknown} token */
   whoIs(token) {
     if (!token) return null;
     const row = /** @type {any} */ (db.prepare('SELECT name, at FROM sessions WHERE token_hash = ?').get(sha(token)));
     return row && Date.now() - row.at < DAYS * 86_400_000 ? row.name : null;
   },
+  /** @param {unknown} token */
   end: (token) => { db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha(token)); },
   maxAge: DAYS * 86_400,
 };
@@ -96,14 +107,16 @@ if (import.meta.main) {
 }
 
 // asks twice without showing what is typed; piped in, it reads two lines
+/** @param {string} q1 @param {string} q2 */
 async function askTwice(q1, q2) {
   if (!process.stdin.isTTY) {
     let all = ''; for await (const c of process.stdin) all += c;
     const [a = '', b = ''] = all.split(/\r?\n/); return [a, b];
   }
+  /** @param {string} q */
   const ask = (q) => new Promise((ok) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    /** @type {any} */ (rl)._writeToOutput = (s) => { if (s.includes(q)) process.stdout.write(q); };
+    /** @type {any} */ (rl)._writeToOutput = (/** @type {string} */ s) => { if (s.includes(q)) process.stdout.write(q); };
     rl.question(q, (a) => { rl.close(); process.stdout.write('\n'); ok(a); });
   });
   return [await ask(q1), await ask(q2)];

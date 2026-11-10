@@ -15,7 +15,7 @@ check() {
   } | sed "s/^/[$name] /"
 }
 check eslint npx eslint . --max-warnings=0 --cache &
-check tsc sh -c "npx tsc --noEmit && npx tsc -p team" &
+check tsc sh -c "npx tsc --noEmit && npx tsc -p team && npx tsc -p team/tsconfig.strict.json" &
 check prettier npx prettier --check . --cache &
 check vitest npx vitest run --silent &
 wait

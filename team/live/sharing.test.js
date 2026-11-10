@@ -18,8 +18,8 @@ it('only owners enable links; disabling rotates the next link and snapshots neve
   expect(permission(s, null, req(token))).toBe('view');
   expect(permission(s, 'Removed', req(token))).toBe(null);
   expect(permission(s, 'Duy', req(token))).toBe('owner');
-  expect(sharedState(s).linkSharing.token).toBeUndefined();
-  expect(sharedState(s, true).linkSharing.token).toBe(token);
+  expect(sharedState(/** @type {any} */ (s)).linkSharing.token).toBeUndefined();
+  expect(sharedState(/** @type {any} */ (s), true).linkSharing.token).toBe(token);
   changeSharing(s, 'Duy', 'restricted');
   expect(permission(s, null, req(token))).toBe(null);
   changeSharing(s, 'Duy', 'edit');

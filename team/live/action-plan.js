@@ -1,4 +1,6 @@
+/** @param {unknown} value @param {number} max */
 const text = (value, max) => typeof value === 'string' && value.trim() && value.length <= max ? value.trim() : null;
+/** @param {unknown} value @param {number} max @param {number} size */
 const strings = (value, max, size) => {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length > max) return null;
@@ -7,6 +9,7 @@ const strings = (value, max, size) => {
 };
 
 // A planner supplies task data, never runtime state, ownership or permission to execute.
+/** @param {any} value what a planner sent: read field by field, trusted for nothing */
 export function readPlannedTask(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const goal = text(value.goal, 1000), result = text(value.result, 2000);
@@ -17,13 +20,15 @@ export function readPlannedTask(value) {
   const readiness = value.readiness ?? 'needs_information';
   if (destination === null || !['ready','needs_information','waiting'].includes(readiness)) return null;
   if (value.blockers !== undefined && (!Array.isArray(value.blockers) || value.blockers.length > 20)) return null;
-  const blockers = (value.blockers || []).map((b) => ({ detail:text(b?.detail, 1000), resolver:text(b?.resolver, 300) }));
-  if (blockers.some((b) => !b.detail || !b.resolver)) return null;
+  const blockers = (value.blockers || []).map((/** @type {any} */ b) => ({ detail:text(b?.detail, 1000), resolver:text(b?.resolver, 300) }));
+  if (blockers.some((/** @type {{ detail: string | null, resolver: string | null }} */ b) => !b.detail || !b.resolver)) return null;
   return {goal,result,destination,inputs,steps,evidence,dependsOn,readiness,blockers};
 }
 
+/** @param {Box} n */
 export const taskSource = (n) => JSON.stringify([n.label,n.sub || '',n.desc || '',...(n.action?.plan ? [n.action.plan] : [])]);
 
+/** @param {{ dependsOn?: string[] } | null | undefined} plan @param {(id: string) => Box | null | undefined} nodeOf @param {(n: Box) => boolean} canUse */
 export function dependencyBlockers(plan, nodeOf, canUse) {
   return (plan?.dependsOn || []).flatMap((id) => {
     const n = nodeOf(id);

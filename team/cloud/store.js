@@ -1,6 +1,7 @@
 import { gzipSync, gunzipSync } from 'node:zlib';
 
 export class FirestoreStore {
+  /** @param {string} [project] */
   constructor(project) {
     if (!/^[a-z][a-z0-9-]+$/.test(project || '')) throw new Error('A GCP project is required.');
     this.root = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/sharedMaps`;
@@ -12,6 +13,7 @@ export class FirestoreStore {
     const t = await r.json(); this.cached = t.access_token; this.expires = Date.now() + Math.max(60, t.expires_in - 60) * 1000;
     return this.cached;
   }
+  /** @param {string} method @param {string} suffix @param {unknown} [body] */
   async request(method, suffix, body) {
     const r = await fetch(this.root + suffix, { method, headers: { authorization: `Bearer ${await this.token()}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) });
     if (r.status === 404) return null;
@@ -19,10 +21,12 @@ export class FirestoreStore {
     if (!r.ok) throw Object.assign(new Error('Cloud storage could not save the map. Please try again.'), { status: 503 });
     return r.status === 204 ? null : r.json();
   }
+  /** @param {string} id */
   async get(id) {
     const d = await this.request('GET', `/${id}`);
     return d ? { value: JSON.parse(/** @type {any} */ (gunzipSync(Buffer.from(d.fields.data.bytesValue, 'base64'), { maxOutputLength: 24 * 1024 * 1024 }))), version: d.updateTime } : null;
   }
+  /** @param {string} id @param {unknown} value @param {string} [version] */
   async put(id, value, version) {
     const raw = JSON.stringify(value);
     if (Buffer.byteLength(raw) > 23 * 1024 * 1024) throw Object.assign(new Error('This map has reached the cloud history limit. No changes were saved.'), { status: 413 });
@@ -32,5 +36,6 @@ export class FirestoreStore {
     const d = await this.request('PATCH', `/${id}?${condition}`, { fields: { data: { bytesValue: encoded.toString('base64') } } });
     return { value, version: d.updateTime };
   }
+  /** @param {string} id @param {string} version */
   async delete(id, version) { await this.request('DELETE', `/${id}?currentDocument.updateTime=${encodeURIComponent(version)}`); }
 }

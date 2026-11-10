@@ -6,11 +6,13 @@ import crypto from 'node:crypto';
 const LOGIN = (process.env.LIVING_MAP_LOGIN_URL ?? 'https://living-map-login-572969880390.us-west1.run.app').replace(/\/$/, '');
 const TTL = 10 * 60_000;
 const pending = new Map(); // state → { verifier, origin, next, at }
+/** @param {number} n */
 const token = (n) => crypto.randomBytes(n).toString('base64url');
 
 export const googleOn = () => !!LOGIN;
 
 // where to send the browser: origin is this map's own address (http://localhost:4322), next the page to go back to
+/** @param {string} origin @param {string} next */
 export function googleStart(origin, next) {
   for (const [k, v] of pending) if (Date.now() - v.at > TTL) pending.delete(k);
   const state = token(16), verifier = token(32);
@@ -21,11 +23,12 @@ export function googleStart(origin, next) {
 
 // what came back on /auth/done: the person (listed: named by the login's list, so one of the map's people may be
 // seated; else only Google's name for them) and the page to go back to, or an Error in plain words
+/** @param {URLSearchParams} params */
 export async function googleFinish(params) {
   const s = pending.get(params.get('state') || '');
   pending.delete(params.get('state') || '');
   if (!s || Date.now() - s.at > TTL) throw new Error('That sign-in took too long or was already used. Try again.');
-  if (params.get('error')) throw new Error(params.get('error'));
+  if (params.get('error')) throw new Error(/** @type {string} */ (params.get('error')));
   const r = await fetch(`${LOGIN}/exchange`, { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ code: params.get('code') || '', verifier: s.verifier }), signal: AbortSignal.timeout(10_000) }).catch(() => null);
   const d = r ? await r.json().catch(() => ({})) : {};
@@ -35,6 +38,7 @@ export async function googleFinish(params) {
 }
 
 // a name and password kept at Living Map login, for someone with no Google account: the name to sign in as, or null
+/** @param {string} name @param {string} password */
 export async function passwordCheck(name, password) {
   if (!LOGIN) return null;
   const r = await fetch(`${LOGIN}/password`, { method: 'POST', headers: { 'content-type': 'application/json' },

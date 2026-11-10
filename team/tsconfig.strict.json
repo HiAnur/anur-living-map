@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noImplicitAny": true },
+  "include": [
+    "live/types.d.ts",
+    "live/wait.js",
+    "live/map-context-mcp.js",
+    "live/google.js",
+    "live/access.js",
+    "live/sharing.js",
+    "live/action-plan.js",
+    "live/recovery.js",
+    "live/users.js",
+    "cloud/store.js"
+  ]
+}
