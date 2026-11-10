@@ -31,7 +31,7 @@ function harness(){
   vm.runInContext(source,ctx);
   vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
   vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);
-  const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
+  /** @type {(key: any, extra?: any) => any} */ const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
@@ -67,7 +67,7 @@ describe('keyboard brainstorming',()=>{
   });
   it('does not let an older save replace the newly clicked parent',async()=>{
     const h=harness();h.ctx.S.nodes.push({id:'deep',label:'Branch here',x:1260,y:255});h.ctx.S.edges.push({from:'root',to:'deep'});
-    let release;const gate=new Promise(resolve=>{release=resolve;});h.ctx.act=async()=>{await gate;return {ok:true,json:async()=>({id:'old-save'})};};
+    /** @type {any} */ let release;const gate=new Promise(resolve=>{release=resolve;});h.ctx.act=async()=>{await gate;return {ok:true,json:async()=>({id:'old-save'})};};
     h.key('Tab');const saved=h.ctx.endName(true);h.pick('deep');h.flushPick();release();await saved;
     expect(h.ctx.selected).toBe('deep');h.key('Tab');expect(h.ctx.naming.link.id).toBe('deep');
   });
@@ -138,7 +138,8 @@ describe('keyboard brainstorming',()=>{
     }
   });
   it('repeated Tab accepts default names and chains children before saves finish',async()=>{
-    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    const h=harness(), calls=[];
+    /** @type {any} */ let release;const gate=new Promise(resolve=>{release=resolve;});
     h.ctx.act=async(type,args)=>{const id=`topic-${calls.length+1}`;calls.push([type,args]);await gate;return {ok:true,json:async()=>({id})};};
     h.key('Tab');h.edit('Tab');h.edit('Tab');h.edit('Tab');
     expect(h.ctx.naming.untouched).toBe(true);expect(h.input().value).toBe('Sub-topic');
@@ -198,13 +199,15 @@ describe('keyboard brainstorming',()=>{
     await new Promise(setImmediate);expect(h.ctx.naming).toBeNull();expect(h.ctx.selected).toBe('root');expect(calls[0][1].label).toBe('Sub-topic');
   });
   it('keeps the final topic after rapid Tab presses and clicking elsewhere',async()=>{
-    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    const h=harness(), calls=[];
+    /** @type {any} */ let release;const gate=new Promise(resolve=>{release=resolve;});
     h.ctx.act=async(type,args)=>{const id=`topic-${calls.length+1}`;calls.push([type,args]);await gate;return {ok:true,json:async()=>({id})};};
     h.key('Tab');h.edit('Tab');h.edit('Tab');h.blur();h.ctx.selected='clicked';release();await new Promise(setImmediate);
     expect(calls.map(([,a])=>a.from)).toEqual(['root','topic-1','topic-2']);expect(h.ctx.selected).toBe('clicked');
   });
   it('back to a parent then Tab adds another child without overlapping an unfinished save',async()=>{
-    const h=harness(), calls=[];let release;const gate=new Promise(resolve=>{release=resolve;});
+    const h=harness(), calls=[];
+    /** @type {any} */ let release;const gate=new Promise(resolve=>{release=resolve;});
     h.ctx.act=async(type,args)=>{calls.push([type,args]);await gate;return {ok:true,json:async()=>({id:'first-child'})};};
     h.key('Tab');const first={...h.ctx.naming};h.edit('ArrowLeft');await Promise.resolve();h.key('Tab');
     expect(h.ctx.naming.link.id).toBe('root');expect(h.ctx.naming.x).toBe(first.x);expect(h.ctx.naming.y).toBeGreaterThan(first.y);
@@ -225,7 +228,8 @@ describe('keyboard brainstorming',()=>{
   it('keeps rapid sibling insertions ordered while previous layouts are still saving',async()=>{
     const h=harness(),calls=[];h.ctx.S.nodes.push({id:'one',label:'One',x:210,y:0},{id:'a',label:'A',x:420,y:0},{id:'two',label:'Two',x:210,y:85},{id:'b',label:'B',x:420,y:85});
     h.ctx.S.edges.push({from:'root',to:'one'},{from:'one',to:'a'},{from:'root',to:'two'},{from:'two',to:'b'});h.ctx.selected='one';
-    const state=structuredClone(h.ctx.S);let release;const gate=new Promise(resolve=>{release=resolve;});
+    const state=structuredClone(h.ctx.S);
+    /** @type {any} */ let release;const gate=new Promise(resolve=>{release=resolve;});
     h.ctx.act=async(type,a)=>{await gate;calls.push(a);for(const m of a.reflow||[]){const n=state.nodes.find(n=>n.id===m.id);expect(n.y).toBe(m.fromY);n.y=m.y;}
       const id=`new-${calls.length}`;state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});h.ctx.S=structuredClone(state);return {ok:true,json:async()=>({id})};};
     h.key('Tab');h.edit('Enter');h.edit('Enter');h.blur();release();await new Promise(setImmediate);

@@ -17,10 +17,10 @@ function fixture() {
 }
 async function api({ failMail = false, configured = true } = {}) {
   const f = fixture(), mail = [];
-  const server = http.createServer((req, res) => handleRecovery(req, res, { ...f, port: server.address().port, configured, send: async (...args) => { if (failMail) throw new Error('offline'); mail.push(args); } }));
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const server = http.createServer((req, res) => handleRecovery(req, res, { ...f, port: /** @type {import('node:net').AddressInfo} */ (server.address()).port, configured, send: async (...args) => { if (failMail) throw new Error('offline'); mail.push(args); } }));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', /** @type {() => void} */ (resolve)));
   cleanup.push(() => new Promise((resolve) => server.close(resolve)));
-  const origin = `http://127.0.0.1:${server.address().port}`;
+  const origin = `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}`;
   const post = async (action, data, headers = {}) => {
     const r = await fetch(`${origin}/api/recovery/${action}`, { method: 'POST', headers: { origin, 'content-type': 'application/json', ...headers }, body: JSON.stringify(data) });
     return { status: r.status, data: await r.json() };

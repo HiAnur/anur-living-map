@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 describe('pointer tool shortcut',()=>{
   it('switches Hand to Select, clears temporary panning and updates the toolbar',()=>{
-    let handler;const classes=new Set(['hand','grabbing','spacepan']),active=new Set();
+    /** @type {any} */ let handler;const classes=new Set(['hand','grabbing','spacepan']),active=new Set();
     const ctx=vm.createContext({tool:'hand',spaceDown:true,panning:{},draft:null,PREVIEW:null,READ_ONLY:false,render(){},
       canvas:{classList:{remove(...names){names.forEach(n=>classes.delete(n));},toggle(n,on){if(on)classes.add(n);else classes.delete(n);}}},
       document:{addEventListener(type,f){handler=f;},querySelectorAll:()=>['select','hand','box','arrow','comment'].map(tool=>({dataset:{tool},classList:{toggle(n,on){if(on)active.add(tool);else active.delete(tool);}}}))},
@@ -30,7 +30,7 @@ describe('pointer tool shortcut',()=>{
 
 describe('map history controls', () => {
   function historyHarness(){
-    let keydown; const calls = [];
+    /** @type {any} */ let keydown; const calls = [];
     const ctx = vm.createContext({ PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, selected:null, delAsk:null,
       pendingTopics:new Set(), pendingActions:new Set(), pendingRemovals:new Set(), group:new Set(), topicSaveQueue:Promise.resolve(),
       document:{addEventListener(type,fn){keydown=fn;}}, toast(){}, render(){}, refreshMap:async()=>{}, nodeById:()=>null,
@@ -40,7 +40,8 @@ describe('map history controls', () => {
     return {ctx,calls,keydown};
   }
   it('waits for a name save and runs rapid undo and redo clicks in order', async () => {
-    const h=historyHarness(); let finish;
+    const h=historyHarness();
+    /** @type {any} */ let finish;
     h.ctx.topicSaveQueue=new Promise(resolve=>{finish=resolve;});
     const undo=h.ctx.mapUndo('undo'),redo=h.ctx.mapUndo('redo');
     await new Promise(setImmediate);expect(h.calls).toEqual([]);

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { completionSchema, readCompletion, runAction } from './action-runner.js';
 
 function harness(resume = false) {
-  const proc = new EventEmitter(); proc.stdin=new PassThrough();proc.stdout=new PassThrough();proc.stderr=new PassThrough();proc.kill=()=>{};
+  /** @type {any} */ const proc = new EventEmitter(); proc.stdin=new PassThrough();proc.stdout=new PassThrough();proc.stderr=new PassThrough();proc.kill=()=>{};
   const calls=[],words=[],results=[];
   const stop=runAction({cwd:'/sample/project',env:{},session:'exact-chat-id',resume,prompt:'Do the task',onText:t=>words.push(t),onDone:r=>results.push(r),spawnProcess:(...args)=>{calls.push(args);return proc;}});
   const event=(data,newline=true)=>proc.stdout.write(JSON.stringify(data)+(newline?'\n':''));

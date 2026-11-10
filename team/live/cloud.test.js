@@ -21,8 +21,8 @@ afterEach(() => { for (const m of mirrors.splice(0)) m.close(); for (const h of 
 afterEach(async () => { for (const s of servers.splice(0)) { s.closeAllConnections(); await new Promise((r) => s.close(r)); } });
 async function start(store = new MemoryStore()) {
   const server = createCloudServer({ store, publishKey: publisher, publicUrl: 'http://localhost:4498' });
-  servers.push(server); await new Promise((r) => server.listen(0, '127.0.0.1', r));
-  const url = `http://127.0.0.1:${server.address().port}`;
+  servers.push(server); await new Promise((r) => server.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
+  const url = `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}`;
   const call = (route, data, auth = false, origin = 'http://localhost:4498') => fetch(url + route, { method: data ? 'POST' : 'GET', headers: { 'content-type': 'application/json', origin, ...(auth ? { authorization: `Bearer ${publisher}`, 'x-map-owner': owner } : { cookie: `lm_cloud_guest=${visitor}` }) }, ...(data ? { body: JSON.stringify(data) } : {}) });
   const publish = async (mode = 'view') => { const r = await call('/api/maps', { id, data: base(), ownerKey: owner, linkKey: link, mode }, true); expect(r.status).toBe(201); };
   const route = (suffix) => `/m/${id}/${suffix}?share=${signedLink(id, link, publisher)}`;
@@ -111,7 +111,7 @@ it('syncs a published local map, survives restart, and revokes even with a confl
   const options = { home, read: () => local, write: (data) => installCloudData(local, data), notify(){}, config: { url: app.url, publishKey: publisher } };
   let mirror = cloudMirror(options); mirrors.push(mirror);
   await mirror.publish('edit');
-  const saved = JSON.parse(fs.readFileSync(path.join(home, 'cloud.json')));
+  const saved = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home, 'cloud.json'))));
   const route = (p) => `/m/${saved.id}/${p}?share=${signedLink(saved.id, saved.linkKey, publisher)}`;
   expect((await app.call(route('api/act'), { type:'renamebox', id:'a', label:'Cloud', revision:1 })).status).toBe(200);
   local.nodes[1].label = 'Local';
@@ -125,7 +125,7 @@ it('syncs a published local map, survives restart, and revokes even with a confl
   await mirror.sync(); expect(mirror.status().error).toContain('both places'); expect(local.nodes[0].label).toBe('Local conflict');
   await mirror.publish('restricted'); expect((await app.call(route('api/state'))).status).toBe(403);
   const old = saved.linkKey; await mirror.publish('view');
-  const next = JSON.parse(fs.readFileSync(path.join(home, 'cloud.json'))); expect(next.linkKey).not.toBe(old);
+  const next = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home, 'cloud.json')))); expect(next.linkKey).not.toBe(old);
   expect((await app.call(route('api/state'))).status).toBe(403);
 });
 
@@ -135,17 +135,17 @@ it('deletes after an in-flight publish, keeps the local map, and republishes wit
   const options={home,read:()=>local,write:data=>installCloudData(local,data),notify(){},config:{url:app.url,publishKey:publisher}};
   let mirror=cloudMirror(options);mirrors.push(mirror);
   const publishing=mirror.publish('edit');const deleting=mirror.remove();
-  const published=await publishing;await deleting;
+  /** @type {any} */ const published=await publishing;await deleting;
   expect(local).toEqual(before);expect(mirror.status()).toMatchObject({published:false,url:null});expect(app.store.records.size).toBe(0);
   mirror.close();mirror=cloudMirror(options);mirrors.push(mirror);await mirror.sync();expect(app.store.records.size).toBe(0);
-  const next=await mirror.publish('view');expect(next.url).not.toBe(published.url);
+  /** @type {any} */ const next=await mirror.publish('view');expect(next.url).not.toBe(published.url);
   expect((await fetch(published.url.replace('http://localhost:4498',app.url))).status).toBe(404);
   expect(local).toEqual(before);
 });
 it('preserves sharing on deletion failure and safely retries a lost deletion response', async () => {
   const app=await start();const home=fs.mkdtempSync(path.resolve('cache/cloud-delete-'));homes.push(home);
   const local=base();const mirror=cloudMirror({home,read:()=>local,write:data=>installCloudData(local,data),notify(){},config:{url:app.url,publishKey:publisher}});mirrors.push(mirror);
-  await mirror.publish('view');const saved=JSON.parse(fs.readFileSync(path.join(home,'cloud.json')));
+  await mirror.publish('view');const saved=JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home,'cloud.json'))));
   const route=`/m/${saved.id}/api/delete?share=${signedLink(saved.id,saved.linkKey,publisher)}`;
   expect((await app.call(route,{})).status).toBe(403);
   app.store.delete=async()=>{throw Object.assign(new Error('Offline'),{status:503});};
@@ -162,7 +162,7 @@ it('does not recreate archived local files when a pending cloud response arrives
   let local = base(), writes = 0;
   const mirror = cloudMirror({ home, read: () => local, write: (next) => { writes++; local = next; }, notify() {}, config: { url: app.url, publishKey: publisher } }); mirrors.push(mirror);
   await mirror.publish('edit');
-  let release, entered; const arrived = new Promise((r) => { entered = r; }), gate = new Promise((r) => { release = r; });
+  /** @type {any} */ let release, entered; const arrived = new Promise((r) => { entered = r; }), gate = new Promise((r) => { release = r; });
   const get = store.get.bind(store); store.get = async (id) => { entered(); await gate; return get(id); };
   local.nodes[0].label = 'Local change';
   const syncing = mirror.sync(); await arrived;

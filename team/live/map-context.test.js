@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 
 import { contextObjects, describeMap, openContext } from './map-context.js';
 
-const state = () => ({ title: 'Pilot launch', desc: 'Plan a pilot for independent designers, including pricing, support and launch criteria.', start: 'root',
+/** @type {() => any} */ const state = () => ({ title: 'Pilot launch', desc: 'Plan a pilot for independent designers, including pricing, support and launch criteria.', start: 'root',
   nodes: [{id:'root',label:'Pilot',area:'product',sub:'Launch for designers',inside:{nodes:[{id:'child',label:'Pricing',area:'product',desc:'Charge per active seat. Test willingness to pay.'}],edges:[]}}, {id:'secret',label:'Private finances',area:'finance',desc:'Secret finance notes',action:{transcript:'private action'}}],
   edges:[{from:'root',to:'child'},{from:'root',to:'secret'}],
   people:[{id:'Reader',sees:'product'}], calls:[{id:'price',node:'child',text:'Which pricing?',picked:'Per seat',status:'answered'},{id:'launch',node:'root',text:'When do we launch?',status:'open'},{node:'secret',text:'Private question',status:'open'}],
@@ -103,7 +103,7 @@ if(catalog.maps.length!==1||catalog.maps[0].id!=='pricing'||prompt.includes('Veg
 const selected=await read('load_map',{id:'pricing',sections:['map']});
 console.log(JSON.stringify({type:'result',result:'Reference: ['+selected.name+']('+selected.href+'). '+selected.map.description}));
 `,{mode:0o755});
-  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',r));const port=reserve.address().port;await new Promise(r=>reserve.close(r));
+  const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',/** @type {() => void} */ (r)));const port=/** @type {import('node:net').AddressInfo} */ (reserve.address()).port;await new Promise(r=>reserve.close(r));
   const base=`http://127.0.0.1:${port}`, env={...process.env,PATH:bin+path.delimiter+process.env.PATH,LIVING_MAP_USERS:path.join(root,'users.db'),LIVING_MAP_LOGIN_URL:''};
   let child;
   const start=async()=>{child=spawn(process.execPath,[path.join(dir,'server.js'),String(port)],{cwd:dir,env,stdio:'ignore'});for(let i=0;i<80;i++){try{if((await fetch(base+'/api/version')).ok)return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Server did not start');};

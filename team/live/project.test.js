@@ -145,7 +145,7 @@ describe('tidyTree', () => {
     const { nodes, edges } = gtm();
     tidyTree(nodes, edges);
     const before = at(nodes);
-    nodes.push({ id: 'discount', label: 'Discounts', area: 'billing', w: 180 }, { id: 'extra', label: 'Extra', w: 180 });
+    /** @type {any} */ (nodes).push({ id: 'discount', label: 'Discounts', area: 'billing', w: 180 }, { id: 'extra', label: 'Extra', w: 180 });
     edges.push({ from: 'gtm', to: 'discount' }, { from: 'gtm', to: 'extra' });
     placeNew(nodes, edges);
     for (const [id, p] of Object.entries(before)) expect(at(nodes)[id]).toEqual(p);

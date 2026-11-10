@@ -12,7 +12,7 @@ const fixture = () => ({nodes:[
   {id:'new',label:'New parent',x:210,y:170}, {id:'existing',label:'Existing child',x:420,y:170},
   {id:'lower',label:'Lower branch',x:210,y:255}, {id:'lower-child',label:'Lower child',x:420,y:255},
 ],edges:[{from:'root',to:'old'},{from:'old',to:'branch'},{from:'branch',to:'child'},{from:'root',to:'new'},{from:'new',to:'existing'},{from:'root',to:'lower'},{from:'lower',to:'lower-child'}]});
-function page(state = fixture()) {
+function page(/** @type {any} */ state = fixture()) {
   const rubber = {innerHTML:''}, ctx=vm.createContext({Set,Map,Math,branchIds,W:n=>n.w||140,HT:n=>n.h||50,
     esc:s=>s,S:state,PREVIEW:null,READ_ONLY:false,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
     fanPts:()=>null,routePts:(a,b)=>[[a.x+70,a.y],[b.x-70,b.y]],render(){},canvas:{addEventListener(){}},document:{addEventListener(){}}
