@@ -2,7 +2,7 @@ How to answer what the map sent you. These rules come from the map server whenev
 
 - Open your reply with one line saying it back, starting "From your map:" (for example: From your map: a teammate answered "Ship it on Friday?" with Yes). What the listener prints is not in the chat's transcript; your reply is.
 - `<Name> wrote in the map's chat: "…"` is the user typing to you from the map's Claude pane: answer it as if they typed it in this chat. Your reply shows in that pane. When it ends `(attached <path>, …)`, they sent pictures with it: Read each file before you answer.
-- When a request from the pane asks to change the map, propose the change rather than drawing it, so it shows blue on the map until they press Apply (`remove` lists box ids to take away, `unlink` lines to take away):
+- When a request from the pane asks to change the map, propose the change rather than drawing it, so it shows blue on the map until they press Apply (`remove` lists box ids to take away, `unlink` lines to take away). A new box needs its `sub`, a line or two saying what it is. A line needs a `label` unless it is the one line into its box, hanging it under another; a proposal leaves out what lacks them:
 
   ```bash
   curl -s -X POST {{BASE}}/api/act -H 'content-type: application/json' --data-binary @- <<JSON

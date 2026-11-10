@@ -489,6 +489,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (!n || !slug.test(n.id || '')) { dropped.push({ text: n?.label || 'a box', why: 'no usable id' }); continue; }
       if (had && !mayTouch(had)) { dropped.push({ text: had.label, why: 'outside your access' }); continue; }
       if (!had && !n.label) { dropped.push({ text: n.id, why: 'a new box needs a name' }); continue; }
+      if (!had && !String(n.sub ?? '').trim()) { dropped.push({ text: n.label, why: 'a new box needs a second line that says what it is' }); continue; }
       const box = Object.fromEntries(Object.entries(n).filter(([k]) => ['id', 'label', 'sub', 'desc', 'state', 'w'].includes(k)));
       if (!had && ['topic','action'].includes(n.boxType)) {
         box.boxType = n.boxType;
@@ -509,8 +510,15 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     const there = (/** @type {any} */ id) => nodeOf(id) || plan.nodes.some((/** @type {any} */ n) => n.id === id);
     const name = (/** @type {any} */ id) => nodeOf(id)?.label || plan.nodes.find((/** @type {any} */ n) => n.id === id)?.label || id;
-    for (const e of (p.edges || []).slice(0, limit)) {
+    // A line with no words only says one box hangs under another, so it must be the one line into its box once
+    // this change is applied (a new box's first line, or a box moved under another); every other line says what
+    // happens on it.
+    const edges = (p.edges || []).slice(0, limit), cut = new Set((p.unlink || []).map((/** @type {any} */ e) => `${nodeOf(e?.from)?.id}>${nodeOf(e?.to)?.id}`));
+    const into = (/** @type {any} */ id) => allEdges().filter((/** @type {any} */ e) => e.to === id && !cut.has(`${e.from}>${e.to}`)).length
+      + edges.filter((/** @type {any} */ e) => e && e.to === id && there(e.from)).length;
+    for (const e of edges) {
       if (!e || !there(e.from) || !there(e.to)) { dropped.push({ text: `a line ${e?.from} → ${e?.to}`, why: 'a box it names is not on the map' }); continue; }
+      if (!String(e.label ?? '').trim() && into(e.to) > 1) { dropped.push({ text: `a line ${name(e.from)} → ${name(e.to)}`, why: `say what happens on it: ${name(e.to)} already hangs under another box` }); continue; }
       plan.edges.push({ from: e.from, to: e.to, ...(e.label ? { label: String(e.label).slice(0, 40) } : {}), state: 'new' });
       ops.push(`Add a line ${name(e.from)} → ${name(e.to)}${e.label ? ` (${e.label})` : ''}`);
     }
