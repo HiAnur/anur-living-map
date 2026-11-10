@@ -288,6 +288,51 @@ test("cancelling an Action keeps it, and Prepare again brings it back", async ({
   );
 });
 
+test("a run the map could not verify waits for its author to confirm it", async ({
+  page,
+}) => {
+  const completion = {
+    status: "unverified",
+    summary: "Wrote the trial page",
+    evidence: [],
+    claimed: ["Saved trial.html"],
+  };
+  const finished = {
+    by: "Duy",
+    stage: "finished",
+    id: "r2",
+    session: "s1",
+    intent: "Write the trial page",
+    history: [],
+    brief: {
+      kind: "other",
+      goal: "Write the trial page",
+      target: "The website",
+      result: "A trial page",
+      steps: ["Write it"],
+    },
+    completion,
+    turns: [{ who: "Claude", text: "Wrote the trial page", completion, at: 1 }],
+  };
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial" ? { ...n, action: finished, boxType: "action" } : n,
+    ),
+  });
+  await expect(
+    box(page, "Free trial").getByLabel("Action status: Done, unverified"),
+  ).toBeVisible();
+  await box(page, "Free trial").click();
+  await expect(page.locator(".action-evidence.claimed")).toContainText(
+    "Saved trial.html",
+  );
+  await page.getByRole("button", { name: "Confirm done" }).click();
+  await expect(
+    box(page, "Free trial").getByLabel("Action status: Executed"),
+  ).toBeVisible();
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();

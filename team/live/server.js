@@ -23,6 +23,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { actionBoxes, recoverAction } from './action-box.js';
+import { pullRequestExists } from './action-evidence.js';
 import { readPlannedTask } from './action-plan.js';
 import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
 import { checkCommand } from './commands.js';
@@ -336,6 +337,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
+    checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
     run: (request) => { fs.mkdirSync(home, {recursive:true}); return agent.run({ schema:completionSchema, system:executionPrompt, read:readCompletion, ...request }); },
   });
 
@@ -500,6 +502,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     actioncancel(a) { return actions.cancel(/** @type {string} */ (a.id), a.by); },
     /** @param {Act<'actionreopen'>} a */
     actionreopen(a) { return actions.reopen(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actionconfirm'>} a */
+    actionconfirm(a) { return actions.confirm(/** @type {string} */ (a.id), a.by, a.revision); },
     /** @param {Act<'actionexecute'>} a */
     actionexecute(a) { return actions.execute(/** @type {string} */ (a.id), a.by, a.revision); },
     /** @param {Act<'actioncontinue'>} a */

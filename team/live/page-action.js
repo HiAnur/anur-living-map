@@ -7,7 +7,7 @@ export const actionExecuted = (a) => a?.stage === 'finished' && a.completion?.st
 export function actionStatus(a){
   if (!a?.stage || a.stage === 'draft') return null;
   if (actionExecuted(a)) return {label:'Executed',tone:'completed'};
-  if (a?.stage === 'finished') return a.completion?.status === 'needs_input' ? {label:'Needs clarity',tone:'waiting'} : a.completion?.status === 'blocked' ? {label:'Blocked',tone:'blocked'} : {label:'Unconfirmed',tone:'waiting'};
+  if (a?.stage === 'finished') return a.completion?.status === 'unverified' ? {label:'Done, unverified',tone:'waiting'} : a.completion?.status === 'needs_input' ? {label:'Needs clarity',tone:'waiting'} : a.completion?.status === 'blocked' ? {label:'Blocked',tone:'blocked'} : {label:'Unconfirmed',tone:'waiting'};
   return /** @type {Record<string, { label: string, tone: string }>} */ ({
     gathering:{label:'Preparing',tone:'active'},
     clarify:{label:'Needs clarity',tone:'waiting'},
@@ -33,9 +33,9 @@ const ACTION_STEPS = /** @type {Record<string, string>} */ ({
   created:'Made an Action', preparing:'Started preparing', asked:'Claude asked a question', answered:'Answered',
   ready:'Brief ready', revised:'Asked to revise', executed:'Executed', stopped:'Stopped', continued:'Continued',
   finished:'Run ended', interrupted:'Interrupted by a restart', waiting:'Waiting on a prerequisite',
-  released:'Prerequisites finished', failed:'Preparation stopped', cancelled:'Cancelled', reopened:'Prepared again',
+  released:'Prerequisites finished', failed:'Preparation stopped', cancelled:'Cancelled', reopened:'Prepared again', confirmed:'Confirmed done',
 });
-const ACTION_ENDS = /** @type {Record<string, string>} */ ({ completed:'completed', needs_input:'needs an answer', blocked:'blocked', unconfirmed:'unconfirmed' });
+const ACTION_ENDS = /** @type {Record<string, string>} */ ({ completed:'completed, verified', unverified:'done, unverified', needs_input:'needs an answer', blocked:'blocked', unconfirmed:'unconfirmed' });
 /** @param {number} ms */
 const actionTook = (ms) => ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 /** @param {any[] | undefined} events @returns {{ label: string, who: string, at: number, detail: string }[]} */
@@ -44,6 +44,6 @@ export function actionHistory(events) {
     label: ACTION_STEPS[e.what] || e.what,
     who: e.by === 'Map' ? 'the map' : String(e.by || ''),
     at: e.at,
-    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : ''].filter(Boolean).join(' · '),
+    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : ''].filter(Boolean).join(' · '),
   })).reverse();
 }

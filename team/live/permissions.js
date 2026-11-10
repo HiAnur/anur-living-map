@@ -63,7 +63,7 @@ export const WHO = {
   edit: { standing: 'member', then: 'nothing' },
   pr: { standing: 'member', then: 'nothing' },
   // Action boxes
-  ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionexecute', 'actioncontinue', 'actionstop']
+  ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionconfirm', 'actionexecute', 'actioncontinue', 'actionstop']
     .map((type) => [type, { standing: /** @type {Standing} */ ('member'), then: 'they are signed in (not Guest, not removed), the box is in their area, and they started its Action' }])),
 };
 

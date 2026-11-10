@@ -108,7 +108,8 @@ describe('action boxes',()=>{
       ['created','Duy'],['preparing','Duy'],['asked','Claude'],['answered','Duy'],['ready','Claude'],['revised','Duy'],
       ['answered','Duy'],['ready','Claude'],['executed','Duy'],['stopped','Duy'],['finished','Claude'],['continued','Duy'],['finished','Claude']]);
     expect(events.find((e)=>e.what==='ready').tools).toEqual(['Edit','Write']);expect(events.find((e)=>e.what==='executed').tools).toEqual(['Edit','Write']);
-    expect(events.filter((e)=>e.what==='finished').map((e)=>e.status)).toEqual(['blocked','completed']);
+    // the run claimed completion with no tool call behind it: code cannot see it done
+    expect(events.filter((e)=>e.what==='finished').map((e)=>e.status)).toEqual(['blocked','unverified']);
     for(const e of events){expect(e.at).toBeTypeOf('number');expect(e.rev).toBeTypeOf('string');}
     expect(events.every((e,i)=>i===0||e.at>=events[i-1].at)).toBe(true);
     expect(JSON.stringify(events)).not.toMatch(/Which project|Stopped by request|Form added|Commit abc/);
@@ -176,7 +177,10 @@ describe('action boxes',()=>{
     expect(h.api.execute('form','Duy',rev)).toBe(true);expect(h.launches[0].prompt).toContain('First check actual evidence');expect(h.launches[0].prompt).toContain('never risk a duplicate');
     expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);
     h.launches[0].onDone({text:'A matching send already exists.',completion:{status:'completed',summary:'A matching send already exists.',evidence:['Sent message: sample-123']}});
-    expect(h.node.action.completion.status).toBe('completed');expect(h.node.action.turns.at(-1).completion.evidence).toEqual(['Sent message: sample-123']);
+    // the run found an earlier send by searching, which code cannot see as a send: unverified until its author confirms
+    expect(h.node.action.completion.status).toBe('unverified');expect(h.node.action.turns.at(-1).completion.claimed).toEqual(['Sent message: sample-123']);
+    expect(h.api.confirm('form','Duy',h.node.action.id)).toBe(true);expect(h.node.action.completion.status).toBe('completed');
+    expect(h.node.action.completion.evidence).toEqual(['Confirmed done by Duy']);expect(h.node.action.events.at(-1)).toMatchObject({what:'confirmed',by:'Duy'});
   });
   it('only shows completed with a valid confirmation, never a process exit or permission failure',()=>{
     for(const result of [
@@ -241,5 +245,45 @@ describe('preparation\'s answer, read as an object',()=>{
   it('shows an error, not a brief, when preparation answered in words alone',()=>{
     const h=harness();h.start();h.requests.at(-1).onDone('```action\n'+JSON.stringify({status:'ready',brief})+'\n```');
     expect(h.node.action.stage).toBe('error');expect(h.node.action.error).toContain('Could not prepare this action');
+  });
+});
+
+describe('how a run ended, decided by code from what it did', () => {
+  const email = {kind:'email',goal:'Email Sam',target:'sam@example.com',result:'Sent',steps:['Send it'],tools:['mcp__gmail__send'],email:{to:'sam@example.com',subject:'Hi',body:'Hello'}};
+  const build = {kind:'build',goal:'Add the form',target:'acme/app',result:'A PR',steps:['Build it'],tools:['Edit','Bash']};
+  /** @param {any} chosen @param {(url: string) => Promise<boolean>} [checkPull] */
+  function ready(chosen, checkPull) {
+    /** @type {any} */ const node={id:'f',label:'F'};const asks=[],runs=[];let changes=0;
+    const api=actionBoxes({nodeOf:()=>node,allNodes:()=>[node],canUse:()=>true,context:()=>'',ask:(r)=>{asks.push(r);return ()=>{};},changed:()=>changes++,executionCwd:'/p',run:(r)=>{runs.push(r);return ()=>{};},checkPull});
+    api.begin('f','Duy');api.start('f','Duy','Do it');asks[0].onDone('',{tools:chosen.tools,denied:[]},{status:'ready',brief:chosen});
+    api.execute('f','Duy',node.action.id);
+    return {api,node,runs};
+  }
+  it('completes an email only when code saw the send to its recipient',()=>{
+    const r=ready(email);
+    r.runs[0].onDone({text:'Sent',completion:{status:'completed',summary:'Sent it',evidence:['Message 42']},calls:[{tool:'mcp__gmail__send',input:{to:'sam@example.com'},ok:true,output:'id 42'}]});
+    expect(r.node.action.completion).toEqual({status:'completed',summary:'Sent it',evidence:['Sent to sam@example.com (mcp__gmail__send)'],claimed:['Message 42']});
+    expect(r.node.action.events.at(-1)).toMatchObject({what:'finished',status:'completed',verified:true,ran:['mcp__gmail__send']});
+  });
+  it('keeps a claim with no call behind it as unverified, and Continue hears what code saw happen',()=>{
+    const r=ready(email);
+    r.runs[0].onDone({text:'Sent',blocked:false,completion:{status:'completed',summary:'Sent it',evidence:['Message 42']},calls:[{tool:'Bash',input:{command:'echo hi'},ok:true,output:'hi',summary:'echo hi'}]});
+    expect(r.node.action.completion.status).toBe('unverified');expect(r.node.action.stage).toBe('finished');
+    expect(r.api.continue('f','Duy',r.node.action.id,'Check it went')).toBe(true);
+    expect(r.runs[1].prompt).toContain('What the map saw this task already do');expect(r.runs[1].prompt).toContain('- Bash: echo hi');
+  });
+  it('waits for GitHub before a build counts, without the run looking interrupted meanwhile',async()=>{
+    /** @type {(ok: boolean) => void} */ let answer=()=>{};
+    const r=ready(build,()=>new Promise((resolve)=>{answer=resolve;}));
+    r.runs[0].onDone({text:'Opened',completion:{status:'completed',summary:'Opened a PR',evidence:['PR 7']},calls:[{tool:'Bash',input:{},ok:true,output:'https://github.com/acme/app/pull/7'}]});
+    expect(r.node.action.stage).toBe('running');r.api.reconcile();expect(r.node.action.stage).toBe('running');
+    answer(true);await new Promise((resolve)=>setTimeout(resolve));
+    expect(r.node.action.completion).toMatchObject({status:'completed',evidence:['Pull request https://github.com/acme/app/pull/7']});
+  });
+  it('keeps a build whose pull request GitHub does not know as unverified',async()=>{
+    const r=ready(build,()=>Promise.resolve(false));
+    r.runs[0].onDone({text:'Opened',completion:{status:'completed',summary:'Opened a PR',evidence:['PR 7']},calls:[{tool:'Bash',input:{},ok:true,output:'https://github.com/acme/app/pull/7'}]});
+    await new Promise((resolve)=>setTimeout(resolve));
+    expect(r.node.action.completion.status).toBe('unverified');
   });
 });

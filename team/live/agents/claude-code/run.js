@@ -11,6 +11,10 @@ const OUTSIDE = 'This tool is not in the reviewed brief, so this run cannot use 
 // still goes through the person's own permission checks.
 /** @param {readonly string[] | undefined} tools */
 export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE);
+// Claude Code's tools that only read, so a call to one changed nothing a Continue could repeat
+const READS = new Set([...ALWAYS, 'WebFetch', 'WebSearch', 'LS', 'NotebookRead']);
+/** @param {unknown} content a tool result's content: text, or a list of blocks */
+const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.map((b) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '').slice(0, 4000);
 // Keep the chat on disk; every follow-up resumes its exact ID, never the latest chat in a folder.
 /**
  * @param {{ cwd: string, env: Record<string, string | undefined>, session: string, resume?: boolean, prompt: string,
@@ -25,14 +29,21 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
     '--json-schema', JSON.stringify(schema), '--append-system-prompt', system],
   { cwd, env, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
   let words = '', errors = '', /** @type {RunResult | null} */ result = null, done = false, stopped = false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;
+  // every tool call the run makes, read from the stream as Claude Code reports it, so the map can judge the run
+  // by what it did rather than what it says
+  const calls = /** @type {Map<string, ToolCall>} */ (new Map());
   /** @param {RunResult} value */
-  const finish = (value) => { if (done) return; done = true; clearTimeout(killTimer); ended(); onDone(value); };
+  const finish = (value) => { if (done) return; done = true; clearTimeout(killTimer); ended(); onDone({ ...value, calls:[...calls.values()] }); };
   const { kill, done: ended } = killer(proc);
   /** @param {string} line */
   const read = (line) => {
     let d; try { d = JSON.parse(line); } catch { return; }
     if (!d || typeof d !== 'object') return;
     words = addWords(words, d, onText);
+    const blocks = Array.isArray(d.message?.content) ? d.message.content : [];
+    if (d.type === 'assistant') for (const b of blocks) if (b?.type === 'tool_use' && typeof b.id === 'string' && !calls.has(b.id))
+      calls.set(b.id, { tool:String(b.name), input:b.input ?? null, ok:null, output:'', ...(READS.has(String(b.name)) ? { reads:true } : {}), ...(b.name === 'Bash' && typeof b.input?.command === 'string' ? { summary:b.input.command.slice(0, 160) } : {}) });
+    if (d.type === 'user') for (const b of blocks) { const call = b?.type === 'tool_result' && calls.get(b.tool_use_id); if (call) Object.assign(call, { ok:!b.is_error, output:resultText(b.content) }); }
     if (d.type === 'assistant' && !words) {
       words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((/** @type {any} */ b) => b?.type === 'text' && typeof b.text === 'string').map((/** @type {any} */ b) => b.text).join('\n\n').slice(-MAX);
       if (words) onText(words);

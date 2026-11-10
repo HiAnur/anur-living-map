@@ -799,6 +799,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-document pre{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font:13px/1.5 var(--plex);margin-top:10px}
 .action-evidence{font-size:13px;border-top:1px solid var(--action-line);margin-top:12px;padding-top:12px;overflow-wrap:anywhere}
 .action-evidence ul{margin:6px 0;padding-left:20px}
+.action-evidence.claimed{color:var(--text-2)}
 .action-progress{display:flex;align-items:center;gap:8px;color:var(--action)}
 #side .action-chat .action-card{background:var(--action-tint);border-color:var(--action-line);max-height:none;margin-top:16px}
 #side .action-chat .side-ask.cbox{border-color:var(--action-line)}
@@ -2656,9 +2657,10 @@ function actionChat(n, previousChat){
     : a.session ? `${(a.turns || []).map((t, i) => t.who === 'Claude' ? claudes(actionResult(t, `${n.id}:${i}`)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
     : actionCard(n);
   const continuing = a.session && ['finished','blocked'].includes(a.stage);
+  const confirmDone = mine && a.stage === 'finished' && a.completion?.status === 'unverified' ? `<div class="action-controls"><button class="gb" data-box-action="actionconfirm" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}" title="The map could not see this done. Confirm it if it is.">Confirm done</button></div>` : '';
   const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required>${a.stage === 'draft' ? esc(a.intent || '') : ''}</textarea><button class="send${a.plan && a.stage === 'draft' ? ' continue-send' : ''}" type="submit" title="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'}">${a.plan && a.stage === 'draft' ? 'Prepare' : SEND_ICON}</button></div></form>` : '';
   const cancel = mine && actionCancellable(a) && !actionUntouched(a) ? `<button class="gb action-cancel" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Cancel Action</button>` : '';
-  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}</div>${composer}`;
+  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
 }
 // what code recorded of this Action, newest first, folded away until opened
 function actionHistoryList(n){
@@ -2674,8 +2676,10 @@ function actionSummary(turn){
 function actionResult(turn, key){
   const c = turn.completion, openKey = `action-result:${key}`;
   const done = c?.status === 'completed' && c.evidence?.length > 0;
-  const label = done ? 'Executed' : {needs_input:'Needs clarity',blocked:'Blocked'}[c?.status] || 'Completion unconfirmed';
-  const evidence = c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '';
+  const label = done ? 'Executed' : {needs_input:'Needs clarity',blocked:'Blocked',unverified:'Done, unverified'}[c?.status] || 'Completion unconfirmed';
+  // Confirmation is what the map saw the run do; Claude's account is what it says it did, shown apart
+  const evidence = (c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
+    + (c?.claimed?.length && !done ? `<div class="action-evidence claimed"><b>Claude's account</b><ul>${c.claimed.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '');
   return `<section class="action-result" aria-label="Task result"><h3>${done ? `<span class="result-pill">Executed</span>` : label}</h3>${done ? `<p class="result-summary">${esc(actionSummary(turn))}</p><details class="result-details" data-open-key="${esc(openKey)}" ${openSecs.has(openKey) ? 'open' : ''}><summary>View details</summary><div class="result-detail-body">${md(turn.text)}${evidence}</div></details>` : `${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${evidence}`}</section>`;
 }
 function actionCard(n){
