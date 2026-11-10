@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
+<dt><strong>Claude names every box and line it draws</strong></dt>
+<dd>
+
+When a chat draws on a team map, every new box now has a second line saying what it is, and every line between boxes says what happens on it; Claude is told what it left out and draws it again. [#250](https://github.com/HiAnur/anur-living-map/pull/250) <!-- merged-at: 2026-11-10T06:20:33Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Accented letters and emoji stay whole in Claude's answers</strong></dt>
 <dd>
 
