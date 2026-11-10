@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Living Map · maps</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231f1b14'/%3E%3Crect x='19' y='19' width='26' height='26' rx='4' fill='%23f8f6f1' transform='rotate(45 32 32)'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
@@ -13,6 +14,11 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
+/* the HiAnur mark at the top left, as on hianur.com: a dark rounded square holding a light diamond */
+#top .brand{display:inline-flex;align-items:center;gap:8px;font-weight:500;color:var(--text)}
+#top .brand i{width:22px;height:22px;border-radius:6px;background:#1f1b14;display:grid;place-items:center}
+#top .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#f8f6f1;transform:rotate(45deg)}
+#top .brand > span{color:var(--text-2);font-weight:400}
 .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,32%);min-height:calc(100vh - 44px)}
 #account{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
 #account[hidden]{display:none}
@@ -93,7 +99,7 @@ a.map:hover{border-color:var(--text)}
 </style>
 </head>
 <body>
-<div id="top"><span>Living Map</span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
+<div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
 <div class="home">
 <main>
   <h1>Start a new map</h1>
