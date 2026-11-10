@@ -240,6 +240,12 @@ test("an Action box shows where it stands", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("the plan's go-ahead reads Build the plan", async ({ page }) => {
+  await openSample(page, { ...SAMPLE, prompt: "Add billing" });
+  await expect(page.locator("[data-execute]")).toHaveText("Build the plan");
+  await expect(page.locator("body")).not.toContainText("Execute on Claude");
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();

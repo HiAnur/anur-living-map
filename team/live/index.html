@@ -56,7 +56,7 @@ button,input,textarea{font:inherit;color:inherit}
 #crumbs #renamei{height:26px;width:220px;border:1px solid var(--new);border-radius:6px;padding:0 8px;background:#fff;font-weight:500;user-select:text}
 #crumbs .sep{color:var(--text-3)}
 #ticket{font-size:12.5px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:240px;display:flex;align-items:center;justify-content:flex-end;gap:8px}
-/* the plan's line in the top bar: its pull request, and Execute, which turns on once nothing waits on anyone */
+/* the plan's line in the top bar: its pull request, and Build the plan, which turns on once nothing waits on anyone */
 .prchip{display:inline-block;height:24px;line-height:22px;max-width:320px;padding:0 10px;border:1px solid var(--rule-2);border-radius:999px;background:#fff;font:500 11.5px var(--plex);color:var(--text-2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .prchip.draft{border-style:dashed}
 .prchip.open{color:var(--new);border-color:var(--new)}
@@ -74,7 +74,7 @@ button,input,textarea{font:inherit;color:inherit}
 .xwrap[data-tip]{cursor:not-allowed}
 .xwrap[data-tip]:hover::after{content:attr(data-tip);position:absolute;right:0;bottom:calc(100% + 8px);width:max-content;max-width:280px;padding:7px 10px;border:1px solid var(--rule-2);border-radius:8px;background:#fff;color:var(--text);font:500 12px/1.35 var(--plex);white-space:normal;box-shadow:0 2px 10px rgba(0,0,0,.12);pointer-events:none;z-index:50}
 .xdone{font:500 12.5px var(--plex);color:var(--new);white-space:nowrap}
-/* Execute asks first, in a card above the button: Yes builds, No closes, Give me plan.md has Claude write it out */
+/* Build the plan asks first, in a card above the button: Yes builds, No closes, Give me plan.md has Claude write it out */
 .xconf{position:absolute;right:0;bottom:calc(100% + 10px);width:270px;padding:12px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.12);font:13px/1.4 var(--plex);z-index:40}
 .xconf b{display:block;font-weight:600;color:var(--text)}.xconf span{display:block;margin-top:2px;color:var(--text-2)}
 .xc-b{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
@@ -2280,7 +2280,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && shareOpe
     if (cloudPublishConfirm) cancelCloudPublish(); else { shareOpen = false; linkMenuOpen = false; renderShare(); } } if (e.key === 'Escape' && peopleOpen){ peopleOpen = false; renderTop(); } if (e.key === 'Escape' && saveOpen){ saveOpen = false; renderTop(); } });
 
 // The plan's code, top right beside the people: where it stands at every step, so nobody has to ask.
-// Before Execute nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
+// Before Build the plan nothing is built and main is unchanged; then Claude builds on a branch; once it posts the
 // branch with its checks, the chip names it and how many checks passed ("Branch stripe-renewals · 2/2 ✓",
 // or "PR #12 · 2/2 ✓" when it went to GitHub), and opens the Pull requests panel.
 function prChip(){
@@ -2291,10 +2291,10 @@ function prChip(){
     return `<button class="prchip ${pr.status}" data-prs title="${esc(`${pr.title ? `${pr.title}: ` : ''}${pr.url ? `pull request ${pr.id}` : `branch ${pr.id}`}. Click for its checks and files`)}">${pr.url ? `PR ${esc(pr.id)}` : `Branch ${esc(pr.id)}`}${checks}</button>`;
   }
   return S.executed ? '<span class="prchip none" title="Claude Code is building the plan on a new branch from main">Building on a branch…</span>'
-    : '<span class="prchip none" title="Nothing is built yet. Execute on Claude builds the plan on a branch from main">No branch yet · main unchanged</span>';
+    : '<span class="prchip none" title="Nothing is built yet. Build the plan has Claude Code build it on a branch from main">No branch yet · main unchanged</span>';
 }
 
-// A plan's line, bottom right: Execute, which stays off while any question on the map is open and says whom it
+// A plan's line, bottom right: Build the plan, which stays off while any question on the map is open and says whom it
 // waits on; only the map's admin can press it, and then the chat that drew the plan builds it on a branch.
 // Pressing it asks first (xAsk): Yes builds, No closes, Give me plan.md has that chat write the plan out instead.
 let xAsk = false;
@@ -2303,16 +2303,16 @@ function planBar(){
   const open = S.calls.filter((c) => c.status === 'open'), waiting = [...new Set(open.map((c) => c.for).filter(Boolean))];
   const pr = (S.prs || []).find((p) => p.id === S.pr);
   const admin = S.people.find((p) => p.id === ME)?.role === 'Admin';
-  if (S.executed) return `<span class="xdone" title="${esc(S.executed.by)} pressed Execute at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Executing…'}</span>`;
+  if (S.executed) return `<span class="xdone" title="${esc(S.executed.by)} pressed Build the plan at ${S.executed.at}">${pr && pr.status !== 'draft' ? 'Built' : 'Building…'}</span>`;
   // a plan that isn't done can't run: hovering the button says why straight away (a box above it, not the
   // browser's slow tooltip), so the button stands alone
   const n = open.length, chief = S.people.find((p) => p.role === 'Admin')?.id || 'the admin';
-  const tip = n ? `Not ready to execute yet: ${n === 1 ? 'a question is' : `${n} questions are`} still open. It turns on once ${waiting.join(' and ') || 'everyone'} answer${waiting.length === 1 ? 's' : ''}.`
-    : admin ? '' : `Ready, but only ${chief} can execute.`;
+  const tip = n ? `Not ready to build yet: ${n === 1 ? 'a question is' : `${n} questions are`} still open. It turns on once ${waiting.join(' and ') || 'everyone'} answer${waiting.length === 1 ? 's' : ''}.`
+    : admin ? '' : `Ready, but only ${chief} can build it.`;
   const ask = xAsk && !tip ? `<div class="xconf" role="dialog"><b>Build this plan now?</b><span>Claude Code builds it on a branch from main.</span>
     <div class="xc-b"><button class="gb yes" data-xc="yes">Yes</button><button class="gb" data-xc="no">No</button><button class="gb" data-xc="plan">Give me plan.md</button></div></div>` : '';
   const md = S.planmd ? `<a class="xmd" href="api/planmd" target="_blank" rel="noopener" title="${esc(S.planmd.by)} asked for it at ${S.planmd.at}">plan.md ›</a>` : '';
-  return `${md}<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}>${ask}<button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>${CLAUDE_MARK} Execute on Claude</button></span>`;
+  return `${md}<span class="xwrap"${tip ? ` data-tip="${esc(tip)}"` : ''}>${ask}<button class="tbtn xbtn" data-execute ${tip ? 'disabled' : 'title="Claude Code builds the plan on a branch from main"'}>${CLAUDE_MARK} Build the plan</button></span>`;
 }
 document.addEventListener('click', (e) => {
   const x = e.target.closest('[data-execute]'), c = e.target.closest('[data-xc]');

@@ -20,7 +20,7 @@ Then, in a Claude Code chat inside any repo, type **/anur-living-map**. It start
 
 - **Boxes come from the repo:** its folders, imports and settings, so the map is the system as it is.
 - **A plan is ink on top of it:** new parts in blue, changes with a dot, and a dashed box where the agent assumed something nobody has confirmed.
-- **Each call is a click:** Confirm or Dispute on the box, ask a teammate a question, press Execute when the plan is agreed. The answer reaches the agent's chat at once, in your words, with your name and the date.
+- **Each call is a click:** Confirm or Dispute on the box, ask a teammate a question, press Build the plan when the plan is agreed. The answer reaches the agent's chat at once, in your words, with your name and the date.
 - **Every agent after reads it:** the next chat, yours or a teammate's, starts from what the team decided; what it builds lands back on the map, and History keeps every version.
 - **Any chat can draw on it:** `living_map_read` and `living_map_change` are the two tools from `team/live/mcp.js`.
 
