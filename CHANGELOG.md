@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 9, 2026
 
 <dl>
+<dt><strong>Accented letters and emoji stay whole in Claude's answers</strong></dt>
+<dd>
+
+An accented letter or emoji no longer comes out as broken characters in an answer from **Ask Claude**, in a side chat, or in what the map files from your chat. [#245](https://github.com/HiAnur/anur-living-map/pull/245), [#246](https://github.com/HiAnur/anur-living-map/pull/246) <!-- merged-at: 2026-11-10T05:31:01Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>One command installs both skills</strong></dt>
 <dd>
 
