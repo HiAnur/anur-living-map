@@ -293,6 +293,16 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     }, () => { if (active()) finish({blocked:true,text:'Could not make a branch for this build.'}); });
     return true;
   }
+  // An Admin hands an Action to another member, so it is never stuck on someone who is away. Whether the person
+  // asking is an Admin, and whether the new author is a member of the map, is decided before this (permissions.js
+  // and the handler); here, only that nothing is under way for the current author and the new one can use the box.
+  /** @param {string} id @param {string} by @param {string} to */
+  function handover(id, by, to) {
+    const n = nodeOf(id), a = n?.action;
+    if (!a || !text(to, 200) || to === a.by || !canUse(n, to) || ['gathering', 'running'].includes(a.stage) || jobs.has(id) || runs.has(id)) return false;
+    note(a, 'handed over', by, { from:a.by, to });
+    a.by = to; changed(); return true;
+  }
   // the author's word that an unverified run did what it should: a person's click, recorded as such
   /** @param {string} id @param {string} by @param {unknown} revision */
   function confirm(id, by, revision) {
@@ -334,5 +344,5 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     for (const [id, job] of runs) { runs.delete(id); job.stop?.(); if (nodeOf(id)?.action === job.a) recoverAction(nodeOf(id)); }
     changed();
   }
-  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, stop, reconcile, close };
+  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, handover, stop, reconcile, close };
 }

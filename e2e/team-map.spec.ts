@@ -47,8 +47,21 @@ let root = "";
 let app = "";
 let origin = "";
 let session = "";
+let env: NodeJS.ProcessEnv = {};
 let server: ChildProcess | undefined;
 let crashes: string[];
+
+// A sign-in for a person, made the way the server makes one, for its cookie.
+const signIn = (who: string) =>
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {users} from './users.js';console.log(users.start(${JSON.stringify(who)}))`,
+    ],
+    { cwd: app, env, encoding: "utf8" },
+  ).trim();
 
 // One server per worker, from its own copy, so maps and sign-ins stay apart.
 test.beforeAll(async () => {
@@ -61,22 +74,14 @@ test.beforeAll(async () => {
   fs.cpSync(path.join(LIVE, "agents"), path.join(app, "agents"), {
     recursive: true,
   });
-  const env = {
+  env = {
     ...process.env,
     HOME: path.join(root, "home"),
     LIVING_MAP_USERS: path.join(root, "users.db"),
     LIVING_MAP_LOGIN_URL: "",
     LIVING_MAP_CLOUD_CONFIG: path.join(root, "no-cloud.json"),
   };
-  session = execFileSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      "import {users} from './users.js';console.log(users.start('Duy'))",
-    ],
-    { cwd: app, env, encoding: "utf8" },
-  ).trim();
+  session = signIn("Duy");
   const reserve = http.createServer();
   await new Promise<void>((r) => reserve.listen(0, "127.0.0.1", r));
   const port = (reserve.address() as AddressInfo).port;
@@ -331,6 +336,62 @@ test("a run the map could not verify waits for its author to confirm it", async 
   await expect(
     box(page, "Free trial").getByLabel("Action status: Executed"),
   ).toBeVisible();
+});
+
+test("an Admin hands an Action to another member", async ({
+  page,
+  browser,
+}) => {
+  const ready = {
+    by: "Duy",
+    stage: "ready",
+    id: "r3",
+    intent: "Write the trial page",
+    history: [],
+    brief: {
+      kind: "other",
+      goal: "Write the trial page",
+      target: "The website",
+      result: "A trial page",
+      steps: ["Write it"],
+    },
+  };
+  const name = await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
+    ),
+  });
+  // a map's people are those who have opened it: Harshit opens it once
+  const other = await browser.newContext();
+  await other.addCookies([
+    {
+      name: "lm_session",
+      value: signIn("Harshit"),
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
+  const visit = await other.newPage();
+  await visit.goto(`${origin}/${name}/`);
+  await expect(visit.locator("#nodes .node")).toHaveCount(4);
+  await other.close();
+  await box(page, "Free trial").click();
+  await page.getByText("Hand over").click();
+  await page.getByRole("button", { name: "Harshit" }).click();
+  await expect
+    .poll(async () => {
+      const state = await (
+        await page.request.get(`${origin}/${name}/api/state`)
+      ).json();
+      return state.nodes.find((n: { id: string }) => n.id === "trial").action
+        .by;
+    })
+    .toBe("Harshit");
+  await page.getByText("Action history").click();
+  await expect(page.locator(".action-history li").first()).toContainText(
+    "Handed over · Duy",
+  );
 });
 
 test("Export image downloads the view as a picture", async ({ page }) => {

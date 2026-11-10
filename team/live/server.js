@@ -510,6 +510,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     actioncancel(a) { return actions.cancel(/** @type {string} */ (a.id), a.by); },
     /** @param {Act<'actionreopen'>} a */
     actionreopen(a) { return actions.reopen(/** @type {string} */ (a.id), a.by); },
+    // the new author must be a person on the map, not a name typed in
+    /** @param {Act<'actionhandover'>} a */
+    actionhandover(a) { return !!state.people?.some((/** @type {any} */ p) => p.id === a.to) && actions.handover(/** @type {string} */ (a.id), a.by, a.to); },
     /** @param {Act<'actionconfirm'>} a */
     actionconfirm(a) { return actions.confirm(/** @type {string} */ (a.id), a.by, a.revision); },
     /** @param {Act<'actionexecute'>} a */

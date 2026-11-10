@@ -121,6 +121,16 @@ describe('action boxes',()=>{
     const n={id:'x',label:'X',action:{stage:'running',by:'Duy',id:'r',turns:[]}};recoverAction(/** @type {any} */ (n));
     expect(n.action.events.map((e)=>[e.what,e.by])).toEqual([['interrupted','Map']]);
   });
+  it('hands an Action to another member, who can then take it on, while nothing is under way',()=>{
+    const h=harness();h.start();
+    expect(h.api.handover('form','Ana','Sam')).toBe(false); // preparing for Duy
+    h.ready();expect(h.api.handover('form','Ana','Duy')).toBe(false); // already Duy's
+    expect(h.api.handover('form','Ana','Sam')).toBe(true);expect(h.node.action.by).toBe('Sam');
+    expect(h.node.action.events.at(-1)).toMatchObject({what:'handed over',by:'Ana',from:'Duy',to:'Sam'});
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.api.execute('form','Sam',h.node.action.id)).toBe(true);
+    expect(h.api.handover('form','Ana','Duy')).toBe(false); // running
+    h.revoke();h.launches[0].onDone({blocked:true,text:'Stopped'});expect(h.api.handover('form','Ana','Duy')).toBe(false); // the new author cannot use the box
+  });
   it('never cancels an Action that has run',()=>{
     const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
     expect(h.api.cancel('form','Duy')).toBe(false);expect(h.node.action.stage).toBe('running');

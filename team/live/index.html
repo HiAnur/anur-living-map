@@ -771,6 +771,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-type-toggle:focus-visible{outline:2px solid var(--action);outline-offset:3px;border-radius:4px}
 .ct-r .action-type-toggle:disabled{opacity:.5;cursor:default}
 .topic-actions .action-create{color:var(--action);border-color:var(--action-line);background:var(--action-tint)}
+.action-handover{position:relative;margin-left:auto}.action-handover summary{cursor:pointer;font-weight:400;color:var(--text-2)}.action-handover div{position:absolute;right:0;top:22px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:6px;background:#fff;border:1px solid var(--rule-2);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .action-history{margin:0 0 6px;font-size:12px;color:var(--text-2)}.action-history summary{cursor:pointer}.action-history ol{margin:6px 0 0;padding-left:18px}.action-history li{margin:3px 0}.action-history small{display:block;color:var(--text-3)}
 .action-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;color:var(--action);font-size:12px;font-weight:500;flex-shrink:0}
 .action-plain{border:0;background:none;color:var(--text-2);font-size:12px;cursor:pointer;padding:4px 0}
@@ -2660,7 +2661,11 @@ function actionChat(n, previousChat){
   const confirmDone = mine && a.stage === 'finished' && a.completion?.status === 'unverified' ? `<div class="action-controls"><button class="gb" data-box-action="actionconfirm" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}" title="The map could not see this done. Confirm it if it is.">Confirm done</button></div>` : '';
   const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required>${a.stage === 'draft' ? esc(a.intent || '') : ''}</textarea><button class="send${a.plan && a.stage === 'draft' ? ' continue-send' : ''}" type="submit" title="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'}">${a.plan && a.stage === 'draft' ? 'Prepare' : SEND_ICON}</button></div></form>` : '';
   const cancel = mine && actionCancellable(a) && !actionUntouched(a) ? `<button class="gb action-cancel" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Cancel Action</button>` : '';
-  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
+  // an Admin can hand an Action to another member while nothing is under way for its author
+  const others = (S.people || []).filter((p) => p.id !== a.by && (p.sees === 'all' || !p.sees || p.sees === n.area));
+  const handover = !READ_ONLY && !FILE && !PREVIEW && S.people?.find((p) => p.id === ME)?.role === 'Admin' && !['gathering','running'].includes(a.stage) && others.length
+    ? `<details class="action-handover"><summary>Hand over</summary><div>${others.map((p) => `<button class="gb" data-box-action="actionhandover" data-action-id="${esc(n.id)}" data-action-to="${esc(p.id)}">${esc(p.id)}</button>`).join('')}</div></details>` : '';
+  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${handover}${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
 }
 // what code recorded of this Action, newest first, folded away until opened
 function actionHistoryList(n){
@@ -3866,7 +3871,7 @@ document.addEventListener('click', (e) => {
   else if (t.hasAttribute('data-close')){ selected = null; backTo = null; render(); }
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); }
-  else if (t.closest('[data-box-action]')){ const b = t.closest('[data-box-action]'); runBoxAction(b.dataset.boxAction, b.dataset.actionId, {revision:b.dataset.actionRevision}); }
+  else if (t.closest('[data-box-action]')){ const b = t.closest('[data-box-action]'); runBoxAction(b.dataset.boxAction, b.dataset.actionId, {revision:b.dataset.actionRevision,...(b.dataset.actionTo ? {to:b.dataset.actionTo} : {})}); }
   else if (t.closest('[data-action-choice]')){ const b = t.closest('[data-action-choice]'); runBoxAction('actionanswer', b.dataset.actionId, {answer:b.dataset.actionChoice}); }
   else if (t.closest('[data-auto-plan]')){ autoPlanTopic(t.closest('[data-auto-plan]').dataset.autoPlan); }
   else if (t.closest('[data-chat-box]')){ sideTab = 'chat'; render(); const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('.side-ask textarea')?.focus(); }
