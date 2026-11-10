@@ -2,6 +2,26 @@
 
 Recent changes you can use in the current release of Living Map, newest first. Dates use America/Los_Angeles. Installed copies receive these changes when they update.
 
+## November 9, 2026
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] Clearer box-type controls</strong></dt>
+<dd>
+
+Beside **Auto plan**, use **Make action box** or **Make info box** to switch a box before execution. [#218](https://github.com/HiAnur/anur-living-map/pull/218) <!-- merged-at: 2026-11-09T22:11:40Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Auto plan asks only when needed</strong></dt>
+<dd>
+
+**Auto plan** reads the whole map first and asks a specific question only when essential information is missing. [#216](https://github.com/HiAnur/anur-living-map/pull/216) <!-- merged-at: 2026-11-09T19:55:27Z -->
+
+</dd>
+</dl>
+
 ## November 8, 2026
 
 <dl>
@@ -43,7 +63,7 @@ On the **home page**, choose a map in **All brain** to view or download its map,
 <dt><strong>✨ [New feature] Action boxes in Side Chat</strong></dt>
 <dd>
 
-Use **Action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get a green **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195), [#200](https://github.com/HiAnur/anur-living-map/pull/200) <!-- merged-at: 2026-11-08T03:21:57Z -->
+Use **Make action box → Execute** to run a task; **Side Chat** shows a short confirmation with **View details**, and completed boxes get a green **Executed** pill. **Continue** resumes the same chat; older tasks offer **Execute here**. [#182](https://github.com/HiAnur/anur-living-map/pull/182), [#191](https://github.com/HiAnur/anur-living-map/pull/191), [#195](https://github.com/HiAnur/anur-living-map/pull/195), [#200](https://github.com/HiAnur/anur-living-map/pull/200) <!-- merged-at: 2026-11-08T03:21:57Z -->
 
 <img src="docs/shipping/2026-11-07/action-side-chat.png" alt="A sample map with a green Executed pill on an amber box, beside its compact confirmation, View details and Continue in Side Chat." width="640">
 
@@ -139,15 +159,6 @@ Search names, descriptions and notes with **Search map** (**⌘F / Ctrl+F**); **
 Proposed topics append after existing children, with the preview showing where Apply will place them. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
 
 <img src="docs/shipping/2026-11-07/appended-proposals.png" alt="A sample map with proposed topics appended under Categories, PM and Software Engineer, beside the Auto plan conversation." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>Auto plan asks for your goal first</strong></dt>
-<dd>
-
-Auto plan asks what you want to achieve before using the whole map to find gaps in the selected branch. [#161](https://github.com/HiAnur/anur-living-map/pull/161) <!-- merged-at: 2026-11-07T23:43:06Z -->
 
 </dd>
 </dl>
