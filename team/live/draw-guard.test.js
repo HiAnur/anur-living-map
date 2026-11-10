@@ -1,12 +1,7 @@
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
-import { Readable } from 'node:stream';
-
 import { describe, expect, it } from 'vitest';
 
 import { guardDrawing } from './draw-guard.js';
-import { openMap } from './server.js';
+import { act as actOn } from './map.harness.js';
 
 // What a drawing may change, asked of a real map through its API: a box's content, on boxes in the sender's area,
 // and never the map's own record of a box.
@@ -25,14 +20,7 @@ const state = () => ({
 
 /** @param {'Ana' | 'Duy' | 'Sam'} who @param {any} a */
 async function act(who, a) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-draw-'));
-  const map = openMap({ name: 'draw', home, memory: true, initialState: state() });
-  const req = Object.assign(Readable.from([JSON.stringify(a)]), { method: 'POST', url: '/api/act', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', cookie: 'lm_session=x' } });
-  let status = 0;
-  const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end() { return res; }, setHeader() {}, write() {}, on() {} };
-  await map.handle(req, res, '/api/act', /** @type {any} */ (who));
-  const after = map.snapshot();
-  map.close(); fs.rmSync(home, { recursive: true, force: true });
+  const { status, after } = await actOn(who, a, state());
   return { status, after, box: (/** @type {string} */ id) => /** @type {any} */ (after.nodes.find((/** @type {any} */ n) => n.id === id)) };
 }
 const forged = { id: 'r', by: 'Sam', stage: 'finished', completion: { status: 'completed', evidence: ['made up'] } };

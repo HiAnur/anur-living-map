@@ -1,8 +1,3 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { Readable } from 'node:stream';
-
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Preparation answers in the background, as Claude would, without starting it: one question back.
@@ -12,26 +7,18 @@ vi.mock('./ask.js', () => ({
     return () => clearTimeout(t);
   },
 }));
-const { openMap } = await import('./server.js');
+const { openTestMap, send } = await import('./map.harness.js');
 
 // Who last changed a box is always on it: the person for what they did, Claude for what the map did in the
 // background (an Action preparing or running), never left blank beside a fresh date.
-const maps = /** @type {any[]} */ ([]);
-afterEach(() => { for (const m of maps.splice(0)) m.close(); });
+const opened = /** @type {(() => void)[]} */ ([]);
+afterEach(() => { for (const close of opened.splice(0)) close(); });
 function open() {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-editor-'));
-  const map = openMap({ name: 'editor', home, memory: true, initialState: {
+  const { map, close } = openTestMap({
     title: 'Launch', people: [{ id: 'Duy', role: 'Admin', sees: 'all' }], calls: [], threads: {}, log: [],
-    nodes: [{ id: 'web', label: 'Web', x: 0, y: 0 }], edges: [] } });
-  maps.push(map);
-  /** @param {any} a */
-  const act = async (a) => {
-    const req = Object.assign(Readable.from([JSON.stringify(a)]), { method: 'POST', url: '/api/act', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', cookie: 'lm_session=x' } });
-    let status = 0;
-    const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end() { return res; }, setHeader() {}, write() {}, on() {} };
-    await map.handle(req, res, '/api/act', /** @type {any} */ ('Duy'));
-    return status;
-  };
+    nodes: [{ id: 'web', label: 'Web', x: 0, y: 0 }], edges: [] }, 'editor');
+  opened.push(close);
+  const act = async (/** @type {any} */ a) => (await send(map, 'Duy', a)).status;
   const box = () => /** @type {any} */ (map.snapshot().nodes.find((/** @type {any} */ n) => n.id === 'web'));
   return { act, box };
 }

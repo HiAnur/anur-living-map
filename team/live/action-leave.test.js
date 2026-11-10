@@ -1,20 +1,14 @@
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
-import { Readable } from 'node:stream';
-
 import { describe, expect, it } from 'vitest';
 
 import { leaving } from './action-leave.js';
 import { taskSource } from './action-plan.js';
 import { STAGES } from './action-stages.js';
+import { act, TOKEN } from './map.harness.js';
 import { actionLeaving } from './page-action.js';
-import { openMap } from './server.js';
 
 // How a box holding an Action leaves the map, asked of a real map through its API: deleted only before it has run,
 // archived after, each only by its author or an Admin, and never while Claude prepares or runs it.
 
-const TOKEN = 'b'.repeat(64);
 /** @param {Record<string, any>} [action] the Action on the box `web` @param {Record<string, any>} [more] */
 const state = (action = { by: 'Duy', stage: 'draft' }, more = {}) => ({
   title: 'Launch', prompt: 'Build it', start: 'root', linkSharing: { mode: 'edit', token: TOKEN },
@@ -30,25 +24,6 @@ const state = (action = { by: 'Duy', stage: 'draft' }, more = {}) => ({
 /** a finished Action whose completion code verified */
 const done = (/** @type {any} */ n) => ({ by: 'Duy', stage: 'finished', session: 's', completion: { status: 'completed', evidence: ['Sent'] }, source: taskSource(n) });
 
-/** @param {'Ana' | 'Duy' | 'Sam' | 'edit link' | 'tool'} who @param {any} a @param {any} initial */
-async function act(who, a, initial) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-leave-'));
-  const map = openMap({ name: 'leave', home, memory: true, initialState: initial });
-  const link = who === 'edit link', tool = who === 'tool';
-  const headers = tool ? { host: 'localhost' } : { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', ...(link ? {} : { cookie: 'lm_session=x' }) };
-  /** @type {any[]} */
-  const steps = Array.isArray(a) ? a : [a];
-  let status = 0;
-  for (const step of steps) {
-    const req = Object.assign(Readable.from([JSON.stringify(tool ? { by: 'Duy', ...step } : step)]), { method: 'POST', url: link ? `/api/act?share=${TOKEN}` : '/api/act', headers });
-    const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end() { return res; }, setHeader() {}, write() {}, on() {} };
-    await map.handle(req, res, '/api/act', /** @type {any} */ (link || tool ? null : who));
-    if (status !== 200) break;
-  }
-  const after = map.snapshot();
-  map.close(); fs.rmSync(home, { recursive: true, force: true });
-  return { status, after };
-}
 const remove = { type: 'remove', id: 'web' }, archive = { type: 'actionarchive', id: 'web' };
 const web = (/** @type {any} */ s) => s.nodes.find((/** @type {any} */ n) => n.id === 'web');
 

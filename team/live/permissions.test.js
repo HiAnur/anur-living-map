@@ -1,20 +1,14 @@
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
-import { Readable } from 'node:stream';
-
 import { describe, expect, it } from 'vitest';
 
 import { COMMANDS } from './commands.js';
+import { act as actOn, openTestMap, TOKEN } from './map.harness.js';
 import { WHO } from './permissions.js';
 import { LINK_EDITS } from './sharing.js';
-import { openMap } from './server.js';
 
 // Who may take each action on a map, asked of a real map through its API as each kind of person: an Admin, a
 // member who sees the whole map, a member who sees one area, a removed member, a guest with an edit link or a
 // view link, and a program on this Mac. Every action runs on a fresh map, so one never changes what the next sees.
 
-const TOKEN = 'a'.repeat(64);
 /** @param {'view' | 'edit'} [mode] */
 const state = (mode = 'edit') => ({
   title: 'Launch', prompt: 'Build it', start: 'root', linkSharing: { mode, token: TOKEN },
@@ -35,19 +29,7 @@ const state = (mode = 'edit') => ({
 
 /** @typedef {'Ana' | 'Duy' | 'Sam' | 'Lee' | 'edit link' | 'view link' | 'tool'} Persona */
 /** A request as the persona sends it, answered by a fresh map. @param {Persona} who @param {any} a */
-async function act(who, a, initial = state(who === 'view link' ? 'view' : 'edit')) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-permissions-'));
-  const map = openMap({ name: 'permissions', home, memory: true, initialState: initial });
-  const link = who === 'edit link' || who === 'view link', tool = who === 'tool';
-  const headers = tool ? { host: 'localhost' } : { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin', ...(link ? {} : { cookie: 'lm_session=x' }) };
-  const req = Object.assign(Readable.from([JSON.stringify(tool ? { by: 'Duy', ...a } : a)]), { method: 'POST', url: link ? `/api/act?share=${TOKEN}` : '/api/act', headers });
-  let status = 0;
-  const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end() { return res; }, setHeader() {}, write() {}, on() {} };
-  await map.handle(req, res, '/api/act', /** @type {any} */ (link || tool ? null : who));
-  const after = map.snapshot();
-  map.close(); fs.rmSync(home, { recursive: true, force: true });
-  return { status, after };
-}
+const act = (who, a, initial = state(who === 'view link' ? 'view' : 'edit')) => actOn(who, a, initial);
 const allowed = async (/** @type {Persona} */ who, /** @type {any} */ a) => (await act(who, a)).status === 200;
 
 // An action each persona may take when it is theirs to take: what it changes is on the fresh map above. Actions that
@@ -163,11 +145,10 @@ describe('who may take each action', () => {
 
 describe('an edit through the cloud copy', () => {
   it('takes only what an edit link may, whoever it says it is', () => {
-    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-permissions-'));
-    const map = openMap({ name: 'permissions', home, memory: true, initialState: { ...state(), calls: [] } });
+    const { map, close } = openTestMap({ ...state(), calls: [] });
     expect(map.editShared({ ...OK.rename, by: 'Guest 1a2b3c' }).ok).toBe(true);
     for (const a of [OK.execute, OK.describemap, OK.reset, { type: 'cursor', x: 1, y: 1 }]) expect(map.editShared({ ...a, by: 'Owner' }).ok, a.type).toBe(false);
-    map.close(); fs.rmSync(home, { recursive: true, force: true });
+    close();
   });
 });
 
