@@ -55,6 +55,13 @@ interface Box {
   [more: string]: any;
 }
 
+/**
+ * A box as the layout code handles it. Layout reads and writes a box's
+ * place and size, and runs on boxes that have little else, so it takes
+ * them untyped.
+ */
+type LayoutBox = any;
+
 interface Line {
   from: string;
   to: string;

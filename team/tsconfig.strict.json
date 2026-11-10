@@ -26,6 +26,7 @@
     "live/map-context.js",
     "live/mcp.js",
     "live/bin.js",
-    "login/server.js"
+    "login/server.js",
+    "live/project.js"
   ]
 }
