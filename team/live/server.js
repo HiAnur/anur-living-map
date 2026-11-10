@@ -136,8 +136,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const viewers = new Map();
   const here = () => { const names = [...new Set(viewers.values())]; for (const r of clients) send(r, 'here', names); };
 
+  // Whose change a save records on the boxes it changed: the person for the length of their request, a link's guest
+  // for an edit made on the cloud copy, and Claude for what the map does in the background (an Action preparing
+  // or running), so a box's Last edited by is never blank beside a fresh date.
+  let /** @type {string | null} */ acting = null;
+  /** @param {string} by @param {() => any} change */
+  const actingAs = (by, change) => { const was = acting; acting = by; try { return change(); } finally { acting = was; } };
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
   const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -147,7 +153,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   } };
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
-    write: (data) => { installCloudData(state, data); save(); push(); },
+    write: (data) => { actingAs('Guest', () => { installCloudData(state, data); save(); }); push(); },
     notify: () => { for (const r of clients) if (clientAccess.get(r)?.role === 'owner') send(r, 'cloud', cloud.status()); }
   }) : null;
 
@@ -590,13 +596,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
-      const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
-      if (result.ok) {
-        actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]));
-        updateBoxDates(state, undefined, a.by);
-        if (before) edits.record(a.by, before, editSnapshot(state));
-        remember(a.type, a.by, big); save(); push();
-      }
+      const result = actingAs(a.by, () => {
+        const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
+        if (done.ok) {
+          actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]));
+          updateBoxDates(state, undefined, a.by);
+          if (before) edits.record(a.by, before, editSnapshot(state));
+          remember(a.type, a.by, big); save();
+        }
+        return done;
+      });
+      if (result.ok) push();
       res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(result.ok ? JSON.stringify(a.created ? { id: a.created } : {}) : JSON.stringify({ error: result.error || 'That change could not be saved.' }));
       return true;
     }
