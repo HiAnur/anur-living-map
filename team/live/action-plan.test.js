@@ -23,10 +23,17 @@ describe('planned Action readiness',()=>{
   it('waits without a model call, then reuses saved inputs after the prerequisite completes',()=>{
     const h=setup();h.api.reconcile();expect(h.nodes[1].action.stage).toBe('waiting');
     h.api.prepare('report','Duy');expect(h.requests).toHaveLength(0);expect(h.runs).toHaveLength(0);
-    h.complete();expect(h.nodes[1].action.stage).toBe('draft');expect(h.nodes[1].action.intent).toBe(plan.goal);
-    h.api.start('report','Duy',plan.goal);expect(h.requests[0].prompt).toContain('/sample/sources.md');expect(h.requests[0].prompt).toContain('Saved report and source links');
+    // the prerequisite finishing moves it forward by itself: preparing, started by the map, never running
+    h.complete();expect(h.nodes[1].action.stage).toBe('gathering');expect(h.nodes[1].action.intent).toBe(plan.goal);
+    expect(h.nodes[1].action.events.slice(-2).map((e)=>[e.what,e.by])).toEqual([['released','Map'],['preparing','Map']]);
+    expect(h.requests[0].prompt).toContain('/sample/sources.md');expect(h.requests[0].prompt).toContain('Saved report and source links');
+    expect(h.requests[0].prompt).toContain('What the prerequisite Actions produced');
     h.requests[0].onDone('',{tools:['Write'],denied:[]},prepared);expect(h.nodes[1].action.stage).toBe('ready');expect(h.runs).toHaveLength(0);
     h.api.execute('report','Duy',h.nodes[1].action.id);expect(h.runs).toHaveLength(1);expect(h.api.execute('report','Duy',h.nodes[1].action.id)).toBe(false);
+  });
+  it('waits for a handover instead of preparing when its author can no longer use the box',()=>{
+    const h=setup();h.api.reconcile();h.nodes[1].private=true;h.complete();
+    expect(h.nodes[1].action.stage).toBe('draft');expect(h.requests).toHaveLength(0);expect(h.runs).toHaveLength(0);
   });
   it('cannot become ready with invented tools or denied lookups, and retries without executing',()=>{
     for(const access of [{tools:['Read'],denied:[]},{tools:['Write'],denied:['Read']}]){

@@ -654,6 +654,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         .map((/** @type {any} */ c) => ({ kind: 'call', id: c.id, node: c.node, text: c.ask || c.text, on: nodeOf(c.node)?.label || '', from: c.from || 'Claude' })),
       ...(state.comments || []).filter((/** @type {any} */ c) => !c.resolved && seen(c.node) && c.msgs.at(-1).who !== who && c.msgs.some((/** @type {any} */ m) => m.who === who || mention.test(m.text)))
         .map((/** @type {any} */ c) => ({ kind: 'comment', id: c.id, node: c.node, text: c.msgs.at(-1).text, on: nodeOf(c.node)?.label || '', from: c.msgs.at(-1).who })),
+      // their own Actions, prepared and waiting for their Execute
+      ...allNodes().filter((/** @type {any} */ n) => n.action?.by === who && n.action.stage === 'ready' && seen(n.id))
+        .map((/** @type {any} */ n) => ({ kind: 'action', id: n.id, node: n.id, text: n.action.brief?.goal || n.action.intent || n.label, on: n.label, from: 'The map' })),
     ];
   };
 
