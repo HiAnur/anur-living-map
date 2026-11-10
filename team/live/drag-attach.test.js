@@ -113,9 +113,9 @@ describe('saving an attachment',()=>{
   });
   it('uses the requested nested map without connecting across views',()=>{
     const h=page(),inner=h.state,state={nodes:[{id:'container',inside:inner},{id:'outside',x:0,y:0}],edges:[]};
-    expect(reparentTopic(state,{id:'branch',view:'container',...h.plan()})).toBe(true);
+    expect(reparentTopic(/** @type {any} */ (state),{id:'branch',view:'container',...h.plan()})).toBe(true);
     expect(inner.edges).toContainEqual({from:'new',to:'branch'});expect(state.edges).toEqual([]);
-    expect(reparentTopic(state,{id:'branch',view:'container',...h.plan(),parent:'outside'})).toBe(false);
+    expect(reparentTopic(/** @type {any} */ (state),{id:'branch',view:'container',...h.plan(),parent:'outside'})).toBe(false);
   });
 });
 

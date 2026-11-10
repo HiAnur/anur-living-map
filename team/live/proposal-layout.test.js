@@ -23,7 +23,7 @@ describe('appending proposed topics',()=>{
     const moves=appendProposed(nodes,edges,fresh,links);
     expect(nodes).toEqual(before);
     expect(fresh[0].x).toBe(475*direction);expect(fresh[1].x).toBe(710*direction);expect(fresh[2].x).toBe(710*direction);
-    const all=nodes.map(n=>({...n,...moves.find(m=>m.id===n.id)})).concat(fresh), get=id=>all.find(n=>n.id===id);
+    const all=nodes.map(n=>({...n,...moves.find(m=>m.id===n.id)})).concat(/** @type {any} */ (fresh)), /** @type {(id: string) => any} */ get=id=>all.find(n=>n.id===id);
     expect(get('pm-new').y).toBeGreaterThan(get('pm-child').y);
     expect(get('engineer').y).toBeGreaterThan(get('pm-new').y);
     expect(get('founder').y).toBeGreaterThan(get('engineer-new').y);

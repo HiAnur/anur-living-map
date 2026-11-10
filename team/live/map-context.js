@@ -2,46 +2,51 @@ import crypto from 'node:crypto';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 
+/** @param {Record<string, any>} value @param {string[]} keys */
 const pick = (value, keys) => Object.fromEntries(keys.filter((k) => value[k] !== undefined).map((k) => [k, value[k]]));
+/** @param {unknown} value @param {number} max */
 const clip = (value, max) => { const s = String(value || '').replace(/\s+/g, ' ').trim(); return s.length > max ? s.slice(0, max - 1) + '…' : s; };
 
 // Cross-map context contains shared knowledge, never private chats, action runs or credentials.
+/** @param {MapState} state @param {Who} who */
 export function contextObjects(state, who) {
   const sees = state.people?.find((p) => p.id === who)?.sees;
-  const limited = sees && sees !== 'all', nodes = [], edges = [];
+  const limited = sees && sees !== 'all', /** @type {any[]} */ nodes = [], /** @type {any[]} */ edges = [];
+  /** @param {{ nodes?: Box[], edges?: Line[] }} part @param {string | null} [parent] */
   function visit(part, parent = null) {
     for (const n of part.nodes || []) {
       if (limited && n.area !== sees) continue;
-      nodes.push({ ...pick(n, ['id', 'label', 'sub', 'desc', 'state', 'area', 'createdAt', 'updatedAt']), ...(n.decided ? {decided:pick(n.decided, ['who','at','what'])} : {}), ...(n.diagram ? {diagram:{...pick(n.diagram,['kind','title']),items:(n.diagram.items || []).map((x) => pick(x,['label','note','when','from','to','in']))}} : {}), ...(parent ? { container: parent } : {}) });
+      nodes.push({ ...pick(n, ['id', 'label', 'sub', 'desc', 'state', 'area', 'createdAt', 'updatedAt']), ...(n.decided ? {decided:pick(n.decided, ['who','at','what'])} : {}), ...(n.diagram ? {diagram:{...pick(n.diagram,['kind','title']),items:(n.diagram.items || []).map((/** @type {any} */ x) => pick(x,['label','note','when','from','to','in']))}} : {}), ...(parent ? { container: parent } : {}) });
       if (n.inside) visit(n.inside, n.id);
     }
     edges.push(...(part.edges || []).map((e) => pick(e, ['from', 'to', 'label', 'state'])));
   }
   visit(state);
   const ids = new Set(nodes.map((n) => n.id));
-  const calls = (state.calls || []).filter((c) => ids.has(c.node))
-    .map((c) => ({ ...pick(c, ['id', 'node', 'ask', 'text', 'plain', 'status', 'picked', 'said', 'by', 'at']), ...(c.options ? { options: c.options.map((o) => pick(o, ['id', 'label', 'means'])) } : {}) }));
+  const calls = (state.calls || []).filter((/** @type {any} */ c) => ids.has(c.node))
+    .map((/** @type {any} */ c) => ({ ...pick(c, ['id', 'node', 'ask', 'text', 'plain', 'status', 'picked', 'said', 'by', 'at']), ...(c.options ? { options: c.options.map((/** @type {any} */ o) => pick(o, ['id', 'label', 'means'])) } : {}) }));
   return {
     map: { title: state.title, description: limited ? '' : state.desc || state.prompt || '', start: ids.has(state.start) ? state.start : null, nodes, edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)) },
     decisions: calls,
-    memory: (state.memory || []).filter((m) => !m.box || ids.has(m.box)).map((m) => pick(m, ['id', 'kind', 'box', 'text', 'by', 'at'])),
+    memory: (state.memory || []).filter((/** @type {any} */ m) => !m.box || ids.has(m.box)).map((/** @type {any} */ m) => pick(m, ['id', 'kind', 'box', 'text', 'by', 'at'])),
   };
 }
 
 // Regenerated from current content, so edits and removals cannot leave a stale discovery description.
+/** @param {string} id @param {MapState} state @param {Who} who @param {string} [query] */
 export function describeMap(id, state, who, query = '') {
   const objects = contextObjects(state, who), { map, decisions, memory } = objects;
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   const ordered = terms.length ? [...map.nodes].sort((a,b) => Number(terms.some((t) => JSON.stringify(b).toLowerCase().includes(t))) - Number(terms.some((t) => JSON.stringify(a).toLowerCase().includes(t)))) : map.nodes;
   const topics = ordered.slice(0, 32).map((n) => `${n.label}: ${clip([n.sub, n.desc].filter(Boolean).join('. '), 180)}`);
-  const settled = decisions.filter((c) => c.status !== 'open'), questions = decisions.filter((c) => c.status === 'open');
+  const settled = decisions.filter((/** @type {any} */ c) => c.status !== 'open'), questions = decisions.filter((/** @type {any} */ c) => c.status === 'open');
   const description = [
     `Purpose: ${clip(map.description || map.nodes.find((n) => n.id === map.start)?.sub || map.title, 1000)}`,
     'Topics and scope:', ...topics.map((t) => `- ${t}`),
     map.nodes.length > topics.length ? `Plus ${map.nodes.length - topics.length} more boxes. Load this map to inspect them.` : '',
-    settled.length ? 'Decisions: ' + settled.slice(-6).map((c) => `${clip(c.ask || c.text, 160)}: ${clip(c.picked || c.said || c.status, 200)}`).join('; ') : '',
-    questions.length ? 'Open questions: ' + questions.slice(0, 6).map((c) => clip(c.ask || c.text, 200)).join('; ') : '',
-    memory.length ? 'Remembered context: ' + memory.slice(-5).map((m) => clip(m.text, 240)).join('; ') : '',
+    settled.length ? 'Decisions: ' + settled.slice(-6).map((/** @type {any} */ c) => `${clip(c.ask || c.text, 160)}: ${clip(c.picked || c.said || c.status, 200)}`).join('; ') : '',
+    questions.length ? 'Open questions: ' + questions.slice(0, 6).map((/** @type {any} */ c) => clip(c.ask || c.text, 200)).join('; ') : '',
+    memory.length ? 'Remembered context: ' + memory.slice(-5).map((/** @type {any} */ m) => clip(m.text, 240)).join('; ') : '',
   ].filter(Boolean).join('\n');
   return { id, name: map.title, href: `/${id}/`, description, counts: { boxes: map.nodes.length, decisions: settled.length, openQuestions: questions.length, memories: memory.length },
     revision: crypto.createHash('sha256').update(JSON.stringify(objects)).digest('hex').slice(0, 16) };
@@ -53,7 +58,7 @@ export const CONTEXT_INSTRUCTIONS = `Only the other maps checked in Brain are av
 /** @param {{ maps: () => any[], who: any, onLoad?: (source?: any) => void, active?: () => boolean }} options */
 export function contextReader({ maps, who, onLoad = () => {}, active = () => true }) {
   const available = () => !active() ? [] : maps().filter((m) => m.allowed());
-  const run = (method, /** @type {any} */ args = {}) => {
+  const run = (/** @type {string} */ method, /** @type {any} */ args = {}) => {
     if (!active()) throw new Error('This map context has expired.');
     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid request.');
     const offset = args.offset ?? 0;
@@ -75,12 +80,13 @@ export function contextReader({ maps, who, onLoad = () => {}, active = () => tru
     const sections = args.sections ?? ['map', 'decisions', 'memory'];
     if (!Array.isArray(sections) || !sections.length || sections.some((s) => !['map','decisions','memory'].includes(s))) throw new Error('Choose map, decisions or memory.');
     const state = item.snapshot(), objects = contextObjects(state, who), summary = describeMap(item.id, state, who);
+    /** @type {Record<string, any>} */
     const result = { id: item.id, name: summary.name, href: summary.href, revision: summary.revision, offset, nextOffset: null };
     let total = 0;
     for (const section of sections) {
-      const list = section === 'map' ? objects.map.nodes : objects[section]; total = Math.max(total, list.length);
+      const list = section === 'map' ? objects.map.nodes : /** @type {any} */ (objects)[section]; total = Math.max(total, list.length);
       if (section === 'map') {
-        const nodes = list.slice(offset, offset + 50), ids = new Set(nodes.map((n) => n.id));
+        const nodes = list.slice(offset, offset + 50), ids = new Set(nodes.map((/** @type {any} */ n) => n.id));
         result.map = { ...objects.map, nodes, edges: objects.map.edges.filter((e) => ids.has(e.from) || ids.has(e.to)) };
       } else result[section] = list.slice(offset, offset + 50);
     }
@@ -92,11 +98,13 @@ export function contextReader({ maps, who, onLoad = () => {}, active = () => tru
 }
 
 // Each answer gets its own loopback-only, expiring capability.
+/** @param {{ maps: () => any[], who: any, onLoad?: (source?: any) => void }} options */
 export async function openContext({ maps, who, onLoad = () => {} }) {
   const token = crypto.randomBytes(32).toString('hex');
   let closed = false;
   const run = contextReader({ maps, who, onLoad, active: () => !closed });
   const server = http.createServer(async (req, res) => {
+    /** @param {number} status @param {unknown} data */
     const send = (status, data) => res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify(data));
     if (req.method !== 'POST' || req.url !== '/' || req.headers.authorization !== `Bearer ${token}` || req.headers.origin || req.headers['sec-fetch-site']) return send(403, { error: 'Not allowed.' });
     try {
