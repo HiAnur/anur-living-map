@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Box details always say who changed a box</strong></dt>
+<dd>
+
+**Last edited by** in a box's details now names who made each change: the person, or Claude when an Action or the map changed the box in the background. <!-- source: https://github.com/HiAnur/anur-living-map/pull/311 --> <!-- merged-at: 2026-11-10T21:25:00Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>The Anur and Claude logos on the team map</strong></dt>
 <dd>
 
