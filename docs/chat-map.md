@@ -50,7 +50,7 @@ npm install
 npm run skill -- --hook
 ```
 
-- `npm run skill` installs the `living-map` skill into `~/.claude/skills/`. `--hook` also adds one `UserPromptSubmit` entry to `~/.claude/settings.json`, leaving the rest as it is: whatever you did on the map comes with your next message, if it has not reached the chat already.
+- `npm run skill` installs the `living-map` skill into `~/.claude/skills/`, and the team map's `anur-living-map` skill beside it. `--hook` also adds one `UserPromptSubmit` entry to `~/.claude/settings.json`, leaving the rest as it is: whatever you did on the map comes with your next message, if it has not reached the chat already.
 
 ## Using it
 

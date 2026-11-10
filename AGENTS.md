@@ -22,8 +22,8 @@ npm run test:ui        # Playwright on the fixture map, starting its own Vite on
 npm run upgrade:check  # list dependency upgrades .ncurc.cjs allows (week-old releases, peer- and engine-compatible)
 npm run upgrade        # minor and patch upgrades; npm-check-updates doctor reverts any that fail upgrade:test (rewrites package.json and the lockfile; only when asked)
 npm run upgrade:latest # the same, majors included (only when asked)
-npm run skill          # install the living-map skill into ~/.claude/skills (writes outside the repo; only when asked)
-npm run skill -- --hook  # also add its UserPromptSubmit hook to ~/.claude/settings.json (only when asked)
+npm run skill          # install both skills, living-map and anur-living-map, into ~/.claude/skills (writes outside the repo; only when asked)
+npm run skill -- --hook  # also add the living-map UserPromptSubmit hook to ~/.claude/settings.json (only when asked)
 node eval/read-format.ts             # can models read mermaid+ as well as one line per item (calls the model, ~$0.50; only when asked)
 node eval/transcripts.ts [N]         # the transcript reader over your N largest Claude Code chats (local, no model)
 node eval/changes-retro.ts [N] [out] # what changed, rebuilt from your N latest sessions (local, no model)
@@ -58,9 +58,9 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 - `server/providers/`: the model. `types.ts` is the only seam; `claude-code.ts` implements it (`extract`, finding your chats with `claude-sessions.ts`, `childEnv` dropping the session variables of the chat that started the server). Pick another with `LIVING_MAP_PROVIDER`.
 - `server/update.ts` and `server/launcher.ts`: the one-click update (compare with the latest GitHub release, pull, `npm ci`, build, restart).
 - `web/`: `App.tsx` signs in; with `?conv=<chat>` it asks `GET /api/ledger/view` for that chat once (`map/probe.ts`) and lazy-loads `map/MapScreen.tsx`; with no chat it lists every mapped chat (`Chats.tsx`, `GET /api/ledger/chats`), each opening in a new tab. `map/layout.ts` places nodes from the items alone (column = depth, rows in tree order, newest first by `order` key), so a new item never moves a node above it, and `holdView` moves the camera by what moved below so the box you are looking at stays put; `layout.test.ts` holds that over a 300-step growth. Node size follows the pane's width class (`sizeFor`: narrower than 640 px gets `NARROW`), never its exact width.
-- `skill/`: the `living-map` skill for users' own Claude Code. `SKILL.md` is a template (`{{APP_DIR}}`, `{{PORT}}`), `install.ts` writes it to `~/.claude/skills/living-map/` (the server rewrites an installed copy on start and after a one-click update, never a test server), `start.ts` starts the server detached so it outlives the chat that asked.
+- `skill/`: the `living-map` skill for users' own Claude Code. `SKILL.md` is a template (`{{APP_DIR}}`, `{{PORT}}`), `install.ts` writes it to `~/.claude/skills/living-map/` (the server rewrites an installed copy on start and after a one-click update, never a test server) and, from `npm run skill` only, copies the team map's skill beside it, `start.ts` starts the server detached so it outlives the chat that asked.
 - `e2e/`: browser tests of the map's screen on the fixture map (`playwright.config.ts`); Vitest skips this folder.
-- `team/`: Anur Living Map, the team's shared map of a codebase, kept apart from the chat map above: its server (`team/live/`), the `/anur-living-map` skill users copy into `~/.claude/skills/` (`team/skill/`), login service, landing page and story boards. The chat map's own install and use page is `docs/chat-map.md`. Not linted or built here; only its layout tests (`team/live/project.test.js`) run with `vitest`. Its own README says how it runs.
+- `team/`: Anur Living Map, the team's shared map of a codebase, kept apart from the chat map above: its server (`team/live/`), the `/anur-living-map` skill (`team/skill/`, copied into `~/.claude/skills/` by hand or by `npm run skill`, and refreshed by its own `open-map.sh`), login service, landing page and story boards. The chat map's own install and use page is `docs/chat-map.md`. Not linted or built here; only its layout tests (`team/live/project.test.js`) run with `vitest`. Its own README says how it runs.
 - A test server: `LIVING_MAP_HOME=<test home> PORT=<not 4317> node server/index.ts` keeps its own store and token and leaves the installed skill alone.
 
 ## Releases

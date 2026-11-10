@@ -34,7 +34,7 @@ npm run dev          # server with reload on :4317, plus Vite on :5173 (?fixture
 npm start            # build, then serve :4317 under the launcher, which restarts it after an update
 ```
 
-`npm run skill` installs the `living-map` skill into `~/.claude/skills/` from your checkout, so `/living-map` in a Claude Code chat runs your copy.
+`npm run skill` installs the `living-map` skill into `~/.claude/skills/` from your checkout, so `/living-map` in a Claude Code chat runs your copy. It also copies the team map's `anur-living-map` skill from `team/skill/`.
 
 ## Before you open a pull request
 
