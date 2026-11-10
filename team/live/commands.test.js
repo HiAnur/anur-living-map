@@ -70,6 +70,26 @@ describe('action schemas', () => {
     expect(checkCommand({ type: 'describebox', id: 'a', sub: 3 })).toBe('describebox: sub must be text.');
     expect(checkCommand({ type: 'add', label: 'A', x: 1 })).toBe('add needs y.');
   });
+  it('declare every field a handler reads, in the handler or the helper it hands the action to', () => {
+    const read = (/** @type {string} */ f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
+    const lines = ['server.js', 'chat-acts.js', 'box-acts.js'].map(read).join('\n').split('\n');
+    // what a helper reads of the action it is handed, for the handlers that pass it on whole
+    const helper = (/** @type {string} */ file, /** @type {string} */ start) => { const s = read(file); const i = s.indexOf(start); return s.slice(i, s.indexOf('\n}', i)); };
+    /** @type {Record<string, string>} */
+    const handedOn = { reparent: helper('editing.js', 'export function reparentTopic('), call: helper('server.js', '  function answerCall(a) {').replace(/\n {2}\}[\s\S]*/, '') };
+    const undeclared = [];
+    for (let i = 0; i < lines.length; i++) {
+      const m = /^ {4}(?:async )?(\w+)\(a\) \{/.exec(lines[i]);
+      if (!m || !COMMANDS[m[1]]) continue;
+      let j = i + 1;
+      if (!/\},\s*$/.test(lines[i])) { while (lines[j] !== '    },') j++; j++; }
+      const body = lines.slice(i, j).join('\n') + (handedOn[m[1]] ?? '');
+      for (const [, f] of body.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS[m[1]]) && !['by', 'type', 'created'].includes(f)) undeclared.push(`${m[1]}.${f}`);
+    }
+    // `call` is answerCall itself, not a method
+    for (const [, f] of handedOn.call.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS.call) && !['by', 'type'].includes(f)) undeclared.push(`call.${f}`);
+    expect([...new Set(undeclared)]).toEqual([]);
+  });
   it('cover every action a map has', async () => {
     const source = ['server.js', 'chat-acts.js', 'box-acts.js'].map((f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8')).join('\n');
     const acts = source.slice(source.indexOf('const ACTS = {'));

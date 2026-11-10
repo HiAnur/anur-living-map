@@ -53,7 +53,7 @@ export const COMMANDS = {
   // drawing on the map
   add: { label: 'text?', x: 'number', y: 'number', view: 'string?', w: 'text?', h: 'text?', from: 'id?', out: 'any?', in: 'any?', reflow: 'array?' },
   move: { id: 'id?', moves: 'array?', x: 'number?', y: 'number?', view: 'string?' },
-  reparent: { id: 'id?', ids: 'array?', parent: 'id', view: 'string?' },
+  reparent: { id: 'id?', ids: 'array?', parent: 'id', view: 'string?', parents: 'array?', parentsById: 'object?', moves: 'array?' },
   resize: { id: 'id', x: 'number', y: 'number', w: 'text?', h: 'text?' },
   connect: { from: 'id', to: 'id', label: 'text?', out: 'any?', in: 'any?', view: 'string?' },
   relabel: { from: 'id', to: 'id', label: 'text?', view: 'string?' },
