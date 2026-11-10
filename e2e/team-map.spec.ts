@@ -394,6 +394,43 @@ test("an Admin hands an Action to another member", async ({
   );
 });
 
+test("your ready Action waits in the Inbox, and opens on its Action", async ({
+  page,
+}) => {
+  const ready = {
+    by: "Duy",
+    stage: "ready",
+    id: "r4",
+    intent: "Write the trial page",
+    history: [],
+    brief: {
+      kind: "other",
+      goal: "Write the trial page",
+      target: "The website",
+      result: "A trial page",
+      steps: ["Write it"],
+    },
+  };
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
+    ),
+  });
+  await page.locator("#inboxb").click();
+  const row = page.locator("[data-review]");
+  await expect(row).toContainText("Ready for your Execute");
+  await row.click();
+  await expect(page.locator(".action-card h3")).toHaveText("Ready to execute");
+  // the Inbox across maps lists it too, from the server
+  const inbox = await (await page.request.get(`${origin}/api/inbox`)).json();
+  expect(
+    inbox.flatMap((m: { items: { kind: string; text: string }[] }) => m.items),
+  ).toContainEqual(
+    expect.objectContaining({ kind: "action", text: "Write the trial page" }),
+  );
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();

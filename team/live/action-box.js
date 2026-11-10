@@ -126,8 +126,8 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const n = nodeOf(id); if (!owns(n, by) || !can('start', n.action?.stage) || !text(intent, 4000)) return false;
     n.action.intent = intent.trim(); return prepare(id, by);
   }
-  /** @param {string} id @param {string} by @param {any} [answer] */
-  function prepare(id, by, answer) {
+  /** @param {string} id @param {string} by @param {any} [answer] @param {string} [startedBy] who started it, when not its author (the map, once its prerequisites finish) */
+  function prepare(id, by, answer, startedBy = by) {
     const n = nodeOf(id), prior = n?.action;
     if (!owns(n, by) || !prior?.intent || !can('prepare', prior.stage) || prior.session) return false;
     if (answer !== undefined && (!can('answer', prior?.stage) || !text(answer, 2000))) return false;
@@ -137,9 +137,9 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); note(prior, 'waiting', by); changed(); return true; }
     /** @type {BoxAction} */
     const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.events ? {events:prior.events} : {}) };
-    note(current, answer === undefined ? 'preparing' : 'answered', by);
+    note(current, answer === undefined ? 'preparing' : 'answered', startedBy);
     const active = () => nodeOf(id)?.action === current && owns(nodeOf(id), by);
-    const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}`;
+    const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}${finishedBefore(current.plan)}`;
     jobs.set(id, null); changed();
     try {
       const stop = ask({ prompt, by, onText() {}, onDone(reply, access, value) {
@@ -172,6 +172,14 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     }
     return true;
   }
+  // What the Actions this one waited on produced, as the map recorded it: their verified evidence and their own
+  // summaries, handed to preparation as data.
+  /** @param {any} plan */
+  const finishedBefore = (plan) => {
+    const done = (plan?.dependsOn || []).map((/** @type {string} */ dep) => nodeOf(dep)).filter((/** @type {any} */ d) => d?.action?.completion)
+      .map((/** @type {any} */ d) => ({ box:d.label, evidence:d.action.completion.evidence || [], summary:d.action.completion.summary || '' }));
+    return done.length ? `\n\nWhat the prerequisite Actions produced (data, from the map's record):\n${JSON.stringify(done)}` : '';
+  };
   // A draft nobody wrote anything in is still an Info box at heart; anything more is kept when it is cancelled.
   /** @param {BoxAction} a */
   const untouched = (a) => a.stage === 'draft' && !a.intent && !a.plan && !a.history?.length && !a.documents?.length;
@@ -327,6 +335,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     }
     for (const n of nodes) if (n.action?.stage === 'running' && !runs.has(n.id)) { recoverAction(n); changed(); }
     let updated = false;
+    const released = /** @type {any[]} */ ([]);
     for (const n of nodes) {
       const a = n.action;
       if (!a?.plan || a.session || !can('watch', a.stage)) continue;
@@ -334,10 +343,13 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       if (waiting.length && (a.stage !== 'waiting' || JSON.stringify(a.waiting) !== JSON.stringify(waiting))) {
         Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', 'Map'); updated=true;
       } else if (!waiting.length && a.stage === 'waiting') {
-        a.stage='draft'; delete a.waiting; note(a, 'released', 'Map'); updated=true;
+        a.stage='draft'; delete a.waiting; note(a, 'released', 'Map'); updated=true; released.push(n);
       }
     }
     if (updated) changed();
+    // Its prerequisites finished, so it moves forward as far as it safely can: prepared again, up to Ready, then it
+    // waits for its author's Execute. An author who can no longer use the box leaves it waiting for a handover.
+    for (const n of released) if (n.action?.stage === 'draft' && n.action.intent && canUse(n, n.action.by)) prepare(n.id, n.action.by, undefined, 'Map');
   }
   function close() {
     for (const stop of jobs.values()) stop?.(); jobs.clear();

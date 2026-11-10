@@ -3062,17 +3062,20 @@ function renderInbox(){
   const calls = S.calls.filter((c) => c.for === ME && c.status === 'open' && canSee(nodeById(c.node) || {}));
   const talk = (S.comments || []).filter((c) => !c.resolved && (!c.node || canSee(nodeById(c.node) || {})) && c.msgs.at(-1).who !== ME
     && c.msgs.some((m) => m.who === ME || mention.test(m.text)));
-  const n = calls.length + talk.length + elsewhere.reduce((k, m) => k + m.items.length, 0);
+  // your own Actions, prepared and waiting for your Execute
+  const readyForYou = S.nodes.flatMap((b) => [b, ...(b.inside?.nodes || [])]).filter((b) => b.action?.by === ME && b.action.stage === 'ready' && canSee(b));
+  const n = calls.length + talk.length + readyForYou.length + elsewhere.reduce((k, m) => k + m.items.length, 0);
   const b = $('inboxb');
   b.innerHTML = `<svg viewBox="0 0 20 20"><path d="M3 11h4l1.2 2h3.6L13 11h4M3 11v4.5h14V11l-2.2-6.5H5.2z"/></svg>Inbox${n ? `<span class="n">${n}</span>` : ''}`;
   b.classList.toggle('on', inboxOpen);
   const el = $('inbox'); el.classList.toggle('on', inboxOpen); if (!inboxOpen) return;
   el.style.left = `${Math.max(16, Math.min(b.getBoundingClientRect().left, innerWidth - 396))}px`;
   const here = (c) => `<div class="ib-row" data-goto="${c.id}"><div>${prose(c.msgs.at(-1).text)}</div><div class="on">${esc(c.msgs.at(-1).who)} wrote${c.node ? ` · ${esc(nodeById(c.node)?.label || c.node)}` : ''}</div></div>`;
-  const far = (m, it) => `<a class="ib-row" href="${m.href}?as=${encodeURIComponent(ME)}"><div>${prose(it.text)}</div><div class="on">${it.kind === 'call' ? `${it.from} asks you` : `${it.from} wrote`}${it.on ? ` · ${prose(it.on)}` : ''}</div></a>`;
+  const review = (b) => `<div class="ib-row" data-review="${esc(b.id)}"><div>${prose(b.action.brief?.goal || b.action.intent || b.label)}</div><div class="on">Ready for your Execute · ${prose(b.label)}</div></div>`;
+  const far = (m, it) => `<a class="ib-row" href="${m.href}?as=${encodeURIComponent(ME)}"><div>${prose(it.text)}</div><div class="on">${it.kind === 'call' ? `${it.from} asks you` : it.kind === 'action' ? 'Ready for your Execute' : `${it.from} wrote`}${it.on ? ` · ${prose(it.on)}` : ''}</div></a>`;
   el.innerHTML = `<div class="ct"><span>Inbox${n ? ` <span class="ca-n">${n}</span>` : ''}</span><span class="x" data-close-inbox>×</span></div>
     ${n ? '' : '<div class="quiet">Nobody is asking you anything.</div>'}
-    ${calls.length || talk.length ? `<div class="ib-map">${prose(S.title)} · this map</div>${calls.map((c) => callRow(c, true)).join('')}${talk.map(here).join('')}` : ''}
+    ${calls.length || talk.length || readyForYou.length ? `<div class="ib-map">${prose(S.title)} · this map</div>${calls.map((c) => callRow(c, true)).join('')}${talk.map(here).join('')}${readyForYou.map(review).join('')}` : ''}
     ${elsewhere.map((m) => `<div class="ib-map">${prose(m.title || m.name)}</div>${m.items.map((it) => far(m, it)).join('')}`).join('')}`;
 }
 
@@ -3931,6 +3934,8 @@ document.addEventListener('click', (e) => {
       const r = canvas.getBoundingClientRect(); cam.x = r.width / 2 - c.x * cam.z; cam.y = r.height / 2 - c.y * cam.z; place(); render(); }
   }
   else if (t.closest('[data-unattach]')){ chatAbout = null; render(); $('chat').querySelector('input')?.focus(); }
+  // a ready Action in the Inbox opens on its Action
+  else if (t.closest('[data-review]')){ const id = t.closest('[data-review]').dataset.review; if (nodeById(id)){ inboxOpen = false; selected = id; sideFor = id; sideTab = 'chat'; render(); centerOn(id); } }
   // a message's box name opens that box
   else if (t.closest('[data-about]')){ const id = t.closest('[data-about]').dataset.about; if (nodeById(id)){ backTo = chatOpen && !selected ? 'chat' : null; selected = id; sideFor = id; sideTab = 'box'; render(); centerOn(id); } }
   // a tool pressed again goes back to Select
