@@ -142,6 +142,11 @@ test("a question streams, starts from the slice, and later ones reuse the proces
   assert.match(first, /items\.md/);
   assert.match(first, /turns\.md/);
   assert.match(first, /propose_change/);
+  assert.doesNotMatch(
+    first.slice(0, first.indexOf("THE ITEM:")),
+    /\{"|\[\{/,
+    "the change's shape is the tool's schema, not JSON in the instructions",
+  );
   assert.match(first, /THE USER ASKS:\nDoes Kafka fit at 10k writes\?$/);
 
   // a second question while it answers waits its turn
