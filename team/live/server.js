@@ -46,6 +46,7 @@ import { jsonBody } from './request.js';
 import { shareRoutes } from './share-routes.js';
 import { guardDrawing } from './draw-guard.js';
 import { mapActs } from './map-acts.js';
+import { actionActs } from './action-acts.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { diagramOf } from './diagram.js';
@@ -508,32 +509,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     call: answerCall,
-    // the schema lets an id come as a number, which finds no box, so an Action box reads every id as text
-    /** @param {Act<'actionbox'>} a */
-    actionbox(a) { return actions.begin(/** @type {string} */ (a.id), a.by); },
-    /** @param {Act<'actionstart'>} a */
-    actionstart(a) { return actions.start(/** @type {string} */ (a.id), a.by, a.intent); },
-    /** @param {Act<'actionretry'>} a */
-    actionretry(a) { return actions.prepare(/** @type {string} */ (a.id), a.by); },
-    /** @param {Act<'actionanswer'>} a */
-    actionanswer(a) { return actions.prepare(/** @type {string} */ (a.id), a.by, a.answer); },
-    /** @param {Act<'actionrevise'>} a */
-    actionrevise(a) { return actions.revise(/** @type {string} */ (a.id), a.by); },
-    /** @param {Act<'actioncancel'>} a */
-    actioncancel(a) { return actions.cancel(/** @type {string} */ (a.id), a.by); },
-    /** @param {Act<'actionreopen'>} a */
-    actionreopen(a) { return actions.reopen(/** @type {string} */ (a.id), a.by); },
-    // the new author must be a person on the map, not a name typed in
-    /** @param {Act<'actionhandover'>} a */
-    actionhandover(a) { return !!state.people?.some((/** @type {any} */ p) => p.id === a.to) && actions.handover(/** @type {string} */ (a.id), a.by, a.to); },
-    /** @param {Act<'actionconfirm'>} a */
-    actionconfirm(a) { return actions.confirm(/** @type {string} */ (a.id), a.by, a.revision); },
-    /** @param {Act<'actionexecute'>} a */
-    actionexecute(a) { return actions.execute(/** @type {string} */ (a.id), a.by, a.revision); },
-    /** @param {Act<'actioncontinue'>} a */
-    actioncontinue(a) { return actions.continue(/** @type {string} */ (a.id), a.by, a.revision, a.answer); },
-    /** @param {Act<'actionstop'>} a */
-    actionstop(a) { return actions.stop(/** @type {string} */ (a.id), a.by, a.revision); },
+    ...actionActs({ getState: () => state, actions }),
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
     /** @param {Act<'savenow'>} a */
