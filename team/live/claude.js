@@ -1,0 +1,54 @@
+// What every Claude Code process the map starts in the background has in common: the environment it gets, how
+// it is stopped, how its output is read line by line, and how the words of its reply build up as they stream.
+// What each job asks for (its arguments, what a result means) stays with the job.
+
+const MAX_WORDS = 32_000;
+
+// The server may itself run inside a Claude Code session. A process it starts must not take that session for
+// its own, so every CLAUDE variable goes but the two that say where Claude Code keeps its sign-in.
+/** @param {Record<string, string | undefined>} env */
+export function claudeEnv(env) {
+  env = { ...env };
+  for (const key of Object.keys(env)) if (key.startsWith('CLAUDE') && !['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN'].includes(key)) delete env[key];
+  return env;
+}
+
+// every process still running, by the function that stops it: none outlives the server
+/** @type {Set<(signal: NodeJS.Signals) => void>} */
+const active = new Set();
+process.once('exit', () => { for (const kill of active) kill('SIGKILL'); });
+
+// Stops a process started detached together with whatever it started (its whole group); on Windows, or before
+// it has a pid, the process alone. `done()` when it has ended, so the server stops keeping track of it.
+/** @param {import('node:child_process').ChildProcess} proc */
+export function killer(proc) {
+  /** @param {NodeJS.Signals} signal */
+  const kill = (signal) => { try { if (process.platform !== 'win32' && proc.pid) process.kill(-proc.pid, signal); else proc.kill(signal); } catch { /* Already exited. */ } };
+  active.add(kill);
+  return { kill, done: () => { active.delete(kill); } };
+}
+
+// Reads a process's output as UTF-8, a whole line at a time: a character or a line split across two chunks is
+// put back together. Output with no line break for 2 MB is dropped, so a runaway process cannot fill memory.
+// Returns `flush`, for the last line when the process closes without ending it.
+/** @param {import('node:child_process').ChildProcessWithoutNullStreams} proc @param {(line: string) => void} read */
+export function readLines(proc, read) {
+  let buffer = '';
+  proc.stdout.setEncoding('utf8'); proc.stderr.setEncoding('utf8');
+  proc.stdout.on('data', (chunk) => {
+    buffer += chunk;
+    for (let nl; (nl = buffer.indexOf('\n')) >= 0;) { read(buffer.slice(0, nl)); buffer = buffer.slice(nl + 1); }
+    if (buffer.length > 2_000_000) buffer = '';
+  });
+  return () => { if (buffer) read(buffer); };
+}
+
+// The words of a reply so far, after one more event of the stream: a new message starts a new paragraph, and
+// each piece of text is added and passed to `onText`. Only the last 32,000 characters are kept.
+/** @param {string} words @param {any} d one parsed line of stream-json @param {(words: string) => void} onText */
+export function addWords(words, d, onText) {
+  const e = d.type === 'stream_event' ? d.event : null;
+  if (e?.type === 'message_start' && words) words += '\n\n';
+  if (e?.type === 'content_block_delta' && typeof e.delta?.text === 'string') { words = (words + e.delta.text).slice(-MAX_WORDS); onText(words); }
+  return words;
+}
