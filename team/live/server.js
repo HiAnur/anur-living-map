@@ -48,7 +48,8 @@ import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
-import { linkRole, LINK_EDITS, localTool, permission, sharedState } from './sharing.js';
+import { mayAct } from './permissions.js';
+import { linkRole, localTool, permission, sharedState } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
 
@@ -476,7 +477,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
       relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
-    ...mapActs({ getState: () => state, contextMaps, nodeOf, seesOf, tell, ownerOf }),
+    ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
     call: answerCall,
     /** @param {any} a */
     actionbox(a) { return actions.begin(a.id, a.by); },
@@ -570,7 +571,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (p === '/api/act' && req.method === 'POST') {
       let /** @type {any} */ a = await jsonBody(req, {});
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end(); return true; }
-      if (guest && (!LINK_EDITS.has(a.type) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
+      if (guest && (!mayAct(state, a, true) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
       // A link cannot impersonate a member or start Claude on this Mac.
       a.by = guest ? 'Guest' : String(who || a.by || 'You').slice(0, 40);
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
@@ -581,6 +582,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       }
       const wrong = checkCommand(a);
       if (wrong) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: wrong })); return true; }
+      // the standing each action needs (permissions.js); a refusal reads as any refused change
+      if (!guest && !mayAct(state, a, false)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That change could not be saved.' })); return true; }
       told = null;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
@@ -636,7 +639,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // Cloud requests use the same editing rules without local files, processes, or routes.
   /** @param {any} a */
   function editShared(a) {
-    if (!LINK_EDITS.has(a.type) || a.type === 'cursor') return { ok: false };
+    if (a.type === 'cursor' || !mayAct(state, a, true)) return { ok: false };
     const wrong = checkCommand(a);
     if (wrong) return { ok: false, error: wrong };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;

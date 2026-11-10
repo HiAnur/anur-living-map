@@ -24,7 +24,8 @@ export function changeSharing(state, who, mode) {
   state.linkSharing = mode === 'restricted' ? { mode } : { mode, token: state.linkSharing?.token || crypto.randomBytes(32).toString('hex') };
   return true;
 }
-export const LINK_EDITS = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename', 'undo', 'redo', 'comment', 'reply', 'resolve', 'cursor']);
+// the actions a guest with an edit link may take: the `link` standing in permissions.js
+export { LINK_EDITS } from './permissions.js';
 /** @type {(nodes: Box[]) => Box[]} */
 export const withoutActions = (nodes) => nodes.map(({ action, task, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
 /** @param {MapState} state @param {boolean} [owner] @param {boolean} [guest] */

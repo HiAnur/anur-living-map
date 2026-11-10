@@ -1,0 +1,84 @@
+// Who may take each action on a map: the one table of it, and the one check of it before any handler runs.
+//
+// A request reaches an action only through permission() in sharing.js: an Admin of the map is its owner, a member
+// or a program on this Mac may edit (a program acts as the name it gives), a link's guest has its link's mode, and a
+// removed member has nothing. A view link takes no action. Then each action needs a standing:
+//   link    anyone who may edit, a guest with an edit link too, who acts as Guest
+//   member  anyone who may edit but a link's guest
+//   whole   a member who sees the whole map, not one area
+//   admin   a member who is an Admin of this map
+// mayAct decides the standing, here, before the handler. What depends on the map itself (`then`: whether the
+// boxes an action touches are in the person's area, whether a chat or an Action is theirs) the handler checks,
+// once it has found those boxes; `then` says what each one checks, so the whole rule for an action reads here.
+// permissions.test.js asks a real map each of these as every kind of person.
+import { managesAccess } from './access.js';
+
+/** @typedef {'link' | 'member' | 'whole' | 'admin'} Standing */
+/** @type {Record<string, { standing: Standing, then: string }>} */
+export const WHO = {
+  // drawing by hand
+  move: { standing: 'link', then: 'a drag of several boxes: each is in their area. One box moved by its id is not checked.' },
+  reparent: { standing: 'link', then: 'the branch, its old parents and its new parent are in their area' },
+  tidy: { standing: 'link', then: 'nothing: it lays out the whole map, also for a one-area member' },
+  add: { standing: 'link', then: 'the new box takes their area; the line from the box it was drawn out of only when that box is in their area' },
+  connect: { standing: 'link', then: 'both boxes are in their area' },
+  relabel: { standing: 'link', then: 'both boxes are in their area' },
+  unlink: { standing: 'link', then: 'both boxes are in their area' },
+  remove: { standing: 'link', then: 'every box taken off (the whole branch with cascade) is in their area' },
+  resize: { standing: 'link', then: 'the box is in their area' },
+  renamebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
+  describebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
+  rename: { standing: 'link', then: 'nothing: the map\'s title, also for a one-area member' },
+  undo: { standing: 'link', then: 'only their own steps, and only on boxes in their area' },
+  redo: { standing: 'link', then: 'only their own steps, and only on boxes in their area' },
+  cursor: { standing: 'link', then: 'nothing: where their pointer is, never saved' },
+  // comments
+  comment: { standing: 'link', then: 'nothing' },
+  reply: { standing: 'link', then: 'nothing' },
+  resolve: { standing: 'link', then: 'nothing: anyone may resolve or reopen any comment' },
+  // the map as a whole
+  savenow: { standing: 'member', then: 'nothing' },
+  autosave: { standing: 'member', then: 'nothing: one switch for the whole map' },
+  reset: { standing: 'member', then: 'nothing: starts the whole map over, also for a one-area member (History keeps the map before)' },
+  restore: { standing: 'member', then: 'nothing: goes back to any version, also for a one-area member' },
+  open: { standing: 'member', then: 'nothing' },
+  describemap: { standing: 'whole', then: 'nothing' },
+  contextmap: { standing: 'whole', then: 'a map added as background is one they may open' },
+  execute: { standing: 'admin', then: 'every question on the map is answered, and it was not executed yet' },
+  planmd: { standing: 'admin', then: 'every question on the map is answered, and it was not executed yet' },
+  // memory, questions and Claude's chats
+  editmemory: { standing: 'member', then: 'a box\'s memory only when the box is in their area' },
+  forget: { standing: 'member', then: 'a box\'s memory only when the box is in their area' },
+  call: { standing: 'member', then: 'nothing: anyone may answer any open question, also one asked of someone else' },
+  ask: { standing: 'member', then: 'the box asked about is in their area; the question goes into their own chat' },
+  apply: { standing: 'member', then: 'the change came from their own chat' },
+  drop: { standing: 'member', then: 'the change came from their own chat' },
+  newchat: { standing: 'member', then: 'their own chat' },
+  openchat: { standing: 'member', then: 'their own chat' },
+  link: { standing: 'member', then: 'the file is a chat of this Mac\'s agent; the chat links as theirs' },
+  say: { standing: 'member', then: 'they own the chat linked to the map' },
+  // what a chat sends through the map's tools
+  propose: { standing: 'member', then: 'it names a chat linked to the map' },
+  plan: { standing: 'member', then: 'nothing' },
+  edit: { standing: 'member', then: 'nothing' },
+  pr: { standing: 'member', then: 'nothing' },
+  // Action boxes
+  ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionexecute', 'actioncontinue', 'actionstop']
+    .map((type) => [type, { standing: /** @type {Standing} */ ('member'), then: 'they are signed in (not Guest, not removed), the box is in their area, and they started its Action' }])),
+};
+
+/** The actions a guest with an edit link may take, here and on the cloud copy. */
+export const LINK_EDITS = new Set(Object.keys(WHO).filter((type) => WHO[type].standing === 'link'));
+
+/**
+ * Whether this person has the standing the action needs. A guest is a link's guest; `a.by` is who acts.
+ * @param {MapState} state @param {{ type: string, by?: string }} a @param {boolean} guest
+ */
+export function mayAct(state, a, guest) {
+  const rule = WHO[a.type];
+  if (!rule) return false;
+  if (guest) return rule.standing === 'link';
+  if (rule.standing === 'admin') return managesAccess(state, a.by);
+  if (rule.standing === 'whole') return !!a.by && a.by !== 'Guest' && (state.people?.find((p) => p.id === a.by)?.sees || 'all') === 'all';
+  return true;
+}
