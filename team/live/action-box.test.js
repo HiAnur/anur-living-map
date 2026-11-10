@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { actionBoxes, actionPrompt, readActionReply, recoverAction } from './action-box.js';
+import { actionBoxes, actionPrompt, actionSchema, readAction, recoverAction } from './action-box.js';
 import { LINK_EDITS, sharedState } from './sharing.js';
 import { mapData } from './cloud-data.js';
 
-const reply = (data) => '```action\n'+JSON.stringify(data)+'\n```';
+// what preparation hands back: its words, what it could use, and its structured answer
+const reply = (data) => data;
 const brief = {kind:'build',goal:'Build a contact form',target:'/sample/website',result:'Visitors can submit an inquiry',steps:['Add the form','Verify a submission']};
 function harness() {
   /** @type {any} */ let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
@@ -12,7 +13,7 @@ function harness() {
   const api=actionBoxes({nodeOf:()=>node,canUse:()=>allowed,context:()=> 'Whole map: Website > Contact form; Audience: small teams',
     ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,executionCwd:'/sample/project',run:r=>{launches.push(r);return ()=>stops.push(true);}});
   return {api,requests,launches,stops,get node(){return node;},get changes(){return changed;},remove:()=>node=null,revoke:()=>allowed=false,
-    start:()=>{if(!node.action)api.begin('form','Duy');return node.action.stage==='draft'?api.start('form','Duy','Build a contact form for the website'):api.prepare('form','Duy');},ready:()=>requests.at(-1).onDone(reply({status:'ready',brief}))};
+    start:()=>{if(!node.action)api.begin('form','Duy');return node.action.stage==='draft'?api.start('form','Duy','Build a contact form for the website'):api.prepare('form','Duy');},ready:()=>requests.at(-1).onDone('',undefined,reply({status:'ready',brief}))};
 }
 describe('action boxes',()=>{
   it('lets the person write the action before gathering any information',()=>{
@@ -24,7 +25,7 @@ describe('action boxes',()=>{
   it('gathers in the background, asks, and becomes ready without executing',()=>{
     const h=harness();expect(h.start()).toBe(true);expect(h.node.action.stage).toBe('gathering');expect(h.start()).toBe(false);
     expect(h.requests[0].prompt).toContain('Whole map: Website');expect(h.requests[0].prompt).toContain(actionPrompt);
-    h.requests[0].onDone(reply({status:'clarify',question:'Which project?',choices:['Website','Dashboard']}));
+    h.requests[0].onDone('',undefined,reply({status:'clarify',question:'Which project?',choices:['Website','Dashboard']}));
     expect(h.node.action.stage).toBe('clarify');expect(h.launches).toHaveLength(0);
     expect(h.api.prepare('form','Duy','Website')).toBe(true);expect(h.requests[1].prompt).toContain('"question":"Which project?","answer":"Website"');
     h.ready();expect(h.node.action.stage).toBe('ready');expect(h.launches).toHaveLength(0);
@@ -49,7 +50,7 @@ describe('action boxes',()=>{
   it('keeps immutable downloadable drafts through revision, reload and execution',()=>{
     const h=harness();h.start();
     const email={kind:'email',goal:'Email a colleague',target:'sam@example.com',result:'Email sent',steps:['Send reviewed email'],email:{to:'sam@example.com',subject:'Original subject',body:'Original message\nSecond line'}};
-    h.requests.at(-1).onDone(reply({status:'ready',brief:email}));
+    h.requests.at(-1).onDone('',undefined,reply({status:'ready',brief:email}));
     expect(h.api.revise('form','Other')).toBe(false);expect(h.node.action.documents).toBeUndefined();
     expect(h.api.revise('form','Duy')).toBe(true);
     const first=structuredClone(h.node.action.documents[0]);
@@ -57,7 +58,7 @@ describe('action boxes',()=>{
     expect(h.api.revise('form','Duy')).toBe(false);expect(h.node.action.documents).toHaveLength(1);
     h.api.prepare('form','Duy','Use a warmer opening');
     expect(h.requests.at(-1).prompt).toContain(JSON.stringify(email));expect(h.node.action.documents[0]).toEqual(first);
-    h.requests.at(-1).onDone(reply({status:'ready',brief:{...email,email:{...email.email,body:'New message'}}}));
+    h.requests.at(-1).onDone('',undefined,reply({status:'ready',brief:{...email,email:{...email.email,body:'New message'}}}));
     expect(h.api.revise('form','Duy')).toBe(true);expect(h.node.action.documents).toHaveLength(2);
     expect(h.node.action.documents[0]).toEqual(first);expect(h.node.action.documents[1].content).toContain('New message');
     h.node.action=JSON.parse(JSON.stringify(h.node.action));recoverAction(h.node);
@@ -69,7 +70,7 @@ describe('action boxes',()=>{
   });
   it('keeps a replacement request cancellable if a cancelled request replies late',()=>{
     const h=harness();h.start();const old=h.requests[0];h.api.cancel('form','Duy');h.start();
-    old.onDone(reply({status:'ready',brief}));expect(h.node.action.stage).toBe('gathering');
+    old.onDone('',undefined,reply({status:'ready',brief}));expect(h.node.action.stage).toBe('gathering');
     h.api.cancel('form','Duy');expect(h.stops).toHaveLength(2);
   });
   it('ignores a completed request after deletion or access removal',()=>{
@@ -142,12 +143,12 @@ describe('action boxes',()=>{
     h.api.continue('form','Duy',h.node.action.id,'team@example.com');expect(h.node.action.completion).toBeUndefined();expect(h.launches[1].resume).toBe(true);
   });
   it('validates output, email details and bounds without accepting model operations',()=>{
-    for(const value of [null,{}, {status:'ready',brief:{}},{status:'ready',brief:{...brief,steps:[]}}, {status:'ready',brief:{...brief,result:[]}}]) expect(readActionReply(reply(value))).toBeNull();
+    for(const value of [null,{}, {status:'ready',brief:{}},{status:'ready',brief:{...brief,steps:[]}}, {status:'ready',brief:{...brief,result:[]}}]) expect(readAction(reply(value))).toBeNull();
     const email={...brief,kind:'email',email:{to:'invented',subject:'Hello',body:'Thanks'}};
-    expect(/** @type {any} */ (readActionReply(reply({status:'ready',brief:email}))).stage).toBe('clarify');
-    email.email.to='customer@example.com';expect(readActionReply(reply({status:'ready',brief:email}))).toMatchObject({stage:'ready',brief:{target:'customer@example.com'}});
-    expect(/** @type {any} */ (readActionReply(reply({status:'ready',brief:{...brief,command:'rm everything'}}))).brief.command).toBeUndefined();
-    expect(/** @type {any} */ (readActionReply(reply({status:'clarify',question:'Goal?',choices:[{},'Build','Send','Review','More']}))).choices).toEqual(['Build','Send']);
+    expect(/** @type {any} */ (readAction(reply({status:'ready',brief:email}))).stage).toBe('clarify');
+    email.email.to='customer@example.com';expect(readAction(reply({status:'ready',brief:email}))).toMatchObject({stage:'ready',brief:{target:'customer@example.com'}});
+    expect(/** @type {any} */ (readAction(reply({status:'ready',brief:{...brief,command:'rm everything'}}))).brief.command).toBeUndefined();
+    expect(/** @type {any} */ (readAction(reply({status:'clarify',question:'Goal?',choices:[{},'Build','Send','Review','More']}))).choices).toEqual(['Build','Send']);
   });
   it('keeps task details private from links and cloud sharing',()=>{
     const node={id:'one',label:'One',x:0,y:0,action:{stage:'ready',brief,by:'Duy'}};
@@ -160,7 +161,7 @@ describe('action boxes',()=>{
 
 describe('the tools a run may use',()=>{
   it('are the ones the reviewed brief names, on Execute and again on Continue',()=>{
-    const h=harness();h.start();h.requests.at(-1).onDone(reply({status:'ready',brief:{...brief,tools:['Write','mcp__claude_ai_Gmail__send_message']}}));
+    const h=harness();h.start();h.requests.at(-1).onDone('',undefined,reply({status:'ready',brief:{...brief,tools:['Write','mcp__claude_ai_Gmail__send_message']}}));
     expect(h.node.action.stage).toBe('ready');
     h.api.execute('form','Duy',h.node.action.id);
     expect(h.launches[0].tools).toEqual(['Write','mcp__claude_ai_Gmail__send_message']);
@@ -174,3 +175,20 @@ describe('the tools a run may use',()=>{
   });
 });
 
+
+describe('preparation\'s answer, read as an object',()=>{
+  it('asks through the schema, with no JSON block written out in the prompt',()=>{
+    expect(actionPrompt).not.toContain('```');
+    expect(actionPrompt).toContain('Answer through the schema');
+    expect(actionSchema.properties.status.enum).toEqual(['clarify','ready']);
+    expect(actionSchema.properties.brief.required).toEqual(['kind','goal','target','result','steps','tools']);
+  });
+  it('takes no answer from words: a fenced block, a string or an array is not one',()=>{
+    for(const value of ['```action\n'+JSON.stringify({status:'ready',brief})+'\n```',JSON.stringify({status:'ready',brief}),[{status:'ready',brief}],undefined,7]) expect(readAction(value)).toBeNull();
+    expect(readAction({status:'ready',brief})).toMatchObject({stage:'ready',brief:{goal:brief.goal}});
+  });
+  it('shows an error, not a brief, when preparation answered in words alone',()=>{
+    const h=harness();h.start();h.requests.at(-1).onDone('```action\n'+JSON.stringify({status:'ready',brief})+'\n```');
+    expect(h.node.action.stage).toBe('error');expect(h.node.action.error).toContain('Could not prepare this action');
+  });
+});
