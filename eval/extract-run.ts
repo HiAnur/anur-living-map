@@ -27,14 +27,10 @@ import {
 import { emptyStore, listsOf, type Store } from "../ledger/items.ts";
 import { toMapItems } from "../ledger/items.ts";
 import { toMermaid } from "../ledger/mermaid.ts";
-import {
-  emptyTranscript,
-  readMore,
-  view,
-  type Turn,
-} from "../ledger/transcript.ts";
+import { emptyTranscript, view, type Turn } from "../ledger/transcript.ts";
 import { HOME } from "../server/config.ts";
 import { claudeCode } from "../server/providers/claude-code.ts";
+import { readMore } from "../server/providers/claude-transcript.ts";
 
 // $LIVING_MAP_HOME when set, like the server and the scorer, so two runs
 // can each keep their own folder

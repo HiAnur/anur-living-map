@@ -8,7 +8,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { emptyTranscript, readMore, view } from "../ledger/transcript.ts";
+import { emptyTranscript, view } from "../ledger/transcript.ts";
+import { readMore } from "../server/providers/claude-transcript.ts";
 
 const n = Number(process.argv[2]) || 5;
 const root = path.join(os.homedir(), ".claude", "projects");

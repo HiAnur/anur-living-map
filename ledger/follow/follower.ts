@@ -10,7 +10,7 @@ import type { LedgerEvent, LedgerView } from "../../shared/ledger.ts";
 import type { Compared, Shadow } from "../changes/snapshot.ts";
 import type { Conv, Extent, LedgerDb, State } from "../db.ts";
 import type { Plan } from "../tasks.ts";
-import type { Transcript, Turn } from "../transcript.ts";
+import type { ReadMore, Transcript, Turn } from "../transcript.ts";
 
 export const TICK_MS = 1000;
 export const BATCH = 3;
@@ -44,6 +44,8 @@ export const backoff = (failures: number) =>
 
 export type LedgerDeps = {
   db: LedgerDb;
+  // the agent's reader of a chat's transcript (AgentConversation.readMore)
+  read: ReadMore;
   extract?: (req: ExtractRequest) => Promise<ExtractResult>;
   emit: (e: LedgerEvent) => void;
   // words for the main chat, delivered through its inbox (`quiet`: they
@@ -51,13 +53,17 @@ export type LedgerDeps = {
   tell?: (conv: Conv, text: string, quiet?: boolean) => void;
   // when the main chat last took what waited in its inbox (0: never)
   heardAt?: (conv: Conv) => number;
-  // the model the extractor runs on ("" for Claude Code's default)
+  // the model the extractor runs on ("" for the agent's default)
   model?: () => string;
   now?: () => number;
   // the chat's handover file, rewritten with its map (handover.ts)
   handover?: (s: State, v: LedgerView) => void;
   everyMs?: number; // 0: no timer (tests call tick)
-  findSuccessor?: (file: string, id: string) => string | null;
+  // where a resumed chat goes on (AgentConversation.successor)
+  findSuccessor?: (
+    file: string,
+    id: string,
+  ) => { file: string; id: string } | null;
   // what changed in the system: snapshots at each newly sealed turn (absent
   // in tests that don't need it)
   changes?: {

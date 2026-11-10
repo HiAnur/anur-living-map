@@ -20,14 +20,10 @@ import {
   LIST_NAMES,
   type ListName,
 } from "../ledger/match.ts";
-import {
-  emptyTranscript,
-  readMore,
-  type Turn,
-  view,
-} from "../ledger/transcript.ts";
+import { emptyTranscript, type Turn, view } from "../ledger/transcript.ts";
 import { HOME } from "../server/config.ts";
 import { claudeCode } from "../server/providers/claude-code.ts";
+import { readMore } from "../server/providers/claude-transcript.ts";
 
 // the runner's output, as far as the labeler and scorer read it
 export type Checkpoints = {

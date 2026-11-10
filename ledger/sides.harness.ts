@@ -10,6 +10,7 @@ import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 
 import { claudeCode, type Spawn } from "../server/providers/claude-code.ts";
+import { readMore } from "../server/providers/claude-transcript.ts";
 import type { LedgerEvent } from "../shared/ledger.ts";
 import { openDb, type Conv } from "./db.ts";
 import { createLedger } from "./follow.ts";
@@ -184,6 +185,7 @@ export async function setup(idleMs = 60_000) {
   const told: { text: string; quiet?: boolean }[] = [];
   const events: LedgerEvent[] = [];
   const ledger = createLedger({
+    read: readMore,
     db,
     everyMs: 0,
     emit: (e) => events.push(e),
@@ -246,6 +248,7 @@ export async function setup(idleMs = 60_000) {
   assert.equal(v.items.length, 4, "the chat is filed");
   const { spawn, procs } = fakeSpawn();
   const sides = createSides({
+    read: readMore,
     db,
     ledger,
     emit: (e) => events.push(e),

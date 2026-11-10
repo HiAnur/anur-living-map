@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 
+import { readMore } from "../server/providers/claude-transcript.ts";
 import { openDb } from "./db.ts";
 import {
   chat,
@@ -221,6 +222,28 @@ test("a chat carried on in another file is read again from that file's start", a
   );
 });
 
+test("a chat you resumed is followed into its new file, under its new id", async () => {
+  const before = chat();
+  before.turn("Which queue should we use?", "Redis or Kafka?");
+  const after = chat();
+  after.turn("Which queue should we use?", "Redis or Kafka?");
+  const asked: [string, string][] = [];
+  const t = setup(filing, undefined, undefined, undefined, (file, id) => {
+    asked.push([file, id]);
+    return { file: after.file, id: "resumed-1" };
+  });
+  const root = t.link(before);
+  t.advance(6000);
+  await t.ledger.tick();
+  assert.deepEqual(asked, [], "a chat still growing is not looked past");
+  t.advance(16_000);
+  await t.ledger.tick();
+  assert.deepEqual(asked, [[before.file, before.id]]);
+  const conv = t.db.conversations().find((c) => c.root === root)!;
+  assert.deepEqual(conv.ids, [before.id, "resumed-1"]);
+  assert.equal(conv.file, after.file);
+});
+
 test("the map files with the model it is given, or the agent's default", async () => {
   for (const [asked, used] of [
     ["", ""],
@@ -230,6 +253,7 @@ test("the map files with the model it is given, or the agent's default", async (
     let clock = Date.now();
     const models: (string | undefined)[] = [];
     const ledger = createLedger({
+      read: readMore,
       db: openDb(path.join(tmp, `m-${next()}.db`)),
       extract: async (req) => {
         models.push(req.model);

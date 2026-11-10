@@ -173,6 +173,31 @@ test("extract with no model passes none, so Claude Code's default model answers"
   assert.equal((await call).ok, true);
 });
 
+test("a resumed chat goes on in the newer file that starts with its copy, under that file's id", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lm-resumed-"));
+  const old = path.join(dir, "chat-old.jsonl");
+  fs.writeFileSync(old, '{"sessionId":"chat-old"}\n');
+  const past = (Date.now() - 60_000) / 1000;
+  fs.utimesSync(old, past, past);
+  const provider = claudeCode({ home, spawn: fakeSpawn().spawn });
+  assert.equal(provider.successor!(old, "chat-old"), null);
+  fs.writeFileSync(
+    path.join(dir, "chat-other.jsonl"),
+    '{"sessionId":"chat-other"}\n',
+  );
+  assert.equal(provider.successor!(old, "chat-old"), null);
+  const next = path.join(dir, "chat-new.jsonl");
+  fs.writeFileSync(
+    next,
+    '{"sessionId":"chat-old"}\n{"sessionId":"chat-new"}\n',
+  );
+  assert.deepEqual(provider.successor!(old, "chat-old"), {
+    file: next,
+    id: "chat-new",
+  });
+  assert.equal(provider.successor!(old, "not an id!"), null);
+});
+
 test("judgment never runs on Haiku: Claude Code's default instead, said once", () => {
   const { spawn } = fakeSpawn();
   const provider = claudeCode({ home, spawn });

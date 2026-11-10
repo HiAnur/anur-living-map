@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { readMore } from "../server/providers/claude-transcript.ts";
 import type {
   ExtractRequest,
   ExtractResult,
@@ -132,6 +133,8 @@ export function setup(
   dbFile?: string,
   changes?: Parameters<typeof createLedger>[0]["changes"],
   handover?: Parameters<typeof createLedger>[0]["handover"],
+  findSuccessor: Parameters<typeof createLedger>[0]["findSuccessor"] = () =>
+    null,
 ) {
   let clock = Date.now();
   const calls: ExtractRequest[] = [];
@@ -140,6 +143,7 @@ export function setup(
   const file = dbFile ?? path.join(tmp, `ledger-${++fileN}.db`);
   const db = openDb(file);
   const ledger = createLedger({
+    read: readMore,
     db,
     extract: async (req) => {
       calls.push(req);
@@ -149,7 +153,7 @@ export function setup(
     tell: (conv, text) => told.push({ conv, text }),
     now: () => clock,
     everyMs: 0,
-    findSuccessor: () => null,
+    findSuccessor,
     changes,
     handover,
   });

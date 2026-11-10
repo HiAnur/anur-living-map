@@ -11,14 +11,10 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  emptyTranscript,
-  readMore,
-  view,
-  type Turn,
-} from "../ledger/transcript.ts";
+import { emptyTranscript, view, type Turn } from "../ledger/transcript.ts";
 import { HOME } from "../server/config.ts";
 import { claudeCode } from "../server/providers/claude-code.ts";
+import { readMore } from "../server/providers/claude-transcript.ts";
 import { LABEL_SYSTEM, render } from "./extract-label.ts";
 
 // $LIVING_MAP_HOME when set, like the server and the scorer, so two runs

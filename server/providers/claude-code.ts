@@ -7,7 +7,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { findConversation } from "./claude-sessions.ts";
+import { findConversation, successor } from "./claude-sessions.ts";
+import { readMore } from "./claude-transcript.ts";
 import type {
   Chat,
   ChatEvent,
@@ -438,6 +439,11 @@ export function claudeCode({
     name: "Claude Code",
     extract,
     findConversation: (hint) => findConversation(hint),
+    readMore: (t, file) => readMore(t, file),
+    successor: (file, id) => {
+      const next = successor(file, id);
+      return next ? { file: next, id: path.basename(next, ".jsonl") } : null;
+    },
     openChat,
     judgmentModel,
   };

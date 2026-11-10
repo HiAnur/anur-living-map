@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "vitest";
 
+import { readMore } from "../server/providers/claude-transcript.ts";
 import {
   attachment,
   base,
@@ -22,7 +23,7 @@ import {
   typed,
   user,
 } from "./transcript.harness.ts";
-import { emptyTranscript, readMore, SEAL_IDLE_MS, view } from "./transcript.ts";
+import { emptyTranscript, SEAL_IDLE_MS, view } from "./transcript.ts";
 test("a turn is sealed by a later prompt, or by end_turn and 2 s of quiet", () => {
   const one = [typed("p1", null, "q1"), claude("c1", "p1", "a1")];
   const t1 = read(one);
