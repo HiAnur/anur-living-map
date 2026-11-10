@@ -44,6 +44,7 @@ import { readRoutes } from './read-routes.js';
 import { selfUpdate } from './self-update.js';
 import { jsonBody } from './request.js';
 import { shareRoutes } from './share-routes.js';
+import { guardDrawing } from './draw-guard.js';
 import { mapActs } from './map-acts.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
@@ -370,6 +371,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // boxes, lines and calls are added or updated by id; removed boxes go
   /** @param {any} p @param {any} by @param {any} source */
   function draw(p, by, source) {
+    // only what draw-guard.js lets this sender draw: a box's content, on boxes in their area
+    p = guardDrawing(p, nodeOf, seesOf(by));
     // A drawing can change a box's content, but its original creator, source and dates come from the map.
     const markCreators = (/** @type {any} */ nodes, /** @type {any} */ previous) => {
       for (const n of nodes || []) if (n) {
