@@ -92,6 +92,34 @@ describe('action boxes',()=>{
     expect(h.node.action.cancelled).toBeUndefined();expect(h.node.action.brief).toBeUndefined();
     expect(h.node.action.documents.at(-1).brief).toEqual(brief);expect(h.launches).toHaveLength(0);
   });
+  it('keeps a history written by code: who did each step, when, and never the model\'s words',()=>{
+    const h=harness();h.api.begin('form','Duy');h.api.start('form','Duy','Build a contact form for the website');
+    h.requests[0].onDone('',undefined,reply({status:'clarify',question:'Which project should host it?',choices:[]}));
+    h.api.prepare('form','Duy','The website');
+    h.requests[1].onDone('',{tools:['Edit','Write'],denied:[]},reply({status:'ready',brief:{...brief,tools:['Edit','Write']}}));
+    h.api.revise('form','Duy');h.api.prepare('form','Duy','Keep it short');
+    h.requests[2].onDone('',{tools:['Edit','Write'],denied:[]},reply({status:'ready',brief:{...brief,tools:['Edit','Write']}}));
+    h.api.execute('form','Duy',h.node.action.id);
+    h.api.stop('form','Duy',h.node.action.id);h.launches[0].onDone({blocked:true,text:'Stopped by request'});
+    h.api.continue('form','Duy',h.node.action.id,'Go on');
+    h.launches[1].onDone({text:'Done',completion:{status:'completed',summary:'Form added',evidence:['Commit abc']}});
+    const events=h.node.action.events;
+    expect(events.map((e)=>[e.what,e.by])).toEqual([
+      ['created','Duy'],['preparing','Duy'],['asked','Claude'],['answered','Duy'],['ready','Claude'],['revised','Duy'],
+      ['answered','Duy'],['ready','Claude'],['executed','Duy'],['stopped','Duy'],['finished','Claude'],['continued','Duy'],['finished','Claude']]);
+    expect(events.find((e)=>e.what==='ready').tools).toEqual(['Edit','Write']);expect(events.find((e)=>e.what==='executed').tools).toEqual(['Edit','Write']);
+    expect(events.filter((e)=>e.what==='finished').map((e)=>e.status)).toEqual(['blocked','completed']);
+    for(const e of events){expect(e.at).toBeTypeOf('number');expect(e.rev).toBeTypeOf('string');}
+    expect(events.every((e,i)=>i===0||e.at>=events[i-1].at)).toBe(true);
+    expect(JSON.stringify(events)).not.toMatch(/Which project|Stopped by request|Form added|Commit abc/);
+  });
+  it('records cancel, reopen, a wait and a restart as steps of its history',()=>{
+    const h=harness();h.start();h.api.cancel('form','Duy');h.api.reopen('form','Duy');
+    expect(h.node.action.events.map((e)=>e.what)).toEqual(['created','preparing','cancelled','reopened']);
+    expect(h.node.action.events.find((e)=>e.what==='cancelled').from).toBe('gathering');
+    const n={id:'x',label:'X',action:{stage:'running',by:'Duy',id:'r',turns:[]}};recoverAction(/** @type {any} */ (n));
+    expect(n.action.events.map((e)=>[e.what,e.by])).toEqual([['interrupted','Map']]);
+  });
   it('never cancels an Action that has run',()=>{
     const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);
     expect(h.api.cancel('form','Duy')).toBe(false);expect(h.node.action.stage).toBe('running');

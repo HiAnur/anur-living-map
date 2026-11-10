@@ -50,3 +50,22 @@ describe('Share as a file', () => {
     expect(inlineModules(page, read)).toBe(page);
   });
 });
+
+describe('an Action\'s history as the page shows it', async () => {
+  const { actionHistory } = await import('./page-action.js');
+  it('reads newest first, names the map, and says how a run ended and what it used', () => {
+    const rows = actionHistory([
+      { what: 'created', by: 'Duy', at: 1 },
+      { what: 'executed', by: 'Duy', at: 2, tools: ['Edit', 'Write'] },
+      { what: 'finished', by: 'Claude', at: 3, status: 'needs_input', ms: 95_000 },
+      { what: 'interrupted', by: 'Map', at: 4 },
+    ]);
+    expect(rows.map((r) => [r.label, r.who, r.detail])).toEqual([
+      ['Interrupted by a restart', 'the map', ''],
+      ['Run ended', 'Claude', 'needs an answer · 2 min'],
+      ['Executed', 'Duy', 'tools: Edit, Write'],
+      ['Made an Action', 'Duy', ''],
+    ]);
+    expect(actionHistory(undefined)).toEqual([]);
+  });
+});

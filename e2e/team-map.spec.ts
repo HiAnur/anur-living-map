@@ -277,6 +277,11 @@ test("cancelling an Action keeps it, and Prepare again brings it back", async ({
   await expect(page.locator(".action-card h3")).toHaveText("Cancelled");
   // still an Action: the toggle stays on and cannot turn it back
   await expect(page.locator(".action-type-toggle")).toBeDisabled();
+  // the history code keeps on the Action names who cancelled it
+  await page.getByText("Action history").click();
+  await expect(page.locator(".action-history li").first()).toContainText(
+    "Cancelled · Duy",
+  );
   await page.getByRole("button", { name: "Prepare again" }).click();
   await expect(page.getByLabel("Action instructions")).toHaveValue(
     "Write the trial page",
