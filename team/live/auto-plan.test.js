@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
@@ -7,9 +5,9 @@ import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-pl
 import { actionBoxes } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
 import { askContext } from './ask-context.js';
-import { proposalChecks } from './proposal-check.js';
+import { chatActs } from './chat-acts.js';
+import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 
-const server = fs.readFileSync(new URL('./server.js', import.meta.url), 'utf8');
 function harness() {
   /** @type {any} */ const state = { title: 'Launch', nodes: [{id:'launch',label:'Launch',area:'product'},{id:'audience',label:'Audience',area:'product'},{id:'private',label:'Private budget',area:'finance'}], edges: [{from:'launch',to:'audience'}], people: [{id:'Tester',sees:'product'}], calls: [], threads: {}, log: [] };
   const calls = [];
@@ -18,17 +16,17 @@ function harness() {
   const nodeOf=id=>state.nodes.find(n=>n.id===id), allNodes=()=>state.nodes, allEdges=()=>state.edges;
   const { seesOf, askPrompt } = askContext({ getState: () => state, project: '', nodeOf, allNodes, allEdges });
   const { proposal, checkAutoPlan, check } = proposalChecks({ getState: () => state, nodeOf, allNodes, allEdges, seesOf, placeProposed() {} });
-  const ctx = vm.createContext({ seesOf, askPrompt, proposal, checkAutoPlan, check, contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
+  const ctx = /** @type {any} */ ({ seesOf, askPrompt, proposal, checkAutoPlan, check, contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
     nodeOf:id=>state.nodes.find(n=>n.id===id), allNodes:()=>state.nodes, allEdges:()=>state.edges,
     stamp:()=> '12:00', fs:{mkdirSync(){}}, askAgent:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, agent:{signedOut:'signed out'},
     placeProposed(){},
     mineChat:(key,by)=>key.startsWith(`@${by}>`), ownerOf:()=>null, tell(){},
     draw:plan=>{state.nodes.push(...plan.nodes);state.edges.push(...plan.edges);},
   });
-  vm.runInContext(server.slice(server.indexOf('  const selectedContextMaps ='),server.indexOf('  const updateBoxDates =')),ctx);
-  vm.runInContext(server.slice(server.indexOf('  const pendingProposals ='),server.indexOf('  // History: every change saves itself')),ctx);
-  vm.runInContext(`var acts={${server.slice(server.indexOf('    renamebox(a) {'),server.indexOf('    remove(a) {'))}${server.slice(server.indexOf('    ask(a) {'),server.indexOf('    // the Save menu:'))}${server.slice(server.indexOf('    apply(a) {'),server.indexOf('    drop(a) {'))}}`,ctx);
-  return {state,calls,actions,actionRequests,runs,describe:a=>ctx.acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>ctx.acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>ctx.acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),check:(p)=>ctx.check(p,'Tester'),apply:()=>ctx.acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
+  const acts=chatActs({getState:()=>state,project:'',name:'test-map',home:'.',nodeOf,seesOf,askPrompt,proposal,check,checkAutoPlan,
+    pendingProposals:(by)=>pendingIn(state,by,()=>false),selectedContextMaps:()=>[],askAgent:ctx.askAgent,agent:ctx.agent,activeAsks:ctx.activeAsks,
+    stamp:ctx.stamp,save(){},push(){},tell(){},ownsChat:()=>false,mineChat,ownerOf:()=>null,placeProposed(){},draw:ctx.draw,actions,relayout(){},keepMemory(){}});
+  return {state,calls,actions,actionRequests,runs,describe:a=>acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),check:(p)=>ctx.check(p,'Tester'),apply:()=>acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 // what Claude's answer hands back: its words, and the change its propose_change call offered
 const reply = plan => ['Suggested next steps.', undefined, plan];
