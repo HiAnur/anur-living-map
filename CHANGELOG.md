@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Build the plan</strong></dt>
+<dd>
+
+The button that has Claude Code build an agreed plan now reads **Build the plan**, so it is not confused with an Action box's **Execute**, which runs one box's task. <!-- source: https://github.com/HiAnur/anur-living-map/pull/313 --> <!-- merged-at: 2026-11-10T21:38:50Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Box details always say who changed a box</strong></dt>
 <dd>
 
