@@ -15,7 +15,7 @@ function harness() {
   const actions=actionBoxes(/** @type {any} */ ({nodeOf:id=>state.nodes.find(n=>n.id===id),allNodes:()=>state.nodes,canUse:()=>true,context:()=>'',ask:r=>actionRequests.push(r),changed(){},run:r=>runs.push(r)}));
   const ctx = vm.createContext({ contextMaps:null, activeAsks:new Set(), state, project:'', name:'test-map', home:'.', AUTO_PLAN_QUESTION, autoPlanPrompt, autoPlanAdditions, readPlannedTask, actions,
     nodeOf:id=>state.nodes.find(n=>n.id===id), allNodes:()=>state.nodes, allEdges:()=>state.edges,
-    stamp:()=> '12:00', fs:{mkdirSync(){}}, askClaude:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, SIGNED_OUT:'signed out',
+    stamp:()=> '12:00', fs:{mkdirSync(){}}, askAgent:a=>calls.push(a), save(){}, push(){}, clearTimeout(){}, setTimeout(){return 1;}, agent:{signedOut:'signed out'},
     placeProposed(){},
     mineChat:(key,by)=>key.startsWith(`@${by}>`), ownerOf:()=>null, tell(){},
     draw:plan=>{state.nodes.push(...plan.nodes);state.edges.push(...plan.edges);},

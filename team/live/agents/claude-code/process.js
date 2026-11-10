@@ -13,6 +13,13 @@ export function claudeEnv(env) {
   return env;
 }
 
+// The map's own MCP servers, as Claude Code is given them (--mcp-config) and as it names their tools
+// (mcp__<server>__<tool>): only the tools each server lists are allowed.
+/** @param {McpServers} [servers] */
+export const mcpConfig = (servers = {}) => ({ mcpServers: Object.fromEntries(Object.entries(servers).map(([name, { tools, ...run }]) => [name, run])) });
+/** @param {McpServers} [servers] */
+export const mcpTools = (servers = {}) => Object.entries(servers).flatMap(([name, s]) => s.tools.map((t) => `mcp__${name}__${t}`));
+
 /** @param {string} s */
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 

@@ -102,6 +102,71 @@ interface RunResult {
 /** Stops a job under way; a job that never started has none. */
 type Stop = (() => void) | null | undefined | void;
 
+// One of the map's own MCP servers handed to an agent: how to start it over stdio, and the tools it may call.
+interface McpServer {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  tools: string[];
+}
+type McpServers = Record<string, McpServer>;
+
+// What the team map asks of the agent it works with (agent.js). Each job is the map's: its prompt, its schema,
+// its servers. How the agent is started, named and limited stays in that agent's folder under agents/.
+interface AgentWorker {
+  name: string;
+  // the words an answer is replaced by when the agent is signed out, so the page can offer to sign in
+  signedOut: string;
+  signIn(): Promise<boolean>;
+  // one read-only answer, streamed, over the project's files and the given servers; `propose` names the tool
+  // whose last call is the change offered, handed back as onDone's third argument
+  ask(job: AskJob): Stop;
+  // lookups only, held to `schema`; reports which tools it could use
+  prepare(job: PrepareJob): Stop;
+  // carries out a reviewed task in a resumable session, limited to `tools`, held to `schema`
+  run(job: RunJob): Stop;
+  // one turn of a headless chat the map runs itself, resumed by session id
+  converse(job: ConverseJob): () => void;
+}
+interface AskJob {
+  cwd: string;
+  prompt: string;
+  servers?: McpServers;
+  propose?: { server: string; tool: string };
+  onText: (text: string, proposing?: boolean) => void;
+  onDone: (text: string, access?: undefined, proposed?: unknown) => void;
+}
+interface PrepareJob {
+  cwd: string;
+  prompt: string;
+  connected?: boolean; // may use the person's own connectors and settings
+  servers?: McpServers;
+  schema: object;
+  onText: (words: string) => void;
+  onDone: (text: string, access: { tools: string[]; denied: string[] }, value?: unknown) => void;
+}
+interface RunJob {
+  cwd: string;
+  session: string;
+  resume?: boolean;
+  prompt: string;
+  tools?: string[];
+  schema: object;
+  system: string;
+  read: (value: unknown) => any;
+  onText: (words: string) => void;
+  onDone: (result: RunResult) => void;
+}
+interface ConverseJob {
+  cwd: string;
+  session: string;
+  first: boolean;
+  title: string;
+  system: string;
+  prompt: string;
+  onClose: () => void;
+}
+
 /** The part of node:sqlite this code uses; a row comes back untyped. */
 interface Sqlite {
   exec(sql: string): void;

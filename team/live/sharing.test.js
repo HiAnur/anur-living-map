@@ -29,6 +29,7 @@ it('only owners enable links; disabling rotates the next link and snapshots neve
 it('enforces view/edit links in pages, APIs and live streams, including revocation and restart', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-sharing-'));
   for (const name of fs.readdirSync(import.meta.dirname)) if (/\.(js|json|html|md)$/.test(name) && !fs.lstatSync(path.join(import.meta.dirname, name)).isSymbolicLink()) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(root, name));
+  fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(root, 'agents'), { recursive: true });
   const state = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(root, 'seed.json'), 'utf8')));
   state.people = [{ id: 'Duy', role: 'Admin', joined: 'test' }];
   state.threads = { '@Duy': [{ who: 'Duy', text: 'private-chat-marker' }] };

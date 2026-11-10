@@ -6,16 +6,18 @@ const spawned = vi.hoisted(() => ({ calls: /** @type {any[]} */ ([]), next: /** 
 vi.mock('node:child_process', () => ({ spawn: (...args) => { spawned.calls.push(args); return spawned.next; } }));
 
 const { SIGNED_OUT, streamClaude } = await import('./ask.js');
-const { PROPOSE_TOOL } = await import('./propose.js');
+const PROPOSE_TOOL = 'mcp__map_propose__propose_change';
+const PROPOSE = { command: 'node', args: ['propose-mcp.js'], tools: ['propose_change'] };
 
 // Ask Claude on a box, on a stand-in for the `claude` process: what it may do, what its answer is in each way a
 // run can end, and that an answer is given once.
-function harness(config) {
+function harness(more = {}) {
   /** @type {any} */ const proc = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn() });
   spawned.next = proc; spawned.calls.length = 0;
   const words = [], answers = [], proposing = [], proposals = [];
   const stop = streamClaude({ cwd: '/sample/project', prompt: 'What is this box for?', onText: (t, p) => { words.push(t); proposing.push(p); },
-    onDone: (t, _access, p) => { answers.push(t); proposals.push(p); }, config });
+    onDone: (t, _access, p) => { answers.push(t); proposals.push(p); },
+    servers: { map_propose: PROPOSE, ...more }, propose: { server: 'map_propose', tool: 'propose_change' } });
   const event = (d) => proc.stdout.write(JSON.stringify(d) + '\n');
   const say = (text) => event({ type: 'stream_event', event: { type: 'content_block_delta', delta: { text } } });
   return { proc, words, answers, proposing, proposals, stop, event, say, args: spawned.calls[0][1], opts: spawned.calls[0][2] };
@@ -41,12 +43,14 @@ describe('Ask Claude on a box', () => {
     expect(h.opts.env.PATH).toBe(process.env.PATH);
   });
   it('may read the other maps you checked, and nothing more, when given their context', () => {
-    const config = { mcpServers: { map_context: { command: 'node' } } }, h = harness(config);
+    const context = { command: 'node', args: ['map-context-mcp.js'], env: { LM_CONTEXT_URL: 'http://127.0.0.1:1/' }, tools: ['list_maps', 'load_map'] };
+    const h = harness({ map_context: context });
     expect(flag(h.args, '--allowedTools')).toBe(`Read,Grep,Glob,${PROPOSE_TOOL},mcp__map_context__list_maps,mcp__map_context__load_map`);
     expect(flag(h.args, '--tools')).toBe('Read,Grep,Glob');
     const servers = JSON.parse(flag(h.args, '--mcp-config')).mcpServers;
-    expect(Object.keys(servers)).toEqual(['map_context', 'map_propose']);
-    expect(servers.map_context).toEqual(config.mcpServers.map_context);
+    expect(Object.keys(servers)).toEqual(['map_propose', 'map_context']);
+    expect(servers.map_context).toEqual({ command: 'node', args: ['map-context-mcp.js'], env: { LM_CONTEXT_URL: 'http://127.0.0.1:1/' } });
+    expect(servers.map_propose).toEqual({ command: 'node', args: ['propose-mcp.js'] });
   });
   it('shows the words as they come, a new paragraph for each message, and answers with the result', () => {
     const h = harness();

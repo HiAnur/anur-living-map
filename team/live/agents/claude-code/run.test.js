@@ -3,13 +3,14 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
-import { ALWAYS, completionSchema, readCompletion, runAction, runSettings } from './action-runner.js';
+import { completionSchema, executionPrompt, readCompletion } from '../../action-completion.js';
+import { ALWAYS, runAction, runSettings } from './run.js';
 
 /** @param {boolean} [resume] @param {string[]} [tools] */
 function harness(resume = false, tools = undefined) {
   /** @type {any} */ const proc = new EventEmitter(); proc.stdin=new PassThrough();proc.stdout=new PassThrough();proc.stderr=new PassThrough();proc.kill=()=>{};
   const calls=[],words=[],results=[];
-  const stop=runAction({cwd:'/sample/project',env:{},session:'exact-chat-id',resume,prompt:'Do the task',tools,onText:t=>words.push(t),onDone:r=>results.push(r),spawnProcess:(...args)=>{calls.push(args);return proc;}});
+  const stop=runAction({cwd:'/sample/project',env:{},session:'exact-chat-id',resume,prompt:'Do the task',tools,schema:completionSchema,system:executionPrompt,read:readCompletion,onText:t=>words.push(t),onDone:r=>results.push(r),spawnProcess:(...args)=>{calls.push(args);return proc;}});
   const event=(data,newline=true)=>proc.stdout.write(JSON.stringify(data)+(newline?'\n':''));
   return {proc,calls,words,results,event,stop};
 }

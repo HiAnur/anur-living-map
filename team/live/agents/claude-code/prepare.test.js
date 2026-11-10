@@ -3,13 +3,13 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 
-import { actionSchema } from './action-box.js';
-import { preparationSettings, prepareAction } from './action-preparation.js';
+import { actionSchema } from '../../action-box.js';
+import { preparationSettings, prepareAction } from './prepare.js';
 
 function harness(connected=true){
   /** @type {any} */ const proc=new EventEmitter();Object.assign(proc,{stdin:new PassThrough(),stdout:new PassThrough(),stderr:new PassThrough(),kill:vi.fn()});
   const calls=[],results=[];
-  const stop=prepareAction(/** @type {any} */ ({cwd:'/sample/project',env:{CLAUDECODE:'1',CLAUDE_CONFIG_DIR:'/sample/config'},connected,prompt:'Prepare a report',onText(){},onDone:(text,access,value)=>results.push({text,access,...(value===undefined?{}:{value})}),spawnProcess:(...args)=>{calls.push(args);return proc;}}));
+  const stop=prepareAction(/** @type {any} */ ({cwd:'/sample/project',env:{CLAUDECODE:'1',CLAUDE_CONFIG_DIR:'/sample/config'},connected,schema:actionSchema,prompt:'Prepare a report',onText(){},onDone:(text,access,value)=>results.push({text,access,...(value===undefined?{}:{value})}),spawnProcess:(...args)=>{calls.push(args);return proc;}}));
   const event=(d,newline=true)=>proc.stdout.write(JSON.stringify(d)+(newline?'\n':''));
   return {proc,calls,results,event,stop};
 }

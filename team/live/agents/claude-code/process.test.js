@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { addWords, claudeEnv, killer, readLines } from './claude.js';
+import { addWords, claudeEnv, killer, readLines } from './process.js';
 
 /** @returns {any} a stand-in for a child process: streams to write to and a kill to watch */
 function fake(pid) {

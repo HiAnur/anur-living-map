@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { readCompletion } from './action-runner.js';
+import { readCompletion } from './action-completion.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
 import { can, handedOff } from './action-stages.js';
 

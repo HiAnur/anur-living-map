@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 
-import { actionSchema } from './action-box.js';
-import { addWords, claudeEnv, killer, onlyTools, readLines } from './claude.js';
+import { addWords, claudeEnv, killer, mcpConfig, onlyTools, readLines } from './process.js';
 
 // Keep the executor's catalog visible, but prevent preparation from doing the task.
 // This hook also denies tools that a person's existing settings already allow. StructuredOutput is how Claude
@@ -12,17 +11,17 @@ const LOOKUPS = ['Read','Grep','Glob','ToolSearch','StructuredOutput','WebSearch
 export const preparationSettings = () => onlyTools(LOOKUPS, 'Action preparation can only look up information. Review the brief and press Execute to make changes.');
 
 /**
- * @param {{ cwd: string, env: Record<string, string | undefined>, connected?: boolean, config?: unknown, prompt: string,
+ * @param {{ cwd: string, env: Record<string, string | undefined>, connected?: boolean, servers?: McpServers, schema: object, prompt: string,
  *   onText: (words: string) => void, onDone: (text: string, access: { tools: string[], denied: string[] }, value?: unknown) => void,
  *   spawnProcess?: typeof spawn, timeoutMs?: number }} job
  */
-export function prepareAction({cwd,env,connected=false,config,prompt,onText,onDone,spawnProcess=spawn,timeoutMs=180_000}) {
+export function prepareAction({cwd,env,connected=false,servers,schema,prompt,onText,onDone,spawnProcess=spawn,timeoutMs=180_000}) {
   env = claudeEnv(env);
   const args = ['-p','--output-format','stream-json','--verbose','--include-partial-messages','--no-session-persistence',
     '--permission-mode','dontAsk','--permission-prompts','none','--allowedTools',LOOKUPS.join(','),'--settings',JSON.stringify(preparationSettings()),
-    '--json-schema',JSON.stringify(actionSchema),
+    '--json-schema',JSON.stringify(schema),
     ...(connected ? [] : ['--restricted','--tools','Read,Grep,Glob','--strict-mcp-config','--setting-sources','']),
-    ...(config || !connected ? ['--mcp-config',JSON.stringify(config || {mcpServers:{}})] : [])];
+    ...(servers || !connected ? ['--mcp-config',JSON.stringify(mcpConfig(servers))] : [])];
   const proc = spawnProcess('claude',args,{cwd,env,detached:process.platform !== 'win32',stdio:['pipe','pipe','pipe']});
   const available = new Set(), denied = new Set(), searches = new Set();
   let words='', /** @type {string | null} */ result=null, /** @type {unknown} */ value, done=false, stopped=false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;

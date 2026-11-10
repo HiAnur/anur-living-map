@@ -11,6 +11,7 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
   const app = path.join(root, 'app'), primary = path.join(root, 'primary'), secondary = path.join(root, 'secondary');
   fs.mkdirSync(app);
   for (const name of fs.readdirSync(import.meta.dirname)) if (/\.(js|json|html|md)$/.test(name) && !name.includes('.test.') && !fs.lstatSync(path.join(import.meta.dirname, name)).isSymbolicLink()) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(app, name));
+  fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(app, 'agents'), { recursive: true });
   const state = { title: 'Unopened map', nodes: [], edges: [], people: [], calls: [], prs: [], log: [], threads: {} };
   for (const folder of [primary, secondary]) {
     fs.mkdirSync(path.join(folder, '.living-map'), { recursive: true });

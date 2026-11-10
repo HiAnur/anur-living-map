@@ -60,7 +60,7 @@ it('bounds discovery pages without losing maps', async () => {
 
 it('serves only the scoped capability through the actual stdio tools', async () => {
   const session=await openContext({who:'Owner',maps:()=>[{id:'pilot',allowed:()=>true,snapshot:state}]});
-  const config=session.config.mcpServers.map_context;
+  const config=session.servers.map_context;
   let child;
   try {
     expect((await fetch(config.env.LM_CONTEXT_URL,{method:'POST',body:'{}'})).status).toBe(403);
@@ -83,6 +83,7 @@ it('connects a real map question to scoped context and records the loaded source
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'lm-context-')), dir=path.join(root,'app'), bin=path.join(root,'bin');
   fs.mkdirSync(dir);fs.mkdirSync(bin);
   for(const f of fs.readdirSync(import.meta.dirname)) if(/\.(js|json|html|md)$/.test(f) && fs.statSync(path.join(import.meta.dirname,f)).isFile()) fs.copyFileSync(path.join(import.meta.dirname,f),path.join(dir,f));
+  fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(dir, 'agents'), { recursive: true });
   const make=(id,title,desc,extra={})=>{const home=path.join(dir,'maps',id);fs.mkdirSync(home,{recursive:true});fs.writeFileSync(path.join(home,'state.json'),JSON.stringify({title,desc,nodes:[{id:'root',label:title,sub:desc,x:0,y:0}],edges:[],calls:[],people:[{id:'Duy',role:'Admin',joined:'test'}],threads:{},log:[],...extra}));};
   make('current','Current project','Plan our new feature');make('pricing','Pilot pricing','Per-seat pricing research and buyer interviews');make('unrelated','Garden','Vegetable planting dates');make('hidden','Hidden map','Never reveal this map',{removedPeople:['Duy'],people:[]});
   fs.writeFileSync(path.join(bin,'claude'),`#!${process.execPath}
