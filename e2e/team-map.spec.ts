@@ -246,6 +246,43 @@ test("the plan's go-ahead reads Build the plan", async ({ page }) => {
   await expect(page.locator("body")).not.toContainText("Execute on Claude");
 });
 
+test("cancelling an Action keeps it, and Prepare again brings it back", async ({
+  page,
+}) => {
+  const ready = {
+    by: "Duy",
+    stage: "ready",
+    id: "r1",
+    intent: "Write the trial page",
+    history: [],
+    brief: {
+      kind: "other",
+      goal: "Write the trial page",
+      target: "The website",
+      result: "A trial page people can read",
+      steps: ["Write the page"],
+    },
+  };
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
+    ),
+  });
+  await box(page, "Free trial").click();
+  await page.getByRole("button", { name: "Cancel Action" }).click();
+  await expect(
+    page.getByLabel("Action status: Cancelled").first(),
+  ).toBeVisible();
+  await expect(page.locator(".action-card h3")).toHaveText("Cancelled");
+  // still an Action: the toggle stays on and cannot turn it back
+  await expect(page.locator(".action-type-toggle")).toBeDisabled();
+  await page.getByRole("button", { name: "Prepare again" }).click();
+  await expect(page.getByLabel("Action instructions")).toHaveValue(
+    "Write the trial page",
+  );
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();

@@ -2,13 +2,13 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
-import { actionExecuted, actionStatus } from './page-action.js';
+import { actionCancellable, actionExecuted, actionStatus, actionUntouched } from './page-action.js';
 
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const esc=s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 function panel(){
   const ctx=vm.createContext({ME:'Duy',READ_ONLY:false,FILE:false,PREVIEW:false,esc,md:esc,yours:s=>`<p>${esc(s)}</p>`,claudes:s=>s,attached:()=>'',SEND_ICON:'Send',openSecs:new Set(),nodeById:()=>({label:'Research'}),locked:()=>false});
-  Object.assign(ctx, { actionExecuted, actionStatus });
+  Object.assign(ctx, { actionCancellable, actionExecuted, actionStatus, actionUntouched });
   vm.runInContext(html.slice(html.indexOf('function actionStatusPill('),html.indexOf('async function runBoxAction(')),ctx);
   return ctx;
 }

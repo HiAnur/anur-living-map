@@ -27,6 +27,7 @@ export const COMMANDS = /** @type {const} */ ({
   actionanswer: { id: 'id', answer: 'text?' },
   actionrevise: { id: 'id' },
   actioncancel: { id: 'id' },
+  actionreopen: { id: 'id' },
   actionexecute: { id: 'id', revision: 'any?' },
   actioncontinue: { id: 'id', revision: 'any?', answer: 'text?' },
   actionstop: { id: 'id', revision: 'any?' },

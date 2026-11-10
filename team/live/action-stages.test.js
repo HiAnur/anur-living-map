@@ -4,20 +4,20 @@ import { can, handedOff, STAGES } from './action-stages.js';
 
 // The whole table, written out: what may be asked of an Action in each stage. A change to action-stages.js that
 // allows or forbids a move shows here as one cell.
-const ASKS = /** @type {const} */ (['start', 'prepare', 'answer', 'revise', 'execute', 'continue', 'stop', 'watch']);
+const ASKS = /** @type {const} */ (['start', 'prepare', 'answer', 'revise', 'execute', 'continue', 'stop', 'cancel', 'reopen', 'watch']);
 const ALLOWED = {
-  //              start prepare answer revise execute continue stop  watch
-  draft:        [true,  true,  false, false, false,  false,  false, true],
-  gathering:    [false, false, false, false, false,  false,  false, false],
-  clarify:      [false, true,  true,  false, false,  false,  false, false],
-  ready:        [false, true,  false, true,  true,   false,  false, true],
-  waiting:      [false, true,  false, false, false,  false,  false, true],
-  error:        [false, true,  false, false, false,  false,  false, false],
-  running:      [false, false, false, false, false,  false,  true,  false],
-  finished:     [false, false, false, false, false,  true,   false, false],
-  blocked:      [false, false, false, false, false,  true,   false, false],
-  sent:         [false, false, false, false, true,   false,  false, false],
-  unconfirmed:  [false, false, false, false, true,   false,  false, false],
+  //              start prepare answer revise execute continue stop   cancel reopen watch
+  draft:        [true,  true,  false, false, false,  false,  false, true,  false, true],
+  gathering:    [false, false, false, false, false,  false,  false, true,  false, false],
+  clarify:      [false, true,  true,  false, false,  false,  false, true,  false, false],
+  ready:        [false, true,  false, true,  true,   false,  false, true,  false, true],
+  waiting:      [false, true,  false, false, false,  false,  false, true,  false, true],
+  error:        [false, true,  false, false, false,  false,  false, true,  false, false],
+  running:      [false, false, false, false, false,  false,  true,  false, false, false],
+  finished:     [false, false, false, false, false,  true,   false, false, false, false],
+  blocked:      [false, false, false, false, false,  true,   false, false, false, false],
+  cancelled:    [false, false, false, false, false,  false,  false, false, true,  false],
+  unconfirmed:  [false, false, false, false, true,   false,  false, false, false, false],
 };
 
 describe('what may be asked of an Action, by stage', () => {
@@ -29,7 +29,7 @@ describe('what may be asked of an Action, by stage', () => {
     for (const stage of [undefined, null, '', 'done', 7]) for (const ask of ASKS) expect(can(ask, stage)).toBe(false);
   });
   it('knows which Actions were handed off with no outcome back', () => {
-    expect(STAGES.filter(handedOff)).toEqual(['sent', 'unconfirmed']);
+    expect(STAGES.filter(handedOff)).toEqual(['unconfirmed']);
     expect(handedOff(undefined)).toBe(false);
   });
 });

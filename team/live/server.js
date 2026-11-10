@@ -498,6 +498,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     actionrevise(a) { return actions.revise(/** @type {string} */ (a.id), a.by); },
     /** @param {Act<'actioncancel'>} a */
     actioncancel(a) { return actions.cancel(/** @type {string} */ (a.id), a.by); },
+    /** @param {Act<'actionreopen'>} a */
+    actionreopen(a) { return actions.reopen(/** @type {string} */ (a.id), a.by); },
     /** @param {Act<'actionexecute'>} a */
     actionexecute(a) { return actions.execute(/** @type {string} */ (a.id), a.by, a.revision); },
     /** @param {Act<'actioncontinue'>} a */
