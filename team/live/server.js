@@ -649,22 +649,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud };
   };
 
-  // what waits on a person here, for the Inbox: questions for them, and comment threads waiting on
-  // their reply (they wrote in it, or someone @-named them); only on boxes they may see
-  const asks = (/** @type {any} */ who) => {
-    const sees = seesOf(who), seen = (/** @type {any} */ id) => { const n = id && nodeOf(id); return !n || sees === 'all' || n.area === sees; };
-    const mention = new RegExp(`@${who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-    return [
-      ...state.calls.filter((/** @type {any} */ c) => c.for === who && c.status === 'open' && seen(c.node))
-        .map((/** @type {any} */ c) => ({ kind: 'call', id: c.id, node: c.node, text: c.ask || c.text, on: nodeOf(c.node)?.label || '', from: c.from || 'Claude' })),
-      ...(state.comments || []).filter((/** @type {any} */ c) => !c.resolved && seen(c.node) && c.msgs.at(-1).who !== who && c.msgs.some((/** @type {any} */ m) => m.who === who || mention.test(m.text)))
-        .map((/** @type {any} */ c) => ({ kind: 'comment', id: c.id, node: c.node, text: c.msgs.at(-1).text, on: nodeOf(c.node)?.label || '', from: c.msgs.at(-1).who })),
-      // their own Actions, prepared and waiting for their Execute
-      ...allNodes().filter((/** @type {any} */ n) => n.action?.by === who && n.action.stage === 'ready' && seen(n.id))
-        .map((/** @type {any} */ n) => ({ kind: 'action', id: n.id, node: n.id, text: n.action.brief?.goal || n.action.intent || n.label, on: n.label, from: 'The map' })),
-    ];
-  };
-
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
   function close() {
     closed = true;
@@ -688,7 +672,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (result.ok) { actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
-  return { handle, summary, asks, build, blank, close, allowed, access, canDelete, editShared,
+  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
