@@ -126,6 +126,7 @@ const chatRules = (base) => { try { return fs.readFileSync(path.join(DIR, 'chat-
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
+/** @param {any} options */
 export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   let closed = false;
@@ -197,7 +198,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     } else send(r, 'state', sharedState(state, role === 'owner', c.guest));
   } };
 
-  const cloud = !memory ? cloudMirror({ home, read: () => state,
+  /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
     write: (data) => { installCloudData(state, data); save(); push(); },
     notify: () => { for (const r of clients) if (clientAccess.get(r)?.role === 'owner') send(r, 'cloud', cloud.status()); }
   }) : null;
@@ -536,7 +537,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // a proposed change ({nodes, edges, remove}) checked against the map for the person it is for
   function check(p, by, limit = 12) {
     const sees = seesOf(by), mayTouch = (n) => sees === 'all' || n.area === sees;
-    const ops = [], dropped = [], plan = { nodes: [], edges: [], remove: [], unlink: [], memory: [] }, slug = /^[a-z0-9-]{1,40}$/;
+    const ops = [], dropped = [], plan = /** @type {any} */ ({ nodes: [], edges: [], remove: [], unlink: [], memory: [] }), slug = /^[a-z0-9-]{1,40}$/;
     for (const n of (p.nodes || []).slice(0, limit)) {
       const had = nodeOf(n?.id);
       if (!n || !slug.test(n.id || '')) { dropped.push({ text: n?.label || 'a box', why: 'no usable id' }); continue; }
@@ -1325,7 +1326,7 @@ function connectedMap(options) {
   } });
   return map;
 }
-let main = PROJECT && deletedMaps.has(mapName(PROJECT)) ? null : connectedMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
+/** @type {any} */ let main = PROJECT && deletedMaps.has(mapName(PROJECT)) ? null : connectedMap({ project: PROJECT, home: PROJECT ? path.join(PROJECT, '.living-map') : DIR });
 // every code folder this server draws, by folder name: the one it started with, then each added since
 // a map's address is its folder's name in lowercase letters, digits and dashes (AnurWebApp -> /anurwebapp/)
 const projects = new Map(PROJECT && main ? [[mapName(PROJECT), main]] : []);
@@ -1382,7 +1383,7 @@ const page = (res, file, who, access = 'edit', shared = false) => res.writeHead(
 const cookieOf = (req, key) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === key)?.[1] || '';
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x');
+  const url = new URL(/** @type {string} */ (req.url), 'http://x');
   if (await handleRecovery(req, res, { users, recovery, port: PORT })) return;
   // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
   // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
@@ -1535,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
     const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: map.snapshot })) });
     try {
       return json(200, read(url.searchParams.get('tool') || 'list_maps', { id: url.searchParams.get('id'), query: url.searchParams.get('query') || '', offset: Number(url.searchParams.get('offset') || 0),
-        ...(url.searchParams.has('sections') ? {sections:url.searchParams.get('sections').split(',')} : {}) }));
+        ...(url.searchParams.has('sections') ? {sections:/** @type {string} */ (url.searchParams.get('sections')).split(',')} : {}) }));
     } catch (/** @type {any} */ e) { return json(400, { error: e.message }); }
   }
   if (url.pathname === '/api/maps') {
@@ -1558,7 +1559,7 @@ const server = http.createServer(async (req, res) => {
     return json(200, { name, href: `/${name}/` });
   }
   // /<name>/... is the map called <name>, unless a file of the page has that name
-  const [, first, rest] = url.pathname.match(/^\/([^/]*)(.*)$/);
+  const [, first, rest] = /** @type {RegExpMatchArray} */ (url.pathname.match(/^\/([^/]*)(.*)$/));
   if (deletedMaps.has(first) || (PROJECT && !first && !main)) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
   const own = projects.get(first);
   const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
@@ -1629,7 +1630,7 @@ function restart() {
 }
 async function keepCurrent() { if ((await checkLatest()) === false && !(await cannotUpdate()) && (await pull())?.count) restart(); }
 // build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
-const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
+/** @type {any} */ const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
 for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);

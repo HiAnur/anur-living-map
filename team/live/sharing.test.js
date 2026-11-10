@@ -46,7 +46,7 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
   const request = (route, /** @type {any} */ { token, owner = false, data } = {}) => fetch(origin + route + (token ? `?share=${token}` : ''), { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', ...(owner ? { cookie: `lm_session=${cookie}` } : {}), ...(data ? { origin, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
   const change = (mode) => request('/shared/api/sharing', { owner: true, data: { mode } });
-  const stream = async (token) => { const r = await request('/shared/api/events', { token }); reader = r.body.getReader(); return new TextDecoder().decode((await reader.read()).value); };
+  const stream = async (token) => { const r = await request('/shared/api/events', { token }); reader = /** @type {any} */ (r.body).getReader(); return new TextDecoder().decode((await reader.read()).value); };
   const end = async () => { let text = ''; for (;;) { const r = await reader.read(); if (r.done) return text; text += new TextDecoder().decode(r.value); } };
   try {
     await start();

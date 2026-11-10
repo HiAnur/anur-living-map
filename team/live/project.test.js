@@ -153,7 +153,7 @@ describe('tidyTree', () => {
     // Discounts under Offer, its billing sibling on the right; Extra at the top of the lighter left side
     const right = column(nodes, 1);
     expect(right.indexOf('discount')).toBe(-1);
-    expect(nodes.find((n) => n.id === 'discount').x).toBe(get(nodes, 'offer').x);
+    expect(/** @type {any} */ (nodes.find((n) => n.id === 'discount')).x).toBe(get(nodes, 'offer').x);
     expect(get(nodes, 'discount').y).toBe(get(nodes, 'offer').y + 85);
     expect(column(nodes, -1)[0]).toBe('extra');
   });

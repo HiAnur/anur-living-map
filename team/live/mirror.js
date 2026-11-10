@@ -38,7 +38,7 @@ function plainStep(b) {
   if (n === 'ToolSearch') return 'Loading its tools';
   if (/living_map_change$/.test(n)) return 'Drawing on the map';
   if (/living_map_read$/.test(n)) return 'Reading the map';
-  const t = n.split('__').pop().replace(/_/g, ' ');
+  const t = /** @type {string} */ (n.split('__').pop()).replace(/_/g, ' ');
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
@@ -87,7 +87,7 @@ export function follow(file, onChange, { anyUser = false } = {}) {
       if (size > offset) {
         const fd = fs.openSync(file, 'r'), buf = Buffer.alloc(size - offset);
         fs.readSync(fd, buf, 0, buf.length, offset); fs.closeSync(fd); offset = size;
-        const lines = (rest + buf.toString('utf8')).split('\n'); rest = lines.pop();
+        const lines = (rest + buf.toString('utf8')).split('\n'); rest = /** @type {string} */ (lines.pop());
         for (const l of lines) if (l) line(l);
         if (msgs.length > KEEP) {
           msgs = msgs.slice(-KEEP);

@@ -11,7 +11,7 @@ const state = {nodes:[
   {id:'child',label:'Partners',sub:'Local rules and money',desc:'Ask about food licences'},
   {id:'private',label:'Private partners',sub:'Hidden description',private:true}
 ],edges:[{from:'root',to:'child'}]};
-const search = (q, additions={nodes:[],edges:[]}) => ctx.searchBoxes(state, additions, q, n=>!n.private);
+const search = (q, /** @type {any} */ additions={nodes:[],edges:[]}) => ctx.searchBoxes(state, additions, q, n=>!n.private);
 describe('map search',()=>{
   it('matches names, descriptions and notes, with name matches first',()=>{
     expect(search('partners').map(r=>r.id)).toEqual(['child','nested']);

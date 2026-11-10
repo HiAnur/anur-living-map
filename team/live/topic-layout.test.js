@@ -8,7 +8,7 @@ import { editHistory, editSnapshot } from './editing.js';
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const ctx=vm.createContext({HT:n=>n.h||50});
 vm.runInContext(html.slice(html.indexOf('function planTopicInsert('),html.indexOf('function topicGraph(')),ctx);
-const fixture=()=>({nodes:[{id:'root',x:-210,y:220},{id:'one',x:0,y:170},...Array.from({length:5},(_,i)=>({id:`one-${i}`,x:210,y:i*85})),{id:'two',x:0,y:468},{id:'a',x:210,y:425},{id:'b',x:210,y:510}],edges:[{from:'root',to:'one'},...Array.from({length:5},(_,i)=>({from:'one',to:`one-${i}`})),{from:'root',to:'two'},{from:'two',to:'a'},{from:'two',to:'b'}]});
+/** @type {() => any} */ const fixture=()=>({nodes:[{id:'root',x:-210,y:220},{id:'one',x:0,y:170},...Array.from({length:5},(_,i)=>({id:`one-${i}`,x:210,y:i*85})),{id:'two',x:0,y:468},{id:'a',x:210,y:425},{id:'b',x:210,y:510}],edges:[{from:'root',to:'one'},...Array.from({length:5},(_,i)=>({from:'one',to:`one-${i}`})),{from:'root',to:'two'},{from:'two',to:'a'},{from:'two',to:'b'}]});
 const placed=(s,p)=>new Map(s.nodes.map(n=>[n.id,{...n,y:p.moves.find(m=>m.id===n.id)?.y??n.y}]));
 describe('keyboard branch insertion',()=>{
   it('appends to its own branch and shifts the following parent and all its children together',()=>{

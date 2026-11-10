@@ -12,7 +12,7 @@ export function readPlannedTask(value) {
   const goal = text(value.goal, 1000), result = text(value.result, 2000);
   const inputs = strings(value.inputs, 20, 1000), steps = strings(value.steps, 20, 1000);
   const evidence = strings(value.evidence, 12, 1000), dependsOn = strings(value.dependsOn, 20, 40);
-  if (!goal || !result || !inputs || !steps?.length || !evidence?.length || !dependsOn || dependsOn.some((id) => !/^[a-z0-9-]{1,40}$/.test(id))) return null;
+  if (!goal || !result || !inputs || !steps?.length || !evidence?.length || !dependsOn || dependsOn.some((id) => !/^[a-z0-9-]{1,40}$/.test(/** @type {string} */ (id)))) return null;
   const destination = value.destination === undefined || value.destination === '' ? '' : text(value.destination, 1000);
   const readiness = value.readiness ?? 'needs_information';
   if (destination === null || !['ready','needs_information','waiting'].includes(readiness)) return null;

@@ -84,13 +84,13 @@ const TTL = 10 * 60_000, CODE_TTL = 2 * 60_000;
 const token = (n) => crypto.randomBytes(n).toString('base64url');
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('base64url');
 function seal(kind, obj) {
-  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', KEY, iv);
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', /** @type {Buffer} */ (KEY), iv);
   const ct = Buffer.concat([c.update(JSON.stringify({ ...obj, kind, at: Date.now() })), c.final()]);
   return Buffer.concat([iv, c.getAuthTag(), ct]).toString('base64url');
 }
 function unseal(kind, s, ttl) {
   try {
-    const b = Buffer.from(String(s), 'base64url'), d = crypto.createDecipheriv('aes-256-gcm', KEY, b.subarray(0, 12));
+    const b = Buffer.from(String(s), 'base64url'), d = crypto.createDecipheriv('aes-256-gcm', /** @type {Buffer} */ (KEY), b.subarray(0, 12));
     d.setAuthTag(b.subarray(12, 28));
     const o = JSON.parse(Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8'));
     return o.kind === kind && Date.now() - o.at < ttl ? o : null;
@@ -124,7 +124,7 @@ async function google(code, verifier) {
 }
 
 http.createServer(async (req, res) => {
-  const url = new URL(req.url, PUBLIC_URL), q = url.searchParams;
+  const url = new URL(/** @type {string} */ (req.url), PUBLIC_URL), q = url.searchParams;
   if (url.pathname === '/start' && req.method === 'GET') {
     const f = { back: q.get('return') || '', state: q.get('state') || '', challenge: q.get('challenge') || '' };
     if (!BACK.test(f.back) || !/^[\w-]{16,100}$/.test(f.state) || !/^[\w-]{43}$/.test(f.challenge)) return text(res, 400, 'This sign-in link is not from a Living Map.');

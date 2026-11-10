@@ -8,7 +8,7 @@ const plan={goal:'Write a report',result:'A report with sources',destination:'/s
 const brief={kind:'other',goal:plan.goal,target:plan.destination,result:plan.result,steps:plan.steps,tools:['Write']};
 const reply='```action\n'+JSON.stringify({status:'ready',brief})+'\n```';
 function setup(){
-  const nodes=[{id:'research',label:'Research',action:{stage:'draft'}},{id:'report',label:'Report'}], requests=[],runs=[];
+  /** @type {any[]} */ const nodes=[{id:'research',label:'Research',action:{stage:'draft'}},{id:'report',label:'Report'}], requests=[],runs=[];
   const nodeOf=id=>nodes.find(n=>n.id===id);
   const api=actionBoxes(/** @type {any} */ ({nodeOf,allNodes:()=>nodes,canUse:n=>!n.private,context:()=>JSON.stringify(nodes),ask:r=>{requests.push(r);return ()=>{};},changed(){},run:r=>{runs.push(r);return ()=>{};}}));
   api.begin('report','Duy',plan);
