@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>The Anur and Claude logos on the team map</strong></dt>
+<dd>
+
+The HiAnur logo now marks the browser tab of every team map page and the top left of the map and the list of maps, and Claude's own logo shows wherever the map shows Claude, from the **Chat** button to **Auto plan** and **Side Chat**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/300 --> <!-- merged-at: 2026-11-10T20:29:07Z -->
+
+<img src="docs/shipping/2026-11-10/logos.png" alt="A sample team map with the Anur logo at the top left of the navigation bar and the chat open on the right, where Claude's logo marks the header, the welcome message and the Chat button." width="660">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Stay in control of what Actions can do</strong></dt>
 <dd>
 
