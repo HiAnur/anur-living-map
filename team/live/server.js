@@ -35,6 +35,7 @@ import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
+import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
 import { readRoutes } from './read-routes.js';
 import { selfUpdate } from './self-update.js';
@@ -68,6 +69,8 @@ const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8
 const chatRules = (/** @type {any} */ base) => { try { return fs.readFileSync(path.join(DIR, 'chat-rules.md'), 'utf8').replaceAll('{{BASE}}', base).trim(); } catch { return ''; } };
 
 // the sides of a box a line can leave or arrive on: top, right, bottom, left
+// the page's own modules, at their addresses beside the page
+const PAGE_FILES = PAGE_MODULES.map((f) => `/${f}`);
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
 /** @param {any} options */
@@ -707,6 +710,9 @@ const server = http.createServer(async (req, res) => {
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
   const map = !isMap ? maps.main : own || mapCalled(first);
   const p = isMap ? rest : url.pathname;
+  // the page's own modules are its code, the same for every map and visitor, so they load before any check of who
+  // may see this map: a share link's key rides only on the page's own requests, never on the browser's imports
+  if (PAGE_FILES.includes(p) && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(fs.readFileSync(path.join(DIR, p.slice(1))));
   if (!map) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
   if (await map.handle(req, res, p, who)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');

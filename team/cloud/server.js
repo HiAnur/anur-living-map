@@ -4,6 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { openMap } from '../live/server.js';
+import { PAGE_MODULES, inlineModules } from '../live/page-modules.js';
 import { LINK_EDITS } from '../live/sharing.js';
 import { mapData, mergeMap, viewData, signedLink } from '../live/cloud-data.js';
 import { FirestoreStore } from './store.js';
@@ -22,7 +23,9 @@ async function body(req) {
 export function createCloudServer(/** @type {any} */ { store, publishKey, publicUrl }) {
   if (!publishKey || publishKey.length < 40) throw new Error('A strong publisher key is required.');
   const origin = new URL(publicUrl).origin;
-  const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8'), read = (/** @type {string} */ f) => fs.readFileSync(path.join(DIR, f), 'utf8');
+  // Share as a file opens with no server, so the page's modules are written into it
+  const fileHtml = inlineModules(html, read);
   const scriptHashes = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map((m) => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`).join(' ');
   return http.createServer(async (req, res) => {
     res.setHeader('cache-control', 'no-store'); res.setHeader('referrer-policy', 'no-referrer'); res.setHeader('x-content-type-options', 'nosniff');
@@ -49,6 +52,9 @@ export function createCloudServer(/** @type {any} */ { store, publishKey, public
       const match = url.pathname.match(/^\/m\/([a-f0-9]{32})(\/.*)?$/);
       if (!match) throw fail(404, 'Map not found.');
       const [, id, p = ''] = match;
+      // the page's own modules are its code, the same for every map: they load before the link check, since the
+      // browser's imports never carry the link's key
+      if (PAGE_MODULES.includes(p.slice(1)) && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(read(p.slice(1)));
       const suppliedLink = url.searchParams.get('share') || '';
       const linkKey = suppliedLink.split('.')[0];
       // Reject invented links before a billable database read.
@@ -76,7 +82,7 @@ export function createCloudServer(/** @type {any} */ { store, publishKey, public
       if (p === '/api/history' && req.method === 'GET') return json(200, []);
       if (p === '/api/file' && req.method === 'GET') {
         const data = JSON.stringify(viewData(v.data, v.mode)).replace(/</g, '\\u003c');
-        return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-disposition': 'attachment; filename="shared-map.html"' }).end(html.replace('</head>', `<meta name="lm-file" content="saved"><script id="lm-data" type="application/json">${data}</script></head>`));
+        return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-disposition': 'attachment; filename="shared-map.html"' }).end(fileHtml.replace('</head>', `<meta name="lm-file" content="saved"><script id="lm-data" type="application/json">${data}</script></head>`));
       }
       if (req.method !== 'POST') throw fail(404, 'Not found.');
       if (!owner && req.headers.origin !== origin) throw fail(403, 'Open this map to edit it.');

@@ -1,0 +1,49 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import { inlineModules, PAGE_MODULES } from './page-modules.js';
+
+const read = (/** @type {string} */ f) => fs.readFileSync(new URL(`./${f}`, import.meta.url), 'utf8');
+const html = read('index.html');
+const script = (/** @type {string} */ page) => /** @type {RegExpMatchArray} */ (page.match(/<script type="module">([\s\S]*?)<\/script>/))[1];
+// the names a script declares at its top level
+const declared = (/** @type {string} */ code) => new Set([...code.matchAll(/^(?:export )?(?:async )?(?:function\*? |const |let |class )\s*\{?\s*([\w$]+(?:\s*,\s*[\w$]+)*)/gm)].flatMap((m) => m[1].split(/\s*,\s*/)));
+
+// The rules page-modules.js names, which let Share as a file write a module in place of its import.
+describe('the page modules', () => {
+  it('are every file the page imports, and the page imports each', () => {
+    const imported = [...script(html).matchAll(/^import .* from '\.\/([\w-]+\.js)';$/gm)].map((m) => m[1]);
+    expect(imported.sort()).toEqual([...PAGE_MODULES].sort());
+  });
+  it('import nothing, and declare one name the page does not', () => {
+    const page = declared(script(html));
+    for (const f of PAGE_MODULES) {
+      const code = read(f);
+      expect(code, f).not.toMatch(/^\s*import\b/m);
+      const names = [...declared(code)];
+      expect(names, f).toHaveLength(1);
+      expect(page.has(names[0]), `${f}: ${names[0]}`).toBe(false);
+    }
+  });
+});
+
+describe('Share as a file', () => {
+  it('writes each module in place of its import, so the saved page needs nothing beside it', () => {
+    const saved = script(inlineModules(html, read));
+    expect(saved).not.toMatch(/^import\b/m);
+    for (const f of PAGE_MODULES) expect(saved).toContain(read(f).replace(/^export /gm, '').trim());
+    // still one module's worth of code, which parses
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lm-saved-')), 'saved.mjs');
+    fs.writeFileSync(file, saved);
+    expect(() => execFileSync(process.execPath, ['--check', file], { stdio: 'pipe' })).not.toThrow();
+    fs.rmSync(path.dirname(file), { recursive: true, force: true });
+  });
+  it('leaves an import of anything else as it is', () => {
+    const page = "<script type=\"module\">\nimport { x } from './elsewhere.js';\n</script>";
+    expect(inlineModules(page, read)).toBe(page);
+  });
+});

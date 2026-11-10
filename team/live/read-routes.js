@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { describeMap } from './map-context.js';
+import { inlineModules } from './page-modules.js';
 import { sharedState, withoutActions } from './sharing.js';
 
 const DIR = import.meta.dirname;
@@ -33,7 +34,7 @@ export function readRoutes({ getState, getHistory, contextMaps, name, project, m
   if (p === '/api/file') {
     const exported = sharedState(getState(), false, guest); exported.nodes = withoutActions(exported.nodes);
     const data = JSON.stringify(exported).replace(/<\//g, '<\\/');
-    const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8')
+    const html = inlineModules(fs.readFileSync(path.join(DIR, 'index.html'), 'utf8'), (f) => fs.readFileSync(path.join(DIR, f), 'utf8'))
       .replace('</head>', `<meta name="lm-file" content="${new Date().toISOString()}">\n<script id="lm-data" type="application/json">${data}</script>\n</head>`);
     const file = `${String(getState().title || 'map').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'map'}.html`;
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'content-disposition': `attachment; filename="${file.replace(/[^\x20-\x7e]/g, '_').replace(/"/g, '')}"; filename*=UTF-8''${encodeURIComponent(file)}` }).end(html);

@@ -1,11 +1,8 @@
-import fs from 'node:fs';
-import vm from 'node:vm';
-
 import { describe, expect, it } from 'vitest';
 
-const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
-const ctx=vm.createContext({W:n=>n.w,HT:n=>n.h||50});
-vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
+import { layoutFor } from './page-layout.js';
+
+const ctx=/** @type {any} */ (layoutFor({W:n=>n.w,HT:n=>n.h||50}));
 
 describe('shared branch stems',()=>{
   it.each([1,-1])('keeps two unequal children on one stem facing %s',dir=>{
