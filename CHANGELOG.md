@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] A clearer map</strong></dt>
+<dd>
+
+The questions card in the map's top-left and the Inbox are gone, so the map uses the whole screen; a question for you shows **Need clarify** on its box, and you answer it in the box's details. <!-- source: https://github.com/HiAnur/anur-living-map/pull/331 --> <!-- merged-at: 2026-11-10T23:23:46Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] One way into a box's Side Chat</strong></dt>
 <dd>
 
@@ -26,7 +35,7 @@ An Action's box can be deleted only before it runs, and only by its author or an
 <dt><strong>Actions move forward when what they wait on is done</strong></dt>
 <dd>
 
-When the Actions an Action depends on finish, it prepares itself with what they produced and stops at **Ready to execute** for you; your ready Actions now wait in your **Inbox**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/323 --> <!-- merged-at: 2026-11-10T22:41:43Z -->
+When the Actions an Action depends on finish, it prepares itself with what they produced and stops at **Ready to execute** for you. <!-- source: https://github.com/HiAnur/anur-living-map/pull/323 --> <!-- merged-at: 2026-11-10T22:41:43Z -->
 
 </dd>
 </dl>
