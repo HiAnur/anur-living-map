@@ -105,9 +105,10 @@ export function recoverAction(n) {
  *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
  *   executionCwd: string,
  *   checkPull?: (url: string) => Promise<boolean>,
+ *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
  * }} deps
  */
-export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false) }) {
+export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -213,7 +214,9 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const recovery = handedOff(a.stage);
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
     note(a, 'executed', by, { tools:[...(a.brief.tools || [])] });
-    const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}`;
+    // a build runs in the worktree code made for it, and leaves committing, pushing and the pull request to code
+    const work = a.brief.kind === 'build' && builds ? '\n\nThis is a build. The map has made a fresh worktree on a new branch for it and runs you there. Make the change and run the project\'s checks in it. Do not commit, push or open a pull request: when you finish, the map commits what you changed, pushes the branch and opens the pull request.' : '';
+    const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}${work}`;
     return runTurn(id, by, a, prompt, false);
   }
   /** @param {string} id @param {string} by @param {unknown} revision @param {any} [answer] */
@@ -232,7 +235,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const started = Date.now();
     Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:started,progress:''});
     delete a.completion;
-    const job = {a,by,stop:/** @type {Stop} */ (null)}; runs.set(id,job); changed();
+    const job = {a,by,stop:/** @type {Stop} */ (null),stopped:false}; runs.set(id,job); changed();
     const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
     // How a run ended is decided here from what it did: its own claim of "completed" stands only with evidence code
     // saw (a send to the brief's recipient, a pull request GitHub confirms); otherwise it is unverified, and the
@@ -242,29 +245,52 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       if (!active()) { reconcile(); return; }
       const claimed = readCompletion(result.completion), seen = judgeRun(a.brief || {kind:'other',goal:'',target:'',result:'',steps:[]}, result.calls);
       a.did = [...new Set([...(a.did || []), ...seen.did])].slice(-30);
-      /** @param {string[]} pulls the pull requests GitHub confirmed */
-      const settle = (pulls) => {
+      /** @param {string[]} pulls the pull requests GitHub confirmed @param {string} [mapNote] what code has to say of the build */
+      const settle = (pulls, mapNote = '') => {
         if (!active()) { reconcile(); return; }
         runs.delete(id);
         const evidence = [...seen.evidence, ...pulls.map((url) => `Pull request ${url}`)];
         const status = result.blocked ? 'blocked' : claimed?.status === 'needs_input' ? 'needs_input'
           : evidence.length ? 'completed' : claimed?.status === 'completed' ? 'unverified' : 'unconfirmed';
         a.stage = result.blocked ? 'blocked' : 'finished';
-        a.completion = { status, summary:claimed?.summary || '', evidence, claimed:claimed?.evidence || [] };
+        a.completion = { status, summary:claimed?.summary || '', evidence, claimed:claimed?.evidence || [], ...(mapNote ? { note:mapNote } : {}) };
         a.turns.push({who:'Claude',text:String(claimed?.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
         note(a, 'finished', 'Claude', { status, ms:Date.now() - started, verified:evidence.length > 0, ran:[...new Set((result.calls || []).map((c) => c.tool))] });
         delete a.since; delete a.progress; reconcile(); changed();
       };
-      if (!seen.pulls.length) return settle([]);
-      a.progress = 'Checking the pull request with GitHub…'; changed();
-      Promise.all(seen.pulls.map((url) => checkPull(url).then((ok) => (ok ? url : null), () => null))).then((found) => settle(/** @type {string[]} */ (found.filter(Boolean))));
+      /** @param {string[]} urls @param {string} [mapNote] */
+      const verify = (urls, mapNote = '') => {
+        if (!urls.length) return settle([], mapNote);
+        a.progress = 'Checking the pull request with GitHub…'; changed();
+        Promise.all(urls.map((url) => checkPull(url).then((ok) => (ok ? url : null), () => null))).then((found) => settle(/** @type {string[]} */ (found.filter(Boolean)), mapNote));
+      };
+      // a build that finished (not stopped, not asking) is committed, pushed and opened as a pull request by code
+      if (!(a.build && builds && !result.blocked && claimed?.status !== 'needs_input')) return verify(seen.pulls);
+      a.progress = 'Committing and opening the pull request…'; changed();
+      Promise.resolve().then(() => builds.close(a, nodeOf(id))).then((built) => {
+        note(a, 'built', 'Map', { branch:a.build.branch, commits:built.commits, ...(built.pull ? { pull:built.pull } : {}) });
+        verify([...seen.pulls, ...(built.pull ? [built.pull] : [])], built.note);
+      }, () => verify(seen.pulls, 'Could not commit or push this build. Its work is on the branch in its worktree.'));
     };
-    try {
-      job.stop = run({cwd:a.cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],onText(words) {
-        if (!active()) { reconcile(); return; }
-        a.progress = String(words).slice(-32000); changed();
-      },onDone:finish});
-    } catch { finish({blocked:true,text:'Could not start Claude. Continue will try to reopen this same chat.'}); }
+    /** @param {string} cwd */
+    const launch = (cwd) => {
+      if (job.stopped) return finish({blocked:true,text:'Stopped before the run started.'});
+      try {
+        job.stop = run({cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],onText(words) {
+          if (!active()) { reconcile(); return; }
+          a.progress = String(words).slice(-32000); changed();
+        },onDone:finish});
+      } catch { finish({blocked:true,text:'Could not start Claude. Continue will try to reopen this same chat.'}); }
+    };
+    if (!(a.brief?.kind === 'build' && builds)) { launch(a.cwd); return true; }
+    // a build runs in a worktree on its own branch, which code makes first (or opens again on Continue)
+    a.progress = 'Making a branch for this build…'; changed();
+    Promise.resolve().then(() => builds.open(a, nodeOf(id))).then((made) => {
+      if (!active()) return;
+      if (!made || made.error) return finish({blocked:true,text:made?.error || 'Could not make a branch for this build.'});
+      if (!a.build) note(a, 'branched', 'Map', { branch:made.branch, from:made.from });
+      a.build = made; a.cwd = made.worktree; a.progress = ''; changed(); launch(made.worktree);
+    }, () => { if (active()) finish({blocked:true,text:'Could not make a branch for this build.'}); });
     return true;
   }
   // the author's word that an unverified run did what it should: a person's click, recorded as such
@@ -280,7 +306,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
     const n = nodeOf(id), a = n?.action, job = runs.get(id);
     if (!owns(n, by) || !can('stop', a?.stage) || a.id !== revision || !job) return false;
     note(a, 'stopped', by);
-    job.stop?.();
+    job.stopped = true; job.stop?.();
     return true;
   }
   function reconcile(nodes = allNodes()) {

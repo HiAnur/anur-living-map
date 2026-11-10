@@ -2679,7 +2679,8 @@ function actionResult(turn, key){
   const label = done ? 'Executed' : {needs_input:'Needs clarity',blocked:'Blocked',unverified:'Done, unverified'}[c?.status] || 'Completion unconfirmed';
   // Confirmation is what the map saw the run do; Claude's account is what it says it did, shown apart
   const evidence = (c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
-    + (c?.claimed?.length && !done ? `<div class="action-evidence claimed"><b>Claude's account</b><ul>${c.claimed.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '');
+    + (c?.claimed?.length && !done ? `<div class="action-evidence claimed"><b>Claude's account</b><ul>${c.claimed.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
+    + (c?.note ? `<p class="action-note">${esc(c.note)}</p>` : '');
   return `<section class="action-result" aria-label="Task result"><h3>${done ? `<span class="result-pill">Executed</span>` : label}</h3>${done ? `<p class="result-summary">${esc(actionSummary(turn))}</p><details class="result-details" data-open-key="${esc(openKey)}" ${openSecs.has(openKey) ? 'open' : ''}><summary>View details</summary><div class="result-detail-body">${md(turn.text)}${evidence}</div></details>` : `${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${evidence}`}</section>`;
 }
 function actionCard(n){

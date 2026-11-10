@@ -287,3 +287,50 @@ describe('how a run ended, decided by code from what it did', () => {
     expect(r.node.action.completion.status).toBe('unverified');
   });
 });
+
+describe('a build Action, with code doing the git and GitHub steps', () => {
+  const build = {kind:'build',goal:'Add the form',target:'acme/app',result:'A PR',steps:['Build it'],tools:['Edit','Bash']};
+  /** @param {any} opened @param {any} closed */
+  function building(opened, closed) {
+    /** @type {any} */ const node={id:'f',label:'F'};const asks=[],runs=[],closes=[];
+    /** @type {(made: any) => void} */ let open=()=>{};
+    const api=actionBoxes({nodeOf:()=>node,allNodes:()=>[node],canUse:()=>true,context:()=>'',ask:(r)=>{asks.push(r);return ()=>{};},changed:()=>{},executionCwd:'/p',
+      run:(r)=>{runs.push(r);return ()=>{};},checkPull:async()=>true,
+      builds:{open:()=>opened ?? new Promise((resolve)=>{open=resolve;}),close:async(a)=>{closes.push(structuredClone(a.build));return closed;}}});
+    api.begin('f','Duy');api.start('f','Duy','Build it');asks[0].onDone('',{tools:build.tools,denied:[]},{status:'ready',brief:build});
+    return {api,node,runs,closes,open:(made)=>open(made)};
+  }
+  const made = {repo:'/p',base:'main',from:'origin/main',branch:'action/f-1',worktree:'/w/action-f-1'};
+  it('runs in the worktree code made, and counts the pull request code opened',async()=>{
+    const b=building(undefined,{commits:1,pull:'https://github.com/acme/app/pull/7',note:''});
+    b.api.execute('f','Duy',b.node.action.id);
+    expect(b.node.action.progress).toMatch(/Making a branch/);expect(b.runs).toHaveLength(0);
+    await new Promise((resolve)=>setTimeout(resolve));b.open(made);await new Promise((resolve)=>setTimeout(resolve));
+    expect(b.runs[0].cwd).toBe('/w/action-f-1');expect(b.runs[0].prompt).toContain('Do not commit, push or open a pull request');
+    b.runs[0].onDone({text:'Built',completion:{status:'completed',summary:'Added it',evidence:['form.html']},calls:[]});
+    await new Promise((resolve)=>setTimeout(resolve,5));
+    expect(b.closes).toEqual([made]);
+    expect(b.node.action.completion).toMatchObject({status:'completed',evidence:['Pull request https://github.com/acme/app/pull/7']});
+    expect(b.node.action.events.map((e)=>e.what)).toEqual(expect.arrayContaining(['branched','built']));
+    expect(b.node.action.events.find((e)=>e.what==='built')).toMatchObject({branch:'action/f-1',commits:1,pull:'https://github.com/acme/app/pull/7'});
+  });
+  it('says why there is no pull request, and leaves the run unverified',async()=>{
+    const b=building(made,{commits:1,pull:null,note:'Committed on the branch action/f-1. This project has no remote, so no pull request was opened.'});
+    b.api.execute('f','Duy',b.node.action.id);await new Promise((resolve)=>setTimeout(resolve));
+    b.runs[0].onDone({text:'Built',completion:{status:'completed',summary:'Added it',evidence:['form.html']},calls:[]});
+    await new Promise((resolve)=>setTimeout(resolve,5));
+    expect(b.node.action.completion).toMatchObject({status:'unverified',note:expect.stringMatching(/no remote/)});
+  });
+  it('never starts the run when stopped while its branch was being made, and never closes a stopped run',async()=>{
+    const b=building(undefined,{commits:0,pull:null,note:''});
+    b.api.execute('f','Duy',b.node.action.id);b.api.stop('f','Duy',b.node.action.id);
+    await new Promise((resolve)=>setTimeout(resolve));b.open(made);await new Promise((resolve)=>setTimeout(resolve));
+    expect(b.runs).toHaveLength(0);expect(b.closes).toHaveLength(0);expect(b.node.action.stage).toBe('blocked');
+  });
+  it('refuses to run a build it could not make a branch for',async()=>{
+    const b=building({error:'A build needs its project to be a git repository, so it can work on a branch of its own.'},null);
+    b.api.execute('f','Duy',b.node.action.id);await new Promise((resolve)=>setTimeout(resolve));
+    expect(b.runs).toHaveLength(0);expect(b.node.action.stage).toBe('blocked');
+    expect(b.node.action.turns.at(-1).text).toMatch(/git repository/);
+  });
+});
