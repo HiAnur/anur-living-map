@@ -5,7 +5,7 @@ description: Opens the team's Living Map of this repo's system (boxes and lines 
 
 # Anur Living Map: the system map of this repo
 
-The map is drawn from the repo's own files by the server in `$LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `LIVING_MAP_HOME` says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off.
+The map is drawn from the repo's own files by the server in `$ANUR_LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `ANUR_LIVING_MAP_HOME`, or the older `LIVING_MAP_HOME`, says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off.
 
 ## A new map started from a prompt
 
@@ -40,7 +40,7 @@ The map asks who you are: a browser that has not signed in lands on `localhost:4
 People answer the map's questions, press Apply on changes Claude proposed in the map's chat, and comment on boxes. What belongs to this chat should reach it without anyone typing here. Start the listener in the background (`run_in_background`, never in the foreground), unless one already runs in this conversation for that map:
 
 ```bash
-node "${LIVING_MAP_HOME:-$HOME/anur-living-map}/team/live/wait.js" 4323 "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" "$CLAUDE_CODE_SESSION_ID"
+node "${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}/team/live/wait.js" 4323 "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" "$CLAUDE_CODE_SESSION_ID"
 ```
 
 The second argument is the map: this repo's folder name for its own map (the listener lowercases it as the server does), `gtm` for `localhost:4323/gtm/`. Start one listener for each map this chat draws on.

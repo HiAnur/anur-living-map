@@ -1,13 +1,13 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { mapData, mergeMap, signedLink } from './cloud-data.js';
+import { DATA } from './data-dir.js';
 
 export function cloudConfig() {
   try {
-    const config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_CLOUD_CONFIG || path.join(os.homedir(), '.living-map-2/cloud.json'), 'utf8'));
+    const config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_CLOUD_CONFIG || path.join(DATA, 'cloud.json'), 'utf8'));
     const url = new URL(config.url);
     if (url.protocol !== 'https:' && !(process.env.LIVING_MAP_CLOUD_TEST === '1' && ['localhost','127.0.0.1'].includes(url.hostname))) return null;
     if (!/^[a-f0-9]{64}$/.test(config.publishKey || '')) return null;

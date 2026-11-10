@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 10, 2026
 
 <dl>
+<dt><strong>The team map has names of its own</strong></dt>
+<dd>
+
+To keep the team map's clone somewhere other than `~/anur-living-map`, set `ANUR_LIVING_MAP_HOME`; a new setup registers its tools with Claude Code as `anur-living-map` and keeps its data in `~/.anur-living-map`, while an existing setup keeps working as it is. [#285](https://github.com/HiAnur/anur-living-map/pull/285) <!-- merged-at: 2026-11-10T09:51:15Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Changes a side chat proposes arrive whole</strong></dt>
 <dd>
 

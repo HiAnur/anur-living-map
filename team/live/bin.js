@@ -9,7 +9,6 @@
 // and opens the folder's map in the browser.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,7 +39,8 @@ if (args[0] === 'mcp') {
   // the map's address is the folder's name in lowercase letters, digits and dashes, as the server names it
   const name = path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
   const base = `http://localhost:${port}`;
-  const log = path.join(os.homedir(), '.living-map-2', `server-${port}.log`);
+  const { DATA } = await import('./data-dir.js');
+  const log = path.join(DATA, `server-${port}.log`);
 
   const up = async () => { try { return (await fetch(`${base}/api/maps`)).ok; } catch { return false; } };
 

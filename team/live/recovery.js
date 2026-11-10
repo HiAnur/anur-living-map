@@ -2,8 +2,9 @@
 // a password change consumes every outstanding link and signs out existing browsers.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+
+import { DATA } from './data-dir.js';
 
 /** @param {unknown} value */
 const hash = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -62,7 +63,7 @@ export function recoveryStore(db, setPassword, now = Date.now) {
 export function mailConfig() {
   /** @type {{ key?: string, from?: string }} */
   let config = {};
-  try { config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_MAIL_CONFIG || path.join(os.homedir(), '.living-map-2', 'mail.json'), 'utf8')); } catch { /* no mail file: the environment may still configure mail */ }
+  try { config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_MAIL_CONFIG || path.join(DATA, 'mail.json'), 'utf8')); } catch { /* no mail file: the environment may still configure mail */ }
   return { key: process.env.RESEND_API_KEY || config.key, from: process.env.LIVING_MAP_MAIL_FROM || config.from };
 }
 /** @param {string} to @param {string} link @param {boolean} verify */

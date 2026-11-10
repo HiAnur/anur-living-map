@@ -10,9 +10,12 @@ R="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 # a map's address is its folder's name in lowercase letters, digits and dashes, as the server names it (PiTrade -> pitrade)
 name_of() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//'; }
 M="$(name_of "${1:-$(basename "$R")}")"
-H="${LIVING_MAP_HOME:-$HOME/anur-living-map}"; S="$H/team/live/server.js"
+# the clone: ANUR_LIVING_MAP_HOME, else LIVING_MAP_HOME as it was named before
+H="${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}"; S="$H/team/live/server.js"
 U="http://localhost:4323/$M/"
-REV="$HOME/.living-map-2/server.rev"   # the commit the running server was started from
+# the team map's data folder, as team/live/data-dir.js picks it: the old ~/.living-map-2 while it is the only one
+D="$HOME/.anur-living-map"; [ ! -d "$D" ] && [ -d "$HOME/.living-map-2" ] && D="$HOME/.living-map-2"
+REV="$D/server.rev"   # the commit the running server was started from
 
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, pulled from GitHub when it is
 #    on main with no changes of its own (a few seconds at most; offline it gives up after a moment and says so),

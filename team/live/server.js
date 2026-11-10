@@ -21,7 +21,6 @@ import { execFile, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 
 import { actionBoxes, recoverAction } from './action-box.js';
@@ -44,6 +43,7 @@ import { cloudMirror, installCloudData } from './cloud-client.js';
 import { changeSharing, linkRole, LINK_EDITS, localTool, permission, sharedState, withoutActions } from './sharing.js';
 import { boxDates, branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 import { withDefaults } from './stored.js';
+import { DATA } from './data-dir.js';
 
 // the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
 const PORT = Number(/^\d+$/.test(process.argv[2] || '') ? process.argv[2] : process.env.PORT || 4323);
@@ -1282,9 +1282,9 @@ const server = http.createServer(async (req, res) => {
 // ten minutes, pulls what is new, refreshes the skill's installed copy (chats.skillDir), and starts itself again in
 // its place: every change is on disk already, pages and listeners reconnect by themselves. A copy without git
 // (npx) is left to npx, which fetches the newest version each run. The commit it runs from goes in
-// ~/.living-map-2/server.rev, which /anur-living-map reads to tell a server on older code.
+// server.rev in the data folder (data-dir.js), which /anur-living-map reads to tell a server on older code.
 const REPO = path.resolve(DIR, '..', '..');
-const REV = path.join(os.homedir(), '.living-map-2', 'server.rev');
+const REV = path.join(DATA, 'server.rev');
 const git = (/** @type {any[]} */ ...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim())));
 const EVERY = 10 * 60_000;
 // the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
