@@ -48,6 +48,16 @@ export type ChatRequest = {
   cwd: string; // the folder it runs in and may read
   dir: string; // one more folder it may read
   model?: string; // a model name, or empty for the provider's default
+  propose?: ChatTool; // the one tool it may call to hand something back
+};
+
+// A tool the chat may call to hand back something structured (what a side
+// chat proposes for the map). A call does nothing but arrive as a "propose"
+// event with its input, which the caller checks before trusting.
+export type ChatTool = {
+  name: string; // letters, digits, _ and -
+  description: string;
+  schema: Record<string, unknown>; // the JSON Schema of its input
 };
 
 // What a chat says as it answers, in the order it happens.
@@ -55,6 +65,7 @@ export type ChatEvent =
   | { type: "start" } // a new message begins: a new paragraph, if words follow
   | { type: "text"; text: string }
   | { type: "tool"; name: string; target: string } // what it reads or looks for
+  | { type: "propose"; input: unknown } // it called the request's propose tool
   | {
       type: "result"; // the answer is whole, or it failed
       ok: boolean;

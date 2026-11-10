@@ -1,10 +1,11 @@
-// What a side chat proposes for the map: its reply's proposal block read,
+// What a side chat proposes for the map: its propose_change call read,
 // each op checked against the store as it is now, put in plain words for
 // the checklist, and applied as writer "side" only when you say so.
 
+import type { ChatTool } from "../../server/providers/types.ts";
 import { checkAnswer, type Acted } from "../apply.ts";
 import type { State } from "../db.ts";
-import { loose, type Op } from "../extract.ts";
+import { loose, SCHEMA, type Op } from "../extract.ts";
 import {
   KINDS,
   outranks,
@@ -18,23 +19,26 @@ import type { Turn } from "../transcript.ts";
 
 const MAX_OPS = 12;
 
-// The reply's last ```proposal block, and the reply without it.
-export function parseProposal(text: string): { text: string; raw: unknown } {
-  const re = /```proposal[^\n]*\n([\s\S]*?)```/g;
-  let last: RegExpExecArray | null = null;
-  for (let m = re.exec(text); m; m = re.exec(text)) last = m;
-  if (!last) return { text: text.trim(), raw: null };
-  let raw: unknown;
-  try {
-    raw = JSON.parse(last[1]!);
-  } catch {
-    raw = { ops: [], bad: true };
-  }
-  const rest = (
-    text.slice(0, last.index) + text.slice(last.index + last[0].length)
-  ).trim();
-  return { text: rest, raw };
-}
+// How a side chat proposes: one call to this tool, its input the ops. The
+// extractor's op shape, with the turn optional (checkProposal fills it in).
+const OP = SCHEMA.properties.ops.items;
+export const PROPOSE_TOOL: ChatTool = {
+  name: "propose_change",
+  description:
+    "Propose changes to the user's map of the main chat. The user sees each change and applies it or not; nothing changes until they do. Call it at most once per reply, with every change in it.",
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["ops"],
+    properties: {
+      ops: {
+        type: "array",
+        maxItems: MAX_OPS,
+        items: { ...OP, required: ["op"] },
+      },
+    },
+  },
+};
 
 export type Checked = { ops: Op[]; dropped: { op: Op; why: string }[] };
 
