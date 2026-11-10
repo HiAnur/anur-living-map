@@ -65,7 +65,7 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 
 ## Releases
 
-Every push to `main` that passes CI publishes a GitHub release `v0.1.<run>` (the `release` job in `.github/workflows/ci.yml`). Running copies show **New version available** and install it with one click, so `main` is always shippable.
+Every push to `main` that passes CI publishes a GitHub release `v0.1.<run>` (the `release` job in `.github/workflows/ci.yml`), except a push that changes only `CHANGELOG.md` and `docs/shipping/`, which runs no workflow at all. Running copies show **New version available** and install it with one click, so `main` is always shippable.
 
 ## Conventions
 

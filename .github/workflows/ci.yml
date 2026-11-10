@@ -3,6 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+    # A push that changes only the shipping log ships no code: its PR already ran the checks, and a release
+    # would offer every running copy an update with nothing in it. A push that also changes anything else runs.
+    paths-ignore:
+      - CHANGELOG.md
+      - docs/shipping/**
   pull_request:
 
 jobs:
