@@ -1,53 +1,15 @@
-// What a side chat is given: its process's arguments (what it may and may
-// not do), the two files rendered for it to read, and the first message it
-// starts from.
+// What a side chat is given: the two files rendered for it to read, and the
+// first message it starts from. What it may and may not do is the
+// provider's (chatArgs in server/providers/claude-code.ts).
 
 import type { SideMessageRow } from "../db.ts";
 import { askedText, renderMap } from "../extract.ts";
 import { KINDS, live, STATES, type Item, type Store } from "../items.ts";
 import type { Turn } from "../transcript.ts";
 
-// read-only, and nothing that reaches the network or runs anything
-export const SIDE_TOOLS = "Read,Grep,Glob";
-const NEVER = "WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit";
 // a source turn in the first message, word for word up to this; the whole
 // of it is in turns.md
 const TURN_CHARS = 12_000;
-
-// The arguments of every side chat's process. Kept apart so a test can
-// prove what a side chat may and may not do.
-export function sideArgs(o: {
-  dir: string; // the rendered folder: items.md and turns.md
-  emptyMcp: string;
-  model?: string;
-}): string[] {
-  const args = [
-    "-p",
-    "--input-format",
-    "stream-json",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--include-partial-messages",
-    "--tools",
-    SIDE_TOOLS,
-    "--allowedTools",
-    SIDE_TOOLS,
-    "--disallowedTools",
-    NEVER,
-    "--restricted",
-    "--add-dir",
-    o.dir,
-    "--no-session-persistence",
-    "--strict-mcp-config",
-    "--mcp-config",
-    o.emptyMcp,
-    "--setting-sources",
-    "",
-  ];
-  if (o.model) args.push("--model", o.model);
-  return args;
-}
 
 // ---- the rendered files ----------------------------------------------------
 

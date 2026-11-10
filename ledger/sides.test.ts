@@ -9,17 +9,18 @@ import fs from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 
+import { chatArgs, CHAT_TOOLS } from "../server/providers/claude-code.ts";
 import type { SideChat } from "../shared/ledger.ts";
-import { itemsPage, sideArgs, SIDE_TOOLS, turnsPage } from "./sides/brief.ts";
+import { itemsPage, turnsPage } from "./sides/brief.ts";
 import { checkProposal, parseProposal } from "./sides/proposal.ts";
 import { ev, reply, setup, until } from "./sides.harness.ts";
 test("a side chat runs read-only, confined, offline, on the rendered files", async () => {
   // the arguments themselves
-  const args = sideArgs({ dir: "/h/sides/c", emptyMcp: "/h/empty-mcp.json" });
+  const args = chatArgs({ dir: "/h/sides/c", emptyMcp: "/h/empty-mcp.json" });
   const after = (flag: string) => args[args.indexOf(flag) + 1];
   assert.equal(after("--tools"), "Read,Grep,Glob");
   assert.equal(after("--allowedTools"), "Read,Grep,Glob");
-  assert.equal(SIDE_TOOLS, "Read,Grep,Glob");
+  assert.equal(CHAT_TOOLS, "Read,Grep,Glob");
   assert.ok(args.includes("--restricted"));
   assert.ok(args.includes("--no-session-persistence"));
   assert.ok(args.includes("--strict-mcp-config"));

@@ -9,7 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { PassThrough, Writable } from "node:stream";
 
-import type { Spawn } from "../server/providers/claude-code.ts";
+import { claudeCode, type Spawn } from "../server/providers/claude-code.ts";
 import type { LedgerEvent } from "../shared/ledger.ts";
 import { openDb, type Conv } from "./db.ts";
 import { createLedger } from "./follow.ts";
@@ -240,7 +240,8 @@ export async function setup(idleMs = 60_000) {
     ledger,
     emit: (e) => events.push(e),
     home,
-    spawn,
+    // the real Claude Code provider, on the fake `claude`
+    openChat: claudeCode({ home, spawn }).openChat,
     idleMs,
   });
   const id = (title: string) => v.items.find((i) => i.title === title)!.id;

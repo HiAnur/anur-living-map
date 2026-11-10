@@ -7,25 +7,22 @@
 // back as a proposal in the extractor's op shape, checked here against the
 // store and applied only when you say so, as writer "side".
 //
-// One long-lived `claude -p` (stream-json in and out) per side chat you are
-// talking to: further messages go to the same process, so its prompt cache
-// keeps what it read. It ends after 10 idle minutes and with the server; the
-// next message starts a new one that is sent the conversation so far.
+// One open chat with the provider per side chat you are talking to: further
+// messages go to the same chat, so it keeps what it read. It ends after 10
+// idle minutes and with the server; the next message opens a new one that is
+// sent the conversation so far.
 //
 // What it is given is in sides/brief.ts; how its output is read, in
 // sides/stream.ts; what it proposes, in sides/proposal.ts.
 
-import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  childEnv,
-  priceOf,
-  SIGNED_OUT,
-  signedOut,
-  type Spawn,
-} from "../server/providers/claude-code.ts";
+import type {
+  Chat,
+  ChatEvent,
+  ModelProvider,
+} from "../server/providers/types.ts";
 import type {
   LedgerAction,
   LedgerEvent,
@@ -39,7 +36,6 @@ import type { Ledger } from "./follow.ts";
 import {
   firstMessage,
   itemsPage,
-  sideArgs,
   startingSlice,
   turnsPage,
 } from "./sides/brief.ts";
@@ -63,8 +59,7 @@ const STREAM_MS = 120; // how often a reply under way is pushed to the page
 const isId = (id: string) => /^[\w-]{1,80}$/.test(id);
 
 type Live = {
-  proc: ChildProcess;
-  cost: number; // the CLI's running total for this process
+  chat: Chat;
   idle?: ReturnType<typeof setTimeout>;
 };
 
@@ -72,8 +67,9 @@ export type SideDeps = {
   db: LedgerDb;
   ledger: Pick<Ledger, "state" | "turnsOf" | "change" | "push" | "useSides">;
   emit: (e: LedgerEvent) => void;
-  home: string; // sides/<chat>/ is rendered here, beside empty-mcp.json
-  spawn?: Spawn;
+  home: string; // sides/<chat>/ is rendered here
+  // the provider's read-only chat; without it a side chat can't start
+  openChat?: ModelProvider["openChat"];
   model?: () => string;
   now?: () => number;
   idleMs?: number;
@@ -91,26 +87,10 @@ async function turnsFromFile(file: string): Promise<Turn[]> {
   }
 }
 
-// every side chat's process, ended when the server exits
-const PROCS = new Set<ChildProcess>();
-let exitHook = false;
-function track(p: ChildProcess) {
-  PROCS.add(p);
-  p.once("close", () => PROCS.delete(p));
-  if (!exitHook) {
-    exitHook = true;
-    process.once("exit", () => {
-      for (const x of PROCS) x.kill("SIGTERM");
-    });
-  }
-}
-
 export function createSides(deps: SideDeps) {
   const { db, ledger } = deps;
   const now = deps.now ?? Date.now;
-  const spawn = deps.spawn ?? (nodeSpawn as Spawn);
   const idleMs = deps.idleMs ?? SIDE_IDLE_MS;
-  const emptyMcp = path.join(deps.home, "empty-mcp.json");
   const procs = new Map<number, Live>();
   const replies = new Map<number, Reply>();
   const queues = new Map<number, string[]>();
@@ -203,48 +183,35 @@ export function createSides(deps: SideDeps) {
     if (!l) return;
     procs.delete(id);
     clearTimeout(l.idle);
-    l.proc.kill("SIGTERM");
+    l.chat.stop();
   }
 
   function launch(row: SideRow, cwd: string, dir: string): Live {
-    const proc = spawn("claude", sideArgs({ dir, emptyMcp, model: model() }), {
-      cwd,
-      env: childEnv(),
-    });
-    const l: Live = { proc, cost: 0 };
-    track(proc);
-    proc.on("error", () => {});
-    proc.stderr?.on("data", () => {});
-    proc.stdin?.on("error", () => {});
-    let buf = "";
-    proc.stdout?.on("data", (chunk: Buffer) => {
-      buf += chunk;
-      let nl;
-      while ((nl = buf.indexOf("\n")) >= 0) {
-        const raw = buf.slice(0, nl);
-        buf = buf.slice(nl + 1);
-        let d: Record<string, unknown>;
-        try {
-          d = JSON.parse(raw) as Record<string, unknown>;
-        } catch {
-          continue;
-        }
-        const r = replies.get(row.id);
-        if (!r || procs.get(row.id) !== l) continue;
-        const what = readEvent(d, r, { cwd, dir });
-        if (what === "shown") emitSoon(row.id);
-        else if (what === "result") finish(row.id, l, d);
-      }
-    });
-    proc.on("close", () => {
-      if (procs.get(row.id) !== l) return;
-      procs.delete(row.id);
-      clearTimeout(l.idle);
-      if (replies.has(row.id)) {
-        errors.set(row.id, "The side chat stopped before it answered.");
-        settle(row.id, true);
-      }
-    });
+    if (!deps.openChat) throw new Error("this provider has no chat");
+    // made before the chat, so what the chat says can be told from what an
+    // earlier one of this side chat says late
+    const l = {} as Live;
+    l.chat = deps.openChat(
+      { cwd, dir, model: model() },
+      {
+        event(e) {
+          const r = replies.get(row.id);
+          if (!r || procs.get(row.id) !== l) return;
+          const what = readEvent(e, r, { cwd, dir });
+          if (what === "shown") emitSoon(row.id);
+          else if (e.type === "result") finish(row.id, l, e);
+        },
+        close() {
+          if (procs.get(row.id) !== l) return;
+          procs.delete(row.id);
+          clearTimeout(l.idle);
+          if (replies.has(row.id)) {
+            errors.set(row.id, "The side chat stopped before it answered.");
+            settle(row.id, true);
+          }
+        },
+      },
+    );
     return l;
   }
 
@@ -276,36 +243,19 @@ export function createSides(deps: SideDeps) {
     ledger.push(row.conv);
   }
 
-  function finish(id: number, l: Live, d: Record<string, unknown>) {
+  function finish(
+    id: number,
+    l: Live,
+    e: Extract<ChatEvent, { type: "result" }>,
+  ) {
     const r = replies.get(id);
     const row = db.side(id);
     if (!r || !row) return;
-    const u = (d.usage ?? {}) as Parameters<typeof priceOf>[1] & object;
-    const total = typeof d.total_cost_usd === "number" ? d.total_cost_usd : 0;
-    const usd = total ? Math.max(0, total - l.cost) : priceOf(r.model, u);
-    if (total) l.cost = total;
-    db.addSideSpend(
-      row,
-      {
-        usd,
-        input:
-          (u.input_tokens ?? 0) +
-          (u.cache_creation_input_tokens ?? 0) +
-          (u.cache_read_input_tokens ?? 0),
-        output: u.output_tokens ?? 0,
-        model: r.model,
-      },
-      now(),
-    );
-    if (d.is_error)
-      errors.set(
-        id,
-        signedOut(d.result)
-          ? SIGNED_OUT
-          : "The side chat couldn't finish its answer.",
-      );
+    db.addSideSpend(row, e.usage, now());
+    if (!e.ok)
+      errors.set(id, e.error ?? "The side chat couldn't finish its answer.");
     else errors.delete(id);
-    settle(id, !!d.is_error);
+    settle(id, !e.ok);
     l.idle = setTimeout(() => end(id), idleMs);
     l.idle.unref?.();
     const next = queues.get(id)?.shift();
@@ -344,7 +294,6 @@ export function createSides(deps: SideDeps) {
       tools: [],
       at: now(),
       gap: false,
-      model: "",
     };
     replies.set(id, reply);
     errors.delete(id);
@@ -355,9 +304,7 @@ export function createSides(deps: SideDeps) {
       // stopped while the files were written: nothing is sent
       if (replies.get(id) !== reply) return;
       let l = procs.get(id);
-      if (!l || l.proc.exitCode !== null || l.proc.killed) {
-        if (!fs.existsSync(emptyMcp))
-          fs.writeFileSync(emptyMcp, '{"mcpServers":{}}');
+      if (!l || !l.chat.alive) {
         const cwd = s.conv.cwd && fs.existsSync(s.conv.cwd) ? s.conv.cwd : dir;
         l = launch(row, cwd, dir);
         procs.set(id, l);
@@ -380,9 +327,7 @@ export function createSides(deps: SideDeps) {
       notes.delete(id);
       if (heard?.length)
         message = `${heard.join("\n")} (${files.items} is up to date.)\n\n${message}`;
-      l.proc.stdin?.write(
-        `${JSON.stringify({ type: "user", message: { role: "user", content: message } })}\n`,
-      );
+      l.chat.send(message);
     } catch (e) {
       console.error("[ledger] side chat failed to start:", e);
       replies.delete(id);
