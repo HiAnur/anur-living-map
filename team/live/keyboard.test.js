@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { branchIds } from './editing.js';
+import { layoutFor } from './page-layout.js';
 
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
@@ -27,7 +28,8 @@ function harness(){
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
   });
   ctx.canvas.querySelectorAll=()=>[];
-  vm.runInContext(html.slice(html.indexOf('function fanPts('),html.indexOf('// Lines that enter')),ctx);
+  // the page's sizes, looked up each time, so a test that changes them changes what the layout sees
+  Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
   vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
   vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);

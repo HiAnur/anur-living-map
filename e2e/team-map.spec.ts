@@ -181,6 +181,29 @@ test("folding a box hides its branch", async ({ page }) => {
   await expect(box(page, "Audience")).toBeVisible();
 });
 
+test("someone with a view link, not signed in, sees the map", async ({
+  page,
+  browser,
+}) => {
+  const name = await openSample(page);
+  const shared = await page.request.post(`${origin}/${name}/api/sharing`, {
+    headers: { origin, "content-type": "application/json" },
+    data: { mode: "view" },
+  });
+  expect(shared.ok()).toBe(true);
+  const { token } = (await shared.json()) as { token: string };
+
+  const guest = await browser.newContext();
+  const visitor = await guest.newPage();
+  const errors: string[] = [];
+  visitor.on("pageerror", (e) => errors.push(String(e)));
+  await visitor.goto(`${origin}/${name}/?share=${token}`);
+  for (const box_ of ["Launch plan", "Pricing", "Audience", "Free trial"])
+    await expect(box(visitor, box_)).toBeVisible();
+  expect(errors).toEqual([]);
+  await guest.close();
+});
+
 test("Share as a file opens on its own, with no server", async ({
   page,
   browser,

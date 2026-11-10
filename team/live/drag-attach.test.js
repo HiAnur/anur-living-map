@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
+import { layoutFor } from './page-layout.js';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const fixture = () => ({nodes:[
@@ -17,7 +18,7 @@ function page(/** @type {any} */ state = fixture()) {
     esc:s=>s,S:state,PREVIEW:null,READ_ONLY:false,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
     fanPts:()=>null,routePts:(a,b)=>[[a.x+70,a.y],[b.x-70,b.y]],render(){},canvas:{addEventListener(){}},document:{addEventListener(){}}
   });
-  vm.runInContext(html.slice(html.indexOf('function planTopicInsert('),html.indexOf('function topicGraph(')),ctx);
+  ctx.planTopicInsert = layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }).planTopicInsert;
   vm.runInContext(html.slice(html.indexOf('function planTopicAttach('),html.indexOf('// drag on empty map draws')),ctx);
   ctx.drag={dx:0,dy:0,n:state.nodes.find(n=>n.id==='branch'),source:structuredClone(state)};
   return {ctx,rubber,state,plan:()=>ctx.planTopicAttach(ctx.drag.source,'branch','new',1)};
