@@ -92,7 +92,6 @@ export default defineConfig([
     files: [
       "eval/changes-retro.ts",
       "ledger/changes/changes.test.ts",
-      "ledger/changes/graph.ts",
       "ledger/extract.test.ts",
       "ledger/follow.test.ts",
       "ledger/follow.ts",
