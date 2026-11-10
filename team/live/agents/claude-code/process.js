@@ -28,7 +28,7 @@ const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 // denied here too; a tool named here still goes through their usual permission checks.
 /** @param {readonly string[]} allowed @param {string} reason */
 export function onlyTools(allowed, reason) {
-  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{};if(!${JSON.stringify(allowed)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(reason).replaceAll('"', "'")}}}));});`;
+  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{/* unreadable: no name, so denied */};if(!${JSON.stringify(allowed)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(reason).replaceAll('"', "'")}}}));});`;
   return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
 }
 

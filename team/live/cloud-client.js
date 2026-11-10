@@ -36,12 +36,12 @@ export function installCloudData(state, data) {
 export function cloudMirror({ home, read, write, notify, config = cloudConfig() }) {
   const file = path.join(home, 'cloud.json');
   /** @type {any} what cloud.json holds for this map */
-  let saved; try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+  let saved; try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* not shared to the cloud yet */ }
   /** @type {Promise<void> | null} */
   let busy = null, error = '', closed = false, pending = Promise.resolve(), queued = 0;
   // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
   /** @param {() => Promise<any>} task */
-  const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => {}); return next.finally(() => { queued--; }); };
+  const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => { /* the caller gets the error from `next`; the queue goes on */ }); return next.finally(() => { queued--; }); };
   const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => config && saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
   const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
