@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, test } from "vitest";
 
-import type { ModelProvider } from "./providers/types.ts";
+import type { Agent } from "./providers/types.ts";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lm-auth-"));
 process.env.LIVING_MAP_HOME = path.join(tmp, "living-map");
@@ -27,7 +27,7 @@ const port = await new Promise<number>((done) => {
   });
 });
 
-const provider: ModelProvider = {
+const provider: Agent = {
   name: "none",
   findConversation: () => null,
 };

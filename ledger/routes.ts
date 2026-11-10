@@ -13,7 +13,7 @@ import path from "node:path";
 
 import { HOME } from "../server/config.ts";
 import type { Hub } from "../server/events.ts";
-import type { ModelProvider } from "../server/providers/types.ts";
+import type { AgentWorker } from "../server/providers/types.ts";
 import type { LedgerAction } from "../shared/ledger.ts";
 import { compare, shadowFor, snapshot } from "./changes/snapshot.ts";
 import { summarize } from "./chats.ts";
@@ -60,18 +60,23 @@ export type LedgerServer = {
 };
 
 export function startLedger(
-  provider: ModelProvider,
+  provider: AgentWorker,
   hub: Hub,
   file = DB_FILE,
 ): LedgerServer {
   const db = openDb(file);
+  // the settings' model, as the agent will use it for judgment
+  const judgment = () => {
+    const asked = ledgerModel();
+    return provider.judgmentModel ? provider.judgmentModel(asked) : asked;
+  };
   const ledger = createLedger({
     db,
     extract: provider.extract ? (req) => provider.extract!(req) : undefined,
     emit: (e) => hub.emit(e),
     tell: tellChat,
     heardAt,
-    model: () => ledgerModel(),
+    model: judgment,
     handover: (s, v) => writeHandover(HOME, s, v, db.conversations()),
     changes: {
       shadowFor: (cwd) => shadowFor(HOME, cwd),
@@ -88,7 +93,7 @@ export function startLedger(
     openChat: provider.openChat
       ? (req, on) => provider.openChat!(req, on)
       : undefined,
-    model: () => ledgerModel(),
+    model: judgment,
   });
 
   // the chat asked for, else the one linked last

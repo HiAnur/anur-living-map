@@ -1,6 +1,6 @@
-// The one seam between Living Map and the model behind it: to use another
-// model (the Anthropic API, another vendor, a local model), add a file next
-// to claude-code.ts that implements it and register it in index.ts.
+// The one seam between Living Map and the agent behind it: to use another
+// agent (the Anthropic API, another vendor, a local model), add a file next
+// to claude-code.ts that implements Agent and register it in index.ts.
 
 // One of your own conversations with the model: the chat a map follows.
 export type Conversation = {
@@ -79,18 +79,32 @@ export interface Chat {
   readonly alive: boolean; // false once it has ended or been stopped
 }
 
-export interface ModelProvider {
+// What the map asks of the agent for its own work. Each part is optional; the
+// map leaves out what the agent cannot do.
+export interface AgentWorker {
   readonly name: string;
-  // Optional: one structured answer (see ExtractRequest). A provider without
-  // it can't run the map's extractor.
+  // Optional: one structured answer (see ExtractRequest). Without it the map
+  // can't run its extractor.
   extract?(request: ExtractRequest): Promise<ExtractResult>;
-  // Optional: find one of your conversations to link a map to, by its id or
-  // else the newest one in a folder. A provider without it links nothing.
-  findConversation?(hint: { id?: string; cwd?: string }): Conversation | null;
   // Optional: open a read-only chat (see ChatRequest). `close` is called once
-  // it has ended, however it ended. A provider without it runs no side chats.
+  // it has ended, however it ended. Without it there are no side chats.
   openChat?(
     request: ChatRequest,
     on: { event(e: ChatEvent): void; close(): void },
   ): Chat;
+  // Optional: the model to use for judgment (filing a chat, side chats) when
+  // your settings ask for `asked`; empty for the agent's own default. An agent
+  // may refuse a model too small to judge.
+  judgmentModel?(asked: string): string;
 }
+
+// Your own conversations with the agent, as the map finds and follows them.
+export interface AgentConversation {
+  readonly name: string;
+  // Optional: find one of your conversations to link a map to, by its id or
+  // else the newest one in a folder. Without it the map links nothing.
+  findConversation?(hint: { id?: string; cwd?: string }): Conversation | null;
+}
+
+// An agent the map works with: both sides.
+export type Agent = AgentWorker & AgentConversation;

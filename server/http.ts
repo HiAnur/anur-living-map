@@ -12,14 +12,14 @@ import { authRoutes, convOf, signInPath, type Auth } from "./auth.ts";
 import { openInBrowser } from "./browser.ts";
 import { STATIC_DIR } from "./config.ts";
 import type { Hub } from "./events.ts";
-import type { ModelProvider } from "./providers/types.ts";
+import type { Agent } from "./providers/types.ts";
 import { checkForUpdate, runUpdate } from "./update.ts";
 
 const sessionOf = (v: unknown) =>
   typeof v === "string" ? v.slice(0, 100) : "";
 
 export function createApp(
-  provider: ModelProvider,
+  provider: Agent,
   hub: Hub,
   auth: Auth,
   map: LedgerServer,

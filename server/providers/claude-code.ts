@@ -15,7 +15,7 @@ import type {
   ChatTool,
   ExtractRequest,
   ExtractResult,
-  ModelProvider,
+  Agent,
   ModelUsage,
 } from "./types.ts";
 
@@ -195,7 +195,7 @@ export function claudeCode({
 }: {
   home: string;
   spawn?: Spawn;
-}): ModelProvider {
+}): Agent {
   // An empty MCP config keeps the user's MCP servers (and their ~280k tokens of
   // tool definitions) out of every call.
   const emptyMcp = path.join(home, "empty-mcp.json");
@@ -421,10 +421,24 @@ export function claudeCode({
     };
   }
 
+  // Judgment (what waits on you, what was decided, a side chat's findings)
+  // never runs on Haiku: Claude Code's default model instead, said once.
+  let warnedHaiku = false;
+  function judgmentModel(asked: string): string {
+    if (!/haiku/i.test(asked)) return asked;
+    if (!warnedHaiku)
+      console.warn(
+        `[ledger] ledgerModel "${asked}" ignored: the map never files on Haiku`,
+      );
+    warnedHaiku = true;
+    return "";
+  }
+
   return {
     name: "Claude Code",
     extract,
     findConversation: (hint) => findConversation(hint),
     openChat,
+    judgmentModel,
   };
 }

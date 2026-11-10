@@ -173,6 +173,20 @@ test("extract with no model passes none, so Claude Code's default model answers"
   assert.equal((await call).ok, true);
 });
 
+test("judgment never runs on Haiku: Claude Code's default instead, said once", () => {
+  const { spawn } = fakeSpawn();
+  const provider = claudeCode({ home, spawn });
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  assert.equal(provider.judgmentModel!(""), "");
+  assert.equal(provider.judgmentModel!("sonnet"), "sonnet");
+  assert.equal(provider.judgmentModel!("claude-opus-5-5"), "claude-opus-5-5");
+  assert.equal(provider.judgmentModel!("claude-haiku-5-5"), "");
+  assert.equal(provider.judgmentModel!("Haiku"), "");
+  assert.equal(warn.mock.calls.length, 1);
+  assert.match(String(warn.mock.calls[0]![0]), /never files on Haiku/);
+  warn.mockRestore();
+});
+
 test("extract reports an answer with no structured output, or none at all, as a failure", async () => {
   const { spawn, procs } = fakeSpawn();
   const provider = claudeCode({ home, spawn });

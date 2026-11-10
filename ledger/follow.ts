@@ -48,21 +48,8 @@ export function createLedger(deps: LedgerDeps) {
   const { db } = deps;
   const now = deps.now ?? Date.now;
   const followers = new Map<string, Follower>();
-  let warnedHaiku = false;
-
-  // judgment (what waits on you, what was decided) never runs on Haiku
-  const model = () => {
-    const m = deps.model?.() ?? "";
-    if (/haiku/i.test(m)) {
-      if (!warnedHaiku)
-        console.warn(
-          `[ledger] ledgerModel "${m}" ignored: the map never files on Haiku`,
-        );
-      warnedHaiku = true;
-      return "";
-    }
-    return m;
-  };
+  // the model to file with, as the agent judges it (routes.ts); empty for its default
+  const model = () => deps.model?.() ?? "";
 
   const ctx: Ctx = { deps, db, now, model, push, active: 0 };
 

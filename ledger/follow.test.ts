@@ -221,11 +221,10 @@ test("a chat carried on in another file is read again from that file's start", a
   );
 });
 
-test("the map's model is the setting's, never Haiku", async () => {
+test("the map files with the model it is given, or the agent's default", async () => {
   for (const [asked, used] of [
     ["", ""],
     ["sonnet", "sonnet"],
-    ["claude-haiku-5-5", ""],
   ]) {
     const c = chat();
     let clock = Date.now();

@@ -1,7 +1,7 @@
 // A chat asks for its map (the living-map skill): the chat is found on disk
 // and followed from now on; one already followed just opens again.
 
-import type { ModelProvider } from "../server/providers/types.ts";
+import type { AgentConversation } from "../server/providers/types.ts";
 import type { Ledger } from "./follow.ts";
 
 export type LinkResult = {
@@ -17,7 +17,7 @@ const str = (v: unknown, n: number) =>
   typeof v === "string" ? v.slice(0, n) : "";
 
 export function linkChat(
-  provider: ModelProvider,
+  provider: AgentConversation,
   ledger: Ledger,
   body: Record<string, unknown>,
 ): LinkResult {
