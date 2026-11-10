@@ -12,6 +12,17 @@ When the Actions an Action depends on finish, it prepares itself with what they 
 </dl>
 
 <dl>
+<dt><strong>✨ [New feature] Start a map without a prompt</strong></dt>
+<dd>
+
+On the home page, choose **+ New map** and start typing, then use Tab or Enter to build your map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/322 --> <!-- merged-at: 2026-11-10T22:38:59Z -->
+
+<img src="docs/shipping/2026-11-10/new-blank-map.png" alt="Living Map home page with the new plus New map button beside Start a new map, above the Claude prompt and saved maps." width="537">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Hand an Action to someone else</strong></dt>
 <dd>
 
