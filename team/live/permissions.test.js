@@ -144,6 +144,16 @@ describe('who may take each action', () => {
       expect((await act('Ana', a, linked())).status, `Ana ${a.type}`).toBe(200);
     }
   });
+  it('only an Admin may hand an Action over, to a member who can use its box', async () => {
+    const owned = () => ({ ...state(), nodes: state().nodes.map((n) => n.id === 'web' || n.id === 'api' ? { ...n, action: { by: 'Duy', stage: 'ready', id: 'r', brief: {} } } : n) });
+    expect((await act('Ana', { type: 'actionhandover', id: 'web', to: 'Sam' }, owned())).status).toBe(200);
+    expect((await act('Duy', { type: 'actionhandover', id: 'web', to: 'Sam' }, owned())).status).toBe(400);
+    expect((await act('Ana', { type: 'actionhandover', id: 'web', to: 'Nobody' }, owned())).status).toBe(400);
+    expect((await act('Ana', { type: 'actionhandover', id: 'api', to: 'Sam' }, owned())).status).toBe(400);
+    expect((await act('edit link', { type: 'actionhandover', id: 'web', to: 'Sam' }, owned())).status).toBe(403);
+    const { after } = await act('Ana', { type: 'actionhandover', id: 'web', to: 'Sam' }, owned());
+    expect(after.nodes.find((/** @type {any} */ n) => n.id === 'web')?.action?.by).toBe('Sam');
+  });
   it('only the person who started an Action box may go on with it', async () => {
     const started = () => ({ ...state(), nodes: state().nodes.map((n) => n.id === 'web' ? { ...n, action: { by: 'Ana', stage: 'draft' } } : n) });
     expect((await act('Duy', { type: 'actioncancel', id: 'web' }, started())).status).toBe(400);

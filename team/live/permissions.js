@@ -45,6 +45,7 @@ export const WHO = {
   describemap: { standing: 'whole', then: 'nothing' },
   contextmap: { standing: 'whole', then: 'a map added as background is one they may open' },
   execute: { standing: 'admin', then: 'every question on the map is answered, and it was not executed yet' },
+  actionhandover: { standing: 'admin', then: 'the Action is not preparing or running, and the new author is a member of the map who can use its box' },
   planmd: { standing: 'admin', then: 'every question on the map is answered, and it was not executed yet' },
   // memory, questions and Claude's chats
   editmemory: { standing: 'member', then: 'a box\'s memory only when the box is in their area' },

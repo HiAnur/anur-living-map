@@ -7,7 +7,7 @@ import { actionCancellable, actionExecuted, actionHistory, actionStatus, actionU
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const esc=s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 function panel(){
-  const ctx=vm.createContext({ME:'Duy',READ_ONLY:false,FILE:false,PREVIEW:false,esc,md:esc,yours:s=>`<p>${esc(s)}</p>`,claudes:s=>s,attached:()=>'',SEND_ICON:'Send',openSecs:new Set(),nodeById:()=>({label:'Research'}),locked:()=>false});
+  const ctx=vm.createContext({S:{people:[]},ME:'Duy',READ_ONLY:false,FILE:false,PREVIEW:false,esc,md:esc,yours:s=>`<p>${esc(s)}</p>`,claudes:s=>s,attached:()=>'',SEND_ICON:'Send',openSecs:new Set(),nodeById:()=>({label:'Research'}),locked:()=>false});
   Object.assign(ctx, { actionCancellable, actionExecuted, actionHistory, actionStatus, actionUntouched });
   vm.runInContext(html.slice(html.indexOf('function actionStatusPill('),html.indexOf('async function runBoxAction(')),ctx);
   return ctx;
