@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { applyLocal, fixtureView, keyAt } from "./fixture.ts";
 import {
   holdView,
@@ -22,7 +23,6 @@ import {
   search,
 } from "./lens.ts";
 import { newIds, snapOf } from "./since.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 const item = (
   id: string,

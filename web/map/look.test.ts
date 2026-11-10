@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { lookOf } from "./look.ts";
 import type { LedgerItem } from "../../shared/ledger.ts";
+import { lookOf } from "./look.ts";
 
 const ask = (state: string, waiting: boolean): LedgerItem => ({
   id: "a1",

@@ -1,8 +1,8 @@
 // A chat asks for its map (the living-map skill): the chat is found on disk
 // and followed from now on; one already followed just opens again.
 
-import type { Ledger } from "./follow.ts";
 import type { ModelProvider } from "../server/providers/types.ts";
+import type { Ledger } from "./follow.ts";
 
 export type LinkResult = {
   error?: string;

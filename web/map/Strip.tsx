@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
+import type { LedgerItem, LedgerView } from "../../shared/ledger.ts";
 import { Glyph } from "./Glyph.tsx";
 import type { Snap } from "./since.ts";
-import type { LedgerItem, LedgerView } from "../../shared/ledger.ts";
 
 const plural = (n: number, one: string, many = `${one}s`) =>
   `${n} ${n === 1 ? one : many}`;

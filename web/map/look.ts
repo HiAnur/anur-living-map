@@ -1,6 +1,6 @@
+import type { LedgerItem } from "../../shared/ledger.ts";
 import type { Lens } from "./lens.ts";
 import { PENDING } from "./pending.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 // How a box looks: every box is white with the same thin border, and one
 // colour means something: amber, for what waits on you. Everything else says

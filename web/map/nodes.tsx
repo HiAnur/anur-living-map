@@ -1,10 +1,10 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { Glyph } from "./Glyph.tsx";
 import { NARROW, type Size } from "./layout.ts";
 import type { Lens } from "./lens.ts";
 import { LENS_LOOK, lookOf } from "./look.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 // What a node on the map is drawn from: its item (none for the chat's
 // root), how the lens and search left it, and a folded topic's counts.

@@ -18,7 +18,6 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import type { Checkpoints, Labels } from "./extract-label.ts";
 import type { Item } from "../ledger/items.ts";
 import {
   asListed,
@@ -30,6 +29,7 @@ import {
 } from "../ledger/match.ts";
 import { HOME } from "../server/config.ts";
 import { claudeCode } from "../server/providers/claude-code.ts";
+import type { Checkpoints, Labels } from "./extract-label.ts";
 
 const ROOT = path.join(HOME, "eval", "extract");
 const GATE = { recall: 0.8, precision: 0.9 };

@@ -1,13 +1,13 @@
 import { useState } from "react";
 
-import { Glyph } from "./Glyph.tsx";
-import { groupsOf, topicOf } from "./lens.ts";
-import { lookOf } from "./look.ts";
 import type {
   ChangeStatement,
   LedgerAction,
   LedgerItem,
 } from "../../shared/ledger.ts";
+import { Glyph } from "./Glyph.tsx";
+import { groupsOf, topicOf } from "./lens.ts";
+import { lookOf } from "./look.ts";
 
 const MARK: Record<ChangeStatement["change"], string> = {
   added: "+",

@@ -2,8 +2,6 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { lookOf } from "./look.ts";
-import type { ActResult } from "./useLedger.ts";
 import type {
   LedgerAction,
   LedgerItem,
@@ -12,6 +10,8 @@ import type {
   SideProposal,
 } from "../../shared/ledger.ts";
 import { More } from "../components/More.tsx";
+import { lookOf } from "./look.ts";
+import type { ActResult } from "./useLedger.ts";
 
 const button =
   "rounded-lg border border-line-strong px-2.5 py-1 text-[12.5px] text-body hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40";

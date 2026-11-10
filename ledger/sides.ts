@@ -16,6 +16,20 @@ import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  childEnv,
+  priceOf,
+  SIGNED_OUT,
+  signedOut,
+  type Spawn,
+} from "../server/providers/claude-code.ts";
+import type {
+  LedgerAction,
+  LedgerEvent,
+  LedgerView,
+  SideChat,
+  SideMessage,
+} from "../shared/ledger.ts";
 import { checkAnswer, type Acted } from "./apply.ts";
 import type {
   LedgerDb,
@@ -42,20 +56,6 @@ import {
   view as readView,
   type Turn,
 } from "./transcript.ts";
-import {
-  childEnv,
-  priceOf,
-  SIGNED_OUT,
-  signedOut,
-  type Spawn,
-} from "../server/providers/claude-code.ts";
-import type {
-  LedgerAction,
-  LedgerEvent,
-  LedgerView,
-  SideChat,
-  SideMessage,
-} from "../shared/ledger.ts";
 
 export const SIDE_IDLE_MS = 10 * 60_000;
 // read-only, and nothing that reaches the network or runs anything

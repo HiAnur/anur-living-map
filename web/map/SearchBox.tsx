@@ -1,9 +1,9 @@
 import { useState } from "react";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { Glyph } from "./Glyph.tsx";
 import { search, topicOf } from "./lens.ts";
 import { lookOf } from "./look.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 // ⌘F over the items' titles: matches light up on the map as you type,
 // Enter or a click goes to one.

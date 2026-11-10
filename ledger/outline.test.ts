@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { outline, outlineLens } from "./outline.ts";
 import type { LedgerItem, LedgerView } from "../shared/ledger.ts";
+import { outline, outlineLens } from "./outline.ts";
 
 const item = (
   id: string,

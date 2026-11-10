@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
+import type { ChatSummary } from "../shared/ledger.ts";
 import { Mark } from "./components/Logo.tsx";
 import { api } from "./lib/session.ts";
-import type { ChatSummary } from "../shared/ledger.ts";
 
 // Every chat with a map, for a browser already signed in that opens the bare
 // address: each opens in its own tab, at its own address (/?conv=<chat>).

@@ -1,13 +1,13 @@
 import { useState } from "react";
 
-import { linkedTo, REVERSE } from "./lens.ts";
-import { lookOf } from "./look.ts";
-import type { ActResult } from "./useLedger.ts";
 import type {
   ChangeStatement,
   LedgerAction,
   LedgerItem,
 } from "../../shared/ledger.ts";
+import { linkedTo, REVERSE } from "./lens.ts";
+import { lookOf } from "./look.ts";
+import type { ActResult } from "./useLedger.ts";
 
 const BASIS: Record<LedgerItem["basis"], string> = {
   said: "Said in the chat",

@@ -2,8 +2,8 @@
 // chat, the ones waiting on you first, so with several chats going you
 // see which one needs you without opening each.
 
-import type { Conv } from "./db.ts";
 import type { ChatSummary, LedgerView } from "../shared/ledger.ts";
+import type { Conv } from "./db.ts";
 
 export function summarize(
   convs: Conv[],

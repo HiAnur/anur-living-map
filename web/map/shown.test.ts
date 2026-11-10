@@ -5,9 +5,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { countsOf, descendants } from "./lens.ts";
 import { mapItems, startFolds, trailOf } from "./shown.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 const item = (
   id: string,

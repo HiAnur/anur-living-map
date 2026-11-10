@@ -10,9 +10,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { LedgerItem, LedgerView } from "../shared/ledger.ts";
 import type { Conv, State } from "./db.ts";
 import { isDecided } from "./outline.ts";
-import type { LedgerItem, LedgerView } from "../shared/ledger.ts";
 
 // the date in your time zone: a decision made this evening is dated today
 const day = (ms: number) => {

@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { kindOf, nextTip } from "./tips.ts";
 import type { LedgerItem } from "../../shared/ledger.ts";
+import { kindOf, nextTip } from "./tips.ts";
 
 const item = (
   id: string,

@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { groupsOf, heldUp, linkedTo, litBy, matcher } from "./lens.ts";
 import type { LedgerItem } from "../../shared/ledger.ts";
+import { groupsOf, heldUp, linkedTo, litBy, matcher } from "./lens.ts";
 
 const item = (
   id: string,

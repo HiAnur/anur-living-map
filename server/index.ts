@@ -7,13 +7,13 @@
 //
 // Run with Node 23.6+ (types are stripped natively): node server/index.ts
 
+import { startLedger } from "../ledger/routes.ts";
+import { installSkill } from "../skill/install.ts";
 import { createAuth } from "./auth.ts";
 import { HOME, OWNS_SKILL, PORT, PROVIDER } from "./config.ts";
 import { createHub } from "./events.ts";
 import { createApp } from "./http.ts";
 import { pickProvider } from "./providers/index.ts";
-import { startLedger } from "../ledger/routes.ts";
-import { installSkill } from "../skill/install.ts";
 
 const provider = pickProvider(PROVIDER, { home: HOME });
 const hub = createHub();

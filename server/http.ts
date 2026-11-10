@@ -4,16 +4,16 @@
 import express from "express";
 import path from "node:path";
 
+import { linkChat } from "../ledger/link.ts";
+import { unsentFor, wakesFor } from "../ledger/outbox.ts";
+import { outlineLens } from "../ledger/outline.ts";
+import type { LedgerServer } from "../ledger/routes.ts";
 import { authRoutes, convOf, signInPath, type Auth } from "./auth.ts";
 import { openInBrowser } from "./browser.ts";
 import { STATIC_DIR } from "./config.ts";
 import type { Hub } from "./events.ts";
 import type { ModelProvider } from "./providers/types.ts";
 import { checkForUpdate, runUpdate } from "./update.ts";
-import { linkChat } from "../ledger/link.ts";
-import { unsentFor, wakesFor } from "../ledger/outbox.ts";
-import { outlineLens } from "../ledger/outline.ts";
-import type { LedgerServer } from "../ledger/routes.ts";
 
 const sessionOf = (v: unknown) =>
   typeof v === "string" ? v.slice(0, 100) : "";

@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import type { UpdateStep } from "../shared/model.ts";
 import {
   checkForUpdate,
   repoSlug,
@@ -10,7 +11,6 @@ import {
   SKILL_STEP,
   type Run,
 } from "./update.ts";
-import type { UpdateStep } from "../shared/model.ts";
 
 // a fake git/npm: answers by command line, records what ran
 function fakeGit(answers: Record<string, string | Error>) {

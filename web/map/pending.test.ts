@@ -4,8 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { PENDING, pendingItem, pendingTurns } from "./pending.ts";
 import type { LedgerItem, LedgerView } from "../../shared/ledger.ts";
+import { PENDING, pendingItem, pendingTurns } from "./pending.ts";
 
 const topic = (id: string): LedgerItem => ({
   id,

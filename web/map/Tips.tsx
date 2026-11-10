@@ -1,9 +1,9 @@
 import { useStore } from "@xyflow/react";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { Glyph } from "./Glyph.tsx";
 import { ROOT, type Layout, type Size } from "./layout.ts";
 import { nextTip, TIPS, type TipId } from "./tips.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 const W = 240; // the tip's width
 const GAP = 6;

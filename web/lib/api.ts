@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { api } from "./session.ts";
 import type { UpdateInfo } from "../../shared/model.ts";
+import { api } from "./session.ts";
 
 // Is a newer release out? Asked when the page opens and every half hour;
 // refresh() asks GitHub again now.

@@ -3,9 +3,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import type { LedgerView } from "../shared/ledger.ts";
 import { summarize } from "./chats.ts";
 import type { Conv } from "./db.ts";
-import type { LedgerView } from "../shared/ledger.ts";
 
 const conv = (root: string, linkedAt: number, title = ""): Conv => ({
   root,

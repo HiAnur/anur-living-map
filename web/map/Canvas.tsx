@@ -10,12 +10,12 @@ import {
 } from "@xyflow/react";
 import { useMemo } from "react";
 
+import type { LedgerItem } from "../../shared/ledger.ts";
 import { ROOT, type Layout, type Size } from "./layout.ts";
 import { countsOf, countsText, descendants, type Lens } from "./lens.ts";
 import { lookOf } from "./look.ts";
 import { ItemNode, type ItemData } from "./nodes.tsx";
 import { trailOf } from "./shown.ts";
-import type { LedgerItem } from "../../shared/ledger.ts";
 
 const nodeTypes = { item: ItemNode };
 

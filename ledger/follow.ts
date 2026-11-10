@@ -18,6 +18,17 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { successor } from "../server/providers/claude-sessions.ts";
+import type {
+  Conversation,
+  ExtractRequest,
+  ExtractResult,
+} from "../server/providers/types.ts";
+import type {
+  LedgerAction,
+  LedgerEvent,
+  LedgerView,
+} from "../shared/ledger.ts";
 import {
   applyAction,
   applyAnswer,
@@ -47,17 +58,6 @@ import {
   type Turn,
 } from "./transcript.ts";
 import { buildView } from "./view.ts";
-import { successor } from "../server/providers/claude-sessions.ts";
-import type {
-  Conversation,
-  ExtractRequest,
-  ExtractResult,
-} from "../server/providers/types.ts";
-import type {
-  LedgerAction,
-  LedgerEvent,
-  LedgerView,
-} from "../shared/ledger.ts";
 
 export const TICK_MS = 1000;
 export const BATCH = 3;

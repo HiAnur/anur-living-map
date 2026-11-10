@@ -12,8 +12,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
-import { emptyStore, type Item, type Store, type Writer } from "./items.ts";
 import type { ChangeStatement } from "../shared/ledger.ts";
+import { emptyStore, type Item, type Store, type Writer } from "./items.ts";
 
 // one of your chats as the store keeps it, under the first id it had
 export type Conv = {

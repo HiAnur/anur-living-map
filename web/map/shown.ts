@@ -3,8 +3,8 @@
 // made in, so you can see where it was decided. Every topic but the one
 // Claude is on starts folded.
 
-import { nowTopic } from "./lens.ts";
 import type { LedgerItem } from "../../shared/ledger.ts";
+import { nowTopic } from "./lens.ts";
 
 export const onMap = (i: LedgerItem) => i.type !== "finding";
 

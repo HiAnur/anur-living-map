@@ -3,13 +3,13 @@
 // last looked, and the strip on top. Pure: the follower passes in what it
 // knows of the transcript and the runs.
 
-import type { State } from "./db.ts";
-import { isOpen, isWaiting, live, topicState, type Item } from "./items.ts";
 import type {
   ChangeStatement,
   LedgerItem,
   LedgerView,
 } from "../shared/ledger.ts";
+import type { State } from "./db.ts";
+import { isOpen, isWaiting, live, topicState, type Item } from "./items.ts";
 
 export type Facts = {
   turns: number; // turns in the chat so far

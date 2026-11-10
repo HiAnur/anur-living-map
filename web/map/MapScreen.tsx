@@ -15,6 +15,17 @@ import {
   type ReactNode,
 } from "react";
 
+import type {
+  LedgerAction,
+  LedgerItem,
+  LedgerView,
+} from "../../shared/ledger.ts";
+import { Mark } from "../components/Logo.tsx";
+import { More } from "../components/More.tsx";
+import { UpdateButton } from "../components/UpdateButton.tsx";
+import { useUpdate } from "../lib/api.ts";
+import { api } from "../lib/session.ts";
+import { store, stored } from "../lib/storage.ts";
 import { Canvas } from "./Canvas.tsx";
 import { Card } from "./Card.tsx";
 import { Drawer } from "./Drawer.tsx";
@@ -47,17 +58,6 @@ import type { TipId } from "./tips.ts";
 import { MapTips, Tip } from "./Tips.tsx";
 import { Toolbar } from "./Toolbar.tsx";
 import { useLedger } from "./useLedger.ts";
-import type {
-  LedgerAction,
-  LedgerItem,
-  LedgerView,
-} from "../../shared/ledger.ts";
-import { Mark } from "../components/Logo.tsx";
-import { More } from "../components/More.tsx";
-import { UpdateButton } from "../components/UpdateButton.tsx";
-import { useUpdate } from "../lib/api.ts";
-import { api } from "../lib/session.ts";
-import { store, stored } from "../lib/storage.ts";
 
 // coming back to the page after this long counts as a new look
 const AWAY_MS = 5 * 60_000;

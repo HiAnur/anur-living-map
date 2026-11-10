@@ -3,12 +3,12 @@
 // what you do on the map, which is written as "you" and never overwritten by
 // the extractor. Every item gets its place among its siblings here.
 
+import type { LedgerAction } from "../shared/ledger.ts";
 import type { LogLine, State } from "./db.ts";
 import { apply, LINK_RELS, type Answer, type Op } from "./extract.ts";
 import { STATES, type Item } from "./items.ts";
 import { keyAfter } from "./order.ts";
 import type { Turn } from "./transcript.ts";
-import type { LedgerAction } from "../shared/ledger.ts";
 
 const n = (id: string) => Number(id.slice(1)) || 0;
 

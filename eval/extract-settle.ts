@@ -11,7 +11,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { LABEL_SYSTEM, render } from "./extract-label.ts";
 import {
   emptyTranscript,
   readMore,
@@ -20,6 +19,7 @@ import {
 } from "../ledger/transcript.ts";
 import { HOME } from "../server/config.ts";
 import { claudeCode } from "../server/providers/claude-code.ts";
+import { LABEL_SYSTEM, render } from "./extract-label.ts";
 
 // $LIVING_MAP_HOME when set, like the server and the scorer, so two runs
 // can each keep their own folder

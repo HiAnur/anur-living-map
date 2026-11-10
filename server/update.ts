@@ -9,6 +9,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+import type { UpdateInfo, UpdateStep } from "../shared/model.ts";
+import { installSkill } from "../skill/install.ts";
 import {
   APP_DIR,
   OWNS_SKILL,
@@ -16,8 +18,6 @@ import {
   RESTART_CODE,
   UNDER_LAUNCHER,
 } from "./config.ts";
-import type { UpdateInfo, UpdateStep } from "../shared/model.ts";
-import { installSkill } from "../skill/install.ts";
 
 export type Run = (
   cmd: string,

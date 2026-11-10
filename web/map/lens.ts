@@ -1,8 +1,8 @@
 // What the map's lenses, counts, list and search read from the items: pure,
 // so the canvas, the drawer and the strip agree on every count.
 
-import { childrenMap } from "./layout.ts";
 import type { ChangeStatement, LedgerItem } from "../../shared/ledger.ts";
+import { childrenMap } from "./layout.ts";
 
 export type Lens = "waiting" | "open" | "decided" | "changed";
 

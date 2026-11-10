@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { applyLocal, localSide } from "./fixture.ts";
-import { viewUrl } from "./probe.ts";
 import type {
   LedgerAction,
   LedgerEvent,
@@ -10,6 +8,8 @@ import type {
 } from "../../shared/ledger.ts";
 import type { ServerEvent, UpdateStep } from "../../shared/model.ts";
 import { api } from "../lib/session.ts";
+import { applyLocal, localSide } from "./fixture.ts";
+import { viewUrl } from "./probe.ts";
 
 export type ActResult = { ok: boolean; error?: string; side?: SideChat };
 
