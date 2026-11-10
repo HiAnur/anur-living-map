@@ -7,10 +7,13 @@ const MAX = 32_000;
 // before calling one, keep a task list, and return the structured result. None of them changes anything.
 export const ALWAYS = ['Read', 'Grep', 'Glob', 'ToolSearch', 'TodoWrite', 'StructuredOutput'];
 const OUTSIDE = 'This tool is not in the reviewed brief, so this run cannot use it. Finish with what the brief allows, or report that the task needs it.';
+// The map commits, pushes and opens a build's pull request itself, so a run never pushes or calls GitHub's CLI
+const HANDS_OFF = ['\\bgit\\s+push\\b', '(^|[;&|(]\\s*)gh\\s'];
+const MAP_DOES_IT = 'The map pushes the branch and opens the pull request when you finish. Leave your changes in the worktree, uncommitted or committed, and finish the task.';
 // The run's limit: the tools the person reviewed in the brief, and the fixed read-only set. A tool named here
 // still goes through the person's own permission checks.
 /** @param {readonly string[] | undefined} tools */
-export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE);
+export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE, HANDS_OFF, MAP_DOES_IT);
 // Claude Code's tools that only read, so a call to one changed nothing a Continue could repeat
 const READS = new Set([...ALWAYS, 'WebFetch', 'WebSearch', 'LS', 'NotebookRead']);
 /** @param {unknown} content a tool result's content: text, or a list of blocks */

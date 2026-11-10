@@ -34,6 +34,7 @@ const ACTION_STEPS = /** @type {Record<string, string>} */ ({
   ready:'Brief ready', revised:'Asked to revise', executed:'Executed', stopped:'Stopped', continued:'Continued',
   finished:'Run ended', interrupted:'Interrupted by a restart', waiting:'Waiting on a prerequisite',
   released:'Prerequisites finished', failed:'Preparation stopped', cancelled:'Cancelled', reopened:'Prepared again', confirmed:'Confirmed done',
+  branched:'Made a branch', built:'Committed and pushed',
 });
 const ACTION_ENDS = /** @type {Record<string, string>} */ ({ completed:'completed, verified', unverified:'done, unverified', needs_input:'needs an answer', blocked:'blocked', unconfirmed:'unconfirmed' });
 /** @param {number} ms */
@@ -44,6 +45,6 @@ export function actionHistory(events) {
     label: ACTION_STEPS[e.what] || e.what,
     who: e.by === 'Map' ? 'the map' : String(e.by || ''),
     at: e.at,
-    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : ''].filter(Boolean).join(' · '),
+    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : ''].filter(Boolean).join(' · '),
   })).reverse();
 }

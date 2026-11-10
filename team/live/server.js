@@ -23,7 +23,9 @@ import http from 'node:http';
 import path from 'node:path';
 
 import { actionBoxes, recoverAction } from './action-box.js';
+import { closeBuild, openBuild } from './action-build.js';
 import { pullRequestExists } from './action-evidence.js';
+import { DATA } from './data-dir.js';
 import { readPlannedTask } from './action-plan.js';
 import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
 import { checkCommand } from './commands.js';
@@ -338,6 +340,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
     checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
+    // a build's worktree lives in the team map's data folder, never inside the project it changes
+    builds: {
+      open: (a, n) => openBuild({ project: project || PROJECT || home, root: path.join(DATA, 'worktrees', name || mapName(project || PROJECT) || 'map'), action: /** @type {any} */ (a), box: n }),
+      close: (a, n) => closeBuild({ build: a.build, title: String(a.brief.goal).slice(0, 120),
+        body: [`Opened by an Action on the team map, after ${a.by} pressed Execute.`, '', `**Box:** ${n?.label || ''}`, `**Goal:** ${a.brief.goal}`, `**Expected result:** ${a.brief.result}`, '', '**Steps**', ...a.brief.steps.map((/** @type {string} */ step, /** @type {number} */ i) => `${i + 1}. ${step}`)].join('\n') }),
+    },
     run: (request) => { fs.mkdirSync(home, {recursive:true}); return agent.run({ schema:completionSchema, system:executionPrompt, read:readCompletion, ...request }); },
   });
 

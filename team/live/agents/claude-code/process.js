@@ -24,11 +24,13 @@ export const mcpTools = (servers = {}) => Object.entries(servers).flatMap(([name
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 
 // Claude Code settings whose PreToolUse hook denies every tool not named in `allowed`, with `reason` as what
-// Claude is told. A hook decides before the person's own settings do, so a tool they allowed for themselves is
-// denied here too; a tool named here still goes through their usual permission checks.
-/** @param {readonly string[]} allowed @param {string} reason */
-export function onlyTools(allowed, reason) {
-  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let name;try{name=JSON.parse(input).tool_name}catch{/* unreadable: no name, so denied */};if(!${JSON.stringify(allowed)}.includes(name))process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(reason).replaceAll('"', "'")}}}));});`;
+// Claude is told, and any shell command matching one of `commands` (regular expressions), with `commandReason`.
+// A hook decides before the person's own settings do, so a tool they allowed for themselves is denied here too;
+// a tool named here still goes through their usual permission checks.
+/** @param {readonly string[]} allowed @param {string} reason @param {readonly string[]} [commands] @param {string} [commandReason] */
+export function onlyTools(allowed, reason, commands = [], commandReason = reason) {
+  const deny = (/** @type {string} */ why) => `process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(why).replaceAll('"', "'")}}}))`;
+  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let d={};try{d=JSON.parse(input)}catch{/* unreadable: no name, so denied */};const name=d.tool_name,command=name==='Bash'&&typeof d.tool_input?.command==='string'?d.tool_input.command:'';if(!${JSON.stringify(allowed)}.includes(name))${deny(reason)};else if(${JSON.stringify(commands)}.some(r=>new RegExp(r).test(command)))${deny(commandReason)};});`;
   return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
 }
 
