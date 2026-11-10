@@ -27,10 +27,9 @@ import path from 'node:path';
 import { actionBoxes, recoverAction } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
 import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
-import { agent } from './agent.js';
+import { agent, chats } from './agent.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
-import { follow } from './mirror.js';
 import { contextReader, describeMap } from './map-context.js';
 import { appendProposed } from './proposal-layout.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
@@ -157,7 +156,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const l = linkOf();
     if (mirror && mirror.session === l?.session) return;
     mirror?.f.stop(); mirror = null;
-    if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: follow(l.file, sendMirror, { anyUser: !!l.built }) };
+    if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: chats.follow(l.file, sendMirror, { anyUser: !!l.built }) };
   }
   if (!memory) startMirror();
 
@@ -181,20 +180,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       onClose: () => { building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
     // its transcript appears once it starts; the pane follows it from then
     if (!l.file) {
-      const PROJECTS = path.join(process.env.HOME || '', '.claude', 'projects'); let tries = 0;
+      let tries = 0;
       const look = setInterval(() => {
-        const dir = fs.existsSync(PROJECTS) && fs.readdirSync(PROJECTS).find((d) => fs.existsSync(path.join(PROJECTS, d, `${l.session}.jsonl`)));
-        if (dir) { l.file = path.join(PROJECTS, dir, `${l.session}.jsonl`); save(); startMirror(); }
-        if (dir || ++tries > 240) clearInterval(look);
+        const file = chats.findChat(l.session);
+        if (file) { l.file = file; save(); startMirror(); }
+        if (file || ++tries > 240) clearInterval(look);
       }, 500);
     }
   }
-  // A new map from a prompt opens a new Claude Code session in the Claude app, in the map's folder, so it sits in
-  // Recents like any other chat, with every tool, connector and permission the app gives it. The session starts
-  // with /anur-living-map map:<name> and the prompt, and draws. The pane follows it from its first second: the app
-  // writes the chat's transcript into ~/.claude/projects/<the map's folder, - for every other character> as the chat
-  // starts, so the server links the new file holding "map:<name>" itself, without waiting the half minute until
-  // the skill's own link step (which then changes nothing).
+  // A new map from a prompt opens a new chat in the agent's app, in the map's folder, so it sits in Recents like
+  // any other chat, with every tool, connector and permission the app gives it. The chat starts with
+  // /anur-living-map map:<name> and the prompt, and draws. The pane follows it from its first second: the server
+  // links the new chat whose words hold "map:<name>" as soon as its transcript appears, without waiting the half
+  // minute until the skill's own link step (which then changes nothing).
   function build(/** @type {any} */ { prompt, by }) {
     const words = prompt.replace(/\s+/g, ' ').split(' ');
     let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
@@ -202,12 +200,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     state.starting = { prompt, by, at: Date.now() };
     save(); push();
     const q = `/anur-living-map map:${name} ${prompt}`;
-    spawn('open', [`claude://code/new?q=${encodeURIComponent(q)}&folder=${encodeURIComponent(home)}`]).on('error', () => {});
-    const chats = path.join(process.env.HOME || '', '.claude', 'projects', home.replace(/[^a-zA-Z0-9]/g, '-'));
+    chats.openNew({ prompt: q, folder: home });
     const since = state.starting.at - 2000; let tries = 0;
     const look = setInterval(() => {
-      const file = fs.existsSync(chats) && fs.readdirSync(chats).filter((f) => f.endsWith('.jsonl')).map((f) => path.join(chats, f))
-        .find((f) => fs.statSync(f).birthtimeMs >= since && fs.readFileSync(f, 'utf8').includes(`map:${name}`));
+      const file = chats.findNewChat({ folder: home, since, holding: `map:${name}` });
       if (file && state.starting) { ACTS.link({ session: path.basename(file, '.jsonl'), file, by }); save(); push(); }
       if (file || !state.starting || ++tries > 240) clearInterval(look);
     }, 500);
@@ -964,7 +960,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     /** @param {any} a */
     link(a) {
       const session = String(a.session || ''), file = String(a.file || '');
-      if (!/^[\w-]{8,80}$/.test(session) || !file.endsWith(`/${session}.jsonl`) || !file.includes('/.claude/projects/') || !fs.existsSync(file)) return false;
+      if (!chats.isChat(file, session)) return false;
       state.linked = [{ session, file, owner: a.by, at: Date.now() }, ...(state.linked || []).filter((/** @type {any} */ l) => l.session !== session)].slice(0, 10);
       delete state.starting;
       startMirror(); return true;
@@ -1427,7 +1423,7 @@ const server = http.createServer(async (req, res) => {
     users.end(cookieOf(req, 'lm_session'));
     return res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'lm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0' }).end('{}');
   }
-  if (url.pathname === '/api/claude-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(401, { ok: false });
+  if (url.pathname === '/api/agent-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(401, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
   if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
   const rootLinkAPI = !PROJECT && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && main.access(who, req);
@@ -1577,7 +1573,7 @@ const server = http.createServer(async (req, res) => {
 
 // ── keeps itself current ──
 // Run from a git clone on main with no changes of its own, the server looks at GitHub when it starts and every
-// ten minutes, pulls what is new, refreshes the skill's copy under ~/.claude/skills, and starts itself again in
+// ten minutes, pulls what is new, refreshes the skill's installed copy (chats.skillDir), and starts itself again in
 // its place: every change is on disk already, pages and listeners reconnect by themselves. A copy without git
 // (npx) is left to npx, which fetches the newest version each run. The commit it runs from goes in
 // ~/.living-map-2/server.rev, which /anur-living-map reads to tell a server on older code.
@@ -1588,7 +1584,7 @@ const EVERY = 10 * 60_000;
 // the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
 // by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line
 function refreshSkill() {
-  const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = path.join(os.homedir(), '.claude', 'skills', 'anur-living-map');
+  const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = chats.skillDir('anur-living-map');
   for (const f of /** @type {string[]} */ (fs.readdirSync(src, { recursive: true }))) {
     const s = path.join(src, f), d = path.join(dst, f);
     if (fs.statSync(s).isDirectory()) continue;
