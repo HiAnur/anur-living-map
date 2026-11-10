@@ -6,6 +6,7 @@
 import {
   isOpen,
   isWaiting,
+  KIND_GUIDE,
   KINDS,
   live,
   outranks,
@@ -19,17 +20,15 @@ import {
 import { toMermaid } from "./mermaid.ts";
 import type { Turn } from "./transcript.ts";
 
+// one line of the prompt's list of kinds: its name, its states (a topic has
+// none of its own) and what it is for
+const kindLine = (k: Kind) =>
+  `- ${k}${k === "topic" ? "" : ` (${STATES[k].join(", ")})`}: ${KIND_GUIDE[k]}`;
+
 export const SYSTEM = `You keep a map of one Claude Code conversation between a user and Claude: what is asked, offered, decided and left to do. You are shown the map so far (as a Mermaid mindmap: each item has an id like i12, a type and a state on the ":::" line under it) and the conversation's NEW TURNS. Answer only through the schema, with changes to the map.
 
 Kinds and their states (the first is where a new one starts):
-- topic: what a stretch of the conversation is about. Every new turn belongs to a topic: an existing one, or a new one you create.
-- question (open, answered, dropped): something asked that needs an answer. owner "you" only when Claude asked the user directly and is waiting for the answer (a choice, a confirmation, information only they have); owner "claude" when Claude will find the answer.
-- option (offered, taken, dropped): one of several choices offered for a question; its parent is that question. Mark it taken only when the conversation shows it was chosen.
-- decision (decided, reopened): something settled that later work relies on.
-- task (to-do, doing, done, dropped): work to be done. owner "claude" for Claude's own work. owner "you" only for a step Claude handed to the user by name (merge or review a PR, deploy, run a command it gave them, test on their device, contact someone, fill a form). A note that something is untested or unverified is a finding, not a task for the user. "you" is the user themself: work assigned to someone else named in the chat (a teammate, a reviewer) is not the user's; file it as a finding, or leave it out.
-- ask (waiting, done, dropped): Claude waiting on the user for a go-ahead, an approval, or something only they can do (push, merge, sign in, pay).
-- assumption (assumed, confirmed, struck): something taken as true without being checked.
-- finding (said): a fact established that matters later.
+${KINDS.map(kindLine).join("\n")}
 
 Rules:
 - File what matters to someone coming back to this conversation later; skip chit-chat, progress narration and tool details.

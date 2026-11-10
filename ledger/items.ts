@@ -30,6 +30,22 @@ export const STATES: Record<Kind, readonly string[]> = {
   finding: ["said"],
 };
 
+// What each kind is for, as the extractor is told it (extract.ts builds its
+// list of kinds and states from KINDS, STATES and this).
+export const KIND_GUIDE: Record<Kind, string> = {
+  topic:
+    "what a stretch of the conversation is about. Every new turn belongs to a topic: an existing one, or a new one you create.",
+  question:
+    'something asked that needs an answer. owner "you" only when Claude asked the user directly and is waiting for the answer (a choice, a confirmation, information only they have); owner "claude" when Claude will find the answer.',
+  option:
+    "one of several choices offered for a question; its parent is that question. Mark it taken only when the conversation shows it was chosen.",
+  decision: "something settled that later work relies on.",
+  task: 'work to be done. owner "claude" for Claude\'s own work. owner "you" only for a step Claude handed to the user by name (merge or review a PR, deploy, run a command it gave them, test on their device, contact someone, fill a form). A note that something is untested or unverified is a finding, not a task for the user. "you" is the user themself: work assigned to someone else named in the chat (a teammate, a reviewer) is not the user\'s; file it as a finding, or leave it out.',
+  ask: "Claude waiting on the user for a go-ahead, an approval, or something only they can do (push, merge, sign in, pay).",
+  assumption: "something taken as true without being checked.",
+  finding: "a fact established that matters later.",
+};
+
 // Who set a field, highest first: what you did on the map beats what Claude
 // Code's own task list says, which beats what the extractor read.
 export const WRITERS = ["you", "claude-code", "side", "extractor"] as const;
