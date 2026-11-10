@@ -12,7 +12,7 @@ export function branchIds(state, roots) {
 }
 // Moving a topic to another parent is one edit: validate the whole placement before
 // changing any line or box, so a concurrent edit cannot leave half a branch moved.
-export function reparentTopic(state, a, canEdit = () => true) {
+export function reparentTopic(state, a, /** @type {(n?: any) => boolean} */ canEdit = () => true) {
   const all = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
   const graph = !a.view || a.view === 'system' ? state : all.find((n) => n.id === a.view)?.inside;
   if (!graph) return false;
@@ -67,7 +67,7 @@ export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edg
 // a conflicting edit blocks the operation instead of being overwritten.
 function applyEdit(state, from, to, canEdit) {
   const next = { ...state }, changed = new Set();
-  for (const [field, key] of [['nodes', (n) => n.id], ['edges', (e) => `${e.from}\0${e.to}`]]) {
+  for (const [field, key] of /** @type {[string, (v: any) => string][]} */ ([['nodes', (n) => n.id], ['edges', (e) => `${e.from}\0${e.to}`]])) {
     const a = new Map(from[field].map((v) => [key(v), v])), b = new Map(to[field].map((v) => [key(v), v]));
     const current = new Map(state[field].map((v) => [key(v), v]));
     for (const id of new Set([...a.keys(), ...b.keys()])) {
@@ -100,7 +100,7 @@ export function editHistory(saved = []) {
       if (equal(before, after)) return;
       const s = stacks(by); s.undo.push({ before, after }); if (s.undo.length > 100) s.undo.shift(); s.redo = [];
     },
-    apply(by, direction, state, canEdit = () => true) {
+    apply(by, direction, state, /** @type {(n?: any) => boolean} */ canEdit = () => true) {
       const s = stacks(by), entry = s[direction]?.at(-1);
       if (!entry) return { ok: false, error: direction === 'undo' ? 'Nothing to undo.' : 'Nothing to redo.' };
       const [from, to] = direction === 'undo' ? [entry.after, entry.before] : [entry.before, entry.after];

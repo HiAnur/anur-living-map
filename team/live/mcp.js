@@ -31,6 +31,7 @@ const KINDS = ['timeline', 'sequence', 'venn'];
 
 // ---- the tools ----
 
+/** @param {{ map?: string }} [args] */
 async function read({ map } = {}) {
   map = mapName(map);
   const [s, maps] = await Promise.all([stateOf(map), mapsList()]);
@@ -57,6 +58,7 @@ async function read({ map } = {}) {
   return out.join('\n');
 }
 
+/** @param {any} [args] */
 async function change({ map, note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start } = {}) {
   map = mapName(map);
   if (![boxes, lines, questions, remember, removeLines].some((x) => Array.isArray(x) && x.length) && tidy !== true && !start) throw new Error('Nothing to change: give boxes, lines, remove_lines, questions, remember, start or tidy.');

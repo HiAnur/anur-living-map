@@ -101,7 +101,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
         }
         if (source(n) !== current.source) Object.assign(current, { stage:'error', error:'This box changed while gathering information. Try again.' });
         else {
-          let prepared = readActionReply(reply);
+          /** @type {any} */ let prepared = readActionReply(reply);
           if (prepared?.stage === 'ready' && access) {
             const needed = prepared.brief.tools, missing = needed?.filter((tool) => !access.tools?.includes(tool));
             if (!needed || (!needed.length && prepared.brief.kind !== 'other') || missing?.length || access.denied?.length) prepared = {stage:'error',error:missing?.length ? `Claude could not verify access to: ${missing.join(', ')}. Connect the required tools, then try again.` : 'Claude could not verify the required tools or lookup permissions. Resolve access, then try again.'};

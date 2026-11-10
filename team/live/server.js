@@ -862,7 +862,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         return true;
       }
       // the reply fills in as Claude writes it, pushed to every window a few times a second
-      const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(autoPlan ? {autoPlanAbout:n.id} : {}), ...(n ? { about: n.id } : {}) };
+      /** @type {any} */ const msg = { who: 'Claude', text: '', at: stamp(), thinking: true, doing: autoPlan ? 'Planning additions' : 'Claude is working', since: Date.now(), ...(autoPlan ? {autoPlanAbout:n.id} : {}), ...(n ? { about: n.id } : {}) };
       t.push(msg);
       fs.mkdirSync(home, { recursive: true });
       let soon = null;
@@ -1142,7 +1142,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (p === '/api/access' && req.method === 'POST') {
       const origin = req.headers.origin;
       if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
-      let a = {}; try { a = JSON.parse(await body(req)); } catch {}
+      /** @type {any} */ let a = {}; try { a = JSON.parse(await body(req)); } catch {}
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
       if (!changeAccess(state, who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
       save();
@@ -1590,7 +1590,7 @@ const EVERY = 10 * 60_000;
 // by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line
 function refreshSkill() {
   const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = path.join(os.homedir(), '.claude', 'skills', 'anur-living-map');
-  for (const f of fs.readdirSync(src, { recursive: true })) {
+  for (const f of /** @type {string[]} */ (fs.readdirSync(src, { recursive: true }))) {
     const s = path.join(src, f), d = path.join(dst, f);
     if (fs.statSync(s).isDirectory()) continue;
     fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, `${d}.new`); fs.renameSync(`${d}.new`, d);

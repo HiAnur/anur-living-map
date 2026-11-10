@@ -16,7 +16,7 @@ async function body(req) {
   if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Send JSON.');
   let size = 0, chunks = [];
   for await (const chunk of req) { size += chunk.length; if (size > 6 * 1024 * 1024) throw fail(413, 'This map is too large.'); chunks.push(chunk); }
-  try { return JSON.parse(Buffer.concat(chunks)); } catch { throw fail(400, 'Invalid JSON.'); }
+  try { return JSON.parse(/** @type {any} */ (Buffer.concat(chunks))); } catch { throw fail(400, 'Invalid JSON.'); }
 }
 export function createCloudServer({ store, publishKey, publicUrl }) {
   if (!publishKey || publishKey.length < 40) throw new Error('A strong publisher key is required.');

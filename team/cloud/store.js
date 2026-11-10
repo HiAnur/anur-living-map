@@ -21,7 +21,7 @@ export class FirestoreStore {
   }
   async get(id) {
     const d = await this.request('GET', `/${id}`);
-    return d ? { value: JSON.parse(gunzipSync(Buffer.from(d.fields.data.bytesValue, 'base64'), { maxOutputLength: 24 * 1024 * 1024 })), version: d.updateTime } : null;
+    return d ? { value: JSON.parse(/** @type {any} */ (gunzipSync(Buffer.from(d.fields.data.bytesValue, 'base64'), { maxOutputLength: 24 * 1024 * 1024 }))), version: d.updateTime } : null;
   }
   async put(id, value, version) {
     const raw = JSON.stringify(value);

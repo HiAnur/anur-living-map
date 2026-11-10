@@ -48,7 +48,7 @@ export function runAction({ cwd, env, session, resume, prompt, onText, onDone, s
       const denied = Array.isArray(d.permission_denials) && d.permission_denials.length > 0;
       const completion = !d.is_error && !denied ? readCompletion(d.structured_output) : null;
       result = { text: String(completion?.summary || d.result || (Array.isArray(d.errors) ? d.errors.join('\n') : '') || words || 'Claude returned no answer.').slice(-MAX), blocked: !!d.is_error || denied };
-      if (completion && !result.blocked) { result.completion = completion; result.blocked = completion.status === 'blocked'; }
+      if (completion && !result.blocked) { /** @type {any} */ (result).completion = completion; result.blocked = completion.status === 'blocked'; }
       if (denied) result.text += '\n\nSome tools need permission. The task may be incomplete. Resolve access, then Continue here.';
     }
   };
