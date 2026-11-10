@@ -5,6 +5,15 @@ Recent changes you can use in the current release of Living Map, newest first. D
 ## November 10, 2026
 
 <dl>
+<dt><strong>Changes a side chat proposes arrive whole</strong></dt>
+<dd>
+
+What a side chat on your chat's map proposes comes to you as its own proposal to apply or drop, so it is no longer lost when Claude writes it out wrongly. [#270](https://github.com/HiAnur/anur-living-map/pull/270) <!-- merged-at: 2026-11-10T08:16:33Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Changes Claude offers on a team map arrive whole</strong></dt>
 <dd>
 
