@@ -228,7 +228,7 @@ function placeInTree(nodes, edges, start) {
 // column or row share it, empty rows and columns between them close up, left of stays left of and above stays above. Then no line runs through a box: while one does, of the boxes that were off the
 // grid, the one whose move frees the most lines goes to the nearest free cell that does it. Only the boxes in
 // `shown` move; the others keep their cells.
-export function tidy(nodes, edges = [], shown = null) {
+export function tidy(nodes, edges = [], /** @type {any} */ shown = null) {
   const list = nodes.filter(placed);
   if (!list.length) return;
   const spot = (c, r) => [90 + c * COL, 150 + r * ROW], key = (c, r) => `${c},${r}`;
@@ -300,7 +300,7 @@ function treeOf(nodes, edges, start = null) {
   }
   const roots = by.has(start) ? [by.get(start)] : nodes.filter((n) => !into.has(n.id));
   if (nodes.length < 2 || roots.length !== 1) return null;
-  const root = roots[0], kids = new Map(), parent = new Map(), seen = new Set([root.id]), q = [root.id], ring = new Map([[root.id, 0]]);
+  const root = roots[0], kids = new Map(), parent = new Map(), seen = new Set([root.id]), q = [root.id], ring = /** @type {Map<any, any>} */ (new Map([[root.id, 0]]));
   while (q.length) {
     const id = q.shift();
     for (const t of out.get(id) || []) if (!seen.has(t)) {
@@ -356,7 +356,7 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press. `start` is the
 // box the map starts from, when one was chosen.
 const ROW_GAP = 35, SLOT = BH + ROW_GAP, GAP = 70, CHAR = 6.8;
-export function tidyTree(nodes, edges, shown = null, chosen = placed, start = null, sizes = new Map()) {
+export function tidyTree(nodes, edges, /** @type {any} */ shown = null, chosen = placed, /** @type {any} */ start = null, sizes = new Map()) {
   const tree = treeOf(nodes, edges, start);
   if (!tree || (shown && !shown.has(tree.root.id))) return false;
   const { root, kids, ring, out } = tree;

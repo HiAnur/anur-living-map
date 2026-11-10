@@ -15,7 +15,7 @@ for await (const line of readline.createInterface({ input: process.stdin })) {
   else if (m.method === 'tools/call') {
     try {
       if (!tools.some((t) => t.name === m.params?.name)) throw new Error('Unknown tool.');
-      const r = await fetch(process.env.LM_CONTEXT_URL, { method: 'POST', headers: { authorization: `Bearer ${process.env.LM_CONTEXT_TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify({ method: m.params.name, args: m.params.arguments }), signal: AbortSignal.timeout(10000) });
+      const r = await fetch(/** @type {string} */ (process.env.LM_CONTEXT_URL), { method: 'POST', headers: { authorization: `Bearer ${process.env.LM_CONTEXT_TOKEN}`, 'content-type': 'application/json' }, body: JSON.stringify({ method: m.params.name, args: m.params.arguments }), signal: AbortSignal.timeout(10000) });
       const data = await r.json(); if (!r.ok) throw new Error(data.error || 'Map context unavailable.');
       send(m.id, { content: [{ type: 'text', text: JSON.stringify(data) }] });
     } catch (/** @type {any} */ e) { send(m.id, { isError: true, content: [{ type: 'text', text: e.message }] }); }

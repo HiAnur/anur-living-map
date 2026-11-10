@@ -29,7 +29,7 @@ export function createCloudServer({ store, publishKey, publicUrl }) {
     const json = (code, value) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
     const publisher = equal(req.headers.authorization || '', `Bearer ${publishKey}`);
     try {
-      const url = new URL(req.url, origin);
+      const url = new URL(/** @type {string} */ (req.url), origin);
       if (url.pathname === '/health' && req.method === 'GET') return json(200, { ok: true });
       if (url.pathname === '/' && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end('<!doctype html><title>Living Map</title><h1>Living Map</h1><p>Open a shared map link to view or edit a map.</p>');
       if (url.pathname === '/api/maps' && req.method === 'POST') {
@@ -101,7 +101,7 @@ export function createCloudServer({ store, publishKey, publicUrl }) {
       // Every browser has its own undo history; names supplied in a request cannot impersonate someone.
       const visitor = (req.headers.cookie || '').match(/(?:^|;\s*)lm_cloud_guest=([a-f0-9]{32})(?:;|$)/)?.[1];
       if (!visitor && !owner) throw fail(401, 'Open the shared map first.');
-      const by = owner ? 'Owner' : `Guest ${visitor.slice(0, 6)}`;
+      const by = owner ? 'Owner' : `Guest ${/** @type {string} */ (visitor).slice(0, 6)}`;
       const engine = openMap({ home: '/tmp/living-map-memory', memory: true, initialState: viewData(v.data, v.mode), undoState: v.undo });
       try {
         const result = engine.editShared({ ...a, by });

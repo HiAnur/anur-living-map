@@ -96,7 +96,7 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
       const stop = ask({ prompt, by, onText() {}, onDone(reply, access) {
         if (nodeOf(id)?.action === current) jobs.delete(id);
         if (!active()) {
-          if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); delete current.since; changed(); }
+          if (nodeOf(id)?.action === current) { Object.assign(current, {stage:'error',error:'Preparation stopped because access changed.'}); delete /** @type {any} */ (current).since; changed(); }
           return;
         }
         if (source(n) !== current.source) Object.assign(current, { stage:'error', error:'This box changed while gathering information. Try again.' });
@@ -108,11 +108,11 @@ export function actionBoxes({ nodeOf, allNodes = () => [], canUse, context, ask,
           }
           Object.assign(current, prepared || { stage:'error', error:/signed out|not installed|took too long|stopped before/i.test(reply) ? String(reply).slice(0, 300) : 'Could not prepare this action. Try again or add more detail to the box.' });
         }
-        delete current.since; reconcile(); changed();
+        delete /** @type {any} */ (current).since; reconcile(); changed();
       } });
       if (jobs.has(id)) jobs.set(id, stop);
     } catch {
-      jobs.delete(id); Object.assign(current, { stage:'error', error:'Could not start gathering information. Try again.' }); delete current.since; changed();
+      jobs.delete(id); Object.assign(current, { stage:'error', error:'Could not start gathering information. Try again.' }); delete /** @type {any} */ (current).since; changed();
     }
     return true;
   }

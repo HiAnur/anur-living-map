@@ -53,14 +53,14 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
     throw new Error('Test server did not start');
   };
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
-  const get = (route, actor = 1, headers = {}) => fetch(origin + route, { headers: { ...(actor === null ? {} : { cookie: `lm_session=${cookies[actor]}` }), ...headers }, redirect: 'manual' });
+  const get = (route, /** @type {any} */ actor = 1, headers = {}) => fetch(origin + route, { headers: { ...(actor === null ? {} : { cookie: `lm_session=${cookies[actor]}` }), ...headers }, redirect: 'manual' });
   const access = (actor, data) => fetch(origin + '/private/api/access', { method: 'POST', headers: { cookie: `lm_session=${cookies[actor]}`, origin, 'content-type': 'application/json' }, body: JSON.stringify(data) });
   /** @type {any} */ let reader;
   try {
     await start();
     expect((await access(1, { person: 'Duy' })).status).toBe(403);
     expect((await access(0, null)).status).toBe(400);
-    const stream = await get('/private/api/events'); reader = stream.body.getReader(); await reader.read();
+    const stream = await get('/private/api/events'); reader = /** @type {any} */ (stream.body).getReader(); await reader.read();
     expect((await access(0, { person: 'Member' })).status).toBe(200);
     let events = ''; for (;;) { const chunk = await reader.read(); if (chunk.done) break; events += new TextDecoder().decode(chunk.value); }
     expect(events).toContain('event: access-removed');

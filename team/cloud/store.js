@@ -6,7 +6,7 @@ export class FirestoreStore {
     this.root = `https://firestore.googleapis.com/v1/projects/${project}/databases/(default)/documents/sharedMaps`;
   }
   async token() {
-    if (this.cached && this.expires > Date.now()) return this.cached;
+    if (this.cached && /** @type {number} */ (this.expires) > Date.now()) return this.cached;
     const r = await fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token', { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(5000) });
     if (!r.ok) throw new Error('Cloud credentials unavailable.');
     const t = await r.json(); this.cached = t.access_token; this.expires = Date.now() + Math.max(60, t.expires_in - 60) * 1000;

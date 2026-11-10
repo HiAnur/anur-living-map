@@ -7,7 +7,7 @@ import { mapData } from './cloud-data.js';
 const reply = (data) => '```action\n'+JSON.stringify(data)+'\n```';
 const brief = {kind:'build',goal:'Build a contact form',target:'/sample/website',result:'Visitors can submit an inquiry',steps:['Add the form','Verify a submission']};
 function harness() {
-  let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
+  /** @type {any} */ let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
   const requests=[],launches=[],stops=[];let changed=0,allowed=true;
   const api=actionBoxes({nodeOf:()=>node,canUse:()=>allowed,context:()=> 'Whole map: Website > Contact form; Audience: small teams',
     ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,executionCwd:'/sample/project',run:r=>{launches.push(r);return ()=>stops.push(true);}});
@@ -144,10 +144,10 @@ describe('action boxes',()=>{
   it('validates output, email details and bounds without accepting model operations',()=>{
     for(const value of [null,{}, {status:'ready',brief:{}},{status:'ready',brief:{...brief,steps:[]}}, {status:'ready',brief:{...brief,result:[]}}]) expect(readActionReply(reply(value))).toBeNull();
     const email={...brief,kind:'email',email:{to:'invented',subject:'Hello',body:'Thanks'}};
-    expect(readActionReply(reply({status:'ready',brief:email})).stage).toBe('clarify');
+    expect(/** @type {any} */ (readActionReply(reply({status:'ready',brief:email}))).stage).toBe('clarify');
     email.email.to='customer@example.com';expect(readActionReply(reply({status:'ready',brief:email}))).toMatchObject({stage:'ready',brief:{target:'customer@example.com'}});
-    expect(readActionReply(reply({status:'ready',brief:{...brief,command:'rm everything'}})).brief.command).toBeUndefined();
-    expect(readActionReply(reply({status:'clarify',question:'Goal?',choices:[{},'Build','Send','Review','More']})).choices).toEqual(['Build','Send']);
+    expect(/** @type {any} */ (readActionReply(reply({status:'ready',brief:{...brief,command:'rm everything'}}))).brief.command).toBeUndefined();
+    expect(/** @type {any} */ (readActionReply(reply({status:'clarify',question:'Goal?',choices:[{},'Build','Send','Review','More']}))).choices).toEqual(['Build','Send']);
   });
   it('keeps task details private from links and cloud sharing',()=>{
     const node={id:'one',label:'One',x:0,y:0,action:{stage:'ready',brief,by:'Duy'}};
