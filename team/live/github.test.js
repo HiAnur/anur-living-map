@@ -68,6 +68,33 @@ describe('linking GitHub', () => {
   });
 });
 
+describe('a link that refreshes while many ask at once', () => {
+  it('refreshes once for everyone waiting, and keeps the link', async () => {
+    const dir = tmp();
+    // GitHub takes each refresh token once: a second use of r1 is refused
+    let used = 0;
+    const { http, calls } = fakeGitHub({ 'POST /login/oauth/access_token': (b) => b.refresh_token === 'r1' && !used++ ? { access_token: 'a2', refresh_token: 'r2', expires_in: 28_800 } : { error: 'bad_refresh_token' } });
+    const gh = github({ dir, http, now: () => 1_000_000 });
+    fs.mkdirSync(path.join(dir, 'github'));
+    fs.writeFileSync(path.join(dir, 'github', 'Sam.json'), JSON.stringify({ access: 'a1', refresh: 'r1', expires: 1_000_000 - 1, login: 'sam' }));
+    expect(await Promise.all(Array.from({ length: 9 }, () => gh.token('Sam')))).toEqual(Array(9).fill('a2'));
+    expect(calls.filter((c) => c.key.startsWith('POST /login/oauth/access_token'))).toHaveLength(1);
+    expect(gh.status('Sam').linked).toBe('sam');
+  });
+  it('keeps the link when GitHub cannot be reached, and tries again', async () => {
+    const dir = tmp();
+    let down = true;
+    const http = /** @type {any} */ (async () => { if (down) throw new Error('offline'); return { status: 200, ok: true, json: async () => ({ access_token: 'a2', refresh_token: 'r2', expires_in: 100 }) }; });
+    const gh = github({ dir, http, now: () => 1_000_000 });
+    fs.mkdirSync(path.join(dir, 'github'));
+    fs.writeFileSync(path.join(dir, 'github', 'Sam.json'), JSON.stringify({ access: 'a1', refresh: 'r1', expires: 1, login: 'sam' }));
+    await expect(gh.token('Sam')).rejects.toThrow('offline');
+    expect(gh.status('Sam').linked).toBe('sam');
+    down = false;
+    expect(await gh.token('Sam')).toBe('a2');
+  });
+});
+
 describe('reading repos from GitHub', () => {
   /** A linked person and a stand-in GitHub with two installations. @param {Record<string, (b: any, h: any) => any>} more */
   function linked(more = {}) {

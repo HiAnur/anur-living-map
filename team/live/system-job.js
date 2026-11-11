@@ -16,7 +16,9 @@ import { sharedGithub } from './github.js';
 import { systemState } from './system-build.js';
 import { repoHead } from './system-facts.js';
 import { drawSystem } from './system-draw.js';
-import { keepHandEdits } from './system-merge.js';
+import { allBoxesOf } from './map-walk.js';
+import { keepHandEdits, redrawChanges } from './system-merge.js';
+import { traceFrom } from './system-trace.js';
 import { onGitHub, workFinder } from './system-work.js';
 
 /** @type {ReturnType<typeof workFinder> | null} */
@@ -29,6 +31,27 @@ const sharedWork = () => (finder ||= workFinder({ home: os.homedir(), data: DATA
  *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead' | 'headOf' | 'status'>, work?: () => Pick<ReturnType<typeof workFinder>, 'workIn'> }} deps
  */
 export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub, work = sharedWork }) {
+  // a redraw waiting to be applied, as code drew it: kept beside the map, never sent to a page
+  const PENDING = path.join(home, 'system-pending.json');
+  // the facts and cross-repo links the map was drawn from, for tracing a request; kept beside the map, never sent to a
+  // page (a redraw waiting for review keeps its own until it is applied)
+  const FACTS = path.join(home, 'system-facts.json'), FACTS_PENDING = path.join(home, 'system-facts-pending.json');
+  /** @param {string} file @param {any} store */
+  const keepFacts = (file, store) => { if (store) fs.writeFileSync(file, JSON.stringify(store)); };
+  /**
+   * A request traced from a box, as the person asking may read it: the box's facts followed hop by hop. Null when
+   * the map keeps no facts (drawn before facts were kept: draw it again) or the box stands for none.
+   * @param {string} id @param {string} who @returns {{ steps: import('./system-trace.js').Step[], repos: [string, string][] } | null}
+   */
+  function trace(id, who) {
+    if (!fs.existsSync(FACTS)) return null;
+    const n = allBoxesOf(getState()).find((/** @type {any} */ b) => b.id === id);
+    const repo = n?.source?.repo, start = n?.source?.facts;
+    if (!repo || !Array.isArray(start) || !start.length) return null;
+    return traceFrom(repo, start, JSON.parse(fs.readFileSync(FACTS, 'utf8')), hiddenFor(who));
+  }
+  /** puts a drawing on the map, keeping what people did to it @param {any} drawn */
+  const applyDrawn = (drawn) => { const merged = keepHandEdits(getState(), drawn); Object.assign(getState(), { nodes: merged.nodes, edges: merged.edges, start: merged.start }); };
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
   /** @type {AbortController | null} */
   let stop = null;
@@ -48,16 +71,16 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
   };
 
   /**
-   * @param {{ folders?: string[], repos?: { owner: string, name: string }[], by: string, again?: boolean }} job folders on this Mac, repos on GitHub, or both
+   * @param {{ folders?: string[], repos?: { owner: string, name: string }[], by: string, again?: boolean, auto?: boolean }} job folders on this Mac, repos on GitHub, or both
    * @returns {boolean} whether it started
    */
-  function start({ folders = [], repos = [], by, again = false }) {
+  function start({ folders = [], repos = [], by, again = false, auto = false }) {
     if (stop) return false;
     const controller = new AbortController();
     stop = controller;
     const store = again ? kept() : {};
     if (!again) { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(KEPT, '{}'); fs.writeFileSync(FOLDERS, JSON.stringify({ folders, repos })); }
-    const drawing = { by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]) };
+    const drawing = /** @type {any} */ ({ by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]), ...(auto ? { auto: true } : {}) });
     // a new map shows each repo as soon as it is drawn, so it can be read before the rest are done; a map drawn
     // again keeps what it has until the whole drawing is ready
     const fresh = !(getState().nodes || []).length;
@@ -75,7 +98,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     save(); push();
     /** @param {any} p */
     const tell = (p) => {
-      const i = drawing.progress.findIndex((x) => x.repo === p.repo);
+      const i = drawing.progress.findIndex((/** @type {any} */ x) => x.repo === p.repo);
       if (i < 0) drawing.progress.push({ ...p }); else drawing.progress[i] = { ...p };
       save(); push();
     };
@@ -102,7 +125,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
       onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); showSoFar(r, d); },
       onProgress: tell,
-    })).then(({ state, report, cancelled }) => {
+    })).then(({ state, report, cancelled, store: facts }) => {
       fs.writeFileSync(REPORT, JSON.stringify(report, null, 1));
       Object.assign(drawing, {
         progress: [...missed, ...report.progress], ms: report.ms, rejected: report.rejected.length, leftOut: report.leftOut,
@@ -111,8 +134,22 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       });
       const failed = drawing.progress.filter((/** @type {any} */ p) => p.stage === 'failed');
       drawing.status = cancelled ? 'cancelled' : failed.length ? 'failed' : 'done';
-      // drawn again: what people did to the map stays (system-merge.js)
-      if (state) { const drawn = fresh ? state : keepHandEdits(getState(), state); Object.assign(getState(), { nodes: drawn.nodes, edges: drawn.edges, start: drawn.start }); }
+      // a new map takes its drawing at once; a map drawn again keeps what people did to it (system-merge.js), and what
+      // code would change waits for an Engineer to apply it
+      if (state && fresh) { Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start }); keepFacts(FACTS, facts); }
+      else if (state) {
+        // drawn again: what code added or renamed lands now, keeping what people did; what code no longer finds stays
+        // on the map until an Engineer takes it off (Apply) or keeps it (system-merge.js)
+        const changes = redrawChanges(getState(), keepHandEdits(getState(), structuredClone(state)));
+        const gone = changes.filter((c) => c.what === 'gone');
+        const keep = { boxes: new Set(gone.filter((c) => c.kind === 'box').map((c) => c.id)), lines: new Set(gone.filter((c) => c.kind === 'line').map((c) => c.id)) };
+        const now = keepHandEdits(getState(), structuredClone(state), keep);
+        Object.assign(getState(), { nodes: now.nodes, edges: now.edges, start: now.start });
+        keepFacts(FACTS, facts);
+        drawing.updated = changes.length - gone.length;
+        if (gone.length) { fs.writeFileSync(PENDING, JSON.stringify(state)); getState().redraw = { at: Date.now(), by: drawing.by, count: gone.length, changes: gone.slice(0, 300) }; }
+        else { delete getState().redraw; fs.rmSync(PENDING, { force: true }); }
+      }
     }).catch((/** @type {any} */ e) => {
       console.error('[map] system drawing', e);
       Object.assign(drawing, { status: 'failed', error: `The drawing stopped: ${String(e?.message || e).slice(0, 200)}` });
@@ -187,7 +224,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
   /**
    * The repos, by name, a viewer may not read on GitHub, so the map leaves them out of what they receive. Someone
    * not signed in reads only public repos; a signed-in viewer's own GitHub link is asked in the background (kept
-   * five minutes), and until it answers every private repo stays hidden. `onChange` hears when an answer changes it.
+   * five minutes, or 30 seconds while they may read none, so linking GitHub shows their repos soon), and until it
+   * answers every private repo stays hidden. `onChange` hears when an answer changes it.
    * @param {string | null} who @param {() => void} [onChange] @returns {Set<string>}
    */
   function hiddenFor(who, onChange = () => {}) {
@@ -195,7 +233,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if (!list.length) return new Set();
     if (!who) return new Set(list.map((r) => r.repo));
     const kept = reads.get(who);
-    if ((!kept || Date.now() - kept.at > 5 * 60_000) && !kept?.asking) {
+    const fresh = kept?.readable.size ? 5 * 60_000 : 30_000;
+    if ((!kept || Date.now() - kept.at > fresh) && !kept?.asking) {
       reads.set(who, { at: kept?.at || 0, readable: kept?.readable || new Set(), asking: true });
       Promise.all(list.map(async (r) => (await github().canRead(who, r.owner, r.name).catch(() => false)) ? r.repo : null)).then((ok) => {
         const readable = new Set(/** @type {string[]} */ (ok.filter(Boolean)));
@@ -257,10 +296,49 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     changes.set(who, { at: Date.now(), drawn: d.at, repos: list });
     return list;
   }
+  /**
+   * Looks for new commits in the map's repos every `every` ms, with nobody's page open, as whoever drew it (their
+   * GitHub link reads every repo the map was drawn from), and keeps the answer in the drawing for the map and its
+   * list row. A GitHub webhook would need an address GitHub can reach; this server listens on this Mac only.
+   * @param {number} [every] @returns {() => void} stops looking
+   */
+  function watch(every = 30 * 60_000) {
+    const look = async () => {
+      const d = getState().drawing;
+      if (!d?.by || d.status === 'running') return;
+      changes.delete(d.by);
+      const list = await changed(d.by).catch((/** @type {any} */ e) => { console.error('[map] system commits', e); return null; });
+      if (!list || getState().drawing !== d || String(list) === String(d.newCommits || [])) return;
+      d.newCommits = list; save(); push();
+      // new commits: the map draws them by itself, as whoever drew it, redrawing only the repos that moved
+      if (list.length && !stop && fs.existsSync(FOLDERS)) {
+        const was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8'));
+        start({ ...(Array.isArray(was) ? { folders: was } : was), by: d.by, again: true, auto: true });
+      }
+    };
+    const first = setTimeout(look, Math.min(every, 60_000)), timer = setInterval(look, every);
+    first.unref?.(); timer.unref?.();
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }
   return {
-    start, codeFor, workFor, sourceOf, hiddenFor, changed, boxOf,
+    start, codeFor, workFor, sourceOf, hiddenFor, changed, watch, boxOf,
     /** whether any repo of this map is private on GitHub, or may be */
     holdsPrivate: () => onGitHubRepos().some((r) => r.private),
+    /** Applies the redraw waiting for review, with what people did since it was drawn. @returns {boolean} whether one was waiting */
+    applyRedraw: () => {
+      if (!getState().redraw || !fs.existsSync(PENDING)) return false;
+      applyDrawn(JSON.parse(fs.readFileSync(PENDING, 'utf8')));
+      if (fs.existsSync(FACTS_PENDING)) fs.renameSync(FACTS_PENDING, FACTS);
+      delete getState().redraw; fs.rmSync(PENDING, { force: true });
+      return true;
+    },
+    /** Keeps the map as it is and drops the redraw waiting for review. @returns {boolean} whether one was waiting */
+    dropRedraw: () => {
+      if (!getState().redraw) return false;
+      delete getState().redraw; fs.rmSync(PENDING, { force: true }); fs.rmSync(FACTS_PENDING, { force: true });
+      return true;
+    },
+    trace,
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */

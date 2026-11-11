@@ -31,6 +31,8 @@ import { completionSchema, executionPrompt, readCompletion } from './action-comp
 import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { systemJob } from './system-job.js';
+import { traceDiagram } from './system-trace.js';
+import { diagramOf } from './diagram.js';
 import { onGitHub, repoOf } from './system-work.js';
 import { sharedGithub } from './github.js';
 import { askAgent } from './ask.js';
@@ -223,6 +225,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
+  // a system map notices new commits in its repos while nobody has it open
+  const stopWatching = system.watch();
   /** The repos someone may not read on GitHub, cut from everything they receive of this map; no one is a guest. @param {string | null} who */
   const hiddenFor = (who) => system.hiddenFor(who, push);
   /** Whether an action names a box in a repo someone may not read: by its id, its node, its ends or the box asked about. @param {any} a @param {string | null} who */
@@ -573,6 +577,21 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     }
     // a system map's repos with commits newer than the drawing, among those the asker may read
+    // "Trace a request" on a system map box: code follows the facts behind it hop by hop and the steps become the box's
+    // sequence (system-trace.js), as the asker may read the repos it crosses; a member may trace a box in their area
+    if (p === '/api/system-trace' && req.method === 'POST') {
+      const /** @type {any} */ a = await jsonBody(req, {});
+      const n = nodeOf(a?.id), sees = who && !guest ? seesOf(who) : null;
+      const reply = (/** @type {number} */ code, /** @type {any} */ body) => { res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(body)); return true; };
+      if (!who || guest || !state.people?.some((/** @type {any} */ x) => x.id === who) || removedFrom(state, who)) return reply(403, { error: 'Only someone on this map can trace a request.' });
+      if (!n || (sees !== 'all' && n.area !== sees)) return reply(404, { error: 'That box is not on the map, or not in your area.' });
+      const got = system.trace(n.id, who);
+      if (!got) return reply(409, { error: 'This map keeps no facts for that box yet. Draw it again, then trace.' });
+      if (!got.steps.length) return reply(409, { error: 'Code shows no request leaving this box.' });
+      n.diagram = diagramOf(traceDiagram(n.label, got.steps)); n.traceRepos = got.repos;
+      tell(`${who} traced a request from ${n.label}`); save(); push();
+      return reply(200, { steps: got.steps.length });
+    }
     if (p === '/api/system-changed' && req.method === 'GET') {
       const repos = who && !guest ? await system.changed(who).catch((/** @type {any} */ e) => { console.error('[map] system changes', e); return []; }) : [];
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify({ repos })); return true;
@@ -626,7 +645,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud,
       // a system map says how many repos it was drawn from and when, so the list shows how current it is
       ...(state.drawing ? { system: state.drawing.status, repos: state.drawing.repos || 0,
-        ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}) } : {}) };
+        ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}), ...(state.drawing.newCommits?.length ? { newCommits: state.drawing.newCommits.length } : {}) } : {}) };
   };
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
@@ -638,7 +657,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.(); queued.length = 0;
-    system.cancel();
+    system.cancel(); stopWatching();
     for (const r of clients) r.end();
   }
 
@@ -659,6 +678,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
     mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,
+    applyRedraw: () => { const done = system.applyRedraw(); if (done) { save(); push(); } return done; },
+    dropRedraw: () => { const done = system.dropRedraw(); if (done) { save(); push(); } return done; },
     /** the box a clone on this Mac has on this system map, if it was drawn from that repo @param {string} folder */
     repoBox: (folder) => state.drawing ? system.boxOf(folder) : null,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot(),
@@ -685,7 +706,7 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
-const systemMaps = systemRoutes({ maps });
+const systemMaps = systemRoutes({ maps, team: () => demo().people || [] });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');

@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { amplifyFacts, appFacts } from './system-facts-app.js';
 import { cfnFacts } from './system-facts-cfn.js';
+import { manifestFacts } from './system-facts-manifest.js';
 import { onGitHub } from './system-work.js';
 import { tsCdkFacts } from './system-facts-ts.js';
 
@@ -91,6 +92,10 @@ export async function readRepo(root) {
   if (app.length) { kinds.push('app'); facts.push(...app); }
   const amp = amplifyFacts(root);
   if (amp.length) { kinds.push('amplify'); facts.push(...amp); }
+  const man = manifestFacts(root, files);
+  if (man.some((f) => f.kind === 'container' || f.kind === 'compose_service')) kinds.push('containers');
+  if (man.some((f) => f.kind === 'api_spec')) kinds.push('openapi');
+  facts.push(...man);
   facts.forEach((f, i) => { f.id = `f${i + 1}`; });
   /** @type {string[]} */
   const unread = [];

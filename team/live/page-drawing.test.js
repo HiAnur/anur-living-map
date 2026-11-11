@@ -57,4 +57,15 @@ describe('the drawing panel', () => {
     expect(text(drawingPanel(d, { esc, now, mine: true, changed: ['api', 'site'] }))).toContain('2 repos have new commits since this drawing: api, site.');
     expect(text(drawingPanel({ ...d, status: 'running' }, { esc, now, mine: true, changed: ['api'] }))).not.toContain('new commits');
   });
+  it('lists a redraw\'s changes for review, with Apply and Keep for whoever may redraw', () => {
+    const d = { status: 'done', at: now - 9_000, ms: 9_000, repos: 1, progress: [{ repo: 'api', stage: 'done', boxes: 3 }] };
+    const redraw = { count: 2, changes: [{ what: 'changed', kind: 'box', label: 'Order service', was: 'Orders' }, { what: 'gone', kind: 'line', label: 'web → api' }] };
+    const html = drawingPanel(d, { esc, now, mine: true, redraw });
+    expect(text(html)).toContain('Code no longer finds 2 things They stay on the map until applied');
+    expect(text(html)).toContain('Changes Orders → Order service');
+    expect(text(html)).toContain('Takes away the line web → api');
+    expect(html).toContain('data-sd-apply'); expect(html).toContain('data-sd-dismiss');
+    expect(html).not.toContain('data-sd-ask');
+    expect(drawingPanel(d, { esc, now, mine: false, redraw })).not.toContain('data-sd-apply');
+  });
 });

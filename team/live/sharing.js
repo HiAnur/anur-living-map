@@ -39,7 +39,7 @@ export function sharedState(state, owner = false, guest = false, who = null, hid
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, project: undefined });
+  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, redraw: undefined, project: undefined });
   const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
   return sees && sees !== 'all' ? forArea(result, sees) : result;
 }
@@ -59,16 +59,42 @@ export const PRIVATE_REPO = 'A private repo';
  */
 export function withoutRepos(state, hidden) {
   if (!hidden?.size) return state;
+  // a redraw waiting for review lists changes by repo: those in repos they may not read are left out, with the count
+  if (state.redraw) {
+    const changes = (state.redraw.changes || []).filter((/** @type {any} */ c) => !hidden.has(c.repo) && !hidden.has(c.toRepo));
+    state = { ...state, redraw: { ...state.redraw, changes, count: changes.length } };
+  }
+  // the repos with new commits since the drawing, by name: only those they may read
+  if (state.drawing?.newCommits?.length) state = { ...state, drawing: { ...state.drawing, newCommits: state.drawing.newCommits.filter((/** @type {string} */ r) => !hidden.has(r)) } };
+  // the drawing panel names each repo it read: one they may not read is only "A private repo", with no reason given
+  if (state.drawing) state = { ...state, drawing: { ...state.drawing,
+    progress: (state.drawing.progress || []).map((/** @type {any} */ p) => hidden.has(p.repo) ? { repo: PRIVATE_REPO, stage: p.stage, ...(p.boxes != null ? { boxes: p.boxes } : {}) } : p),
+    unread: (state.drawing.unread || []).filter((/** @type {any} */ u) => !hidden.has(u.repo)) } };
   /** @type {Set<string>} */
   const away = new Set();
   /** @param {any[]} nodes @param {boolean} inHidden */
   const mark = (nodes, inHidden) => { for (const n of nodes || []) { const here = inHidden || hidden.has(n?.source?.repo); if (here) away.add(n.id); mark(n.inside?.nodes, here); } };
   mark(state.nodes, false);
-  if (!away.size) return state;
+  // a traced request on a box: its steps into a repo they may not read say only "A private repo" and "A private step",
+  // and which repos the trace crossed is never sent
+  /** @param {any} n */
+  const traced = (n) => {
+    if (!n.traceRepos) return n;
+    const { traceRepos, ...rest } = n;
+    if (!rest.diagram?.items) return rest;
+    const items = rest.diagram.items.map((/** @type {any} */ m, /** @type {number} */ i) => {
+      const [a, b] = traceRepos[i] || [];
+      return hidden.has(a) || hidden.has(b) ? { from: hidden.has(a) ? PRIVATE_REPO : m.from, to: hidden.has(b) ? PRIVATE_REPO : m.to, label: 'A private step' } : m;
+    });
+    return { ...rest, diagram: { ...rest.diagram, items } };
+  };
+  /** @param {any} n @returns {any} */
+  const onlyTraces = (n) => traced(n.inside ? { ...n, inside: { ...n.inside, nodes: (n.inside.nodes || []).map(onlyTraces) } } : n);
+  if (!away.size) return { ...state, nodes: (state.nodes || []).map(onlyTraces) };
   const line = (/** @type {any} */ e) => away.has(e.from) || away.has(e.to) ? (({ label: _, ...rest }) => rest)(e) : e;
   /** @param {any} n @returns {any} */
   const box = (n) => away.has(n.id) ? { ...Object.fromEntries(UNNAMED.filter((k) => k in n).map((k) => [k, n[k]])), label: PRIVATE_REPO, hiddenRepo: true }
-    : n.inside ? { ...n, inside: { ...n.inside, nodes: (n.inside.nodes || []).map(box), edges: (n.inside.edges || []).map(line) } } : n;
+    : traced(n.inside ? { ...n, inside: { ...n.inside, nodes: (n.inside.nodes || []).map(box), edges: (n.inside.edges || []).map(line) } } : n);
   const near = (/** @type {any} */ id) => !id || !away.has(id);
   const callOn = new Map((state.calls || []).map((/** @type {any} */ c) => [c.id, c.node]));
   return {

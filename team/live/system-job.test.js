@@ -201,6 +201,51 @@ describe('a system map drawing in the background', () => {
     expect(job.boxOf(local)).toBe('system-svc');
     expect(job.boxOf(other)).toBeNull();
   });
+  it('drawn again, lands what code added or renamed, and holds what it no longer finds for review', async () => {
+    const box = (/** @type {string} */ repo, /** @type {string} */ label) => ({ id: `system-${repo}`, label, origin: 'code', source: { repo } });
+    const was = { nodes: [box('api', 'api'), box('old', 'old')], edges: [], start: 'system-api' };
+    const next = { nodes: [box('api', 'API service'), box('jobs', 'jobs')], edges: [], start: 'system-api' };
+    const { state, job } = jobOn(async () => ({ state: structuredClone(next), report: report([]), cancelled: false }), structuredClone(was));
+    job.start({ folders: ['/x/api'], by: 'Sam' });
+    await until(() => state.drawing.status === 'done');
+    // the rename and the new repo are on the map at once; "old" stays until an Engineer takes it off
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'old']);
+    expect(state.drawing.updated).toBe(2);
+    expect(state.redraw).toMatchObject({ by: 'Sam', count: 1, changes: [{ what: 'gone', kind: 'box', id: 'system-old', label: 'old', repo: 'old' }] });
+    // someone adds a box meanwhile: applying keeps it, and takes "old" off
+    state.nodes.push({ id: 'mine', label: 'My note' });
+    expect(job.applyRedraw()).toBe(true);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
+    expect(state.redraw).toBeUndefined();
+    expect(job.applyRedraw()).toBe(false);
+    // drawn again without jobs, and kept: jobs stays
+    next.nodes.pop();
+    job.retry('Sam');
+    await until(() => state.drawing.status === 'done' && !!state.redraw);
+    expect(job.dropRedraw()).toBe(true);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
+  });
+  it('notices new commits by itself, as whoever drew the map, and draws them', async () => {
+    const heads = /** @type {Record<string, string>} */ ({ api: 'c2', site: 'c1' });
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: false }),
+      canRead: async () => true, status: () => ({ linked: 'sam' }), headOf: async (/** @type {string} */ _who, /** @type {string} */ _owner, /** @type {string} */ name) => heads[name] };
+    const repos = ['api', 'site'].map((repo) => ({ repo, root: `/cache/${repo}`, head: { commit: 'c1', branch: 'main' }, unread: [] }));
+    // the second drawing reads api at its new commit
+    let draws = 0;
+    const { state, job } = jobOn(async () => { draws++; return { state: built, report: { ...report([]), repos: draws > 1 ? repos.map((r) => r.repo === 'api' ? { ...r, head: { commit: 'c2', branch: 'main' } } : r) : repos }, cancelled: false }; }, undefined, gh);
+    job.start({ repos: ['api', 'site'].map((name) => ({ owner: 'Shop', name })), by: 'Sam' });
+    await until(() => state.drawing.status === 'done');
+    const first = state.drawing;
+    const stop = job.watch(20);
+    // api moved: the map notes it, then draws itself again, as whoever drew it
+    await until(() => draws === 2 && state.drawing.status === 'done');
+    expect(first.newCommits).toEqual(['api']);
+    expect(state.drawing).toMatchObject({ auto: true, by: 'Sam', status: 'done' });
+    // nothing new since: no third drawing
+    await new Promise((r) => setTimeout(r, 120));
+    stop();
+    expect(draws).toBe(2);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });
@@ -217,7 +262,8 @@ describe('the system map routes', () => {
   /** @type {any} */
   const linkedAs = { who: '' };
   const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });
-  const routes = systemRoutes({ maps, home, github: () => gh });
+  // Harshit is the team's Engineer; Sam is a member
+  const routes = systemRoutes({ maps, home, github: () => gh, team: () => [{ id: 'Harshit', role: 'Engineer' }, { id: 'Sam', role: 'Designer' }] });
   /** @param {string} route @param {any} [data] @param {{ who?: string, local?: boolean }} [o] */
   const call = async (route, data, { who = 'Harshit', local = true } = {}) => {
     const headers = local ? { host: 'localhost:4323', origin: 'http://localhost:4323', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' } : { host: 'living-map.example.com', origin: 'https://evil.example' };
@@ -238,6 +284,13 @@ describe('the system map routes', () => {
     linkedAs.who = 'Harshit';
     expect((await call('/api/systemmap/github')).body).toEqual({ linked: 'octo', pending: null });
     expect((await call('/api/systemmap', { repos: [{ owner: 'Shop', name: '../etc' }] })).status).toBe(400);
+  });
+  it('lets only an Engineer or Admin draw a system map, and tells anyone else whom to ask', async () => {
+    expect((await call('/api/systemmap/can', undefined, { who: 'Sam' })).body).toEqual({ may: false, engineers: ['Harshit'] });
+    expect((await call('/api/systemmap/can')).body).toEqual({ may: true, engineers: [] });
+    const refused = await call('/api/systemmap', { title: 'Shop system', folders }, { who: 'Sam' });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toContain('Ask Harshit');
   });
   it('draws a new map from the repos chosen, and lets whoever started it stop or retry it', async () => {
     vi.spyOn(agent, 'answer').mockImplementation(async () => ({ value: { boxes: [], lines: [] }, cost: { value: 0.01, unit: 'usd' }, ms: 1 }));

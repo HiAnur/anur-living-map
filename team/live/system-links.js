@@ -33,7 +33,8 @@ export function linkRepos(readings) {
   /** @type {Map<string, { r: Reading, f: Fact }[]>} */
   const resources = new Map();
   for (const r of readings) for (const f of r.facts) {
-    if (f.kind === 'function' || f.kind === 'outside_function') for (const route of f.routes || []) {
+    // routes a function serves, or an OpenAPI spec says the repo serves
+    if (f.kind === 'function' || f.kind === 'outside_function' || f.kind === 'api_spec') for (const route of f.routes || []) {
       const k = norm(route); if (!served.has(k)) served.set(k, []); served.get(k)?.push({ r, f });
     }
     const name = f.kind === 'function' ? f.name : f.kind === 'construct' && /^['"][A-Za-z0-9_-]+['"]$/.test(f.function_name || '') ? String(f.function_name).slice(1, -1) : null;

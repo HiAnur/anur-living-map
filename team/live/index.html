@@ -72,12 +72,16 @@ button,input,textarea{font:inherit;color:inherit}
 /* a system map drawing from code: its progress over the map, until it is closed */
 #sysdraw{position:fixed;top:calc(var(--topbar) + 16px);left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));max-height:calc(100% - var(--topbar) - 120px);overflow:auto;padding:14px 16px;background:var(--card);border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 6px 24px var(--rule);z-index:15}
 #sysdraw[hidden]{display:none}
+#lockwhy{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 32px));padding:10px 14px;background:var(--card);border:1px solid var(--rule-2);border-radius:10px;box-shadow:0 4px 16px var(--rule);font-size:13px;color:var(--text-2);z-index:14}
+#lockwhy[hidden]{display:none}#lockwhy b{color:var(--text);font-weight:600}#lockwhy code{font:600 13px var(--mono, monospace);color:var(--text)}#lockwhy .gb{margin-left:6px}
 .sd-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}.sd-h b{font-weight:600}.sd-h span{color:var(--text-2);font-size:13px}
 .sd-bar{height:6px;margin:10px 0 8px;border-radius:3px;background:var(--rule)}.sd-bar i{display:block;height:100%;border-radius:3px;background:var(--claude);transition:width .4s var(--ease)}
 .sd-r{list-style:none;font-size:13px}.sd-r li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--rule)}
 .sd-r li span:first-child{font-weight:500}.sd-r li span:last-child{color:var(--text-2);text-align:right}
 .sd-r .sd-failed span:last-child{color:var(--gone)}.sd-r .sd-done span:last-child{color:var(--ok)}
 .sd-n{margin-top:8px;font-size:13px;color:var(--text-2)}
+.sd-c{list-style:none;max-height:180px;overflow:auto;font-size:13px}.sd-c li{padding:3px 0;border-top:1px solid var(--rule)}
+.sd-c .sd-added{color:var(--ok)}.sd-c .sd-gone{color:var(--gone)}
 .sd-a{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.sd-a button{height:30px;padding:0 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--box);cursor:pointer}
 #plan:empty{display:none}
 .tbtn.xbtn{height:34px;padding:0 16px;border:0;border-radius:9px;background:var(--claude);color:#fff;font:600 13px var(--plex);box-shadow:0 2px 10px rgba(201,100,66,.35)}
@@ -1058,6 +1062,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
 <div id="sysdraw" role="status" aria-live="polite" hidden></div>
+<div id="lockwhy" role="status" aria-live="polite" hidden></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
@@ -2523,6 +2528,20 @@ function pointsRow(n){
   if (!can) return '';
   return `<div class="pts"><label for="pts-in">Points at a box in ${esc(S.buildsOn.title)}</label><input id="pts-in" list="pts-list" data-point="${esc(n.id)}" placeholder="Search its boxes" autocomplete="off"><datalist id="pts-list">${(baseBoxes || []).map((b) => `<option value="${esc(b.pick)}"></option>`).join('')}</datalist></div>`;
 }
+// Trace a request: the server follows the box's facts through the code and puts the steps on the box as a sequence;
+// the box's diagram opens once the map has it
+document.addEventListener('click', async (e) => {
+  const b = e.target instanceof Element ? e.target.closest('[data-trace]') : null; if (!b) return;
+  const id = b.dataset.trace; b.disabled = true; b.textContent = 'Tracing…';
+  const r = await fetch('api/system-trace', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
+    .then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
+  b.disabled = false; b.textContent = 'Trace a request';
+  if (r.error){ toast(r.error); return; }
+  for (let i = 0; i < 40 && !nodeById(id)?.diagram; i++) await new Promise((ok) => setTimeout(ok, 50));
+  // the map's own updates for the trace land first: one arriving after the sequence opened would move the view back
+  // to where the box sat
+  if (nodeById(id)?.diagram){ await new Promise((ok) => setTimeout(ok, 300)); openDiagram(id); }
+});
 function renderSide(){
   const el = $('side');
   if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
@@ -2615,7 +2634,7 @@ function renderSide(){
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${actionView().boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button></div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button>${S.drawing && n.source?.facts?.length && !READ_ONLY && !SHARED && !FILE && !PREVIEW ? `<button class="gb" data-trace="${esc(n.id)}" title="Follow a request from this box through the code, hop by hop, and draw it as a sequence">Trace a request</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">${pointsRow(n)}
     ${(() => {
@@ -4074,12 +4093,42 @@ let sdAsking = false;
 const mayRedraw = () => !READ_ONLY && !SHARED && (S?.drawing?.by === ME || S?.people?.some((p) => p.id === ME && (p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(p.role || ''))));
 const sdOpen = () => { try { localStorage.removeItem(`lm-sd-${SYS_MAP}`); } catch { /* storage blocked: it shows anyway until closed */ } };
 const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) || ''; } catch { return ''; } }; // storage blocked: the panel just shows
+// A system map with repos locked for you says why, and how to see the ones you may read: connect GitHub here. Asked
+// once per page; after you link, the server shows your repos within half a minute.
+let lockWhy = { asked: false, linked: /** @type {string | null} */ (null), pending: /** @type {any} */ (null) };
+function lockedNote(){
+  const locked = allBoxesOf(S).filter((n) => n.hiddenRepo).length;
+  if (!locked || READ_ONLY || SHARED || !S.drawing) return '';
+  if (!lockWhy.asked){ lockWhy.asked = true; fetch('/api/systemmap/github').then((r) => r.ok ? r.json() : null).then((g) => { if (g){ lockWhy = { asked: true, linked: g.linked, pending: g.pending }; renderDrawing(); } }).catch(() => { /* not on this Mac: no way to link from here */ }); }
+  const p = lockWhy.pending;
+  return `<div class="lock-why"><b>${locked} ${locked === 1 ? 'box is' : 'boxes are'} locked: private on GitHub.</b> ${lockWhy.linked
+    ? `GitHub doesn't let ${esc(lockWhy.linked)} read ${locked === 1 ? 'that repo' : 'those repos'}. Ask its owner on GitHub for access.`
+    : p ? `Enter <code>${esc(p.code)}</code> on <a href="${esc(p.uri)}" target="_blank" rel="noopener">GitHub</a>. Your repos show here a moment after.`
+    : `Connect your GitHub account to see the ones you can read. <button class="gb" data-lock-link>Connect GitHub</button>`}</div>`;
+}
+document.addEventListener('click', async (e) => {
+  if (!(e.target instanceof Element) || !e.target.closest('[data-lock-link]')) return;
+  const r = await fetch('/api/systemmap/github/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
+  if (r.error){ toast(r.error); return; }
+  lockWhy.pending = r; renderDrawing();
+  // look again until GitHub says you are linked
+  const look = setInterval(async () => {
+    const g = await fetch('/api/systemmap/github').then((x) => x.json()).catch(() => null);
+    if (g?.linked){ clearInterval(look); lockWhy = { asked: true, linked: g.linked, pending: null }; renderDrawing(); }
+    else if (!g?.pending){ clearInterval(look); lockWhy.pending = null; renderDrawing(); }
+  }, 3000);
+});
 function renderDrawing(){
   const el = $('sysdraw'), d = S?.drawing;
   if (!el) return;
-  if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
+  const why = $('lockwhy'), note = S ? lockedNote() : '';
+  if (why){ why.hidden = !note; if (why.innerHTML !== note) why.innerHTML = note; }
+  // a redraw waiting for review keeps the panel open until it is applied or dropped; the map updating itself from new
+  // commits does it quietly, unless it stops or leaves something to review
+  const quiet = d?.auto && d.status !== 'failed' && !S.redraw;
+  if (!d || PREVIEW || quiet || (d.status !== 'running' && !S.redraw && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d) });
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d), redraw: S.redraw });
 }
 // the repos with commits newer than the drawing read, asked once per drawing and again every five minutes
 let sdNews = { at: 0, asked: 0, repos: /** @type {string[]} */ ([]) };
@@ -4094,7 +4143,8 @@ function sdChanged(d){
       renderDrawing(); renderSave();
     }).catch(() => { /* the map did not answer: nothing is shown as changed */ });
   }
-  return sdNews.repos;
+  // with what the server found by itself, as whoever drew the map, cut to the repos you may read
+  return [...new Set([...sdNews.repos, ...(d.newCommits || [])])];
 }
 setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
 async function sdAct(what){
@@ -4109,6 +4159,8 @@ document.addEventListener('click', (e) => {
   else if (t?.closest('[data-sd-nevermind]')){ sdAsking = false; renderDrawing(); }
   else if (t?.closest('[data-sd-redraw]')){ sdOpen(); sdAsking = true; renderDrawing(); renderSave(); }
   else if (t?.closest('[data-sd-retry]')){ sdAsking = false; sdAct('retry'); }
+  else if (t?.closest('[data-sd-apply]')) sdAct('apply');
+  else if (t?.closest('[data-sd-dismiss]')) sdAct('dismiss');
   else if (t?.closest('[data-sd-close]')){ sdAsking = false; try { localStorage.setItem(`lm-sd-${SYS_MAP}`, String(S?.drawing?.at)); } catch { /* storage blocked: it closes until the page reloads */ } $('sysdraw').hidden = true; renderSave(); }
 });
 const historyView = () => historyScreens({ me: ME, admin: amAdmin(), live: !READ_ONLY, esc, vtime, statusLabel: (a) => actionStatus(a)?.label });

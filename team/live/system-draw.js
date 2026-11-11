@@ -33,7 +33,7 @@ export const RULES = `Draw a system map for an engineer, from the facts below an
 export function compact(facts, budget = 90_000) {
   const order = ['outside_function', 'function', 'construct', 'table', 'queue', 'topic', 'bucket', 'api', 'http_route', 'state_machine', 'schedule', 'event_source',
     'user_pool', 'secret', 'parameter', 'stream', 'grant', 'link', 'policy', 'invokes_by_name', 'screens', 'api_call', 'state_slice', 'imports_sdks', 'amplify_resource',
-    'aws_client', 'aws_call', 'url', 'doc', 'module', 'env_read', 'amplify_envs', 'import'];
+    'compose_service', 'container', 'api_spec', 'package', 'aws_client', 'aws_call', 'url', 'doc', 'module', 'env_read', 'amplify_envs', 'import'];
   /** @type {(v: unknown) => unknown} */
   const trim = (v) => typeof v === 'string' ? v.slice(0, 200) : Array.isArray(v) ? v.slice(0, 20).map(trim) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(0, 20).map(([k, x]) => [k, trim(x)])) : v;
   const out = [];
@@ -128,5 +128,7 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   const linkMap = new Map([...links.map((l) => /** @type {[string, Fact]} */ ([l.id, l])), ...repoNames.map((n) => /** @type {[string, Fact]} */ ([`repo:${n}`, { id: `repo:${n}`, kind: 'repo', at: 'repo', fromRepo: n, toRepo: n }]))]);
   platform = checkDrawing(value, linkMap);
   tell({ repo: 'platform', stage: p.value ? 'done' : 'failed', ...(p.error ? { error: p.error } : {}), boxes: platform.boxes.length });
-  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false };
+  // the facts and links behind the map, kept beside it for tracing a request (system-trace.js)
+  const store = { readings: readings.map((r) => ({ repo: r.repo, facts: r.facts })), links };
+  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false, store };
 }

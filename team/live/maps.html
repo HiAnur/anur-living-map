@@ -258,6 +258,19 @@ async function showGitHub(){
   const r = await ghApi('');
   if (!r.ok){ codeError(r.b.error); return; }
   const { linked, pending } = r.b;
+  // drawing a system map is for Engineers and Admins: anyone else asks one, and may still connect GitHub so the
+  // private repos they can read show on the system maps they open
+  const can = await fetch('/api/systemmap/can').then((x) => x.json()).catch(() => ({ may: true, engineers: [] }));
+  if (!can.may){
+    const ask = `Could you draw a system map of our code in Living Map (New map, then System map)? I'd like to see how our system fits together.`;
+    $('gh-state').innerHTML = `<p>Drawing a system map is for Engineers and Admins.${can.engineers.length ? ` Ask ${esc(can.engineers.join(', '))} to draw it.` : ' Ask an Admin to draw it.'}</p><button type="button" class="nm-btn" data-ask-engineer="${esc(ask)}">Copy a request to send them</button>`
+      + (pending ? `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-quiet" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a>`
+        : linked ? `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}, so system maps show you the private repos you can read</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`
+        : '<p>Connect your GitHub account so system maps show you the private repos you can read.</p><button type="button" class="nm-quiet" data-gh-link>Connect GitHub</button>');
+    $('gh-repos').innerHTML = ''; $('code-pick').hidden = true;
+    if (pending) ghWatch = setTimeout(showGitHub, 3000);
+    return;
+  }
   if (pending || !linked) $('code-pick').hidden = true;
   if (pending){
     $('gh-state').innerHTML = `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-btn" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a> <span class="none">&nbsp;Waiting for GitHub…</span>`;
@@ -294,6 +307,8 @@ $('gh-repos').addEventListener('change', estimate);
 $('gh-state').addEventListener('click', async (e) => {
   if (e.target.closest('[data-gh-link]')){ const r = await ghApi('/link', true); if (!r.ok) codeError(r.b.error); showGitHub(); }
   if (e.target.closest('[data-gh-unlink]')){ await ghApi('/unlink', true); showGitHub(); }
+  const ask = e.target.closest('[data-ask-engineer]');
+  if (ask){ navigator.clipboard.writeText(ask.dataset.askEngineer).then(() => { ask.textContent = 'Copied. Send it to them'; }, () => { codeError(ask.dataset.askEngineer); }); }
 });
 // back from installing the app on GitHub: look again
 window.addEventListener('focus', () => { if (dialog.open && !code.hidden) showGitHub(); });
@@ -409,7 +424,7 @@ function list(){
     : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
     // system maps stay at the top, whichever way the list is sorted
     .sort((a, b) => Number(!!b.system) - Number(!!a.system));
-  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
+  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
 }
 $('list').addEventListener('click', (e) => { const button = e.target.closest('[data-trash]'); if (button) moveToTrash(button.dataset.trash, button); });
 document.querySelector('.sort').addEventListener('click', (e) => {
