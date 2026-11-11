@@ -1,11 +1,8 @@
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
 import { checkCommand, COMMANDS } from './commands.js';
-import { openMap } from './server.js';
+import { openTestMap, send } from './map.harness.js';
 
 // where a map's handlers live: server.js, and the *-acts.js modules it spreads into its actions
 const HANDLERS = ['server.js', ...fs.readdirSync(import.meta.dirname).filter((f) => f.endsWith('-acts.js'))];
@@ -106,16 +103,8 @@ describe('action schemas', () => {
 });
 
 describe('a map refusing a malformed action', () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-commands-'));
-  const map = openMap({ name: 'test-map', home, memory: true, initialState: { title: 'Launch', nodes: [], edges: [], people: [{ id: 'Duy', sees: 'all' }], calls: [], threads: {}, log: [] } });
-  /** @param {unknown} a */
-  const act = async (a) => {
-    const req = Object.assign(Readable.from([JSON.stringify(a)]), { method: 'POST', url: '/api/act', headers: { host: 'localhost', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' } });
-    let status = 0, text = '';
-    const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end(/** @type {string} */ t = '') { text = t; return res; }, setHeader() {} };
-    await map.handle(req, res, '/api/act', /** @type {any} */ ('Duy'));
-    return { status, body: text ? JSON.parse(text) : null };
-  };
+  const { map } = openTestMap({ title: 'Launch', nodes: [], edges: [], people: [{ id: 'Duy', sees: 'all' }], calls: [], threads: {}, log: [] }, 'commands');
+  const act = (/** @type {unknown} */ a) => send(map, 'Duy', a);
   it('answers 400 with the field, and changes nothing', async () => {
     expect(await act({ type: 'comment', y: 1, text: 'Why?' })).toEqual({ status: 400, body: { error: 'comment needs x.' } });
     expect(map.snapshot().comments ?? []).toEqual([]);
