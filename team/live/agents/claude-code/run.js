@@ -7,8 +7,10 @@ const MAX = 32_000;
 // before calling one, keep a task list, and return the structured result. None of them changes anything.
 export const ALWAYS = ['Read', 'Grep', 'Glob', 'ToolSearch', 'TodoWrite', 'StructuredOutput'];
 const OUTSIDE = 'This tool is not in the reviewed brief, so this run cannot use it. Finish with what the brief allows, or report that the task needs it.';
-// The map commits, pushes and opens a build's pull request itself, so a run never pushes or calls GitHub's CLI
-const HANDS_OFF = ['\\bgit\\s+push\\b', '(^|[;&|(]\\s*)gh\\s'];
+// The map pushes a build's branch and opens its pull request itself, so it can confirm them and a Continue never
+// opens a second one: a run never pushes or runs `gh pr create`. The rest of GitHub's CLI is the run's to use, as
+// in your own terminal: reading a pull request and its comments, replying, checking its runs.
+const HANDS_OFF = ['\\bgit\\s+push\\b', '(^|[;&|(]\\s*)gh\\s+pr\\s+create\\b'];
 const MAP_DOES_IT = 'The map pushes the branch and opens the pull request when you finish. Leave your changes in the worktree, uncommitted or committed, and finish the task.';
 // The run's limit: the tools the person reviewed in the brief, and the fixed read-only set. A tool named here
 // still goes through the person's own permission checks.
@@ -52,7 +54,7 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
       if (words) onText(words);
     }
     if (d.type === 'result') {
-      // a push or a call to GitHub's CLI is the map's own job after the run (HANDS_OFF): refusing it is the run
+      // a push or opening the pull request is the map's own job after the run (HANDS_OFF): refusing it is the run
       // keeping to its brief, not access it lacked, and must not stop the map pushing what it made
       const handsOff = (/** @type {any} */ x) => x?.tool_name === 'Bash' && HANDS_OFF.some((re) => new RegExp(re).test(String(x?.tool_input?.command || '')));
       const denied = Array.isArray(d.permission_denials) && d.permission_denials.some((/** @type {any} */ x) => !handsOff(x));
