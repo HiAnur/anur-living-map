@@ -1,17 +1,15 @@
-import fs from 'node:fs';
-import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { actionCancellable } from './action-stages.js';
-import { actionExecuted, actionHistory, actionStatus, actionUntouched } from './page-action.js';
+import { actionScreens } from './page-action.js';
 
-const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const esc=s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+// the Action screens as Duy sees them, with the page's helpers stood in for; `box` and `open` stand for the map
+// and the sections opened, and a test may change either
 function panel(){
-  const ctx=vm.createContext({S:{people:[]},ME:'Duy',READ_ONLY:false,FILE:false,PREVIEW:false,esc,md:esc,yours:s=>`<p>${esc(s)}</p>`,claudes:s=>s,attached:()=>'',SEND_ICON:'Send',openSecs:new Set(),nodeById:()=>({label:'Research'}),locked:()=>false});
-  Object.assign(ctx, { actionCancellable, actionExecuted, actionHistory, actionStatus, actionUntouched });
-  vm.runInContext(html.slice(html.indexOf('function actionStatusPill('),html.indexOf('async function runBoxAction(')),ctx);
-  return ctx;
+  const p={box:/** @type {(id: string) => any} */ (()=>({label:'Research'})),open:new Set()};
+  return Object.assign(p,actionScreens({me:'Duy',live:true,admin:false,people:[],esc,prose:esc,md:esc,yours:s=>`<p>${esc(s)}</p>`,claudes:s=>s,attached:()=>'',sendIcon:'Send',
+    opened:k=>p.open.has(k),box:id=>p.box(id),cancellable:actionCancellable}));
 }
 describe('planned Action controls',()=>{
   it('shows prefilled instructions, expected result and destination without offering Execute',()=>{
@@ -24,7 +22,7 @@ describe('planned Action controls',()=>{
     expect(rendered).toContain('Waiting on a dependency');expect(rendered).toContain('Waiting for Research');expect(rendered).toContain('Check again');expect(rendered).not.toContain('actionexecute');expect(rendered).not.toContain('data-action-start');
   });
   it('updates a released dependency instead of repeating the old waiting assessment',()=>{
-    const p=panel();p.nodeById=()=>({label:'Research',action:{stage:'finished',completion:{status:'completed',evidence:['Saved research']}}});
+    const p=panel();p.box=()=>({label:'Research',action:{stage:'finished',completion:{status:'completed',evidence:['Saved research']}}});
     const rendered=p.plannedActionCard({id:'report',action:{stage:'draft'}},{goal:'Write report',result:'Saved report',readiness:'waiting',dependsOn:['research']});
     expect(rendered).toContain('Prerequisites completed. Ready for preparation');expect(rendered).toContain('Research · Completed');expect(rendered).not.toContain('Waiting on a dependency');
   });
@@ -32,8 +30,8 @@ describe('planned Action controls',()=>{
     const p=panel(),content='Original <script>message</script>\nSecond line',file={id:'v1',name:'Action version 1.md',content};
     const rendered=p.actionChat({id:'email',action:{by:'Duy',stage:'clarify',question:'What should change?',documents:[file]}},'');
     expect(rendered).toContain('download="Action version 1.md"');expect(rendered).toContain('View document');expect(rendered).toContain(esc(content));expect(rendered).not.toContain('<script>');
-    expect(decodeURIComponent(rendered.match(/href="data:text\/markdown;charset=utf-8,([^"]+)/)[1])).toBe(content);
-    p.openSecs.add('action-document:v1');expect(p.actionDocuments({documents:[file]})).toContain('data-open-key="action-document:v1" open');
+    expect(decodeURIComponent(/** @type {RegExpMatchArray} */ (rendered.match(/href="data:text\/markdown;charset=utf-8,([^"]+)/))[1])).toBe(content);
+    p.open.add('action-document:v1');expect(p.actionDocuments({documents:[file]})).toContain('data-open-key="action-document:v1" open');
   });
   it('keeps existing reviewed execution and completed evidence controls',()=>{
     const p=panel(),n={id:'report',action:{by:'Duy',id:'revision',stage:'ready',brief:{goal:'Write report',target:'Attach here',result:'Report',steps:['Write']}}};
