@@ -3,10 +3,37 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Actions on a system map work in their repo</strong></dt>
+<dd>
+
+An Action on a system map box now prepares and runs in the repo that box belongs to, using your own copy of it on your Mac (or one it copies once with your git sign-in), and opens its pull request there. <!-- source: https://github.com/HiAnur/anur-living-map/pull/376 --> <!-- merged-at: 2026-11-11T05:00:18Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Side chats on a system map read its code</strong></dt>
+<dd>
+
+Ask a box on a system map how something works and its **Side Chat** answers from the code behind it, naming the files it read; it reads only repos you can read on GitHub. <!-- source: https://github.com/HiAnur/anur-living-map/pull/375 --> <!-- merged-at: 2026-11-11T04:48:46Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Copy text beside the map</strong></dt>
+<dd>
+
+Text in the panels beside the map, such as a box's details and its Side Chat, can now be selected and copied. <!-- source: https://github.com/HiAnur/anur-living-map/pull/375 --> <!-- merged-at: 2026-11-11T04:48:46Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] System map from your code on GitHub</strong></dt>
 <dd>
 
-**New map** now asks which kind you want: a **Default map** (a blank canvas) or a **System map**, drawn from the repos you choose on GitHub after you connect your account and install the Anur Living Map app on your organization. Each repo's box opens into its main parts, and each part into its functions, tables and routes; nothing goes on the map that the code does not show. A panel shows each repo's progress and about how long is left, with **Cancel**, and **Draw again** redraws only what failed or changed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/368 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/370 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/372 --> <!-- merged-at: 2026-11-11T04:29:16Z -->
+**New map** now asks which kind you want: a **Default map** (a blank canvas) or a **System map**, drawn from the repos you choose on GitHub after you connect your account and install the Anur Living Map app on your organization. It reads infrastructure written with AWS CDK in Python or TypeScript straight from the code. Each repo's box opens into its main parts, and each part into its functions, tables and routes; nothing goes on the map that the code does not show. A panel shows each repo's progress and about how long is left, with **Cancel**, and **Draw again** redraws only what failed or changed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/368 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/370 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/372 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/374 --> <!-- merged-at: 2026-11-11T04:41:20Z -->
 
 <img src="docs/shipping/2026-11-11/new-map-choice.jpg" alt="The list of maps with the New map dialog open, offering System map, drawn from code, and Default map, a blank canvas." width="520">
 
