@@ -14,6 +14,7 @@ import path from 'node:path';
 import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
 import { drawSystem } from './system-draw.js';
+import { keepHandEdits } from './system-merge.js';
 import { onGitHub, workFinder } from './system-work.js';
 
 /** @type {ReturnType<typeof workFinder> | null} */
@@ -52,6 +53,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if (stop) return false;
     const controller = new AbortController();
     stop = controller;
+    const fresh = !(getState().nodes || []).length;
     const store = again ? kept() : {};
     if (!again) { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(KEPT, '{}'); fs.writeFileSync(FOLDERS, JSON.stringify({ folders, repos })); }
     const drawing = { by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]) };
@@ -95,7 +97,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       });
       const failed = drawing.progress.filter((/** @type {any} */ p) => p.stage === 'failed');
       drawing.status = cancelled ? 'cancelled' : failed.length ? 'failed' : 'done';
-      if (state) Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start });
+      // drawn again: what people did to the map stays (system-merge.js)
+      if (state) { const drawn = fresh ? state : keepHandEdits(getState(), state); Object.assign(getState(), { nodes: drawn.nodes, edges: drawn.edges, start: drawn.start }); }
     }).catch((/** @type {any} */ e) => {
       console.error('[map] system drawing', e);
       Object.assign(drawing, { status: 'failed', error: `The drawing stopped: ${String(e?.message || e).slice(0, 200)}` });

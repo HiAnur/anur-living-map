@@ -75,10 +75,10 @@ function components(facts, reading, prefix) {
   const lid = (/** @type {Fact} */ f) => String(f.at).split('#')[1] || '';
   /** @type {Map<string, Fact>} */
   const byLid = new Map(parts.filter((f) => lid(f)).map((f) => [lid(f), f]));
-  /** @type {{ from: string, to: string, label: string }[]} */
+  /** @type {{ from: string, to: string, label: string, origin: string }[]} */
   const edges = [];
   /** @param {Fact} a @param {Fact | undefined} b @param {string} label */
-  const link = (a, b, label) => { if (b && a !== b && !edges.some((e) => e.from === idOf(a) && e.to === idOf(b))) edges.push({ from: idOf(a), to: idOf(b), label }); };
+  const link = (a, b, label) => { if (b && a !== b && !edges.some((e) => e.from === idOf(a) && e.to === idOf(b))) edges.push({ from: idOf(a), to: idOf(b), label, origin: 'code' }); };
   for (const f of parts) {
     if (f.kind === 'function') for (const m of f.may || []) for (const on of m.on || []) link(f, byLid.get(on), (m.services || []).join(', ').slice(0, 40));
     if (f.kind === 'schedule' || f.kind === 'user_pool') for (const t of f.targets || []) link(f, byLid.get(t), 'triggers');
@@ -117,7 +117,7 @@ export function repoMap(drawn, reading) {
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}), ...(inside ? { inside } : {}),
     };
   });
-  const edges = drawn.lines.map((l) => ({ from: `${prefix}-${slug(l.from)}`, to: `${prefix}-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80) }));
+  const edges = drawn.lines.map((l) => ({ from: `${prefix}-${slug(l.from)}`, to: `${prefix}-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80), origin: 'code' }));
   return { nodes, edges };
 }
 
@@ -140,6 +140,6 @@ export function systemState(platform, links, repos) {
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}),
     };
   });
-  const edges = platform.lines.map((l) => ({ from: `system-${slug(l.from)}`, to: `system-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80) }));
+  const edges = platform.lines.map((l) => ({ from: `system-${slug(l.from)}`, to: `system-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80), origin: 'code' }));
   return { nodes, edges, start: nodes.find((n) => n.inside)?.id || nodes[0]?.id };
 }
