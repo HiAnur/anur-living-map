@@ -28,14 +28,16 @@ export function repoFiles(root) {
   }
 }
 
-/** The commit a repo is at, and its branch, or nothing for a folder that is not a repo. @param {string} root */
+/** The commit a repo is at, and its branch, or nothing for a folder that is not a repo. @param {string} root @returns {{ commit: string, branch: string } | null} */
 export function repoHead(root) {
   try {
     const commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     const branch = execFileSync('git', ['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return { commit, branch };
   } catch {
-    return null;
+    // a repo downloaded from GitHub (github.js) has no .git: it says which commit it is beside its files
+    try { const { commit, branch } = JSON.parse(fs.readFileSync(path.join(root, '.living-map-head.json'), 'utf8')); return { commit: String(commit), branch: String(branch) }; }
+    catch { return null; } // a folder that is neither: no commit to name
   }
 }
 

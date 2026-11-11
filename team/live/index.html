@@ -4052,7 +4052,8 @@ function listen(){
   es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
 }
-window.addEventListener('resize', fit);
+// a resize can come before the map has loaded
+window.addEventListener('resize', () => { if (S) fit(); });
 // the chat box, the way the Claude app has it: Enter sends, Shift+Enter starts a new line (so does Enter while an
 // input method is still composing a word); the box grows with each line
 document.addEventListener('keydown', (e) => {

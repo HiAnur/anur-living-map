@@ -220,10 +220,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
-  /** A system map of code folders on this Mac, drawn from their code. @param {{ title: string, folders: string[], by: string }} job */
-  function drawSystem({ title, folders, by }) {
+  /**
+   * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
+   * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
+   */
+  function drawSystem({ title, folders = [], repos = [], by }) {
     state.title = state.renamed = title;
-    return system.start({ folders, by });
+    return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
   function blank() {
@@ -622,7 +625,7 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
-const systemMaps = systemRoutes({ maps, PROJECT });
+const systemMaps = systemRoutes({ maps });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');

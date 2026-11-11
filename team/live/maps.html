@@ -56,28 +56,39 @@ a.map:hover{border-color:var(--text)}
 /* the list sorts by time (last changed first) or by name; this browser remembers the choice */
 .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .head h1{margin:0}
-#new-blank{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
-#new-blank:hover{border-color:var(--text)}
-#new-blank:disabled{opacity:.5;cursor:wait}
-#new-blank svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
-/* a system map from code folders on this Mac: choose the repos, see what it will take, draw */
-.head-acts{display:flex;gap:8px}
-#from-code{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
-#from-code:hover{border-color:var(--text)}
-#code{margin:0 0 28px;padding:14px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:12px}
-#code[hidden]{display:none}
-#code p{margin:0 0 10px;color:var(--text-2);font-size:13px}
-#code .line{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-#code .line label{flex:none;font-size:13px;color:var(--text-2);width:64px}
+#new-map{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
+#new-map:hover{border-color:var(--text)}
+#new-map:disabled{opacity:.5;cursor:wait}
+#new-map svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+/* New map: a small dialog that asks which kind first, then walks a system map through GitHub one step at a time */
+#newmap{width:min(540px,calc(100% - 32px));max-height:calc(100% - 64px);margin:auto;padding:20px;border:1px solid var(--rule-2);border-radius:14px;background:#fff;color:var(--text);box-shadow:0 12px 40px rgba(0,0,0,.14)}
+#newmap::backdrop{background:rgba(20,20,19,.28)}
+.nm-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.nm-head h2{margin:0;font-size:17px;font-weight:600}
+.nm-x{width:30px;height:30px;border:0;border-radius:7px;background:none;font-size:20px;color:var(--text-2);cursor:pointer}
+.nm-x:hover{background:#f3f2ee}
+.nm-pick{display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:10px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;font:14px var(--plex);color:var(--text);cursor:pointer}
+.nm-pick:hover,.nm-pick:focus-visible{border-color:var(--text);outline:none}
+.nm-pick b{display:block;font-weight:600;margin-bottom:2px}
+.nm-pick span{color:var(--text-2);font-size:13px}
+.nm-back{border:0;background:none;padding:0;margin:0 0 12px;font:13px var(--plex);color:var(--text-2);cursor:pointer}
+.nm-step{margin:0 0 14px}
+.nm-step p{margin:0 0 12px;color:var(--text-2);font-size:13.5px;line-height:1.5}
+.nm-step .code{display:inline-block;margin:2px 0 12px;padding:6px 12px;border:1px solid var(--rule-2);border-radius:8px;font:600 20px ui-monospace,Menlo,monospace;letter-spacing:.12em;user-select:all}
+.nm-btn{display:inline-flex;align-items:center;height:34px;padding:0 14px;border:0;border-radius:8px;background:var(--claude);color:#fff;font:500 13px var(--plex);cursor:pointer;text-decoration:none}
+.nm-btn:disabled{opacity:.5;cursor:default}
+.nm-quiet{border:0;background:none;padding:0;font:13px var(--plex);color:var(--text-2);text-decoration:underline;cursor:pointer}
+.nm-who{display:flex;justify-content:space-between;gap:10px;margin:0 0 10px;font-size:13px;color:var(--text-2)}
+#gh-repos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin:0 0 12px;max-height:260px;overflow:auto}
+#gh-repos label{display:flex;gap:6px;align-items:center;font-size:13px;overflow-wrap:anywhere}
+#gh-repos h3{grid-column:1/-1;margin:6px 0 0;font-size:12px;font-weight:500;color:var(--text-2)}
+#gh-repos small{color:var(--text-3);font-size:11.5px;white-space:nowrap}
+#code .line{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+#code .line label{flex:none;font-size:13px;color:var(--text-2);width:56px}
 #code input[type=text]{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid var(--rule-2);border-radius:7px;font:13px var(--plex)}
-#code .line button{height:32px;padding:0 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;font:13px var(--plex);cursor:pointer}
-#code-repos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin:0 0 10px;max-height:240px;overflow:auto}
-#code-repos label{display:flex;gap:6px;align-items:center;font-size:13px;overflow-wrap:anywhere}
 #code .go{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #code-est{color:var(--text-2);font-size:13px}
-#code-go{height:34px;padding:0 14px;border:0;border-radius:8px;background:var(--claude);color:#fff;font:500 13px var(--plex);cursor:pointer}
-#code-go:disabled{opacity:.5;cursor:default}
-#code-err{margin-top:8px;color:#B42318;font-size:13px}
+#code-err{margin-top:10px;color:#B42318;font-size:13px}
 .tag-sys{font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--rule-2);color:var(--text-2)}
 .sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
@@ -125,15 +136,7 @@ a.map:hover{border-color:var(--text)}
 <div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
 <div class="home">
 <main>
-  <div class="head"><h1>Start a new map</h1><div class="head-acts"><button id="from-code" type="button" aria-expanded="false" aria-controls="code">System map from code</button><button id="new-blank" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
-  <form id="code" hidden aria-label="System map from code">
-    <p>Pick the repos on this Mac that make up your system. Code reads each one and Claude groups what it reads into boxes; nothing goes on the map that the code does not show.</p>
-    <div class="line"><label for="code-under">Folder</label><input type="text" id="code-under" spellcheck="false" autocomplete="off"><button type="button" id="code-look">Look</button></div>
-    <div id="code-repos"></div>
-    <div class="line"><label for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off"></div>
-    <div class="go"><span id="code-est"></span><button type="submit" id="code-go" disabled>Draw the map</button></div>
-    <div id="code-err" role="alert" hidden></div>
-  </form>
+  <div class="head"><h1>Start a new map</h1><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div>
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" role="alert" hidden></div>
@@ -147,6 +150,22 @@ a.map:hover{border-color:var(--text)}
   <div id="trash-status" role="status" hidden></div>
 </main>
 <aside id="brain" aria-label="All brain"></aside>
+<dialog id="newmap" aria-labelledby="nm-title">
+  <div class="nm-head"><h2 id="nm-title">New map</h2><button type="button" class="nm-x" data-nm-close aria-label="Close">×</button></div>
+  <div id="nm-choose">
+    <button type="button" class="nm-pick" data-nm="system" autofocus><b>System map</b><span>Your system drawn from its code: services, data and how they connect.</span></button>
+    <button type="button" class="nm-pick" data-nm="blank"><b>Default map</b><span>A blank canvas you fill in yourself or with Claude.</span></button>
+  </div>
+  <form id="code" hidden aria-label="System map">
+    <button type="button" class="nm-back" data-nm-back>‹ Back</button>
+    <div id="code-gh"><div id="gh-state" class="nm-step" aria-live="polite"></div><div id="gh-repos"></div></div>
+    <div id="code-pick" hidden>
+      <div class="line"><label for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off"></div>
+      <div class="go"><span id="code-est"></span><button type="submit" class="nm-btn" id="code-go" disabled>Draw the map</button></div>
+    </div>
+    <div id="code-err" role="alert" hidden></div>
+  </form>
+</dialog>
 </div>
 <script>
 // every map this server holds; a click opens it, with ?as= carried along
@@ -167,7 +186,7 @@ const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 // a new map: Claude Code starts drawing it on a blank canvas, and the map opens with its chat beside it
 const form = document.getElementById('new'), box = form.querySelector('textarea'), go = form.querySelector('button'), err = document.getElementById('err');
-const blank = $('new-blank');
+const blank = $('new-map');
 async function createMap(data, query){
   if (go.disabled || blank.disabled) return;
   go.disabled = blank.disabled = true; err.hidden = true;
@@ -178,42 +197,94 @@ async function createMap(data, query){
     location.href = `${result.href}?${query}`;
   } catch (error){ err.textContent = error.message; err.hidden = false; go.disabled = blank.disabled = false; }
 }
-blank.addEventListener('click', () => createMap({ blank: true }, 'new=1'));
+
 box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); form.requestSubmit(); } });
 form.addEventListener('submit', (e) => {
   e.preventDefault(); const prompt = box.value.trim(); if (!prompt || go.disabled) return;
   createMap({ prompt }, 'chat=1');
 });
-// a system map from code folders on this Mac: the repos in a folder, all chosen at first, drawn into a new map
-const code = $('code');
-const chosen = () => [...$('code-repos').querySelectorAll('input:checked')].map((i) => i.value);
+// New map asks which kind first. A default map opens at once; a system map walks through GitHub one step at a
+// time: connect your account, install the app where your code is, choose repos
+const dialog = $('newmap'), code = $('code');
+const chosen = () => [...$('gh-repos').querySelectorAll('input:checked')].map((i) => i.value);
 const codeError = (text) => { $('code-err').textContent = text; $('code-err').hidden = !text; };
 function estimate(){
   const n = chosen().length;
-  $('code-est').textContent = n ? `${n} ${n === 1 ? 'repo' : 'repos'}: about ${Math.max(1, Math.round((Math.ceil(n / 3) * 60 + 25) / 60))} min with your Claude Code. Claude is sent what code reads (names, routes, permissions, descriptions), not your files.` : 'Choose at least one repo.';
+  $('code-est').textContent = n ? `${n} ${n === 1 ? 'repo' : 'repos'} · about ${Math.max(1, Math.round((Math.ceil(n / 3) * 60 + 25) / 60))} min` : 'Choose at least one repo.';
   $('code-go').disabled = !n;
 }
-async function lookIn(under){
-  const r = await fetch(`/api/systemmap/repos${under ? `?under=${encodeURIComponent(under)}` : ''}`).then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
-  if (!r.ok){ codeError(r.b.error || 'That folder could not be read.'); return; }
-  codeError(''); code.dataset.loaded = '1';
-  $('code-under').value = r.b.under;
-  $('code-title').placeholder = `${r.b.under.split('/').pop()} system`;
-  $('code-repos').innerHTML = r.b.repos.length ? r.b.repos.map((x) => `<label><input type="checkbox" value="${esc(x.folder)}" checked>${esc(x.name)}</label>`).join('') : '<span class="none">No repos in this folder. Choose the folder that holds them.</span>';
+function step(name){
+  $('nm-choose').hidden = name !== 'choose'; code.hidden = name !== 'system';
+  $('nm-title').textContent = name === 'system' ? 'System map' : 'New map';
+  codeError('');
+  if (name === 'system') showGitHub();
+  else clearTimeout(ghWatch);
+}
+blank.addEventListener('click', () => { step('choose'); dialog.showModal(); });
+dialog.addEventListener('click', (e) => {
+  if (e.target === dialog || e.target.closest('[data-nm-close]')){ clearTimeout(ghWatch); dialog.close(); }
+  if (e.target.closest('[data-nm-back]')) step('choose');
+  const pick = e.target.closest('[data-nm]');
+  if (pick?.dataset.nm === 'blank'){ dialog.close(); createMap({ blank: true }, 'new=1'); }
+  if (pick?.dataset.nm === 'system') step('system');
+});
+dialog.addEventListener('close', () => clearTimeout(ghWatch));
+// GitHub, one step at a time: connect your account (a code you enter at github.com), install the app on the
+// organization that holds your code, then choose its repos. The map never sees your GitHub token, and reads
+// only repos you can read
+const INSTALL = 'https://github.com/apps/anur-living-map/installations/new';
+let ghWatch = 0;
+const ghApi = (route, post) => fetch(`/api/systemmap/github${route}`, post ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' } : undefined)
+  .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
+async function showGitHub(){
+  clearTimeout(ghWatch);
+  const r = await ghApi('');
+  if (!r.ok){ codeError(r.b.error); return; }
+  const { linked, pending } = r.b;
+  if (pending || !linked) $('code-pick').hidden = true;
+  if (pending){
+    $('gh-state').innerHTML = `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-btn" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a> <span class="none">&nbsp;Waiting for GitHub…</span>`;
+    $('gh-repos').innerHTML = '';
+    ghWatch = setTimeout(showGitHub, 3000);
+    return;
+  }
+  if (!linked){
+    $('gh-state').innerHTML = '<p>Connect your GitHub account to choose the repos your system is built from. The map reads only repos you can read, and never changes them.</p><button type="button" class="nm-btn" data-gh-link>Connect GitHub</button>';
+    $('gh-repos').innerHTML = '';
+    return;
+  }
+  // a look again (back from GitHub) keeps what is on show, and the repos you unticked, until the answer comes
+  const shown = [...$('gh-repos').querySelectorAll('input')], off = new Set(shown.filter((x) => !x.checked).map((x) => x.value));
+  const who = `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`;
+  const set = (el, html) => { if ($(el).innerHTML !== html) $(el).innerHTML = html; };
+  if (!shown.length){ set('gh-state', who); set('gh-repos', '<span class="none">Finding your repos…</span>'); }
+  const got = await ghApi('/repos');
+  if (!got.ok){ codeError(got.b.error); return; }
+  if (!got.b.repos.length){
+    set('gh-state', `${who}<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
+    set('gh-repos', ''); $('code-pick').hidden = true;
+    return;
+  }
+  const owners = [...new Set(got.b.repos.map((x) => x.owner))];
+  set('gh-state', who);
+  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}>${esc(x.name)}${x.private ? ' <small>private</small>' : ''}</label>`; }).join('')}`).join('')
+    + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`);
+  if (!$('code-title').value) $('code-title').placeholder = `${owners[0]} system`;
+  $('code-pick').hidden = false;
   estimate();
 }
-$('from-code').addEventListener('click', () => {
-  code.hidden = !code.hidden; $('from-code').setAttribute('aria-expanded', String(!code.hidden));
-  if (!code.hidden && !code.dataset.loaded) lookIn('');
+$('gh-repos').addEventListener('change', estimate);
+$('gh-state').addEventListener('click', async (e) => {
+  if (e.target.closest('[data-gh-link]')){ const r = await ghApi('/link', true); if (!r.ok) codeError(r.b.error); showGitHub(); }
+  if (e.target.closest('[data-gh-unlink]')){ await ghApi('/unlink', true); showGitHub(); }
 });
-$('code-look').addEventListener('click', () => lookIn($('code-under').value.trim()));
-$('code-under').addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); lookIn($('code-under').value.trim()); } });
-$('code-repos').addEventListener('change', estimate);
+// back from installing the app on GitHub: look again
+window.addEventListener('focus', () => { if (dialog.open && !code.hidden) showGitHub(); });
 code.addEventListener('submit', async (e) => {
   e.preventDefault(); if ($('code-go').disabled) return;
   $('code-go').disabled = true; codeError('');
   const title = $('code-title').value.trim() || $('code-title').placeholder;
-  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, folders: chosen() }) })
+  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, repos: chosen().map((x) => ({ owner: x.split('/')[0], name: x.split('/')[1] })) }) })
     .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
   if (!r.ok){ codeError(r.b.error || 'The map could not start.'); estimate(); return; }
   location.href = `${r.b.href}${location.search}`;
