@@ -71,6 +71,7 @@ a.map:hover{border-color:var(--text)}
 .nm-pick:hover,.nm-pick:focus-visible{border-color:var(--text);outline:none}
 .nm-pick b{display:block;font-weight:600;margin-bottom:2px}
 .nm-pick span{color:var(--text-2);font-size:13px}
+.nm-q{margin:0 0 12px;font-size:13px;color:var(--text-2)}
 .nm-back{border:0;background:none;padding:0;margin:0 0 12px;font:13px var(--plex);color:var(--text-2);cursor:pointer}
 .nm-step{margin:0 0 14px}
 .nm-step p{margin:0 0 12px;color:var(--text-2);font-size:13.5px;line-height:1.5}
@@ -157,6 +158,11 @@ a.map:hover{border-color:var(--text)}
     <button type="button" class="nm-pick" data-nm="system" autofocus><b>System map</b><span>Your system drawn from its code: services, data and how they connect.</span></button>
     <button type="button" class="nm-pick" data-nm="blank"><b>Default map</b><span>A blank canvas you fill in yourself or with Claude.</span></button>
   </div>
+  <div id="nm-base" hidden>
+    <button type="button" class="nm-back" data-nm-back>‹ Back</button>
+    <p class="nm-q">Does this map build on one of your system maps? Its chats then read that system as background.</p>
+    <div id="nm-bases"></div>
+  </div>
   <form id="code" hidden aria-label="System map">
     <button type="button" class="nm-back" data-nm-back>‹ Back</button>
     <div id="code-gh"><div id="gh-state" class="nm-step" aria-live="polite"></div><div id="gh-repos"></div></div>
@@ -215,8 +221,8 @@ function estimate(){
   $('code-go').disabled = !n;
 }
 function step(name){
-  $('nm-choose').hidden = name !== 'choose'; code.hidden = name !== 'system';
-  $('nm-title').textContent = name === 'system' ? 'System map' : 'New map';
+  $('nm-choose').hidden = name !== 'choose'; code.hidden = name !== 'system'; $('nm-base').hidden = name !== 'base';
+  $('nm-title').textContent = name === 'system' ? 'System map' : name === 'base' ? 'Default map' : 'New map';
   codeError('');
   if (name === 'system') showGitHub();
   else clearTimeout(ghWatch);
@@ -226,7 +232,15 @@ dialog.addEventListener('click', (e) => {
   if (e.target === dialog || e.target.closest('[data-nm-close]')){ clearTimeout(ghWatch); dialog.close(); }
   if (e.target.closest('[data-nm-back]')) step('choose');
   const pick = e.target.closest('[data-nm]');
-  if (pick?.dataset.nm === 'blank'){ dialog.close(); createMap({ blank: true }, 'new=1'); }
+  // a default map may build on a system map, when there is one to build on
+  const systems = (maps || []).filter((m) => m.system === 'done');
+  if (pick?.dataset.nm === 'blank' && systems.length){
+    $('nm-bases').innerHTML = `${systems.map((m) => `<button type="button" class="nm-pick" data-base="${esc(m.name)}"><b>${esc(titleOf(m))}</b><span>${m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'}` : 'System map'}</span></button>`).join('')}<button type="button" class="nm-pick" data-base=""><b>Nothing</b><span>A blank canvas on its own.</span></button>`;
+    step('base');
+  }
+  else if (pick?.dataset.nm === 'blank'){ dialog.close(); createMap({ blank: true }, 'new=1'); }
+  const base = e.target.closest('[data-base]');
+  if (base){ dialog.close(); createMap(base.dataset.base ? { blank: true, buildsOn: base.dataset.base } : { blank: true }, 'new=1'); }
   if (pick?.dataset.nm === 'system') step('system');
 });
 dialog.addEventListener('close', () => clearTimeout(ghWatch));

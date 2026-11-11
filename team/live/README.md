@@ -87,7 +87,7 @@ Share shows Local only before publication and Shared online after upload. Copy l
 ### Two kinds of map
 
 - A **system map** is a whole system drawn from its code: one box per repo and outside system, each repo's box opening into its services, and those into their parts. Code reads the facts and checks every box; Claude only groups and names them. A team usually has one per platform or product, pinned at the top of the list of maps, which says how many repos each was drawn from and when. It stays editable by hand, and a redraw keeps what people changed.
-- A **default map** is everything else: a plan, a feature, an incident or an investigation, made by people or a chat on a blank canvas or from a prompt. To give its chat the system as background, check the system map under **Include other maps** in Brain.
+- A **default map** is everything else: a plan, a feature, an incident or an investigation, made by people or a chat on a blank canvas or from a prompt. **New map → Default map** asks whether it builds on one of your system maps: one that does says **builds on** that map at the top, linking to it, and its chats read that system as background (the system map is checked under **Include other maps** in Brain).
 - A repo that belongs to a system is a box on that system's map, not a map of its own: `/anur-living-map` run in a clone of it opens the system map at that repo's box.
 
 ### Context from other maps

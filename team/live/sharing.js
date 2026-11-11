@@ -39,7 +39,7 @@ export function sharedState(state, owner = false, guest = false, who = null, hid
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
+  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, project: undefined });
   const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
   return sees && sees !== 'all' ? forArea(result, sees) : result;
 }

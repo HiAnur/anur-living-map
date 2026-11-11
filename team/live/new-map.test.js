@@ -49,6 +49,13 @@ it('creates distinct blank maps without Claude, keeps them after reopening, and 
     expect(reopened.snapshot().nodes).toEqual([expect.objectContaining({label:'Launch plan'})]);
     expect(maps.mapCalled(second.body.name).snapshot().nodes).toEqual([]);
     expect(launch).not.toHaveBeenCalled();
+    // a blank map may build on a system map: its chats then read that map as background
+    fs.mkdirSync(path.join(home, 'maps', 'shop-system'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'maps', 'shop-system', 'state.json'), JSON.stringify({ title: 'Shop system', nodes: [], edges: [], drawing: { status: 'done', at: 1, repos: 3 } }));
+    expect((await request({ blank: true, buildsOn: second.body.name })).status).toBe(400);
+    expect((await request({ blank: true, buildsOn: 'nowhere' })).status).toBe(400);
+    const work = await request({ blank: true, buildsOn: 'shop-system' });
+    expect(maps.mapCalled(work.body.name).snapshot()).toMatchObject({ buildsOn: { name: 'shop-system', title: 'Shop system' }, contextMapIds: ['shop-system'] });
   } finally {
     maps.main.close(); for (const map of maps.named.values()) map.close();
     launch.mockRestore(); fs.rmSync(home, {recursive:true,force:true});
