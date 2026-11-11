@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { repoOf, workFinder } from './system-work.js';
+import { onGitHub, repoOf, workFinder } from './system-work.js';
 
 // Where an Action on a system map works: its box's repo, inherited down the boxes inside it, in a clone on this Mac.
 
@@ -41,6 +41,13 @@ describe('finding where to work', () => {
     // of two clones of one repo, the one named after it
     const named = cloneAt(path.join(home, 'code', 'api'), 'https://github.com/Shop/api');
     expect(workFinder({ home, data: tmp() }).cloneOf('Shop', 'api')).toBe(named);
+  });
+  it('reads which GitHub repo a clone is, from its origin', () => {
+    const d = tmp();
+    expect(onGitHub(cloneAt(path.join(d, 'a'), 'git@github.com:Shop/api.git'))).toEqual({ owner: 'Shop', name: 'api' });
+    expect(onGitHub(cloneAt(path.join(d, 'b'), 'https://github.com/Shop/web-app'))).toEqual({ owner: 'Shop', name: 'web-app' });
+    expect(onGitHub(cloneAt(path.join(d, 'c'), 'https://gitlab.com/Shop/api.git'))).toBeNull();
+    expect(onGitHub(d)).toBeNull();
   });
   it('clones once for a build when there is no clone, and only for a build', async () => {
     const data = tmp(), urls = /** @type {string[]} */ ([]);

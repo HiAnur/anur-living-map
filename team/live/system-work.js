@@ -17,6 +17,12 @@ export function repoOf(state, box) {
   return [...pathTo(state, box.id), box].map((x) => x?.source?.repo).filter(Boolean).at(-1) || null;
 }
 
+/** The GitHub repo a clone's origin is, or null. @param {string} dir @returns {{ owner: string, name: string } | null} */
+export function onGitHub(dir) {
+  const m = /github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(originOf(dir));
+  return m ? { owner: m[1], name: m[2] } : null;
+}
+
 /** @param {string} dir */
 const originOf = (dir) => {
   try { return execFileSync('git', ['-C', dir, 'remote', 'get-url', 'origin'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }

@@ -31,7 +31,8 @@ import { completionSchema, executionPrompt, readCompletion } from './action-comp
 import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { systemJob } from './system-job.js';
-import { repoOf } from './system-work.js';
+import { onGitHub, repoOf } from './system-work.js';
+import { sharedGithub } from './github.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { appendProposed } from './proposal-layout.js';
@@ -224,6 +225,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */
   const workOf = async (n, by, build) => (!project && state.drawing && n && repoOf(state, n) ? system.workFor(/** @type {string} */ (repoOf(state, n)), by, build) : null);
   /**
+   * Why someone may not raise a build's pull request from this box, '' when they may: the box's repo on GitHub
+   * (its system map's source, or the clone's origin) must let them push, as their own GitHub link says. A repo
+   * not on GitHub opens no pull request, so it asks nothing.
+   * @param {any} n @param {string} by @returns {Promise<string>}
+   */
+  async function canBuild(n, by) {
+    const repo = !project && state.drawing && n ? repoOf(state, n) : null;
+    const from = repo ? system.sourceOf(repo) : null;
+    /** @type {{ owner: string, name: string } | null} */
+    const gh = from && 'owner' in from ? /** @type {{ owner: string, name: string }} */ (from) : onGitHub(String(from && 'folder' in from ? from.folder : project || PROJECT || home));
+    return gh ? sharedGithub().whyNoPush(by, gh.owner, gh.name) : '';
+  }
+  /**
    * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
    * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
    */
@@ -337,10 +351,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     // on a system map an Action works in its box's repo; a box in no repo has nowhere to run
     cannotRun: (n) => !project && state.drawing && !repoOf(state, n) ? 'This box is not inside one of the map\'s repos, so an Action here has nowhere to run.' : null,
     cwdFor: (n, by) => workOf(n, by, false),
+    canBuild,
     checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
     // a build's worktree lives in the team map's data folder, never inside the project it changes
     builds: {
       open: async (a, n) => {
+        const why = await canBuild(n, a.by);
+        if (why) return { error: why };
         const w = await workOf(n, a.by, true);
         if (w && 'error' in w) return w;
         return openBuild({ project: w?.cwd || project || PROJECT || home, root: path.join(DATA, 'worktrees', name || mapName(project || PROJECT) || 'map'), action: /** @type {any} */ (a), box: n });

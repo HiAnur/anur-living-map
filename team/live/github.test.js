@@ -125,6 +125,16 @@ describe('reading repos from GitHub', () => {
     await gh.canRead('Harshit', 'Shop', 'api');
     expect(calls.length).toBeGreaterThan(asked);
   });
+  it('says whether a person may raise a pull request on a repo, by their own write access on GitHub', async () => {
+    const { dir, http } = linked({
+      'GET /repos/Shop/api': () => ({ permissions: { pull: true, push: true } }),
+      'GET /repos/Shop/web': () => ({ permissions: { pull: true, push: false } }),
+    });
+    const gh = github({ dir, http });
+    expect(await gh.whyNoPush('Harshit', 'Shop', 'api')).toBe('');
+    expect(await gh.whyNoPush('Harshit', 'Shop', 'web')).toMatch(/^You can't push to Shop\/web on GitHub/);
+    expect(await gh.whyNoPush('Nobody', 'Shop', 'api')).toMatch(/^Connect your GitHub account first/);
+  });
   it('asks to link again when GitHub no longer takes the token', async () => {
     const { dir, http } = linked({ 'GET /user/installations?': () => ({ status: 401 }) });
     const gh = github({ dir, http });
