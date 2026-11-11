@@ -4077,7 +4077,8 @@ function sdChanged(d){
       renderDrawing(); renderSave();
     }).catch(() => { /* the map did not answer: nothing is shown as changed */ });
   }
-  return sdNews.repos;
+  // with what the server found by itself, as whoever drew the map, cut to the repos you may read
+  return [...new Set([...sdNews.repos, ...(d.newCommits || [])])];
 }
 setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
 async function sdAct(what){

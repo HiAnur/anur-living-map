@@ -257,8 +257,27 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     changes.set(who, { at: Date.now(), drawn: d.at, repos: list });
     return list;
   }
+  /**
+   * Looks for new commits in the map's repos every `every` ms, with nobody's page open, as whoever drew it (their
+   * GitHub link reads every repo the map was drawn from), and keeps the answer in the drawing for the map and its
+   * list row. A GitHub webhook would need an address GitHub can reach; this server listens on this Mac only.
+   * @param {number} [every] @returns {() => void} stops looking
+   */
+  function watch(every = 30 * 60_000) {
+    const look = async () => {
+      const d = getState().drawing;
+      if (!d?.by || d.status === 'running') return;
+      changes.delete(d.by);
+      const list = await changed(d.by).catch((/** @type {any} */ e) => { console.error('[map] system commits', e); return null; });
+      if (!list || getState().drawing !== d || String(list) === String(d.newCommits || [])) return;
+      d.newCommits = list; save(); push();
+    };
+    const first = setTimeout(look, Math.min(every, 60_000)), timer = setInterval(look, every);
+    first.unref?.(); timer.unref?.();
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }
   return {
-    start, codeFor, workFor, sourceOf, hiddenFor, changed, boxOf,
+    start, codeFor, workFor, sourceOf, hiddenFor, changed, watch, boxOf,
     /** whether any repo of this map is private on GitHub, or may be */
     holdsPrivate: () => onGitHubRepos().some((r) => r.private),
     /** @returns {boolean} whether a drawing was running */

@@ -59,6 +59,8 @@ export const PRIVATE_REPO = 'A private repo';
  */
 export function withoutRepos(state, hidden) {
   if (!hidden?.size) return state;
+  // the repos with new commits since the drawing, by name: only those they may read
+  if (state.drawing?.newCommits?.length) state = { ...state, drawing: { ...state.drawing, newCommits: state.drawing.newCommits.filter((/** @type {string} */ r) => !hidden.has(r)) } };
   /** @type {Set<string>} */
   const away = new Set();
   /** @param {any[]} nodes @param {boolean} inHidden */
