@@ -1,18 +1,24 @@
 // What Claude reads to answer on a box: who asks, the box, the map as far as the asker can see it, the
 // thread so far. The map passes in how to read its current state.
 import { autoPlanPrompt } from './auto-plan.js';
+import { allBoxesOf, allLinesOf } from './map-walk.js';
+import { withoutRepos } from './sharing.js';
 
 /**
- * @param {{ getState: () => any, project: string, nodeOf: (id: any) => any, allNodes: () => any[], allEdges: () => any[] }} deps
+ * @param {{ getState: () => any, project: string, nodeOf: (id: any) => any, allNodes: () => any[], allEdges: () => any[],
+ *   hiddenFor?: (who: string) => Set<string> }} deps `hiddenFor`: the repos someone may not read, cut from what Claude reads for them
  */
-export function askContext({ getState, project, nodeOf, allNodes, allEdges }) {
+export function askContext({ getState, project, nodeOf, allNodes, allEdges, hiddenFor = () => new Set() }) {
   const seesOf = (/** @type {any} */ by) => getState().people?.find((/** @type {any} */ p) => p.id === by)?.sees || 'all';
   // side: the question comes from the box's side chat, which reads the map and the box, never anyone's own chat
   /** @param {any} by @param {any} n @param {any} q @param {any} before */
   function askPrompt(by, n, q, before, side = false, autoPlan = false) {
     const person = getState().people?.find((/** @type {any} */ p) => p.id === by), sees = seesOf(by);
-    const nodes = allNodes().filter((/** @type {any} */ x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((/** @type {any} */ x) => x.id));
-    const label = (/** @type {any} */ id) => nodeOf(id)?.label || id;
+    // the map as this person may read it: a repo they may not read on GitHub is only "A private repo"
+    const hidden = hiddenFor(by), st = hidden.size ? withoutRepos(getState(), hidden) : getState();
+    const boxesHere = hidden.size ? allBoxesOf(st) : allNodes(), linesHere = hidden.size ? allLinesOf(st) : allEdges();
+    const nodes = boxesHere.filter((/** @type {any} */ x) => sees === 'all' || x.area === sees), ids = new Set(nodes.map((/** @type {any} */ x) => x.id));
+    const label = (/** @type {any} */ id) => boxesHere.find((/** @type {any} */ x) => x.id === id)?.label || id;
     // a reply of Claude's that offered a change says so, and what became of it, so Claude never offers it again
     const offer = (/** @type {any} */ m) => { const p = m.proposal; if (!p?.ops?.length) return '';
       const what = p.status === 'applied' ? `applied by ${p.by}, so it is on the map now` : p.status === 'pending' ? 'still waiting for Apply'
@@ -21,11 +27,11 @@ export function askContext({ getState, project, nodeOf, allNodes, allEdges }) {
     const box = (/** @type {any} */ x) => [`- ${x.label} [id: ${x.id}]${x.sub ? ` (${x.sub})` : ''}${x.state ? ` [${x.state}]` : ''}${x.file ? ` in ${x.file}` : ''}`,
       x.desc && `  ${x.desc}`, x.action?.by === by && `  Action: ${JSON.stringify({plan:x.action.plan,stage:x.action.stage,completion:x.action.completion})}`, x.fact && `  Found: ${x.fact.text} (${x.fact.from})`,
       x.decided && `  Decided by ${x.decided.who} at ${x.decided.at}: ${x.decided.what}`].filter(Boolean).join('\n');
-    const lines = allEdges().filter((/** @type {any} */ e) => ids.has(e.from) && ids.has(e.to))
+    const lines = linesHere.filter((/** @type {any} */ e) => ids.has(e.from) && ids.has(e.to))
       .map((/** @type {any} */ e) => `- ${label(e.from)} [id: ${e.from}] -> ${label(e.to)} [id: ${e.to}]${e.label ? `: ${e.label}` : ''}${e.state ? ` [${e.state}]` : ''}`);
-    const mine = (/** @type {any} */ kind) => (getState().memory || []).filter((/** @type {any} */ m) => m.kind === kind && (!m.box || ids.has(m.box)))
+    const mine = (/** @type {any} */ kind) => (st.memory || []).filter((/** @type {any} */ m) => m.kind === kind && (!m.box || ids.has(m.box)))
       .map((/** @type {any} */ m) => `- ${m.box ? `On ${label(m.box)}` : 'Whole map'}: ${m.text} (${m.by})`);
-    const calls = getState().calls.filter((/** @type {any} */ c) => ids.has(c.node)).map((/** @type {any} */ c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
+    const calls = (st.calls || []).filter((/** @type {any} */ c) => ids.has(c.node)).map((/** @type {any} */ c) => `- On ${label(c.node)}, for ${c.for}: ${c.ask || c.text} `
       + (c.status === 'open' ? '(waiting)' : `(${c.status === 'answered' ? `"${c.picked}"` : c.status === 'confirmed' ? 'Yes' : 'No'} from ${c.by}${c.said && c.said !== c.picked ? `: "${c.said}"` : ''})`)
       + (c.options?.length ? c.options.map((/** @type {any} */ o) => `\n  Option: ${o.label}${o.means ? `: ${o.means}` : ''}`).join('')
         : (c.yes ? `\n  Yes means: ${c.yes}` : '') + (c.no ? `\n  No means: ${c.no}` : '')));

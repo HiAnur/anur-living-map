@@ -129,7 +129,8 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     const { sha } = await (await api(who, `/repos/${owner}/${name}/commits/${encodeURIComponent(branch)}`, 'application/vnd.github.sha')).text().then((s) => ({ sha: s.trim() }));
     if (!/^[0-9a-f]{40}$/.test(sha)) throw Object.assign(new Error(`GitHub gave no commit for ${owner}/${name}.`), { status: 502 });
     const folder = path.join(REPOS, owner, sha.slice(0, 12), name);
-    if (fs.existsSync(path.join(folder, '.living-map-head.json'))) return { folder, commit: sha, branch };
+    const isPrivate = info.private !== false;
+    if (fs.existsSync(path.join(folder, '.living-map-head.json'))) return { folder, commit: sha, branch, private: isPrivate };
     const tarball = Buffer.from(await (await api(who, `/repos/${owner}/${name}/tarball/${sha}`)).arrayBuffer());
     fs.rmSync(folder, { recursive: true, force: true });
     fs.mkdirSync(folder, { recursive: true });
@@ -139,7 +140,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     finally { fs.rmSync(archive, { force: true }); }
     dropLinks(folder);
     fs.writeFileSync(path.join(folder, '.living-map-head.json'), JSON.stringify({ commit: sha, branch, repo: `${owner}/${name}` }));
-    return { folder, commit: sha, branch };
+    return { folder, commit: sha, branch, private: isPrivate };
   }
   /** each person's readable repos, kept a few minutes so a chat does not ask GitHub every time */
   /** @type {Map<string, { at: number, names: Set<string> }>} */

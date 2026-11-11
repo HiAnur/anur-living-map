@@ -59,7 +59,7 @@ import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
-import { linkRole, localTool, permission, sharedState } from './sharing.js';
+import { linkRole, localTool, permission, sharedState, withoutRepos } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
@@ -160,7 +160,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
     if (!role || role !== c.role) {
       send(r, role ? 'access-changed' : 'access-removed', {}); clients.delete(r); clientAccess.delete(r); r.end();
-    } else send(r, 'state', sharedState(state, role === 'owner', c.guest, c.who));
+    } else send(r, 'state', sharedState(state, role === 'owner', c.guest, c.who, hiddenFor(c.guest ? null : c.who)));
   } };
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
@@ -222,6 +222,15 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
+  /** The repos someone may not read on GitHub, cut from everything they receive of this map; no one is a guest. @param {string | null} who */
+  const hiddenFor = (who) => system.hiddenFor(who, push);
+  /** Whether an action names a box in a repo someone may not read: by its id, its node, its ends or the box asked about. @param {any} a @param {string | null} who */
+  const touchesHidden = (a, who) => {
+    const hidden = hiddenFor(who);
+    if (!hidden.size) return false;
+    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into].filter((x) => typeof x === 'string');
+    return ids.some((id) => { const n = nodeOf(id); return n && hidden.has(String(repoOf(state, n))); });
+  };
   /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */
   const workOf = async (n, by, build) => (!project && state.drawing && n && repoOf(state, n) ? system.workFor(/** @type {string} */ (repoOf(state, n)), by, build) : null);
   /**
@@ -335,7 +344,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const nodeOf = (/** @type {any} */ id) => allNodes().find((/** @type {any} */ n) => n.id === id);
 
 
-  const { seesOf, askPrompt } = askContext({ getState: () => state, project, nodeOf, allNodes, allEdges });
+  const { seesOf, askPrompt } = askContext({ getState: () => state, project, nodeOf, allNodes, allEdges, hiddenFor: (who) => hiddenFor(who) });
 
   const actions = actionBoxes({
     nodeOf,
@@ -515,8 +524,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const allowed = (/** @type {any} */ who, /** @type {any} */ req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
-  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here });
-  const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST });
+  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
+  const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
   /** @param {any} req @param {any} res @param {any} p */
   async function handle(req, res, p, who = null) {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
@@ -547,7 +556,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', sharedState(state, role === 'owner', guest, who)); send(res, 'cursors', cursors);
+      send(res, 'state', sharedState(state, role === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
       if (role === 'owner' && cloud) send(res, 'cloud', cloud.status());
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
@@ -573,6 +582,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (wrong) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: wrong })); return true; }
       // the standing each action needs (permissions.js); a refusal reads as any refused change
       if (!guest && !mayAct(state, a, false)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That change could not be saved.' })); return true; }
+      // nothing may be done to a box drawn from a repo the person may not read on GitHub: they never see it
+      if (touchesHidden(a, guest ? null : a.by)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That box is in a repo you can\'t read on GitHub.' })); return true; }
       told = null;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
@@ -633,7 +644,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const busy = () => activeAsks.size > 0 || !!building || system.running() || actions.busy();
   return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy,
     cancelDrawing: system.cancel, retryDrawing: system.retry,
-    snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
+    snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot(),
+    /** the map as someone may read it, as background for another map: without the repos they may not read @param {string | null} who */
+    snapshotFor: (who) => withoutRepos(structuredClone(state), hiddenFor(who)) };
 }
 
 // A file to remove that is already gone is fine; anything else (permissions, a full disk) is said once.

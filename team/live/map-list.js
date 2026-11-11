@@ -23,7 +23,7 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo }) {
       if (!who || who === 'Guest' || !map.allowed(who, req)) return [];
       return everyMap().filter(([id]) => id !== own).map(([id, other]) => ({ id,
         allowed: () => map.allowed(who, req) && everyMap().some(([key, value]) => key === id && value === other) && other.allowed(who, req),
-        snapshot: other.snapshot,
+        snapshot: () => other.snapshotFor ? other.snapshotFor(who) : other.snapshot(),
       }));
     } });
     return map;

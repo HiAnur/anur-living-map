@@ -14,7 +14,7 @@ import path from 'node:path';
 import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
 import { drawSystem } from './system-draw.js';
-import { workFinder } from './system-work.js';
+import { onGitHub, workFinder } from './system-work.js';
 
 /** @type {ReturnType<typeof workFinder> | null} */
 let finder = null;
@@ -73,10 +73,12 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       await Promise.all(Array.from({ length: Math.min(4, repos.length) }, async () => {
         while (next < repos.length && !controller.signal.aborted) {
           const r = repos[next++];
-          try { got.push((await github().fetchRepo(by, r)).folder); tell({ repo: r.name, stage: 'downloaded' }); }
+          try { const f = await github().fetchRepo(by, r); got.push(f.folder); /** @type {any} */ (r).private = f.private !== false; tell({ repo: r.name, stage: 'downloaded' }); }
           catch (/** @type {any} */ e) { const p = { repo: r.name, stage: 'failed', error: String(e?.message || e).slice(0, 200) }; missed.push(p); tell(p); }
         }
       }));
+      // whether each repo is private, as GitHub said on download: who may see it on the map follows from it
+      if (repos.length) fs.writeFileSync(FOLDERS, JSON.stringify({ folders, repos }));
       return got;
     };
     download().then((all) => draw({
@@ -139,6 +141,55 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if ('cwd' in w) return w;
     return build || !fs.existsSync(r.root) ? w : { cwd: r.root };
   }
+  /**
+   * The repos on GitHub this map was drawn from, by name, with whether each is private (unknown counts as private);
+   * a folder on this Mac counts by its clone's GitHub origin, and one not on GitHub is not listed.
+   * @returns {{ repo: string, owner: string, name: string, private: boolean }[]}
+   */
+  function onGitHubRepos() {
+    const d = getState().drawing;
+    if (!d || !fs.existsSync(FOLDERS) || !fs.existsSync(REPORT)) return [];
+    const had = listed;
+    if (had && had.at === d.at && had.status === d.status) return had.list;
+    const was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8')), report = JSON.parse(fs.readFileSync(REPORT, 'utf8'));
+    const { folders = [], repos = [] } = Array.isArray(was) ? { folders: was } : was;
+    /** @type {{ repo: string, owner: string, name: string, private: boolean }[]} */
+    const list = [];
+    for (const r of report.repos || []) {
+      const gh = repos.find((/** @type {any} */ x) => x.name === r.repo), local = folders.includes(r.root) ? onGitHub(r.root) : null;
+      if (gh) list.push({ repo: r.repo, owner: gh.owner, name: gh.name, private: gh.private !== false });
+      else if (local) list.push({ repo: r.repo, ...local, private: true });
+    }
+    listed = { at: d.at, status: d.status, list };
+    return list;
+  }
+  /** @type {{ at: number, status: string, list: { repo: string, owner: string, name: string, private: boolean }[] } | null} */
+  let listed = null;
+  /** what each viewer may read, as GitHub last said, by who @type {Map<string, { at: number, readable: Set<string>, asking: boolean }>} */
+  const reads = new Map();
+  /**
+   * The repos, by name, a viewer may not read on GitHub, so the map leaves them out of what they receive. Someone
+   * not signed in reads only public repos; a signed-in viewer's own GitHub link is asked in the background (kept
+   * five minutes), and until it answers every private repo stays hidden. `onChange` hears when an answer changes it.
+   * @param {string | null} who @param {() => void} [onChange] @returns {Set<string>}
+   */
+  function hiddenFor(who, onChange = () => {}) {
+    const list = onGitHubRepos().filter((r) => r.private);
+    if (!list.length) return new Set();
+    if (!who) return new Set(list.map((r) => r.repo));
+    const kept = reads.get(who);
+    if ((!kept || Date.now() - kept.at > 5 * 60_000) && !kept?.asking) {
+      reads.set(who, { at: kept?.at || 0, readable: kept?.readable || new Set(), asking: true });
+      Promise.all(list.map(async (r) => (await github().canRead(who, r.owner, r.name).catch(() => false)) ? r.repo : null)).then((ok) => {
+        const readable = new Set(/** @type {string[]} */ (ok.filter(Boolean)));
+        const changed = [...readable].sort().join() !== [...(kept?.readable || [])].sort().join();
+        reads.set(who, { at: Date.now(), readable, asking: false });
+        if (changed) onChange();
+      });
+    }
+    const readable = reads.get(who)?.readable || new Set();
+    return new Set(list.filter((r) => !readable.has(r.repo)).map((r) => r.repo));
+  }
   /** Where a repo of this map came from: GitHub's owner and name, or a folder on this Mac. @param {string} repo */
   function sourceOf(repo) {
     if (!fs.existsSync(FOLDERS) || !fs.existsSync(REPORT)) return null;
@@ -150,7 +201,9 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     return root && folders.includes(root) ? { folder: String(root) } : null;
   }
   return {
-    start, codeFor, workFor, sourceOf,
+    start, codeFor, workFor, sourceOf, hiddenFor,
+    /** whether any repo of this map is private on GitHub, or may be */
+    holdsPrivate: () => onGitHubRepos().some((r) => r.private),
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */

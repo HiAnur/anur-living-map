@@ -120,6 +120,20 @@ describe('a system map drawing in the background', () => {
     expect(await job.workFor('local-svc', 'Sam', true)).toEqual({ error: expect.stringContaining("only Harshit can run Actions in it") });
     expect(await job.workFor('nowhere', 'Sam', true)).toEqual({ error: 'nowhere is not one of this map\'s repos.' });
   });
+  it('hides private repos from someone until GitHub says they may read them, and public ones from no one', async () => {
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: r.name !== 'site' }),
+      canRead: async (/** @type {string} */ who, /** @type {string} */ _owner, /** @type {string} */ name) => who === 'Sam' && name === 'api' };
+    const { state, job } = jobOn(async () => ({ state: built, report: { ...report([]), repos: [{ repo: 'api', root: '/cache/api', unread: [] }, { repo: 'billing', root: '/cache/billing', unread: [] }, { repo: 'site', root: '/cache/site', unread: [] }] }, cancelled: false }), undefined, gh);
+    job.start({ repos: [{ owner: 'Shop', name: 'api' }, { owner: 'Shop', name: 'billing' }, { owner: 'Shop', name: 'site' }], by: 'Sam' });
+    await until(() => state.drawing.status !== 'running');
+    expect([...job.hiddenFor(null)].sort()).toEqual(['api', 'billing']);
+    expect(job.holdsPrivate()).toBe(true);
+    let told = 0;
+    // until GitHub answers, every private repo stays hidden; then only what Sam may not read, and his page is told
+    expect([...job.hiddenFor('Sam', () => told++)].sort()).toEqual(['api', 'billing']);
+    await until(() => told === 1);
+    expect([...job.hiddenFor('Sam')]).toEqual(['billing']);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });
