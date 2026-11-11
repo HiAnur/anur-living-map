@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Point a plan's box at your system</strong></dt>
+<dd>
+
+On a map that builds on a system map, a box's **Information** tab can point at the box on the system map it is about, picked by searching that map, and links to it; someone who can't read a private repo sees only "a box you can't see". <!-- source: https://github.com/HiAnur/anur-living-map/pull/399 --> <!-- merged-at: 2026-11-11T09:18:13Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Plan on top of your system map</strong></dt>
 <dd>
 
