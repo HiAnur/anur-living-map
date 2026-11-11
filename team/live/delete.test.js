@@ -8,7 +8,7 @@ import { actionExecuted } from './page-action.js';
 
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 const start=html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('));
-const source=html.slice(start,html.indexOf('const ago =',start));
+const source=html.slice(start,html.indexOf('const commentView =',start));
 describe('delete selected boxes',()=>{
   it('deletes the group immediately without opening a confirmation',()=>{
     for(const key of ['Delete','Backspace']){
@@ -29,7 +29,7 @@ describe('branch deletion confirmation',()=>{
       hideRemoved:s=>{s.nodes=s.nodes.filter(n=>!ctx.pendingRemovals.has(n.id));s.edges=s.edges.filter(e=>!ctx.pendingRemovals.has(e.from)&&!ctx.pendingRemovals.has(e.to));},
       act:async(type,args)=>{calls.push([type,args]);return {ok:true};},document:{addEventListener(type,f){handler=f;}}
     });
-    vm.runInContext(html.slice(html.indexOf('function branchIds('),html.indexOf('const ago =',start)),ctx);
+    vm.runInContext(html.slice(html.indexOf('function branchIds('),html.indexOf('const commentView =',start)),ctx);
     return {ctx,state,calls,key:key=>handler({key,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}})};
   }
   it('keeps a parent and children until Enter confirms, then removes them together',()=>{
