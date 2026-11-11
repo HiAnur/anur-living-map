@@ -49,6 +49,13 @@ describe('action boxes',()=>{
     g.api.execute('form','Duy',g.node.action.id);await new Promise((r)=>setTimeout(r));
     expect(g.launches).toHaveLength(0);expect(g.node.action.stage).toBe('blocked');
   });
+  it('keeps a build from being ready for someone who cannot raise its pull request, and says why',async ()=>{
+    const h=harness({canBuild:async()=>'You can\'t push to Shop/api on GitHub.'});h.start();h.ready();
+    await new Promise((r)=>setTimeout(r));
+    expect(h.node.action).toMatchObject({stage:'error',error:'You can\'t push to Shop/api on GitHub.'});
+    const ok=harness({canBuild:async()=>''});ok.start();ok.ready();await new Promise((r)=>setTimeout(r));
+    expect(ok.node.action.stage).toBe('ready');
+  });
   it('says why, and runs nothing, where the map has no right place for the work to run',()=>{
     const h=harness({cannotRun:()=>'Actions on a system map can\'t run yet.'});h.start();h.ready();
     expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.node.action).toMatchObject({stage:'error',error:'Actions on a system map can\'t run yet.'});expect(h.launches).toHaveLength(0);

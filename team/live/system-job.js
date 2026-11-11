@@ -139,8 +139,18 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if ('cwd' in w) return w;
     return build || !fs.existsSync(r.root) ? w : { cwd: r.root };
   }
+  /** Where a repo of this map came from: GitHub's owner and name, or a folder on this Mac. @param {string} repo */
+  function sourceOf(repo) {
+    if (!fs.existsSync(FOLDERS) || !fs.existsSync(REPORT)) return null;
+    const was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8')), report = JSON.parse(fs.readFileSync(REPORT, 'utf8'));
+    const { folders = [], repos = [] } = Array.isArray(was) ? { folders: was } : was;
+    const gh = repos.find((/** @type {any} */ x) => x.name === repo);
+    if (gh) return { owner: String(gh.owner), name: String(gh.name) };
+    const root = (report.repos || []).find((/** @type {any} */ x) => x.repo === repo)?.root;
+    return root && folders.includes(root) ? { folder: String(root) } : null;
+  }
   return {
-    start, codeFor, workFor,
+    start, codeFor, workFor, sourceOf,
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */

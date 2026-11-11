@@ -110,9 +110,10 @@ export function recoverAction(n) {
  *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
  *   cannotRun?: (n: Box) => string | null,
  *   cwdFor?: (n: Box, by: string) => Promise<{ cwd: string } | { error: string } | null>,
+ *   canBuild?: (n: Box, by: string) => Promise<string>,
  * }} deps
  */
-export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor, canBuild }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -162,6 +163,13 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
             if (!needed || (!needed.length && !kindOf(prepared.brief)?.toolless) || missing?.length || access.denied?.length) prepared = {stage:'error',error:missing?.length ? `Claude could not verify access to: ${missing.join(', ')}. Connect the required tools, then try again.` : 'Claude could not verify the required tools or lookup permissions. Resolve access, then try again.'};
           }
           Object.assign(current, prepared || { stage:'error', error:/signed out|not installed|took too long|stopped before/i.test(reply) ? String(reply).slice(0, 300) : 'Could not prepare this action. Try again or add more detail to the box.' });
+        }
+        // a build is ready only for someone who can raise its pull request: GitHub's word, asked as them
+        if (/** @type {string} */ (current.stage) === 'ready' && kindOf(current.brief)?.branch && canBuild) {
+          canBuild(n, by).then((why) => {
+            if (!why || nodeOf(id)?.action !== current || /** @type {string} */ (current.stage) !== 'ready') return;
+            Object.assign(current, { stage:'error', error:why }); note(current, 'failed', 'Map'); changed();
+          }, () => {});
         }
         // the tools a ready brief lists are the ones code just checked preparation could reach
         const reached = /** @type {string} */ (current.stage);

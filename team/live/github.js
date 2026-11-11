@@ -154,7 +154,25 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     }
     return kept.names.has(`${owner}/${name}`.toLowerCase());
   }
-  return { link, unlink, status, token, repos, fetchRepo, canRead };
+  /** each person's write access by repo, kept a few minutes */
+  /** @type {Map<string, { at: number, ok: boolean }>} */
+  const pushable = new Map();
+  /**
+   * Why a person may not raise a pull request on owner/name, as their own GitHub link says; '' when they may.
+   * @param {string} who @param {string} owner @param {string} name @returns {Promise<string>}
+   */
+  async function whyNoPush(who, owner, name) {
+    if (!saved(who)) return `Connect your GitHub account first (New map, then System map, then Connect GitHub), so the map can check you can push to ${owner}/${name}.`;
+    const key = `${who}\n${owner}/${name}`.toLowerCase(), kept = pushable.get(key);
+    let ok = kept && now() - kept.at < 5 * 60_000 ? kept.ok : null;
+    if (ok === null) {
+      try { const r = await (await api(who, `/repos/${owner}/${name}`)).json(); ok = !!(r.permissions?.push || r.permissions?.maintain || r.permissions?.admin); }
+      catch { ok = false; } // GitHub would not say, or the repo is not one this link reaches: no
+      pushable.set(key, { at: now(), ok });
+    }
+    return ok ? '' : `You can't push to ${owner}/${name} on GitHub, so this Action can't raise its pull request there. Ask someone with write access to run it.`;
+  }
+  return { link, unlink, status, token, repos, fetchRepo, canRead, whyNoPush };
 }
 
 /** @type {ReturnType<typeof github> | null} */
