@@ -72,12 +72,19 @@ describe('redrawChanges', () => {
     const after = { nodes: [repo('api', [box('orders', { label: 'Order service' }), box('refunds')]), repo('web', []), { id: 'mine', label: 'My note' }],
       edges: [{ from: 'web', to: 'api', label: 'calls', origin: 'code' }] };
     expect(redrawChanges(before, after)).toEqual([
-      { what: 'changed', kind: 'box', label: 'Order service', was: 'orders', repo: 'api' },
-      { what: 'added', kind: 'box', label: 'refunds', repo: 'api' },
-      { what: 'gone', kind: 'box', label: 'old', repo: 'api' },
-      { what: 'added', kind: 'line', label: 'web → api', repo: 'web', toRepo: 'api' },
-      { what: 'gone', kind: 'line', label: 'api → web', repo: 'api', toRepo: 'web' },
+      { what: 'changed', kind: 'box', id: 'orders', label: 'Order service', was: 'orders', repo: 'api' },
+      { what: 'added', kind: 'box', id: 'refunds', label: 'refunds', repo: 'api' },
+      { what: 'gone', kind: 'box', id: 'old', label: 'old', repo: 'api' },
+      { what: 'added', kind: 'line', id: 'web>api', label: 'web → api', repo: 'web', toRepo: 'api' },
+      { what: 'gone', kind: 'line', id: 'api>web', label: 'api → web', repo: 'api', toRepo: 'web' },
     ]);
     expect(redrawChanges(before, structuredClone(before))).toEqual([]);
+  });
+  it('keeps the drawn boxes and lines it is told to, where they were, when code no longer finds them', () => {
+    const before = { nodes: [box('api', { inside: { nodes: [box('orders'), box('old')], edges: [{ from: 'orders', to: 'old', origin: 'code' }] } })], edges: [] };
+    const drawn = { nodes: [box('api', { inside: { nodes: [box('orders')], edges: [] } })], edges: [] };
+    const out = keepHandEdits(before, drawn, { boxes: new Set(['old']), lines: new Set(['orders>old']) });
+    expect(out.nodes[0].inside.nodes.map((/** @type {any} */ n) => n.id)).toEqual(['orders', 'old']);
+    expect(out.nodes[0].inside.edges).toEqual([{ from: 'orders', to: 'old', origin: 'code' }]);
   });
 });

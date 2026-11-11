@@ -42,7 +42,7 @@ export function drawingPanel(d, view){
   const review = !running && view.redraw ? (() => {
     const r = view.redraw, cs = /** @type {any[]} */ (r.changes || []);
     const say = (/** @type {any} */ c) => `${c.what === 'added' ? 'Adds' : c.what === 'gone' ? 'Takes away' : 'Changes'} ${c.kind === 'line' ? 'the line ' : ''}${c.was ? `${c.was} → ` : ''}${c.label}`;
-    return `<div class="sd-h"><b>${r.count ? `${r.count} ${r.count === 1 ? 'change' : 'changes'} to review` : 'Nothing you can see changes'}</b><span>Not on the map until applied</span></div>
+    return `<div class="sd-h"><b>${r.count ? `Code no longer finds ${r.count} ${r.count === 1 ? 'thing' : 'things'}` : 'Nothing you can see changes'}</b><span>They stay on the map until applied</span></div>
       <ul class="sd-c">${cs.slice(0, 60).map((c) => `<li class="sd-${esc(c.what)}" data-content>${esc(say(c))}</li>`).join('')}${cs.length > 60 ? `<li>and ${cs.length - 60} more</li>` : ''}</ul>`;
   })() : '';
   const act = !view.mine ? '' : running ? '<button data-sd-cancel>Cancel</button>'

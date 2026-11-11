@@ -4106,8 +4106,10 @@ function renderDrawing(){
   if (!el) return;
   const why = $('lockwhy'), note = S ? lockedNote() : '';
   if (why){ why.hidden = !note; if (why.innerHTML !== note) why.innerHTML = note; }
-  // a redraw waiting for review keeps the panel open until it is applied or dropped
-  if (!d || PREVIEW || (d.status !== 'running' && !S.redraw && sdClosed() === String(d.at))){ el.hidden = true; return; }
+  // a redraw waiting for review keeps the panel open until it is applied or dropped; the map updating itself from new
+  // commits does it quietly, unless it stops or leaves something to review
+  const quiet = d?.auto && d.status !== 'failed' && !S.redraw;
+  if (!d || PREVIEW || quiet || (d.status !== 'running' && !S.redraw && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d), redraw: S.redraw });
 }

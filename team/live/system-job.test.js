@@ -201,43 +201,50 @@ describe('a system map drawing in the background', () => {
     expect(job.boxOf(local)).toBe('system-svc');
     expect(job.boxOf(other)).toBeNull();
   });
-  it('holds what a redraw would change for review, and applies it, with what people did since, or keeps the map', async () => {
-    const was = { nodes: [{ id: 'system-api', label: 'api', origin: 'code', source: { repo: 'api' } }], edges: [], start: 'system-api' };
-    const next = { nodes: [{ id: 'system-api', label: 'API service', origin: 'code', source: { repo: 'api' } }, { id: 'system-jobs', label: 'jobs', origin: 'code', source: { repo: 'jobs' } }], edges: [], start: 'system-api' };
+  it('drawn again, lands what code added or renamed, and holds what it no longer finds for review', async () => {
+    const box = (/** @type {string} */ repo, /** @type {string} */ label) => ({ id: `system-${repo}`, label, origin: 'code', source: { repo } });
+    const was = { nodes: [box('api', 'api'), box('old', 'old')], edges: [], start: 'system-api' };
+    const next = { nodes: [box('api', 'API service'), box('jobs', 'jobs')], edges: [], start: 'system-api' };
     const { state, job } = jobOn(async () => ({ state: structuredClone(next), report: report([]), cancelled: false }), structuredClone(was));
     job.start({ folders: ['/x/api'], by: 'Sam' });
     await until(() => state.drawing.status === 'done');
-    // nothing on the map yet: the changes wait, by repo
-    expect(state.nodes).toEqual(was.nodes);
-    expect(state.redraw).toMatchObject({ by: 'Sam', count: 2, changes: [{ what: 'changed', label: 'API service', was: 'api', repo: 'api' }, { what: 'added', label: 'jobs', repo: 'jobs' }] });
-    // someone adds a box meanwhile: applying keeps it
+    // the rename and the new repo are on the map at once; "old" stays until an Engineer takes it off
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'old']);
+    expect(state.drawing.updated).toBe(2);
+    expect(state.redraw).toMatchObject({ by: 'Sam', count: 1, changes: [{ what: 'gone', kind: 'box', id: 'system-old', label: 'old', repo: 'old' }] });
+    // someone adds a box meanwhile: applying keeps it, and takes "old" off
     state.nodes.push({ id: 'mine', label: 'My note' });
     expect(job.applyRedraw()).toBe(true);
     expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
     expect(state.redraw).toBeUndefined();
     expect(job.applyRedraw()).toBe(false);
-    // drawn again and dropped: the map stays as it is
-    const kept = structuredClone(state.nodes);
-    next.nodes[0].label = 'API';
+    // drawn again without jobs, and kept: jobs stays
+    next.nodes.pop();
     job.retry('Sam');
     await until(() => state.drawing.status === 'done' && !!state.redraw);
     expect(job.dropRedraw()).toBe(true);
-    expect(state.nodes).toEqual(kept);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
   });
-  it('notices new commits by itself, as whoever drew the map, and keeps them in the drawing', async () => {
+  it('notices new commits by itself, as whoever drew the map, and draws them', async () => {
     const heads = /** @type {Record<string, string>} */ ({ api: 'c2', site: 'c1' });
     const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: false }),
       canRead: async () => true, status: () => ({ linked: 'sam' }), headOf: async (/** @type {string} */ _who, /** @type {string} */ _owner, /** @type {string} */ name) => heads[name] };
     const repos = ['api', 'site'].map((repo) => ({ repo, root: `/cache/${repo}`, head: { commit: 'c1', branch: 'main' }, unread: [] }));
-    const { state, job, pushes } = jobOn(async () => ({ state: built, report: { ...report([]), repos }, cancelled: false }), undefined, gh);
+    // the second drawing reads api at its new commit
+    let draws = 0;
+    const { state, job } = jobOn(async () => { draws++; return { state: built, report: { ...report([]), repos: draws > 1 ? repos.map((r) => r.repo === 'api' ? { ...r, head: { commit: 'c2', branch: 'main' } } : r) : repos }, cancelled: false }; }, undefined, gh);
     job.start({ repos: ['api', 'site'].map((name) => ({ owner: 'Shop', name })), by: 'Sam' });
     await until(() => state.drawing.status === 'done');
-    const told = pushes.length;
+    const first = state.drawing;
     const stop = job.watch(20);
-    await until(() => (state.drawing.newCommits || []).length === 1);
+    // api moved: the map notes it, then draws itself again, as whoever drew it
+    await until(() => draws === 2 && state.drawing.status === 'done');
+    expect(first.newCommits).toEqual(['api']);
+    expect(state.drawing).toMatchObject({ auto: true, by: 'Sam', status: 'done' });
+    // nothing new since: no third drawing
+    await new Promise((r) => setTimeout(r, 120));
     stop();
-    expect(state.drawing.newCommits).toEqual(['api']);
-    expect(pushes.length).toBeGreaterThan(told);
+    expect(draws).toBe(2);
   });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
