@@ -187,7 +187,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
   /**
    * The repos, by name, a viewer may not read on GitHub, so the map leaves them out of what they receive. Someone
    * not signed in reads only public repos; a signed-in viewer's own GitHub link is asked in the background (kept
-   * five minutes), and until it answers every private repo stays hidden. `onChange` hears when an answer changes it.
+   * five minutes, or 30 seconds while they may read none, so linking GitHub shows their repos soon), and until it
+   * answers every private repo stays hidden. `onChange` hears when an answer changes it.
    * @param {string | null} who @param {() => void} [onChange] @returns {Set<string>}
    */
   function hiddenFor(who, onChange = () => {}) {
@@ -195,7 +196,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if (!list.length) return new Set();
     if (!who) return new Set(list.map((r) => r.repo));
     const kept = reads.get(who);
-    if ((!kept || Date.now() - kept.at > 5 * 60_000) && !kept?.asking) {
+    const fresh = kept?.readable.size ? 5 * 60_000 : 30_000;
+    if ((!kept || Date.now() - kept.at > fresh) && !kept?.asking) {
       reads.set(who, { at: kept?.at || 0, readable: kept?.readable || new Set(), asking: true });
       Promise.all(list.map(async (r) => (await github().canRead(who, r.owner, r.name).catch(() => false)) ? r.repo : null)).then((ok) => {
         const readable = new Set(/** @type {string[]} */ (ok.filter(Boolean)));
