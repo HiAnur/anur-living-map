@@ -659,6 +659,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
     mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,
+    applyRedraw: () => { const done = system.applyRedraw(); if (done) { save(); push(); } return done; },
+    dropRedraw: () => { const done = system.dropRedraw(); if (done) { save(); push(); } return done; },
     /** the box a clone on this Mac has on this system map, if it was drawn from that repo @param {string} folder */
     repoBox: (folder) => state.drawing ? system.boxOf(folder) : null,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot(),

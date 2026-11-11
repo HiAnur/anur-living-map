@@ -39,7 +39,7 @@ export function sharedState(state, owner = false, guest = false, who = null, hid
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, project: undefined });
+  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, redraw: undefined, project: undefined });
   const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
   return sees && sees !== 'all' ? forArea(result, sees) : result;
 }
@@ -59,6 +59,11 @@ export const PRIVATE_REPO = 'A private repo';
  */
 export function withoutRepos(state, hidden) {
   if (!hidden?.size) return state;
+  // a redraw waiting for review lists changes by repo: those in repos they may not read are left out, with the count
+  if (state.redraw) {
+    const changes = (state.redraw.changes || []).filter((/** @type {any} */ c) => !hidden.has(c.repo) && !hidden.has(c.toRepo));
+    state = { ...state, redraw: { ...state.redraw, changes, count: changes.length } };
+  }
   /** @type {Set<string>} */
   const away = new Set();
   /** @param {any[]} nodes @param {boolean} inHidden */

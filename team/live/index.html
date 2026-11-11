@@ -78,6 +78,8 @@ button,input,textarea{font:inherit;color:inherit}
 .sd-r li span:first-child{font-weight:500}.sd-r li span:last-child{color:var(--text-2);text-align:right}
 .sd-r .sd-failed span:last-child{color:var(--gone)}.sd-r .sd-done span:last-child{color:var(--ok)}
 .sd-n{margin-top:8px;font-size:13px;color:var(--text-2)}
+.sd-c{list-style:none;max-height:180px;overflow:auto;font-size:13px}.sd-c li{padding:3px 0;border-top:1px solid var(--rule)}
+.sd-c .sd-added{color:var(--ok)}.sd-c .sd-gone{color:var(--gone)}
 .sd-a{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.sd-a button{height:30px;padding:0 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--box);cursor:pointer}
 #plan:empty{display:none}
 .tbtn.xbtn{height:34px;padding:0 16px;border:0;border-radius:9px;background:var(--claude);color:#fff;font:600 13px var(--plex);box-shadow:0 2px 10px rgba(201,100,66,.35)}
@@ -4060,9 +4062,10 @@ const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) |
 function renderDrawing(){
   const el = $('sysdraw'), d = S?.drawing;
   if (!el) return;
-  if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
+  // a redraw waiting for review keeps the panel open until it is applied or dropped
+  if (!d || PREVIEW || (d.status !== 'running' && !S.redraw && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d) });
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d), redraw: S.redraw });
 }
 // the repos with commits newer than the drawing read, asked once per drawing and again every five minutes
 let sdNews = { at: 0, asked: 0, repos: /** @type {string[]} */ ([]) };
@@ -4092,6 +4095,8 @@ document.addEventListener('click', (e) => {
   else if (t?.closest('[data-sd-nevermind]')){ sdAsking = false; renderDrawing(); }
   else if (t?.closest('[data-sd-redraw]')){ sdOpen(); sdAsking = true; renderDrawing(); renderSave(); }
   else if (t?.closest('[data-sd-retry]')){ sdAsking = false; sdAct('retry'); }
+  else if (t?.closest('[data-sd-apply]')) sdAct('apply');
+  else if (t?.closest('[data-sd-dismiss]')) sdAct('dismiss');
   else if (t?.closest('[data-sd-close]')){ sdAsking = false; try { localStorage.setItem(`lm-sd-${SYS_MAP}`, String(S?.drawing?.at)); } catch { /* storage blocked: it closes until the page reloads */ } $('sysdraw').hidden = true; renderSave(); }
 });
 const historyView = () => historyScreens({ me: ME, admin: amAdmin(), live: !READ_ONLY, esc, vtime, statusLabel: (a) => actionStatus(a)?.label });

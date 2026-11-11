@@ -27,6 +27,15 @@ const system = () => ({
 });
 
 describe('leaving out the repos someone may not read', () => {
+  it('leaves out a redraw\'s changes that touch a hidden repo, at either end of a line', () => {
+    const redraw = { at: 1, by: 'Duy', count: 3, changes: [
+      { what: 'added', kind: 'box', label: 'Refunds', repo: 'api' },
+      { what: 'added', kind: 'line', label: 'web → api', repo: 'web', toRepo: 'api' },
+      { what: 'changed', kind: 'box', label: 'Shop site', was: 'web', repo: 'web' },
+    ] };
+    const cut = withoutRepos({ ...system(), redraw }, new Set(['api']));
+    expect(cut.redraw).toEqual({ at: 1, by: 'Duy', count: 1, changes: [redraw.changes[2]] });
+  });
   it('keeps a hidden repo\'s place, unnamed and empty, its lines without words, and nothing written about it', () => {
     const cut = withoutRepos(system(), new Set(['api']));
     expect(cut.nodes[0]).toEqual({ id: 'system-api', x: 100, y: 100, label: PRIVATE_REPO, hiddenRepo: true });
