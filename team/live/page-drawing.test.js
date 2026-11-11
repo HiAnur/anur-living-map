@@ -51,4 +51,10 @@ describe('the drawing panel', () => {
     const html = drawingPanel({ status: 'running', at: now, repos: 1, progress: [] }, { esc, now, mine: false });
     expect(html).not.toMatch(/data-sd-/);
   });
+  it('says which repos have new commits since the drawing, once it is done', () => {
+    const d = { status: 'done', at: now - 9_000, ms: 9_000, repos: 2, progress: [{ repo: 'api', stage: 'done', boxes: 3 }, { repo: 'site', stage: 'done', boxes: 2 }] };
+    expect(text(drawingPanel(d, { esc, now, mine: true, changed: ['api'] }))).toContain('1 repo has new commits since this drawing: api.');
+    expect(text(drawingPanel(d, { esc, now, mine: true, changed: ['api', 'site'] }))).toContain('2 repos have new commits since this drawing: api, site.');
+    expect(text(drawingPanel({ ...d, status: 'running' }, { esc, now, mine: true, changed: ['api'] }))).not.toContain('new commits');
+  });
 });

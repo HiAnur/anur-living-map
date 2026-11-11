@@ -163,6 +163,23 @@ describe('a system map drawing in the background', () => {
     await until(() => told === 1);
     expect([...job.hiddenFor('Sam')]).toEqual(['billing']);
   });
+  it('says which repos have newer commits than the drawing read, only those the asker may read, and only with their GitHub link', async () => {
+    const heads = /** @type {Record<string, string>} */ ({ api: 'c2', billing: 'c2', site: 'c1' });
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: r.name !== 'site' }),
+      canRead: async (/** @type {string} */ who, /** @type {string} */ _owner, /** @type {string} */ name) => who === 'Sam' && name !== 'billing',
+      status: (/** @type {string} */ who) => ({ linked: who === 'Sam' ? 'sam' : null }),
+      headOf: async (/** @type {string} */ _who, /** @type {string} */ _owner, /** @type {string} */ name) => heads[name] };
+    const repos = ['api', 'billing', 'site'].map((repo) => ({ repo, root: `/cache/${repo}`, head: { commit: 'c1', branch: 'main' }, unread: [] }));
+    const { state, job } = jobOn(async () => ({ state: built, report: { ...report([]), repos }, cancelled: false }), undefined, gh);
+    job.start({ repos: ['api', 'billing', 'site'].map((name) => ({ owner: 'Shop', name })), by: 'Sam' });
+    await until(() => state.drawing.status !== 'running');
+    let told = 0;
+    job.hiddenFor('Sam', () => told++);
+    await until(() => told === 1);
+    // billing changed too, but Sam may not read it; Kim has no GitHub link, so nothing on GitHub is asked for Kim
+    expect(await job.changed('Sam')).toEqual(['api']);
+    expect(await job.changed('Kim')).toEqual([]);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });

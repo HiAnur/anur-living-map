@@ -2113,7 +2113,8 @@ let saveOpen = false;
 function renderSave(){
   const on = S.autosave !== false;
   const redraw = S.drawing && S.drawing.status !== 'running' && mayRedraw() && sdClosed() === String(S.drawing.at);
-  $('savew').innerHTML = `${redraw ? '<button class="tbtn" data-sd-redraw title="Draw this system map again from its newest code">Redraw</button> ' : ''}<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
+  const news = redraw ? sdChanged(S.drawing) : [];
+  $('savew').innerHTML = `${redraw ? `<button class="tbtn" data-sd-redraw title="${esc(news.length ? `New commits in ${news.join(', ')}. Draw this system map again from its newest code` : 'Draw this system map again from its newest code')}">Redraw${news.length ? ` · ${news.length} changed` : ''}</button> ` : ''}<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
 }
@@ -4019,7 +4020,22 @@ function renderDrawing(){
   if (!el) return;
   if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking });
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d) });
+}
+// the repos with commits newer than the drawing read, asked once per drawing and again every five minutes
+let sdNews = { at: 0, asked: 0, repos: /** @type {string[]} */ ([]) };
+/** @param {any} d */
+function sdChanged(d){
+  if (!d || d.status === 'running' || READ_ONLY || SHARED) return [];
+  if (sdNews.at !== d.at || Date.now() - sdNews.asked > 5 * 60_000){
+    sdNews = { at: d.at, asked: Date.now(), repos: sdNews.at === d.at ? sdNews.repos : [] };
+    fetch('api/system-changed').then((r) => r.json()).then((x) => {
+      if (sdNews.at !== d.at || String(x.repos) === String(sdNews.repos)) return;
+      sdNews.repos = Array.isArray(x.repos) ? x.repos.map(String) : [];
+      renderDrawing(); renderSave();
+    }).catch(() => { /* the map did not answer: nothing is shown as changed */ });
+  }
+  return sdNews.repos;
 }
 setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
 async function sdAct(what){

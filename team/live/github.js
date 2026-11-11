@@ -143,6 +143,11 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     fs.writeFileSync(path.join(folder, '.living-map-head.json'), JSON.stringify({ commit: sha, branch, repo: `${owner}/${name}` }));
     return { folder, commit: sha, branch, private: isPrivate };
   }
+  /** The newest commit on a repo's default branch, as the person's own link sees it. @param {string} who @param {string} owner @param {string} name */
+  async function headOf(who, owner, name) {
+    const info = await (await api(who, `/repos/${owner}/${name}`)).json();
+    return (await (await api(who, `/repos/${owner}/${name}/commits/${encodeURIComponent(info.default_branch)}`, 'application/vnd.github.sha')).text()).trim();
+  }
   /** each person's readable repos, kept a few minutes so a chat does not ask GitHub every time */
   /** @type {Map<string, { at: number, names: Set<string> }>} */
   const readable = new Map();
@@ -174,7 +179,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     }
     return ok ? '' : `You can't push to ${owner}/${name} on GitHub, so this Action can't raise its pull request there. Ask someone with write access to run it.`;
   }
-  return { link, unlink, status, token, repos, fetchRepo, canRead, whyNoPush };
+  return { link, unlink, status, token, repos, fetchRepo, headOf, canRead, whyNoPush };
 }
 
 /** @type {ReturnType<typeof github> | null} */
