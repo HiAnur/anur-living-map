@@ -330,6 +330,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
+    // a system map holds many repos and none of them is this server's folder: an Action there has nowhere right to run yet
+    cannotRun: () => !project && state.drawing ? 'Actions on a system map can\'t run yet: this box\'s code lives in its own repo, not in this map\'s folder.' : null,
     checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
     // a build's worktree lives in the team map's data folder, never inside the project it changes
     builds: {
@@ -450,7 +452,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
   const ACTS = {
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
-    ...chatActs({ getState: () => state, project, name, home, nodeOf, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
+    ...chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
       selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
       relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),

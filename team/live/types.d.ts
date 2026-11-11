@@ -160,6 +160,8 @@ interface AgentConversation {
 }
 interface AskJob {
   cwd: string;
+  /** more folders it may read, read-only: a system map's code */
+  dirs?: string[];
   prompt: string;
   servers?: McpServers;
   propose?: { server: string; tool: string };

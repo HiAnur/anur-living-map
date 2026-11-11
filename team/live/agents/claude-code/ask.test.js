@@ -11,11 +11,11 @@ const PROPOSE = { command: 'node', args: ['propose-mcp.js'], tools: ['propose_ch
 
 // Ask Claude on a box, on a stand-in for the `claude` process: what it may do, what its answer is in each way a
 // run can end, and that an answer is given once.
-function harness(more = {}) {
+function harness(more = {}, /** @type {string[] | undefined} */ dirs = undefined) {
   /** @type {any} */ const proc = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn() });
   spawned.next = proc; spawned.calls.length = 0;
   const words = [], answers = [], proposing = [], proposals = [];
-  const stop = streamClaude({ cwd: '/sample/project', prompt: 'What is this box for?', onText: (t, p) => { words.push(t); proposing.push(p); },
+  const stop = streamClaude({ cwd: '/sample/project', ...(dirs ? { dirs } : {}), prompt: 'What is this box for?', onText: (t, p) => { words.push(t); proposing.push(p); },
     onDone: (t, _access, p) => { answers.push(t); proposals.push(p); },
     servers: { map_propose: PROPOSE, ...more }, propose: { server: 'map_propose', tool: 'propose_change' } });
   const event = (d) => proc.stdout.write(JSON.stringify(d) + '\n');
@@ -41,6 +41,12 @@ describe('Ask Claude on a box', () => {
     expect(h.opts.cwd).toBe('/sample/project');
     expect(h.opts.env.CLAUDECODE).toBeUndefined();
     expect(h.opts.env.PATH).toBe(process.env.PATH);
+    expect(h.args).not.toContain('--add-dir');
+  });
+  it('may also read a system map\'s code it is handed, folder by folder, still read-only', () => {
+    const h = harness({}, ['/code/api', '/code/app']);
+    expect(h.args.join(' ')).toContain('--add-dir /code/api --add-dir /code/app');
+    expect(flag(h.args, '--tools')).toBe('Read,Grep,Glob');
   });
   it('may read the other maps you checked, and nothing more, when given their context', () => {
     const context = { command: 'node', args: ['map-context-mcp.js'], env: { LM_CONTEXT_URL: 'http://127.0.0.1:1/' }, tools: ['list_maps', 'load_map'] };

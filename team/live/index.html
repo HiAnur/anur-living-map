@@ -21,6 +21,9 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex);overflow:hidden;user-select:none}
+/* words you may want to copy: everything in the panels beside the map, never the map itself, where a drag moves boxes */
+#side,#chat,#decs,#hist,#mem,#thread,#sysdraw,#share,#box-metadata,#search-results,#ticket{user-select:text}
+#side button,#chat button,#decs button,#hist button,#mem button,#thread button,#sysdraw button,#share button,body.resizing #side,body.resizing #chat{user-select:none}
 button,input,textarea{font:inherit;color:inherit}
 #top{position:fixed;left:0;right:0;top:0;height:var(--topbar);display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
 /* The title takes the space between the controls and truncates before it can overlap them. */

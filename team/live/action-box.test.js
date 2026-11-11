@@ -7,11 +7,11 @@ import { mapData } from './cloud-data.js';
 // what preparation hands back: its words, what it could use, and its structured answer
 const reply = (data) => data;
 const brief = {kind:'build',goal:'Build a contact form',target:'/sample/website',result:'Visitors can submit an inquiry',steps:['Add the form','Verify a submission']};
-function harness() {
+function harness(/** @type {any} */ more = {}) {
   /** @type {any} */ let node={id:'form',label:'Contact form',sub:'Let visitors reach us'};
   const requests=[],launches=[],stops=[];let changed=0,allowed=true;
   const api=actionBoxes({nodeOf:()=>node,canUse:()=>allowed,context:()=> 'Whole map: Website > Contact form; Audience: small teams',
-    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,executionCwd:'/sample/project',run:r=>{launches.push(r);return ()=>stops.push(true);}});
+    ask:r=>{requests.push(r);return ()=>stops.push(true);}, changed:()=>changed++,executionCwd:'/sample/project',run:r=>{launches.push(r);return ()=>stops.push(true);},...more});
   return {api,requests,launches,stops,get node(){return node;},get changes(){return changed;},remove:()=>node=null,revoke:()=>allowed=false,
     start:()=>{if(!node.action)api.begin('form','Duy');return node.action.stage==='draft'?api.start('form','Duy','Build a contact form for the website'):api.prepare('form','Duy');},ready:()=>requests.at(-1).onDone('',undefined,reply({status:'ready',brief}))};
 }
@@ -37,6 +37,10 @@ describe('action boxes',()=>{
     expect(h.api.execute('form','Duy',id)).toBe(false);expect(h.api.cancel('form','Other')).toBe(false);
     h.ready();expect(h.api.execute('form','Other',id)).toBe(false);expect(h.api.execute('form','Duy','stale')).toBe(false);expect(h.launches).toHaveLength(0);
     h.revoke();expect(h.api.execute('form','Duy',id)).toBe(false);
+  });
+  it('says why, and runs nothing, where the map has no right place for the work to run',()=>{
+    const h=harness({cannotRun:()=>'Actions on a system map can\'t run yet.'});h.start();h.ready();
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.node.action).toMatchObject({stage:'error',error:'Actions on a system map can\'t run yet.'});expect(h.launches).toHaveLength(0);
   });
   it('requires preparation again after the topic changes',()=>{
     const h=harness();h.start();h.ready();h.node.sub='Different task';
