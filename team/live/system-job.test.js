@@ -45,6 +45,35 @@ describe('a system map drawing in the background', () => {
     expect(JSON.stringify(state)).not.toContain('/x/api');
     expect(JSON.parse(fs.readFileSync(path.join(home, 'system-folders.json'), 'utf8'))).toEqual({ folders: ['/x/api'], repos: [] });
   });
+  it('shows each repo of a new map as soon as it is drawn, and leaves a map drawn again as it is until the end', async () => {
+    const reading = (/** @type {string} */ repo) => ({ repo, kinds: ['python'], head: null, facts: [{ id: 'f1', kind: 'function', at: 'a.py:1', name: 'Fn' }] });
+    const drawn = { boxes: [{ id: 'fn', name: 'Fn', kind: 'function', description: 'Does it', facts: ['f1'] }], lines: [], rejected: [], leftOut: [] };
+    /** @type {any[]} */
+    const seen = [];
+    let release = () => {};
+    const draw = async (/** @type {any} */ o) => {
+      o.onDrawn(reading('api'), drawn);
+      seen.push(state.nodes.map((/** @type {any} */ n) => n.label));
+      await new Promise((/** @type {any} */ r) => { release = r; });
+      return { state: built, report: report([]), cancelled: false };
+    };
+    const { state, job } = jobOn(draw);
+    job.start({ folders: ['/x/api', '/x/bot'], by: 'Sam' });
+    await until(() => seen.length === 1);
+    expect(seen[0]).toEqual(['api']);
+    expect(state.nodes[0].inside.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Fn']);
+    release();
+    await until(() => state.drawing.status === 'done');
+    expect(state.nodes).toEqual(built.nodes);
+    // drawn again over a map that has boxes: nothing changes until the drawing is done
+    seen.length = 0;
+    job.retry('Sam');
+    await until(() => seen.length === 1);
+    expect(seen[0]).toEqual(['api']);
+    expect(state.nodes).toEqual(built.nodes);
+    release();
+    await until(() => state.drawing.status === 'done');
+  });
   it('stops when cancelled and leaves the map as it was', async () => {
     const stopped = { state: null, report: report([{ repo: 'api', stage: 'cancelled' }]), cancelled: true };
     const { state, job } = jobOn((/** @type {any} */ o) => new Promise((resolve) => { if (o.signal.aborted) resolve(stopped); o.signal.addEventListener('abort', () => resolve(stopped)); }));
@@ -119,6 +148,20 @@ describe('a system map drawing in the background', () => {
     expect(await job.workFor('local-svc', 'Harshit', true)).toEqual({ cwd: local });
     expect(await job.workFor('local-svc', 'Sam', true)).toEqual({ error: expect.stringContaining("only Harshit can run Actions in it") });
     expect(await job.workFor('nowhere', 'Sam', true)).toEqual({ error: 'nowhere is not one of this map\'s repos.' });
+  });
+  it('hides private repos from someone until GitHub says they may read them, and public ones from no one', async () => {
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: r.name !== 'site' }),
+      canRead: async (/** @type {string} */ who, /** @type {string} */ _owner, /** @type {string} */ name) => who === 'Sam' && name === 'api' };
+    const { state, job } = jobOn(async () => ({ state: built, report: { ...report([]), repos: [{ repo: 'api', root: '/cache/api', unread: [] }, { repo: 'billing', root: '/cache/billing', unread: [] }, { repo: 'site', root: '/cache/site', unread: [] }] }, cancelled: false }), undefined, gh);
+    job.start({ repos: [{ owner: 'Shop', name: 'api' }, { owner: 'Shop', name: 'billing' }, { owner: 'Shop', name: 'site' }], by: 'Sam' });
+    await until(() => state.drawing.status !== 'running');
+    expect([...job.hiddenFor(null)].sort()).toEqual(['api', 'billing']);
+    expect(job.holdsPrivate()).toBe(true);
+    let told = 0;
+    // until GitHub answers, every private repo stays hidden; then only what Sam may not read, and his page is told
+    expect([...job.hiddenFor('Sam', () => told++)].sort()).toEqual(['api', 'billing']);
+    await until(() => told === 1);
+    expect([...job.hiddenFor('Sam')]).toEqual(['billing']);
   });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });

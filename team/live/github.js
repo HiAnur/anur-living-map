@@ -101,7 +101,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     return { linked: t ? t.login : null, pending: p && p.until > now() ? p : null };
   }
 
-  /** Every repo the person can read where the app is installed, by account, but archived ones. @param {string} who */
+  /** Every repo the person can read where the app is installed, by account, but archived, forked and empty ones. @param {string} who */
   async function repos(who) {
     const { installations } = await (await api(who, '/user/installations?per_page=100')).json();
     /** @type {{ owner: string, name: string, private: boolean, branch: string }[]} */
@@ -109,8 +109,9 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     for (const inst of installations || []) {
       for (let page = 1; page <= 10; page++) {
         const r = await (await api(who, `/user/installations/${inst.id}/repositories?per_page=100&page=${page}`)).json();
-        // an archived repo is no longer part of the running system
-        for (const x of r.repositories || []) if (!x.archived && !x.disabled) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch });
+        // an archived repo is no longer part of the running system, a fork is someone else's code, an empty one holds none
+        for (const x of r.repositories || []) if (!x.archived && !x.disabled && !x.fork && x.size !== 0) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch,
+          ...(x.language ? { language: String(x.language) } : {}), ...(x.pushed_at ? { pushed: Date.parse(x.pushed_at) } : {}) });
         if ((r.repositories || []).length < 100) break;
       }
     }
@@ -129,7 +130,8 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     const { sha } = await (await api(who, `/repos/${owner}/${name}/commits/${encodeURIComponent(branch)}`, 'application/vnd.github.sha')).text().then((s) => ({ sha: s.trim() }));
     if (!/^[0-9a-f]{40}$/.test(sha)) throw Object.assign(new Error(`GitHub gave no commit for ${owner}/${name}.`), { status: 502 });
     const folder = path.join(REPOS, owner, sha.slice(0, 12), name);
-    if (fs.existsSync(path.join(folder, '.living-map-head.json'))) return { folder, commit: sha, branch };
+    const isPrivate = info.private !== false;
+    if (fs.existsSync(path.join(folder, '.living-map-head.json'))) return { folder, commit: sha, branch, private: isPrivate };
     const tarball = Buffer.from(await (await api(who, `/repos/${owner}/${name}/tarball/${sha}`)).arrayBuffer());
     fs.rmSync(folder, { recursive: true, force: true });
     fs.mkdirSync(folder, { recursive: true });
@@ -139,7 +141,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     finally { fs.rmSync(archive, { force: true }); }
     dropLinks(folder);
     fs.writeFileSync(path.join(folder, '.living-map-head.json'), JSON.stringify({ commit: sha, branch, repo: `${owner}/${name}` }));
-    return { folder, commit: sha, branch };
+    return { folder, commit: sha, branch, private: isPrivate };
   }
   /** each person's readable repos, kept a few minutes so a chat does not ask GitHub every time */
   /** @type {Map<string, { at: number, names: Set<string> }>} */

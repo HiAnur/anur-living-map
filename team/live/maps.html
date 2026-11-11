@@ -82,7 +82,8 @@ a.map:hover{border-color:var(--text)}
 #gh-repos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin:0 0 12px;max-height:260px;overflow:auto}
 #gh-repos label{display:flex;gap:6px;align-items:center;font-size:13px;overflow-wrap:anywhere}
 #gh-repos h3{grid-column:1/-1;margin:6px 0 0;font-size:12px;font-weight:500;color:var(--text-2)}
-#gh-repos small{color:var(--text-3);font-size:11.5px;white-space:nowrap}
+#gh-repos small{display:block;color:var(--text-3);font-size:11.5px}
+#gh-repos label{align-items:flex-start}#gh-repos input{margin-top:3px}
 #code .line{display:flex;gap:8px;align-items:center;margin-bottom:12px}
 #code .line label{flex:none;font-size:13px;color:var(--text-2);width:56px}
 #code input[type=text]{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid var(--rule-2);border-radius:7px;font:13px var(--plex)}
@@ -267,7 +268,7 @@ async function showGitHub(){
   }
   const owners = [...new Set(got.b.repos.map((x) => x.owner))];
   set('gh-state', who);
-  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}>${esc(x.name)}${x.private ? ' <small>private</small>' : ''}</label>`; }).join('')}`).join('')
+  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span>${esc(x.name)}<small>${[x.private ? 'private' : '', x.language || '', x.pushed ? `pushed ${ago(x.pushed)}` : ''].filter(Boolean).map(esc).join(' · ')}</small></span></label>`; }).join('')}`).join('')
     + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`);
   if (!$('code-title').value) $('code-title').placeholder = `${owners[0]} system`;
   $('code-pick').hidden = false;

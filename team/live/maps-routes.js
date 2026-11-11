@@ -104,7 +104,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
     }
     if (url.pathname === '/api/map-context' && req.method === 'GET') {
       if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
-      const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: map.snapshot })) });
+      const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: () => map.snapshotFor ? map.snapshotFor(who || null) : map.snapshot() })) });
       try {
         return json(200, read(url.searchParams.get('tool') || 'list_maps', { id: url.searchParams.get('id'), query: url.searchParams.get('query') || '', offset: Number(url.searchParams.get('offset') || 0),
           ...(url.searchParams.has('sections') ? {sections:/** @type {string} */ (url.searchParams.get('sections')).split(',')} : {}) }));

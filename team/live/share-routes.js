@@ -6,9 +6,10 @@ import { changeSharing } from './sharing.js';
 
 /**
  * @param {{ getState: () => any, cloud: any, save: () => void, push: () => void, cursors: Record<string, any>,
- *   clients: Set<any>, viewers: Map<any, any>, send: (res: any, ev: any, data: any) => void, here: () => void }} deps
+ *   clients: Set<any>, viewers: Map<any, any>, send: (res: any, ev: any, data: any) => void, here: () => void,
+ *   holdsPrivate?: () => boolean }} deps `holdsPrivate`: a system map holds a repo that is private on GitHub
  */
-export function shareRoutes({ getState, cloud, save, push, cursors, clients, viewers, send, here }) {
+export function shareRoutes({ getState, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate = () => false }) {
   /** @param {any} req @param {any} res @param {string} p @param {{ who: any, role: any, deny: () => boolean }} asker */
   return async (req, res, p, { who, role, deny }) => {
   if (p === '/api/cloud' && req.method === 'GET') {
@@ -29,6 +30,8 @@ export function shareRoutes({ getState, cloud, save, push, cursors, clients, vie
     let a = await jsonBody(req, undefined);
     if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
     if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
+      // the online copy is the whole map, for anyone with its link: a private repo's contents never go there
+      if (holdsPrivate()) { res.writeHead(409, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This system map holds private repos, so it can\'t go online: its link would show their contents to anyone.' })); return true; }
       try { await cloud.publish(a.mode); }
       catch (/** @type {any} */ e) { res.writeHead(503, { 'content-type': 'application/json' }).end(JSON.stringify({ error: e.message })); return true; }
     }
