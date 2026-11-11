@@ -2,6 +2,7 @@
 // flags in this folder, and nothing outside it does. Another agent implements the same AgentWorker and
 // AgentConversation.
 import { childEnv, claudeLogin, SIGNED_OUT, streamClaude } from './ask.js';
+import { answer } from './answer.js';
 import { converse } from './converse.js';
 export { claudeCodeChats } from './conversation.js';
 import { prepareAction } from './prepare.js';
@@ -16,4 +17,5 @@ export const claudeCode = () => ({
   prepare: (job) => prepareAction({ env: childEnv(), ...job }),
   run: (job) => runAction({ env: childEnv(), ...job }),
   converse,
+  answer: (job) => answer(job),
 });

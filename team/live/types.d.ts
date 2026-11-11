@@ -141,6 +141,8 @@ interface AgentWorker {
   run(job: RunJob): Stop;
   // one turn of a headless chat the map runs itself, resumed by session id
   converse(job: ConverseJob): () => void;
+  // one answer held to `schema`, with no tools and nothing read but the prompt (drawing a system map from facts)
+  answer(job: AnswerJob): Promise<AnswerResult>;
 }
 // Your own chats with the agent, as the map follows and opens them (agent.js `chats`).
 interface AgentConversation {
@@ -184,6 +186,19 @@ interface RunJob {
   read: (value: unknown) => any;
   onText: (words: string) => void;
   onDone: (result: RunResult) => void;
+}
+interface AnswerJob {
+  prompt: string;
+  schema: object;
+  model?: string;
+  timeoutMs?: number;
+}
+/** An answer held to its schema, or why there is none, and what it cost (in the agent's own unit). */
+interface AnswerResult {
+  value?: unknown;
+  error?: string;
+  cost?: { value: number; unit: string };
+  ms: number;
 }
 interface ConverseJob {
   cwd: string;
