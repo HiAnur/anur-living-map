@@ -373,5 +373,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     for (const [id, job] of runs) { runs.delete(id); job.stop?.(); if (nodeOf(id)?.action === job.a) recoverAction(nodeOf(id)); }
     changed();
   }
-  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, handover, stop, reconcile, close };
+  /** whether an Action is being prepared or run now */
+  const busy = () => jobs.size > 0 || runs.size > 0;
+  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, handover, stop, reconcile, close, busy };
 }

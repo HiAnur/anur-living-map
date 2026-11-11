@@ -612,7 +612,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (result.ok) { actions.reconcile(allBoxesOf(state)); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
-  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem,
+  // whether Claude is at work on this map now: a reply, an Action, a system map drawing, a new map being drawn
+  const busy = () => activeAsks.size > 0 || !!building || system.running() || actions.busy();
+  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy,
     cancelDrawing: system.cancel, retryDrawing: system.retry,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
@@ -694,7 +696,8 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(200, { 'content-type': /** @type {Record<string, any>} */ (types)[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));
 });
 
-const { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening } = selfUpdate(server);
+// an update waits while Claude is at work on any map, so a restart never cuts a reply, an Action or a drawing short
+const { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening } = selfUpdate(server, () => maps.everyMap().some(([, m]) => m.busy?.()));
 for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
 server.listen(PORT, '127.0.0.1', async () => {
   console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
