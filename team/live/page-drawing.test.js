@@ -45,7 +45,7 @@ describe('the drawing panel', () => {
     expect(html).not.toContain('data-sd-retry');
     const asking = drawingPanel({ status: 'done', at: 0, ms: 1, repos: 1, progress: [] }, { esc, now, mine: true, asking: true });
     expect(asking).toContain('data-sd-retry');
-    expect(text(asking)).toContain('It replaces any change made by hand on this map.');
+    expect(text(asking)).toContain('What people changed stays');
   });
   it('offers nothing to someone who may only look', () => {
     const html = drawingPanel({ status: 'running', at: now, repos: 1, progress: [] }, { esc, now, mine: false });
