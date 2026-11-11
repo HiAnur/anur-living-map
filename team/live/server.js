@@ -56,7 +56,7 @@ import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
-import { managesAccess, removedFrom } from './access.js';
+import { isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
 import { linkRole, localTool, permission, sharedState, withoutRepos } from './sharing.js';
@@ -648,6 +648,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // whether Claude is at work on this map now: a reply, an Action, a system map drawing, a new map being drawn
   const busy = () => activeAsks.size > 0 || !!building || system.running() || actions.busy();
   return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy,
+    /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
+    mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot(),
     /** the map as someone may read it, as background for another map: without the repos they may not read @param {string | null} who */

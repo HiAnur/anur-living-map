@@ -1,6 +1,6 @@
 // A map's sharing and access, at <map address>/api/...: the cloud copy, the share link, and who is a member.
 // Each answers only after the map's own checks in openMap; true when the path was one of them.
-import { changeAccess } from './access.js';
+import { changeAccess, setEngineer } from './access.js';
 import { jsonBody } from './request.js';
 import { changeSharing } from './sharing.js';
 
@@ -44,6 +44,12 @@ export function shareRoutes({ getState, cloud, save, push, cursors, clients, vie
     if (!who || origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) { res.writeHead(403).end(); return true; }
     /** @type {any} */ let a = await jsonBody(req, {});
     if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end('Invalid access change'); return true; }
+    // an Admin marks someone Engineer, or not: who, with whoever drew it, may redraw a system map
+    if (typeof a.engineer === 'boolean') {
+      if (!setEngineer(getState(), who, a.person, a.engineer)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can make someone an Engineer.' })); return true; }
+      save(); push();
+      res.writeHead(200, { 'content-type': 'application/json' }).end('{}'); return true;
+    }
     if (!changeAccess(getState(), who, a.person, a.restore === true)) { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Only an owner can remove or restore a member. Owners keep their access.' })); return true; }
     save();
     if (!a.restore) {
