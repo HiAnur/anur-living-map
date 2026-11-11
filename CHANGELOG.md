@@ -3,12 +3,12 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
-<dt><strong>🚀 [Major feature] System map from code</strong></dt>
+<dt><strong>🚀 [Major feature] System map from your code on GitHub</strong></dt>
 <dd>
 
-**System map from code**, on the list of maps, draws your system from the repos you pick in a folder on your Mac: each repo's box opens into its main parts, and each part into its functions, tables and routes, and nothing goes on the map that the code does not show. A panel over the map shows each repo's progress and about how long is left, with **Cancel**, and **Draw again** redraws only what failed or changed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/368 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/370 --> <!-- merged-at: 2026-11-11T04:08:40Z -->
+**New map** now asks which kind you want: a **Default map** (a blank canvas) or a **System map**, drawn from the repos you choose on GitHub after you connect your account and install the Anur Living Map app on your organization. Each repo's box opens into its main parts, and each part into its functions, tables and routes; nothing goes on the map that the code does not show. A panel shows each repo's progress and about how long is left, with **Cancel**, and **Draw again** redraws only what failed or changed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/368 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/370 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/372 --> <!-- merged-at: 2026-11-11T04:29:16Z -->
 
-<img src="docs/shipping/2026-11-11/system-map-from-code.jpg" alt="The list of maps with System map from code open: a folder, the repos in it with checkboxes, a name, about how long it takes, and Draw the map." width="480">
+<img src="docs/shipping/2026-11-11/new-map-choice.jpg" alt="The list of maps with the New map dialog open, offering System map, drawn from code, and Default map, a blank canvas." width="520">
 
 <img src="docs/shipping/2026-11-11/system-map-progress.jpg" alt="A new Shop system map with the drawing panel over it: a progress bar, each repo's stage, the time so far, about how long is left, and Cancel." width="560">
 
