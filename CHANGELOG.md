@@ -3,10 +3,30 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
-<dt><strong>✨ [New feature] Redraw says what changed in your code</strong></dt>
+<dt><strong>✨ [New feature] Open the system map from your repo</strong></dt>
 <dd>
 
-On a finished system map, **Redraw** at the top shows how many repos have new commits since the map was drawn, and the drawing panel names them; it counts only repos you can read. Redraw reads the newest code, redraws only the repos that changed or could not be drawn, and the panel says why a repo was not drawn. <!-- source: https://github.com/HiAnur/anur-living-map/pull/395 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/379 --> <!-- merged-at: 2026-11-11T09:02:30Z -->
+Running `/anur-living-map` in your copy of a repo that a system map was drawn from opens that system map at the repo's own box, with your chat linked to it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/397 --> <!-- merged-at: 2026-11-11T09:09:48Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Redraw keeps your changes and says what changed in your code</strong></dt>
+<dd>
+
+On a finished system map, **Redraw** at the top shows how many repos have new commits since the map was drawn, and the drawing panel names them; it counts only repos you can read. Redrawing reads the newest code and redraws only the repos that changed or could not be drawn, and keeps what people did to the map: boxes they added, their words and moves on drawn boxes, Actions, and lines they drew. <!-- source: https://github.com/HiAnur/anur-living-map/pull/394 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/395 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/379 --> <!-- merged-at: 2026-11-11T09:08:16Z -->
+
+<img src="docs/shipping/2026-11-11/redraw-new-commits.jpg" alt="A sample system map with the drawing panel saying 1 repo has new commits since this drawing, with Draw again and Close." width="560">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>The list of maps says how current each system map is</strong></dt>
+<dd>
+
+Each system map on the list of maps shows how many repos it was drawn from and when. <!-- source: https://github.com/HiAnur/anur-living-map/pull/396 --> <!-- merged-at: 2026-11-11T09:07:45Z -->
 
 </dd>
 </dl>
