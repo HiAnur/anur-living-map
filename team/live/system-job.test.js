@@ -87,17 +87,23 @@ describe('a system map drawing in the background', () => {
   it('draws again reusing each repo already drawn at the same commit', async () => {
     /** @type {any[]} */
     const reused = [];
+    const kept = { boxes: [], lines: [] };
     const { state, job } = jobOn(async (/** @type {any} */ o) => {
-      const api = { repo: 'api', head: { commit: 'c1' } }, bot = { repo: 'bot', head: { commit: 'c2' } };
+      // a reading and a drawing shaped as the real ones, so showing the repo on the map as it is drawn works
+      const api = { repo: 'api', head: { commit: 'c1' }, kinds: [], facts: [] }, bot = { repo: 'bot', head: { commit: 'c2' }, kinds: [], facts: [] };
       reused.push([o.reuse(api), o.reuse(bot)]);
-      o.onDrawn(api, { boxes: ['kept'] });
+      o.onDrawn(api, kept);
       return { state: built, report: report([{ repo: 'api', stage: 'done' }, { repo: 'bot', stage: 'failed', error: 'signed out' }]), cancelled: false };
     });
     job.start({ folders: ['/x/api', '/x/bot'], by: 'Harshit' });
     await until(() => state.drawing.status === 'failed');
+    // failed because the report says bot failed, not because the drawing crashed
+    expect(state.drawing.error).toBeUndefined();
+    expect(state.drawing.progress.find((/** @type {any} */ p) => p.repo === 'bot')).toMatchObject({ stage: 'failed', error: 'signed out' });
     expect(job.retry('Harshit')).toBe(true);
     await until(() => reused.length === 2 && state.drawing.status !== 'running');
-    expect(reused).toEqual([[null, null], [{ boxes: ['kept'] }, null]]);
+    expect(state.drawing.error).toBeUndefined();
+    expect(reused).toEqual([[null, null], [kept, null]]);
   });
   it('downloads GitHub repos first as whoever asked, and keeps one GitHub would not give on the panel with why', async () => {
     /** @type {any[]} */
