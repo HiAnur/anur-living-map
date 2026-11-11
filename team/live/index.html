@@ -1664,7 +1664,9 @@ function drawDiagram(db){
   nodesEl.innerHTML = html;
 }
 
-function fit(){
+/** Frames the view: the whole of it at the zoom that fits, or at the zoom `keep` gives, centred where it fits and
+ * from its top left where it does not. @param {number} [keep] */
+function fit(keep){
   const fb = flowBox(), db = diagramBox();
   const { nodes } = scope(); if (!fb && !db && !nodes.length) return;
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
@@ -1677,8 +1679,9 @@ function fit(){
   // Docked panes already reduce the canvas width. Only the floating pull-request card needs extra room.
   const right = prsOpen ? Math.min(440, r.width / 2) : 24, bottom = 160;
   const fitIn = (left, top) => Math.max(.1, Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY)));
-  const [left, top] = [40, 30], z = fitIn(left, top);
-  cam.z = z; cam.x = left + ((r.width - left - right) - (maxX - minX) * z) / 2 - minX * z; cam.y = top + ((r.height - top - bottom) - (maxY - minY) * z) / 2 - minY * z;
+  const [left, top] = [40, 30], z = keep ? Math.max(.1, Math.min(1.6, keep)) : fitIn(left, top);
+  const roomX = (r.width - left - right) - (maxX - minX) * z, roomY = (r.height - top - bottom) - (maxY - minY) * z;
+  cam.z = z; cam.x = left + (keep && roomX < 0 ? 0 : roomX / 2) - minX * z; cam.y = top + (keep && roomY < 0 ? 0 : roomY / 2) - minY * z;
   place();
 }
 
@@ -3729,7 +3732,14 @@ canvas.addEventListener('wheel', (e) => {
   place();
 }, { passive: false });
 
-function enter(id){ view = id; selected = null; render(); fit(); }
+// Going into a box keeps the zoom you had; coming back out returns to the view you left at that level
+const cams = new Map();
+function enter(id){
+  cams.set(view, { ...cam }); const z = cam.z;
+  view = id; selected = null; render();
+  const back = cams.get(id);
+  if (back){ Object.assign(cam, back); place(); } else fit(z);
+}
 // Esc steps back out of a box
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input, textarea')){ if (view.startsWith('diagram:')) closeDiagram(); else enter('system'); } });
 document.addEventListener('click', (e) => {
@@ -3750,7 +3760,7 @@ document.addEventListener('click', (e) => {
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.closest('[data-claude-login]')){ claudeLogin(); return; }
   if (t.closest('[data-signout]')){ fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); return; }
-  if (t.dataset.v === 'system'){ view = 'system'; selected = null; render(); fit(); }
+  if (t.dataset.v === 'system'){ enter('system'); }
   else if (t.dataset.enter){ enter(t.dataset.enter); }
   else if (t.dataset.flow){ openFlow(t.dataset.flow); }
   else if (t.dataset.diagram){ openDiagram(t.dataset.diagram); }

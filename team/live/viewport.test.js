@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
-const source = html.slice(html.indexOf('function fit(){'),html.indexOf('// a database is drawn'));
+const source = html.slice(html.indexOf('/** Frames the view:'),html.indexOf('// a database is drawn'));
 describe('fitting a narrow map',()=>{
   for(const width of [318,360,600]) it(`fits inside the ${width}px canvas without subtracting the docked pane twice`,()=>{
     const nodes=[{x:100,y:100},{x:310,y:100},{x:310,y:185}],cam={};
