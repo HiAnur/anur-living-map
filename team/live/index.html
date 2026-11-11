@@ -2586,7 +2586,8 @@ function renderSide(){
       const tip = last ? `✓ Decided by ${last.by}, ${last.at}` : n.decided ? `✓ Decided by ${n.decided.who}, ${n.decided.at}` : '';
       const top = !n.sub && n.decided && !done.length ? n.decided.what : '';
       const glance = (ls, first) => { let html = '', list = [];
-        const flush = () => { if (list.length) html += `<ul class="nt-list">${list.map((v) => `<li>${prose(v)}</li>`).join('')}</ul>`; list = []; };
+        // a line may link where it came from, such as a file and line on GitHub
+        const flush = () => { if (list.length) html += `<ul class="nt-list">${list.map((v) => `<li>${inlineMd(v)}</li>`).join('')}</ul>`; list = []; };
         ls.forEach((l, i) => {
           const item = l.match(/^[-•]\s+(.+)/), pair = l.match(/^([A-Z][\w' ]{1,23}):\s+(.+)/);
           if (pair){ flush(); const k = pair[1], warn = /catch|risk|warning|watch out|unknown|not known|downside|danger/i.test(k);
