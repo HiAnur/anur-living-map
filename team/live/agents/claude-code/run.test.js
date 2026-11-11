@@ -37,6 +37,10 @@ describe('background execution',()=>{
     const h=harness(true);h.event({type:'result',result:'Could not send.',permission_denials:[{tool_name:'Send'}]});h.proc.emit('close',0);expect(h.results[0].blocked).toBe(true);expect(h.results[0].text).toContain('permission');expect(h.calls).toHaveLength(1);
     const bad=harness(true);bad.proc.stderr.write('Chat not found');bad.proc.emit('close',1);expect(bad.results[0]).toMatchObject({blocked:true});expect(bad.results[0].text).toContain('Chat not found');expect(bad.calls).toHaveLength(1);
   });
+  it('does not count a refused push as missing access, since the map pushes after the run',()=>{
+    const h=harness(true);h.event({type:'result',result:'Committed.',structured_output:{status:'completed',summary:'Committed the fix.',evidence:['commit abc']},permission_denials:[{tool_name:'Bash',tool_input:{command:'git push -u origin action/x'}}]});h.proc.emit('close',0);
+    expect(h.results[0].blocked).toBe(false);expect(h.results[0].text).not.toContain('permission');
+  });
   it('requests structured outcomes and keeps evidence separately from the expected result',()=>{
     const h=harness();expect(JSON.parse(h.calls[0][1][h.calls[0][1].indexOf('--json-schema')+1])).toEqual(completionSchema);
     const completion={status:'completed',summary:'Sent the test email.',evidence:['Sent message: sample-123, to alex@example.com']};
@@ -45,7 +49,7 @@ describe('background execution',()=>{
     for(const value of [null,{}, {...completion,evidence:[]}, {...completion,evidence:['']}, {...completion,evidence:[{}]}, {...completion,summary:''}, {...completion,status:'success'}])expect(readCompletion(value)).toBeNull();
   });
   it('keeps tool failures and access errors from confirming completion',()=>{
-    for(const extra of [{is_error:true},{permission_denials:[{tool_name:'Send'}]}]){
+    for(const extra of [{is_error:true},{permission_denials:[{tool_name:'Send'}]},{permission_denials:[{tool_name:'Bash',tool_input:{command:'git push origin x'}},{tool_name:'Bash',tool_input:{command:'rm -rf build'}}]}]){
       const h=harness();h.event({type:'result',...extra,structured_output:{status:'completed',summary:'Sent',evidence:['message-id']}});h.proc.emit('close',0);
       expect(h.results[0].blocked).toBe(true);expect(h.results[0].completion).toBeUndefined();expect(h.results[0].text).not.toBe('Sent');
     }
