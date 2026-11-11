@@ -44,12 +44,12 @@ import { readRoutes } from './read-routes.js';
 import { selfUpdate } from './self-update.js';
 import { jsonBody } from './request.js';
 import { shareRoutes } from './share-routes.js';
-import { guardDrawing } from './draw-guard.js';
+import { callActs } from './call-acts.js';
+import { drawing } from './drawing.js';
 import { mapActs } from './map-acts.js';
 import { actionActs } from './action-acts.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
-import { diagramOf } from './diagram.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeNew, readProject, tidy, tidyTree } from './project.js';
 import { managesAccess, removedFrom } from './access.js';
@@ -304,41 +304,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const allEdges = () => state.edges.concat(state.nodes.flatMap((/** @type {any} */ n) => n.inside?.edges ?? []));
   const nodeOf = (/** @type {any} */ id) => allNodes().find((/** @type {any} */ n) => n.id === id);
 
-  // what a person's answer does to the map, from the call's own seed. A yes-or-no call takes
-  // confirm or dispute; a call with options takes one of them, or the person's own words.
-  /** @param {Act<'call'>} a */
-  function answerCall(a) {
-    const c = state.calls.find((/** @type {any} */ x) => x.id === a.id);
-    if (!c || c.status !== 'open') return false;
-    // a question on a box outside the one area someone sees is not theirs to answer: the page never shows it to them
-    const on = nodeOf(c.node), sees = seesOf(a.by);
-    if (on && sees !== 'all' && on.area !== sees) return false;
-    let fx;
-    if (c.options?.length) {
-      const o = c.options.find((/** @type {any} */ x) => x.id === a.option), own = String(a.other || '').trim().slice(0, 400);
-      if (!o && !own) return false;
-      fx = o || {};
-      c.status = 'answered'; c.pickedId = o ? o.id : 'other'; c.picked = o ? o.label : own;
-      c.by = a.by; c.at = stamp(); c.said = o ? fx.says || '' : own;
-    } else {
-      if (a.answer !== 'confirm' && a.answer !== 'dispute') return false;
-      fx = c[a.answer] || {};
-      c.status = a.answer === 'confirm' ? 'confirmed' : 'disputed';
-      c.by = a.by; c.at = stamp(); c.said = fx.says || '';
-    }
-    const n = fx.node && nodeOf(fx.node);
-    if (n) {
-      if (fx.state !== undefined) n.state = fx.state;
-      if (fx.sub !== undefined) n.sub = fx.sub;
-      n.decided = { who: a.by, at: c.at, what: fx.sub || c.picked || c.status, call: c.id };
-    }
-    if (fx.edge) { const [f, t] = fx.edge.split('>'); const e = allEdges().find((/** @type {any} */ x) => x.from === f && x.to === t); if (e) e.state = fx.edgeState || ''; }
-    state.log.push({ at: Date.now(), who: a.by, action: c.status, call: c.id, node: c.node, text: c.text, said: c.said, picked: c.picked });
-    tell(c.status === 'answered'
-      ? `${a.by} answered "${c.text}": ${c.pickedId === 'other' ? `in their own words, "${c.picked}"` : `"${c.picked}"${fx.says ? ` — ${fx.says}` : ''}`}`
-      : `${a.by} ${c.status} "${c.text}"${fx.says ? ` — ${fx.says}` : ''}${fx.chat ? `\n  Claude: ${fx.chat}` : ''}`, ownerOf(c.node, c));
-    return true;
-  }
 
   const { seesOf, askPrompt } = askContext({ getState: () => state, project, nodeOf, allNodes, allEdges });
 
@@ -372,41 +337,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const item = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, kind, box: box?.id || null, text, by, at: Date.now() };
     (state.memory ??= []).push(item); return item;
   }
-  // boxes, lines and calls are added or updated by id; removed boxes go
-  /** @param {any} p @param {any} by @param {any} source */
-  function draw(p, by, source) {
-    // only what draw-guard.js lets this sender draw: a box's content, on boxes in their area
-    p = guardDrawing(p, nodeOf, seesOf(by), (id) => state.calls.find((/** @type {any} */ c) => c.id === id));
-    // A drawing can change a box's content, but its original creator, source and dates come from the map.
-    const markCreators = (/** @type {any} */ nodes, /** @type {any} */ previous) => {
-      for (const n of nodes || []) if (n) {
-        const prior = previous?.find((/** @type {any} */ box) => box.id === n.id);
-        delete n.createdAt; delete n.updatedAt; delete n.updatedBy; delete n.source;
-        delete n.by;
-        if (prior?.by) n.by = prior.by;
-        else if (!prior) n.by = by;
-        if (prior?.source) n.source = prior.source;
-        else if (!prior) n.source = source;
-        markCreators(n.inside?.nodes, prior?.inside?.nodes);
-      }
-    };
-    markCreators(p.nodes, state.nodes);
-    for (const n of p.nodes || []) if (n && 'diagram' in n) n.diagram = diagramOf(n.diagram);
-    const merge = (/** @type {any} */ list, /** @type {any} */ key, /** @type {any} */ items = []) => {
-      for (const it of items) {
-        const k = key(it), had = list.find((/** @type {any} */ x) => key(x) === k);
-        if (had) Object.assign(had, it); else list.push(it);
-      }
-    };
-    merge(state.nodes, (/** @type {any} */ n) => n.id, p.nodes);
-    merge(state.edges, (/** @type {any} */ e) => `${e.from}>${e.to}`, p.edges);
-    // a new box with no place goes where its lines cross nothing
-    placeNew(state.nodes, state.edges, state.start);
-    merge(state.calls, (/** @type {any} */ c) => c.id, p.calls);
-    // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing
-    for (const id of p.remove || []) if (!nodeOf(id)?.action) state.nodes = state.nodes.filter((/** @type {any} */ n) => n.id !== id);
-    for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
-  }
   // a line taken off the map, wherever it is drawn: the system or the inside of a box
   /** @param {any} from @param {any} to */
   function unlinkEdge(from, to) {
@@ -416,6 +346,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     return gone;
   }
+  // a drawing (plan, edit or an applied proposal) reaching the map: drawing.js
+  const draw = drawing({ getState: () => state, nodeOf, seesOf, unlinkEdge });
 
   const { proposal, checkAutoPlan, check } = proposalChecks({ getState: () => state, nodeOf, allNodes, allEdges, seesOf, placeProposed: (plan) => placeProposed(plan) });
   /** @param {any} plan */
@@ -511,7 +443,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
-    call: answerCall,
+    ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
     ...actionActs({ getState: () => state, actions }),
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
