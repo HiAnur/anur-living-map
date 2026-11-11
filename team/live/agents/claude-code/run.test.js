@@ -86,6 +86,10 @@ describe('the tools a run may use',{timeout:30_000},()=>{
     expect(ALWAYS).toEqual(['Read','Grep','Glob','ToolSearch','TodoWrite','StructuredOutput']);
   });
   it('tells Claude why a tool was denied',()=>{
+    // GitHub's CLI is the run's to use, but for pushing and opening the pull request, which the map does
+    const bash=(command)=>{const out=execFileSync('/bin/sh',['-c',runSettings(['Bash']).hooks.PreToolUse[0].hooks[0].command],{input:JSON.stringify({tool_name:'Bash',tool_input:{command}}),encoding:'utf8'});return out?JSON.parse(out).hookSpecificOutput.permissionDecision:'asks as usual';};
+    for(const command of ['gh pr view 7 --comments','gh api repos/acme/app/pulls/7/comments','gh pr comment 7 --body ok','cd app && gh run list'])expect(bash(command)).toBe('asks as usual');
+    for(const command of ['gh pr create --fill','git push -u origin x','cd app && gh pr create --base main'])expect(bash(command)).toBe('deny');
     const out=execFileSync('/bin/sh',['-c',runSettings([]).hooks.PreToolUse[0].hooks[0].command],{input:JSON.stringify({tool_name:'Bash'}),encoding:'utf8'});
     expect(JSON.parse(out).hookSpecificOutput.permissionDecisionReason).toContain('not in the reviewed brief');
   });

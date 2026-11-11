@@ -338,7 +338,7 @@ describe('a build Action, with code doing the git and GitHub steps', () => {
     b.api.execute('f','Duy',b.node.action.id);
     expect(b.node.action.progress).toMatch(/Making a branch/);expect(b.runs).toHaveLength(0);
     await new Promise((resolve)=>setTimeout(resolve));b.open(made);await new Promise((resolve)=>setTimeout(resolve));
-    expect(b.runs[0].cwd).toBe('/w/action-f-1');expect(b.runs[0].prompt).toContain('Do not commit, push or open a pull request');
+    expect(b.runs[0].cwd).toBe('/w/action-f-1');expect(b.runs[0].prompt).toContain('Do not push or open a pull request');
     b.runs[0].onDone({text:'Built',completion:{status:'completed',summary:'Added it',evidence:['form.html']},calls:[]});
     await new Promise((resolve)=>setTimeout(resolve,5));
     expect(b.closes).toEqual([made]);
