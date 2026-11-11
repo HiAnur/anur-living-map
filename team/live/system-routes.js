@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { isEngineer } from './access.js';
 import { sharedGithub } from './github.js';
 import { jsonBody } from './request.js';
 
@@ -16,8 +17,16 @@ const onThisMac = (req) => LOCAL.test(req.headers.host || '') && (req.method ===
   ? req.headers['sec-fetch-site'] === 'same-origin'
   : req.headers.origin === `http://${req.headers.host}` && String(req.headers['content-type'] || '').startsWith('application/json'));
 const GITHUB_NAME = /^[\w.-]+$/;
-/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, home?: string, github?: () => ReturnType<typeof import('./github.js').github> }} deps */
-export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub }) {
+/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, home?: string, github?: () => ReturnType<typeof import('./github.js').github>,
+ *   team?: () => any[] }} deps `team`: the team's people as seed.json lists them */
+export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub, team = () => /** @type {any[]} */ ([]) }) {
+  /**
+   * Who may draw a system map, before any map of it exists: an Admin or Engineer of the team (seed.json), or of any
+   * map on this Mac, as `isEngineer` reads roles. Everyone else asks one of them.
+   */
+  const engineer = (/** @type {any} */ p) => p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(String(p.role || ''));
+  const engineers = () => [...new Set([...team(), ...maps.everyMap().flatMap(([, m]) => /** @type {any[]} */ (m.snapshot().people || []))].filter(engineer).map((p) => String(p.id)))];
+  const mayDraw = (/** @type {string} */ who) => team().some((p) => p.id === who && engineer(p)) || maps.everyMap().some(([, m]) => isEngineer(m.snapshot(), who));
   /** Whether a folder may be drawn: a repo inside your home folder. @param {unknown} f */
   const drawable = (f) => typeof f === 'string' && path.isAbsolute(f) && path.resolve(f) === f && f.startsWith(home + path.sep) && fs.existsSync(path.join(f, '.git'));
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any) => any} json */
@@ -36,7 +45,10 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub 
       try { return json(200, await github().repos(who)); }
       catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
     }
+    // whether you may draw a system map, and whom to ask when you may not
+    if (url.pathname === '/api/systemmap/can' && req.method === 'GET') return json(200, { may: mayDraw(who), engineers: engineers().filter((e) => e !== who) });
     if (url.pathname === '/api/systemmap' && req.method === 'POST') {
+      if (!mayDraw(who)) return json(403, { error: `Only an Engineer or Admin can draw a system map. Ask ${engineers().join(', ') || 'an Admin'}.` });
       const /** @type {any} */ a = await jsonBody(req, {});
       const folders = Array.isArray(a.folders) ? [...new Set(a.folders)] : [];
       const repos = (Array.isArray(a.repos) ? a.repos : []).map((/** @type {any} */ r) => ({ owner: String(r?.owner || ''), name: String(r?.name || '') }));
