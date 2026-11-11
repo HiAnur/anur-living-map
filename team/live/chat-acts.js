@@ -4,9 +4,11 @@
 import fs from 'node:fs';
 
 import { AUTO_PLAN_QUESTION } from './auto-plan.js';
+import { pathTo } from './map-walk.js';
 
 /**
  * @param {{ getState: () => any, project: string, name: string, home: string, nodeOf: (id: any) => any,
+ *   systemCode?: (who: string) => Promise<{ repo: string, folder: string }[]>,
  *   seesOf: (by: any) => string, askPrompt: Function, proposal: Function, check: Function, checkAutoPlan: Function,
  *   pendingProposals: (by?: any) => any[], selectedContextMaps: Function, askAgent: Function, agent: AgentWorker,
  *   activeAsks: Set<any>, stamp: () => string, save: () => void, push: () => void, tell: Function,
@@ -14,7 +16,7 @@ import { AUTO_PLAN_QUESTION } from './auto-plan.js';
  *   actions: any, relayout: () => void, keepMemory: Function, chats: AgentConversation, startMirror: () => void,
  *   linkOf: () => any, savePicture: (picture: any) => any, converse: Function, sendMirror: () => void }} deps
  */
-export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
+export function chatActs({ getState, project, name, home, nodeOf, systemCode, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
   selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
   relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }) {
   return {
@@ -90,7 +92,10 @@ export function chatActs({ getState, project, name, home, nodeOf, seesOf, askPro
       fs.mkdirSync(home, { recursive: true });
       let /** @type {any} */ soon = null;
       let /** @type {any} */ stop;
+      // on a system map, the code behind it that the asker may read, and which repo this box came from
+      const fromRepo = n ? [...pathTo(getState(), n.id), n].map((/** @type {any} */ x) => x?.source?.repo).filter(Boolean).at(-1) : null;
       stop = askAgent({ cwd: project || home, prompt: askPrompt(a.by, n, q, before, side, autoPlan), contextMaps:selectedContextMaps, who: a.by,
+        code: project || !systemCode ? null : () => systemCode(a.by), fromRepo,
         onLoad: (/** @type {any} */ source) => { msg.sources = [...(msg.sources || []).filter((/** @type {any} */ m) => m.id !== source.id), source]; msg.doing = `Reading ${source.title}`; push(); },
         onText: (/** @type {any} */ text, /** @type {any} */ proposing) => { msg.text = String(text).trim(); msg.doing = proposing ? 'Preparing map changes' : autoPlan ? 'Planning additions' : 'Claude is working'; soon ??= setTimeout(() => { soon = null; push(); }, 150); },
         onDone: (/** @type {any} */ text, /** @type {any} */ _access, /** @type {any} */ change) => {

@@ -15,7 +15,7 @@ import { drawSystem } from './system-draw.js';
 
 /**
  * @param {{ home: string, getState: () => any, save: () => void, push: () => void, agent: Pick<AgentWorker, 'answer'>, draw?: typeof drawSystem,
- *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo'> }} deps
+ *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead'> }} deps
  */
 export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub }) {
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
@@ -92,8 +92,28 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     }).finally(() => { if (stop === controller) stop = null; save(); push(); });
     return true;
   }
+  /**
+   * The code behind the map that a person may read, at the commit it was drawn from: a repo from GitHub if
+   * GitHub lets them read it, a folder on this Mac only for whoever drew the map.
+   * @param {string} who @returns {Promise<{ repo: string, folder: string }[]>}
+   */
+  async function codeFor(who) {
+    const d = getState().drawing;
+    if (!d || !fs.existsSync(REPORT) || !fs.existsSync(FOLDERS)) return [];
+    const report = JSON.parse(fs.readFileSync(REPORT, 'utf8')), was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8'));
+    const { folders = [], repos = [] } = Array.isArray(was) ? { folders: was } : was;
+    /** @type {{ repo: string, folder: string }[]} */
+    const out = [];
+    for (const r of report.repos || []) {
+      if (!r.root || !fs.existsSync(r.root)) continue;
+      const local = folders.includes(r.root), gh = repos.find((/** @type {any} */ x) => x.name === r.repo);
+      const may = local ? who === d.by : gh ? await github().canRead(who, gh.owner, gh.name) : false;
+      if (may) out.push({ repo: r.repo, folder: r.root });
+    }
+    return out;
+  }
   return {
-    start,
+    start, codeFor,
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */

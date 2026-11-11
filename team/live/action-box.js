@@ -108,9 +108,10 @@ export function recoverAction(n) {
  *   executionCwd: string,
  *   checkPull?: (url: string) => Promise<boolean>,
  *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
+ *   cannotRun?: (n: Box) => string | null,
  * }} deps
  */
-export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -216,6 +217,9 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   function execute(id, by, revision) {
     const n = nodeOf(id), a = n?.action;
     if (!owns(n, by) || !can('execute', a?.stage) || a.session || a.id !== revision) return false;
+    // a map whose folder is not where this box's work belongs says why instead of running somewhere else
+    const why = cannotRun(n);
+    if (why) { Object.assign(a, { stage: 'error', error: why }); note(a, 'failed', 'Map'); changed(); return false; }
     const waiting = dependencyBlockers(a.plan,prerequisiteOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', by); changed(); return false; }
     if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); note(a, 'failed', 'Map'); changed(); return false; }

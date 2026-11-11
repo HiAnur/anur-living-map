@@ -29,13 +29,13 @@ export const claudeLogin = () => signingIn ??= new Promise((resolve) => {
   proc.on('close', (code) => done(code === 0));
 });
 /** @param {AskJob} job */
-export function streamClaude({ cwd, prompt, onText, onDone, servers, propose }) {
+export function streamClaude({ cwd, dirs = [], prompt, onText, onDone, servers, propose }) {
   const env = childEnv();
   // a change Claude offers is its last call to the propose tool, never words in its reply
   const proposeTool = propose ? `mcp__${propose.server}__${propose.tool}` : null;
   const proc = spawn('claude', ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
     '--tools', READ, '--allowedTools', [READ, ...mcpTools(servers)].join(','), '--disallowedTools', 'WebFetch,WebSearch,Bash,Edit,Write,NotebookEdit',
-    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify(mcpConfig(servers)), '--setting-sources', ''], { cwd, env });
+    '--restricted', '--no-session-persistence', '--strict-mcp-config', '--mcp-config', JSON.stringify(mcpConfig(servers)), '--setting-sources', '', ...dirs.flatMap((d) => ['--add-dir', d])], { cwd, env });
   let text = '', done = false, /** @type {any} */ proposed;
   const end = (/** @type {string} */ t) => { if (done) return; done = true; clearTimeout(limit); onDone(t, undefined, proposed); };
   const limit = setTimeout(() => { proc.kill('SIGTERM'); end(text.trim() || 'Claude took too long to answer. Ask again.'); }, 180_000);

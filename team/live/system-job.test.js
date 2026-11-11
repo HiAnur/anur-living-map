@@ -90,6 +90,19 @@ describe('a system map drawing in the background', () => {
     expect(state.drawing).toMatchObject({ status: 'failed', repos: 3, progress: [{ repo: 'secret', stage: 'failed', error: 'GitHub said 404 for /repos/Shop/secret.' }, { repo: 'api', stage: 'done' }] });
     expect(state.nodes).toEqual(built.nodes);
   });
+  it('hands a side chat the code behind the map that the asker may read, and no more', async () => {
+    const folder = (/** @type {string} */ n) => { const d = path.join(tmp(), n); fs.mkdirSync(d); return d; };
+    const local = folder('local-svc'), api = folder('api'), secret = folder('secret');
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: r.name === 'api' ? api : secret, commit: 'c1', branch: 'main' }),
+      canRead: async (/** @type {string} */ who, /** @type {string} */ _owner, /** @type {string} */ name) => who === 'Sam' && name === 'api' };
+    const { state, job } = jobOn(async () => ({ state: built, report: { ...report([]), repos: [{ repo: 'local-svc', root: local, unread: [] }, { repo: 'api', root: api, unread: [] }, { repo: 'secret', root: secret, unread: [] }] }, cancelled: false }), undefined, gh);
+    job.start({ folders: [local], repos: [{ owner: 'Shop', name: 'api' }, { owner: 'Shop', name: 'secret' }], by: 'Harshit' });
+    await until(() => state.drawing.status !== 'running');
+    // a folder on this Mac only for whoever drew the map; a GitHub repo only if GitHub lets the asker read it
+    expect(await job.codeFor('Harshit')).toEqual([{ repo: 'local-svc', folder: local }]);
+    expect(await job.codeFor('Sam')).toEqual([{ repo: 'api', folder: api }]);
+    expect(await job.codeFor('Guest')).toEqual([]);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });

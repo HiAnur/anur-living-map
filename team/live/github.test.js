@@ -110,6 +110,21 @@ describe('reading repos from GitHub', () => {
     expect(calls.filter((c) => c.key.includes('tarball'))).toHaveLength(1);
     await expect(gh.fetchRepo('Harshit', { owner: '..', name: 'x' })).rejects.toThrow('Not a GitHub repo name.');
   });
+  it('says whether a person may read a repo, asking GitHub at most every few minutes', async () => {
+    let clock = 0;
+    const { dir, http, calls } = linked();
+    const gh = github({ dir, http, now: () => clock });
+    expect(await gh.canRead('Harshit', 'shop', 'API')).toBe(true);
+    expect(await gh.canRead('Harshit', 'Shop', 'secret')).toBe(false);
+    expect(await gh.canRead('Nobody', 'Shop', 'api')).toBe(false);
+    const asked = calls.length;
+    clock += 60_000;
+    await gh.canRead('Harshit', 'Shop', 'api');
+    expect(calls.length).toBe(asked);
+    clock += 5 * 60_000;
+    await gh.canRead('Harshit', 'Shop', 'api');
+    expect(calls.length).toBeGreaterThan(asked);
+  });
   it('asks to link again when GitHub no longer takes the token', async () => {
     const { dir, http } = linked({ 'GET /user/installations?': () => ({ status: 401 }) });
     const gh = github({ dir, http });

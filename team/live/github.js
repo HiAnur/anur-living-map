@@ -141,7 +141,20 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     fs.writeFileSync(path.join(folder, '.living-map-head.json'), JSON.stringify({ commit: sha, branch, repo: `${owner}/${name}` }));
     return { folder, commit: sha, branch };
   }
-  return { link, unlink, status, token, repos, fetchRepo };
+  /** each person's readable repos, kept a few minutes so a chat does not ask GitHub every time */
+  /** @type {Map<string, { at: number, names: Set<string> }>} */
+  const readable = new Map();
+  /** Whether a person may read a repo on GitHub, as their own link says; no link, no. @param {string} who @param {string} owner @param {string} name */
+  async function canRead(who, owner, name) {
+    let kept = readable.get(who);
+    if (!kept || now() - kept.at > 5 * 60_000) {
+      try { kept = { at: now(), names: new Set((await repos(who)).repos.map((r) => `${r.owner}/${r.name}`.toLowerCase())) }; }
+      catch { kept = { at: now(), names: new Set() }; } // not linked, or GitHub would not say: nothing is readable
+      readable.set(who, kept);
+    }
+    return kept.names.has(`${owner}/${name}`.toLowerCase());
+  }
+  return { link, unlink, status, token, repos, fetchRepo, canRead };
 }
 
 /** @type {ReturnType<typeof github> | null} */
