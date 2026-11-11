@@ -155,7 +155,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
     if (!role || role !== c.role) {
       send(r, role ? 'access-changed' : 'access-removed', {}); clients.delete(r); clientAccess.delete(r); r.end();
-    } else send(r, 'state', sharedState(state, role === 'owner', c.guest));
+    } else send(r, 'state', sharedState(state, role === 'owner', c.guest, c.who));
   } };
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
@@ -441,7 +441,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
       relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
-    ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf }),
+    ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf, seesOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
     ...actionActs({ getState: () => state, actions }),
@@ -506,7 +506,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     }
     if (p === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', sharedState(state, role === 'owner', guest)); send(res, 'cursors', cursors);
+      send(res, 'state', sharedState(state, role === 'owner', guest, who)); send(res, 'cursors', cursors);
       if (role === 'owner' && cloud) send(res, 'cloud', cloud.status());
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });

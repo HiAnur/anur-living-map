@@ -40,6 +40,19 @@ export async function send(map, who, a) {
 }
 
 /**
+ * A read from the map's API, as `who` (a signed-in person by name): its status and what it sent, whole or written
+ * in parts (a server-sent stream ends its first message there).
+ * @param {ReturnType<typeof openMap>} map @param {Sender} who @param {string} p
+ */
+export async function read(map, who, p) {
+  const req = Object.assign(Readable.from([]), { method: 'GET', url: p, headers: { host: 'localhost', cookie: 'lm_session=x' }, on() {} });
+  let status = 0, text = '';
+  const res = { writeHead(/** @type {number} */ s) { status = s; return res; }, end(/** @type {string} */ t = '') { text += String(t); return res; }, write(/** @type {string} */ t) { text += t; return true; }, setHeader() {}, on() {} };
+  await map.handle(req, res, p, /** @type {any} */ (who));
+  return { status, text };
+}
+
+/**
  * A fresh map from `initial`, sent `a` (or each of a list of steps, stopping at the first that is refused), then
  * closed: the last status, and the map as it was after.
  * @param {Sender} who @param {any} a @param {any} initial

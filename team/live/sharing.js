@@ -28,12 +28,49 @@ export function changeSharing(state, who, mode) {
 export { LINK_EDITS } from './permissions.js';
 /** @type {(nodes: Box[]) => Box[]} */
 export const withoutActions = (nodes) => nodes.map(({ action, task, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
-/** @param {MapState} state @param {boolean} [owner] @param {boolean} [guest] */
-export function sharedState(state, owner = false, guest = false) {
+/**
+ * The map as one person receives it: a guest without Actions or anyone's chats, and a member who sees one area
+ * with only that area's content (forArea). `who` is the person, unset for a program on this Mac.
+ * @param {MapState} state @param {boolean} [owner] @param {boolean} [guest] @param {string | null} [who]
+ */
+export function sharedState(state, owner = false, guest = false, who = null) {
   const result = { ...state, linkSharing: owner ? state.linkSharing || { mode: 'restricted' } : { mode: state.linkSharing?.mode || 'restricted' } };
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
   if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
-  return result;
+  const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
+  return sees && sees !== 'all' ? forArea(result, sees) : result;
+}
+
+// what the page needs to draw a box outside your area, locked, under its name
+const OUTLINE = ['id', 'label', 'x', 'y', 'w', 'h', 'area', 'kind', 'icon', 'moved'];
+
+/**
+ * The map as someone who sees one area receives it. A box outside it is only its outline: its name and place, so
+ * the page can draw it locked. What is written about such a box (a line's words, its comments, questions, notes,
+ * Action, side chats, log lines, an archived Action) is left out. A version from History is cut the same way.
+ * @param {any} state @param {string} sees
+ */
+export function forArea(state, sees) {
+  const all = (state.nodes || []).flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]);
+  const away = new Set(all.filter((/** @type {any} */ n) => n.area !== sees).map((/** @type {any} */ n) => n.id));
+  const line = (/** @type {any} */ e) => away.has(e.from) || away.has(e.to) ? (({ label: _, ...rest }) => rest)(e) : e;
+  /** @param {any} n @returns {any} */
+  const box = (n) => away.has(n.id) ? Object.fromEntries(OUTLINE.filter((k) => k in n).map((k) => [k, n[k]]))
+    : n.inside ? { ...n, inside: { ...n.inside, nodes: (n.inside.nodes || []).map(box), edges: (n.inside.edges || []).map(line) } } : n;
+  const near = (/** @type {any} */ id) => !id || !away.has(id);
+  const callOn = new Map((state.calls || []).map((/** @type {any} */ c) => [c.id, c.node]));
+  return {
+    ...state,
+    nodes: (state.nodes || []).map(box),
+    edges: (state.edges || []).map(line),
+    comments: (state.comments || []).filter((/** @type {any} */ c) => near(c.node) && (c.view === 'system' || near(c.view))),
+    calls: (state.calls || []).filter((/** @type {any} */ c) => near(c.node)),
+    memory: (state.memory || []).filter((/** @type {any} */ m) => near(m.box)),
+    log: (state.log || []).filter((/** @type {any} */ l) => near(l.node) && near(callOn.get(l.call))),
+    archived: (state.archived || []).filter((/** @type {any} */ x) => x.box?.area === sees),
+    threads: Object.fromEntries(Object.entries(state.threads || {}).filter(([k]) => near(k.split('>')[1]))),
+    proposals: (state.proposals || []).filter((/** @type {any} */ p) => [...(p.plan?.nodes || []).map((/** @type {any} */ n) => n.id), ...(p.plan?.remove || [])].every(near)),
+  };
 }

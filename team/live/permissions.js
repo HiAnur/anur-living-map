@@ -33,9 +33,9 @@ export const WHO = {
   redo: { standing: 'link', then: 'only their own steps, and only on boxes in their area' },
   cursor: { standing: 'link', then: 'nothing: where their pointer is, never saved' },
   // comments
-  comment: { standing: 'link', then: 'nothing' },
-  reply: { standing: 'link', then: 'nothing' },
-  resolve: { standing: 'link', then: 'nothing: anyone may resolve or reopen any comment' },
+  comment: { standing: 'link', then: 'the box it is on, or inside, is in their area' },
+  reply: { standing: 'link', then: 'the box its thread is on, or inside, is in their area' },
+  resolve: { standing: 'link', then: 'the box its thread is on, or inside, is in their area; then anyone may resolve or reopen it' },
   // the map as a whole
   savenow: { standing: 'member', then: 'nothing' },
   autosave: { standing: 'member', then: 'nothing: one switch for the whole map' },
