@@ -2521,7 +2521,7 @@ function renderSide(){
   const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
     : claudes(`${md(m.text)}${contextSources(m)}${change(m, sideKey, i)}${signin(m)}`)).join('');
   const chat = n.action ? actionView().actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}${n.proposed && n.boxType === 'action' && n.task ? actionView().plannedActionCard(n,n.task) : ''}</div>
-    ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
+    ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off">${esc(draftOf(`side:${n.id}`))}</textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
   const openMetadata = el.querySelector('#box-metadata:popover-open');
@@ -2704,6 +2704,17 @@ const yours = (text, imgs, chip = '') => `<div class="msg um">${imgs?.length ? `
 const claudes = (html) => `<div class="msg cm">${html}</div>`;
 // pictures waiting to go with your next message, as data: addresses; a redraw of the pane keeps them
 let chatPics = [];
+// what you typed in a chat and have not sent, by chat (a box's Side Chat, the Claude pane): it stays when you
+// switch to something else and come back, and through a reload in this browser, until you send it
+const DRAFTS_KEY = `lm-drafts-${location.pathname.split('/')[1] || ''}`;
+const drafts = (() => { try { return new Map(Object.entries(JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}'))); } catch { return new Map(); } })(); // storage blocked: drafts last until the page reloads
+const draftOf = (key) => drafts.get(key) || '';
+function keepDraft(key, text){
+  if (text) drafts.set(key, text); else drafts.delete(key);
+  try { localStorage.setItem(DRAFTS_KEY, JSON.stringify(Object.fromEntries(drafts))); } catch { /* storage blocked: kept in this page only */ }
+}
+/** which chat a chat's text box belongs to, or null @param {Element} t */
+const draftKey = (t) => t.closest('form[data-ask]') ? `side:${t.closest('form[data-ask]').dataset.ask}` : t.closest('form[data-chat]') ? 'chat' : null;
 const SEND_ICON = '<svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg>';
 // the model and effort your Claude chat answers with, named as the Claude app names them ("Opus 5.5 Extra");
 // it changes in the app's own model menu, and shows here from the chat's next reply
@@ -2714,7 +2725,7 @@ const modelLabel = (m) => {
 };
 const composer = (placeholder, pics, model) => `<form class="ask cbox" data-chat>
     ${pics && chatPics.length ? `<div class="tray">${chatPics.map((p, i) => `<span><img src="${p}" alt="A picture to send"><b data-unpic="${i}" title="Remove">×</b></span>`).join('')}</div>` : ''}
-    <textarea rows="1" placeholder="${placeholder}" autocomplete="off"></textarea>
+    <textarea rows="1" placeholder="${placeholder}" autocomplete="off">${esc(draftOf('chat'))}</textarea>
     <div class="crow">${pics ? '<button type="button" class="add" data-attach title="Add a picture" aria-label="Add a picture">+</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden data-pick>' : ''}
       ${modelLabel(model)}<button class="send" type="submit" title="Send" aria-label="Send">${SEND_ICON}</button></div></form>`;
 // while Claude is in the middle of a turn, the pane says so, with the step it is on ("Drawing on the map…"), the
@@ -3733,13 +3744,17 @@ canvas.addEventListener('wheel', (e) => {
   place();
 }, { passive: false });
 
-// Going into a box keeps the zoom you had; coming back out returns to the view you left at that level
-const cams = new Map();
+// Going into a box or back out keeps the zoom you are at: going in shows the inner map from its top left (centred
+// when it fits), coming out centres the box you were inside, or the box that holds it
 function enter(id){
-  cams.set(view, { ...cam }); const z = cam.z;
+  const z = cam.z, from = view;
   view = id; selected = null; render();
-  const back = cams.get(id);
-  if (back){ Object.assign(cam, back); place(); } else fit(z);
+  const here = from === 'system' ? null : [...pathTo(S, from).map((n) => n.id), from].reverse().map((x) => scope().nodes.find((n) => n.id === x)).find(Boolean);
+  if (!here) return fit(z);
+  const r = canvas.getBoundingClientRect();
+  // a box's x and y are its middle
+  cam.z = z; cam.x = r.width / 2 - here.x * z; cam.y = r.height / 2 - here.y * z;
+  place();
 }
 // Esc steps back out of a box
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && view !== 'system' && !e.target.closest('input, textarea')){ if (view.startsWith('diagram:')) closeDiagram(); else enter('system'); } });
@@ -3897,8 +3912,8 @@ document.addEventListener('submit', (e) => {
   const c = e.target.closest('form[data-chat]');
   if (c){
     e.preventDefault(); const i = c.querySelector('textarea'), text = i.value.trim();
-    if (MIRROR && (text || chatPics.length)){ act('say', { text, images: chatPics }); chatPics = []; i.value = ''; renderChat(); }
-    else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; i.style.height = ''; }
+    if (MIRROR && (text || chatPics.length)){ act('say', { text, images: chatPics }); chatPics = []; i.value = ''; keepDraft('chat', ''); renderChat(); }
+    else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; keepDraft('chat', ''); i.style.height = ''; }
     return;
   }
     // your own answer to a question with options
@@ -3906,7 +3921,7 @@ document.addEventListener('submit', (e) => {
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('textarea'); const text = i.value.trim(); if (!text) return;
-  act('ask', { node: f.dataset.ask, text, side: true }); i.value = ''; fitBox(i);
+  act('ask', { node: f.dataset.ask, text, side: true }); i.value = ''; keepDraft(`side:${f.dataset.ask}`, ''); fitBox(i);
   // "visualize this flow": Claude draws it, so the map opens on it
   const fx = flowOf(nodeById(f.dataset.ask));
   if (fx && /flow|visuali|diagram|draw|sequence/i.test(text)) setTimeout(() => openFlow(fx.id), 700);
@@ -4081,7 +4096,7 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); t.form.requestSubmit();
 });
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
-document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea'); if (t) fitBox(t); });
+document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea'); if (t) fitBox(t); const key = t && draftKey(t); if (key) keepDraft(key, t.value); });
 listen();
 </script>
 </body>
