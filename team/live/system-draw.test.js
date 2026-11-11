@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { allBoxesOf } from './map-walk.js';
 import { compact, drawSystem } from './system-draw.js';
-import { api, app, trading } from './system.harness.js';
+import { api, app, repo, trading } from './system.harness.js';
 
 // Drawing a system map end to end on made-up repos, with a scripted agent standing in for the model: code reads and
 // links the facts, the agent's answers are checked, and the map is built with its levels and evidence.
@@ -120,6 +120,13 @@ describe('stopping and drawing again', () => {
     expect(asked).toEqual(['mobile-app', 'platform']);
     expect(report.progress.find((p) => p.repo === 'api-service')).toMatchObject({ stage: 'done', reused: true });
     expect(state?.nodes.find((n) => n.label === 'api-service')?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
+  });
+});
+
+describe('a repo with nothing to read', () => {
+  it('fails at once with why, rather than waiting for ever', async () => {
+    const { report } = await drawSystem({ folders: [repo('empty', { 'README.md': '# nothing here\n' })], agent });
+    expect(report.progress[0]).toMatchObject({ repo: 'empty', stage: 'failed', error: 'Code found nothing it can read in this repo.' });
   });
 });
 

@@ -2,8 +2,9 @@
 // about how long is left, and Cancel, Draw again or Close. A page module (see page-modules.js):
 // the page hands in the map's `drawing` (system-job.js) and what it needs of the page, as `view`:
 //   esc   how the page writes text into HTML     now   the time it draws at     mine   they may stop or retry it
+//   asking  Draw again was pressed and waits to be confirmed
 
-/** @param {any} d the map's drawing @param {{ esc: (t: unknown) => string, now: number, mine: boolean }} view */
+/** @param {any} d the map's drawing @param {{ esc: (t: unknown) => string, now: number, mine: boolean, asking?: boolean }} view */
 export function drawingPanel(d, view){
   const { esc } = view;
   const progress = /** @type {any[]} */ (d.progress || []);
@@ -36,7 +37,9 @@ export function drawingPanel(d, view){
     ...(d.unread || []).map((/** @type {any} */ u) => `${u.repo}: ${u.why}`),
   ];
   const act = !view.mine ? '' : running ? '<button data-sd-cancel>Cancel</button>'
-    : d.status === 'done' ? '<button data-sd-close>Close</button>' : '<button data-sd-retry>Draw again</button><button data-sd-close>Close</button>';
+    : view.asking ? '<button data-sd-nevermind>Keep this map</button><button data-sd-retry>Draw again</button>'
+    : '<button data-sd-ask>Draw again</button><button data-sd-close>Close</button>';
+  if (view.asking) notes.push('Draw again reads the newest code and draws the repos that changed or could not be drawn; the rest stay as drawn. It replaces any change made by hand on this map.');
   return `<div class="sd-h"><b>${title}</b><span>${esc(facts.join(' · '))}</span></div>
     <div class="sd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"></i></div>
     <ol class="sd-r">${[...repos, ...(platform ? [platform] : [])].map((p) => `<li class="sd-${esc(p.stage)}"><span data-content>${esc(p.repo === 'platform' ? 'How the repos connect' : p.repo)}</span><span>${esc(stage(p))}</span></li>`).join('')}</ol>
