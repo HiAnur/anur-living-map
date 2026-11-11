@@ -3,9 +3,11 @@
 
 /**
  * @param {{ getState: () => any, contextMaps: ((by: any) => any[]) | null, nodeOf: (id: any) => any,
- *   tell: Function, ownerOf: Function }} deps
+ *   tell: Function, ownerOf: Function, seesOf: (by: any) => string }} deps
  */
-export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
+export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf, seesOf }) {
+  // a comment on a box, or inside one, belongs to that box's area, like the box itself
+  const mayTalk = (/** @type {any} */ by, /** @type {any} */ c) => seesOf(by) === 'all' || [c.node, c.view].every((id) => !id || id === 'system' || !nodeOf(id) || nodeOf(id).area === seesOf(by));
   return {
     // Discovery combines this background with the current topics and decisions.
     /** @param {Act<'contextmap'>} a */
@@ -34,7 +36,7 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
     // Figma-style comments: a pin at a point on the map (or on a box), a thread of replies, resolvable
     /** @param {Act<'comment'>} a */
     comment(a) {
-      const text = String(a.text || '').trim().slice(0, 600); if (!text) return false;
+      const text = String(a.text || '').trim().slice(0, 600); if (!text || !mayTalk(a.by, { node: a.node, view: a.view })) return false;
       getState().comments ??= [];
       const c = { id: getState().comments.length + 1, x: Math.round(a.x), y: Math.round(a.y), view: a.view || 'system', node: a.node || null,
         resolved: false, msgs: [{ who: a.by, text, at: Date.now() }] };
@@ -45,12 +47,12 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf }) {
     /** @param {Act<'reply'>} a */
     reply(a) {
       const c = getState().comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); const text = String(a.text || '').trim().slice(0, 600);
-      if (!c || !text) return false;
+      if (!c || !text || !mayTalk(a.by, c)) return false;
       c.msgs.push({ who: a.by, text, at: Date.now() });
       tell(`${a.by} replied on comment #${c.id}: ${text}`, ownerOf(c.node));
       return true;
     },
     /** @param {Act<'resolve'>} a */
-    resolve(a) { const c = getState().comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); if (!c) return false; c.resolved = !c.resolved; return true; },
+    resolve(a) { const c = getState().comments?.find((/** @type {any} */ x) => x.id === Number(a.id)); if (!c || !mayTalk(a.by, c)) return false; c.resolved = !c.resolved; return true; },
   };
 }
