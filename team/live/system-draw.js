@@ -80,6 +80,7 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   const costs = [];
   /** @type {{ reading: Reading, drawn: ReturnType<typeof checkDrawing> }[]} */
   const drawn = [];
+  for (const r of readings) if (!r.facts.length) tell({ repo: r.repo, stage: 'failed', error: r.unread[0] || 'Code found nothing it can read in this repo.' });
   await pool(readings.filter((r) => r.facts.length), concurrency, async (r) => {
     if (signal?.aborted) return;
     const kept = reuse(r);

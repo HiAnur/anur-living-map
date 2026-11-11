@@ -2071,7 +2071,8 @@ let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = fa
 let saveOpen = false;
 function renderSave(){
   const on = S.autosave !== false;
-  $('savew').innerHTML = `<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
+  const redraw = S.drawing && S.drawing.status !== 'running' && !READ_ONLY && !SHARED && sdClosed() === String(S.drawing.at);
+  $('savew').innerHTML = `${redraw ? '<button class="tbtn" data-sd-redraw title="Draw this system map again from its newest code">Redraw</button> ' : ''}<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
 }
@@ -3945,13 +3946,15 @@ const vtime = (t) => { const d = new Date(t), today = d.toDateString() === new D
 // the History panel's HTML (historyScreens in page-history.js), with what it needs of the page
 // a system map drawing from code: its panel stays until whoever sees it closes it; the clock ticks while it draws
 const SYS_MAP = location.pathname.split('/')[1] || '';
+let sdAsking = false;
+const sdOpen = () => { try { localStorage.removeItem(`lm-sd-${SYS_MAP}`); } catch { /* storage blocked: it shows anyway until closed */ } };
 const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) || ''; } catch { return ''; } }; // storage blocked: the panel just shows
 function renderDrawing(){
   const el = $('sysdraw'), d = S?.drawing;
   if (!el) return;
   if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: !READ_ONLY && !SHARED });
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: !READ_ONLY && !SHARED, asking: sdAsking });
 }
 setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
 async function sdAct(what){
@@ -3962,8 +3965,11 @@ async function sdAct(what){
 document.addEventListener('click', (e) => {
   const t = e.target instanceof Element ? e.target : null;
   if (t?.closest('[data-sd-cancel]')) sdAct('cancel');
-  else if (t?.closest('[data-sd-retry]')) sdAct('retry');
-  else if (t?.closest('[data-sd-close]')){ try { localStorage.setItem(`lm-sd-${SYS_MAP}`, String(S?.drawing?.at)); } catch { /* storage blocked: it closes until the page reloads */ } $('sysdraw').hidden = true; }
+  else if (t?.closest('[data-sd-ask]')){ sdAsking = true; renderDrawing(); }
+  else if (t?.closest('[data-sd-nevermind]')){ sdAsking = false; renderDrawing(); }
+  else if (t?.closest('[data-sd-redraw]')){ sdOpen(); sdAsking = true; renderDrawing(); renderSave(); }
+  else if (t?.closest('[data-sd-retry]')){ sdAsking = false; sdAct('retry'); }
+  else if (t?.closest('[data-sd-close]')){ sdAsking = false; try { localStorage.setItem(`lm-sd-${SYS_MAP}`, String(S?.drawing?.at)); } catch { /* storage blocked: it closes until the page reloads */ } $('sysdraw').hidden = true; renderSave(); }
 });
 const historyView = () => historyScreens({ me: ME, admin: amAdmin(), live: !READ_ONLY, esc, vtime, statusLabel: (a) => actionStatus(a)?.label });
 function renderHist(){

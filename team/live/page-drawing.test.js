@@ -32,7 +32,7 @@ describe('the drawing panel', () => {
     expect(text(html)).toContain('api Claude Code is signed out.');
     expect(text(html)).toContain('ts 3 boxes, kept from the last drawing');
     expect(text(html)).toContain('ts: run `npx cdk synth` in it');
-    expect(html).toContain('data-sd-retry');
+    expect(html).toContain('data-sd-ask');
   });
   it('says how much Claude proposed that code did not show, once done', () => {
     const html = drawingPanel({ status: 'done', at: 0, ms: 140_000, repos: 1, rejected: 2, cost: { value: 2.16 }, progress: [{ repo: 'api', stage: 'done', boxes: 20 }, { repo: 'platform', stage: 'done', boxes: 5 }] }, { esc, now, mine: true });
@@ -40,7 +40,12 @@ describe('the drawing panel', () => {
     expect(text(html)).toContain('How the repos connect');
     expect(text(html)).toContain('2 things Claude proposed were left off: the code does not show them.');
     expect(html).toContain('data-sd-close');
+    // Draw again asks first, saying it replaces what was changed by hand
+    expect(html).toContain('data-sd-ask');
     expect(html).not.toContain('data-sd-retry');
+    const asking = drawingPanel({ status: 'done', at: 0, ms: 1, repos: 1, progress: [] }, { esc, now, mine: true, asking: true });
+    expect(asking).toContain('data-sd-retry');
+    expect(text(asking)).toContain('It replaces any change made by hand on this map.');
   });
   it('offers nothing to someone who may only look', () => {
     const html = drawingPanel({ status: 'running', at: now, repos: 1, progress: [] }, { esc, now, mine: false });
