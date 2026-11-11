@@ -618,7 +618,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       : !!state.linkSharing?.token && ['view', 'edit'].includes(state.linkSharing.mode);
     return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((/** @type {any} */ c) => c.status === 'open').length,
       at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud,
-      ...(state.drawing ? { system: state.drawing.status } : {}) };
+      // a system map says how many repos it was drawn from and when, so the list shows how current it is
+      ...(state.drawing ? { system: state.drawing.status, repos: state.drawing.repos || 0,
+        ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}) } : {}) };
   };
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it

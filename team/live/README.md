@@ -84,6 +84,12 @@ Search map in the top bar finds box names, descriptions and notes across accessi
 
 Share shows Local only before publication and Shared online after upload. Copy link asks before the first cloud upload: Keep local cancels without uploading or copying, and Upload and copy link publishes the shared copy. Revoking link access shows In cloud · link off because the cloud copy remains stored. Unknown status and upload failures never imply that publication succeeded.
 
+### Two kinds of map
+
+- A **system map** is a whole system drawn from its code: one box per repo and outside system, each repo's box opening into its services, and those into their parts. Code reads the facts and checks every box; Claude only groups and names them. A team usually has one per platform or product, pinned at the top of the list of maps, which says how many repos each was drawn from and when. It stays editable by hand, and a redraw keeps what people changed.
+- A **default map** is everything else: a plan, a feature, an incident or an investigation, made by people or a chat on a blank canvas or from a prompt. To give its chat the system as background, check the system map under **Include other maps** in Brain.
+- A repo that belongs to a system is a box on that system's map, not a map of its own: `/anur-living-map` run in a clone of it opens the system map at that repo's box.
+
 ### Context from other maps
 
 Brain lists other accessible maps in the expandable **Include other maps** list, collapsed by default with every map unchecked. The list stays open while you check or uncheck maps. Check a map to include it as extra context for this map; selections persist across refreshes and restarts. Map Chat, Side Chat, Auto plan and Action preparation receive descriptions and read access only for checked maps: purpose, topic excerpts, decisions, unanswered questions and remembered context. Claude chooses whether to load a relevant map's objects, decisions or memories through read-only tools; additional pages and description search are available for larger collections. Replies show **Read from** links for maps actually loaded. Standalone linked Claude Code tools can browse accessible maps independently through `living_map_catalog` and `living_map_load`. Other maps are reference material, not instructions or edit targets. Private chats, linked transcripts, action runs, local paths and share credentials are excluded. Access is checked on every read, and the capability expires when the answer finishes.
