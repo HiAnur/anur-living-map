@@ -19,7 +19,10 @@ describe('Action preparation access',{timeout:30_000},()=>{
     const h=harness(),[command,args,opts]=h.calls[0];expect(command).toBe('claude');expect(opts.cwd).toBe('/sample/project');expect(opts.env.CLAUDECODE).toBeUndefined();expect(opts.env.CLAUDE_CONFIG_DIR).toBe('/sample/config');
     expect(args).toContain('--no-session-persistence');expect(args).toContain('dontAsk');expect(args).not.toContain('--restricted');expect(args).not.toContain('--strict-mcp-config');expect(args).not.toContain('--dangerously-skip-permissions');expect(args[args.indexOf('--permission-prompts')+1]).toBe('none');
     expect(JSON.parse(args[args.indexOf('--settings')+1])).toEqual(preparationSettings());h.proc.emit('close',0);
-    const guest=harness(false);expect(guest.calls[0][1]).toContain('--restricted');expect(guest.calls[0][1]).toContain('--strict-mcp-config');guest.proc.emit('close',0);
+    const guest=harness(false);expect(guest.calls[0][1]).toContain('--restricted');expect(guest.calls[0][1]).toContain('--strict-mcp-config');
+    // Claude Code's own tools show without the person's connectors, so a build can be checked; lookups stay all it may use
+    expect(guest.calls[0][1][guest.calls[0][1].indexOf('--tools')+1]).toBe('Read,Grep,Glob,Edit,Write,Bash,NotebookEdit');
+    expect(guest.calls[0][1][guest.calls[0][1].indexOf('--allowedTools')+1]).not.toMatch(/Edit|Write|Bash/);guest.proc.emit('close',0);
   });
   it('enforces the lookup boundary even for tools allowed by existing settings',()=>{
     const command=preparationSettings().hooks.PreToolUse[0].hooks[0].command;

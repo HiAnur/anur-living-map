@@ -8,6 +8,8 @@ import { addWords, claudeEnv, killer, mcpConfig, onlyTools, readLines } from './
 const LOOKUPS = ['Read','Grep','Glob','ToolSearch','StructuredOutput','WebSearch','WebFetch',
   'mcp__claude_ai_Gmail__search_threads','mcp__claude_ai_Gmail__get_thread','mcp__claude_ai_Gmail__get_message',
   'mcp__map_context__list_maps','mcp__map_context__load_map'];
+// Claude Code's own tools that change files or run commands: every Execute has them, connected or not
+const BUILT_IN = ['Edit','Write','Bash','NotebookEdit'];
 export const preparationSettings = () => onlyTools(LOOKUPS, 'Action preparation can only look up information. Review the brief and press Execute to make changes.');
 
 /**
@@ -20,7 +22,9 @@ export function prepareAction({cwd,env,connected=false,servers,schema,prompt,onT
   const args = ['-p','--output-format','stream-json','--verbose','--include-partial-messages','--no-session-persistence',
     '--permission-mode','dontAsk','--permission-prompts','none','--allowedTools',LOOKUPS.join(','),'--settings',JSON.stringify(preparationSettings()),
     '--json-schema',JSON.stringify(schema),
-    ...(connected ? [] : ['--restricted','--tools','Read,Grep,Glob','--strict-mcp-config','--setting-sources','']),
+    // without the person's own settings and connectors, Claude Code's own tools still show, so a build that needs
+    // Edit, Write and Bash can be checked as it will run; the hook keeps preparation to lookups
+    ...(connected ? [] : ['--restricted','--tools',[...LOOKUPS.slice(0, 3), ...BUILT_IN].join(','),'--strict-mcp-config','--setting-sources','']),
     ...(servers || !connected ? ['--mcp-config',JSON.stringify(mcpConfig(servers))] : [])];
   const proc = spawnProcess('claude',args,{cwd,env,detached:process.platform !== 'win32',stdio:['pipe','pipe','pipe']});
   const available = new Set(), denied = new Set(), searches = new Set();
