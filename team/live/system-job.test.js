@@ -210,6 +210,8 @@ describe('the system map routes', () => {
     const map = maps.mapCalled('shop-system');
     await until(() => map.snapshot().drawing?.status === 'done');
     expect(map.snapshot()).toMatchObject({ title: 'Shop system', drawing: { by: 'Harshit', repos: 2 } });
+    // the list of maps says how many repos it was drawn from and when
+    expect(map.summary()).toMatchObject({ system: 'done', repos: 2, drawn: expect.any(Number) });
     expect((await call('/api/systemmap/cancel', { name: 'shop-system' })).status).toBe(409);
     expect((await call('/api/systemmap/retry', { name: 'shop-system' }, { who: 'Sam' })).status).toBe(403);
     expect((await call('/api/systemmap/retry', { name: 'shop-system' })).status).toBe(200);
