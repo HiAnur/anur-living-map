@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
-import { canAccess, changeAccess, localTool } from './access.js';
+import { canAccess, changeAccess, isEngineer, localTool, setEngineer } from './access.js';
 
 it('only owners remove members, owners keep access, and removal survives serialization', () => {
   const s = { people: [{ id: 'Duy', role: 'Admin' }, { id: 'Member' }] };
@@ -77,3 +77,14 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
     expect((await get('/private/api/state')).status).toBe(200);
   } finally { await reader?.cancel().catch(() => {}); await stop(); fs.rmSync(root, { recursive: true, force: true }); }
 }, 15000);
+
+it('counts an Admin, a member marked Engineer, and a role that says so as Engineers, and lets only an Admin mark one', () => {
+  const state = /** @type {any} */ ({ people: [{ id: 'Duy', role: 'Admin' }, { id: 'Harshit', role: 'Engineer, runs Claude Code' }, { id: 'Priyanka', role: 'CFO' }, { id: 'Sam' }] });
+  expect(['Duy', 'Harshit', 'Priyanka', 'Sam', 'Nobody'].map((who) => isEngineer(state, who))).toEqual([true, true, false, false, false]);
+  expect(setEngineer(state, 'Harshit', 'Sam', true)).toBe(false);
+  expect(setEngineer(state, 'Duy', 'Sam', true)).toBe(true);
+  expect(isEngineer(state, 'Sam')).toBe(true);
+  expect(setEngineer(state, 'Duy', 'Duy', false)).toBe(false);
+  expect(setEngineer(state, 'Duy', 'Sam', false)).toBe(true);
+  expect(isEngineer(state, 'Sam')).toBe(false);
+});

@@ -22,6 +22,20 @@ export function changeAccess(state, who, person, restore = false) {
   state.people = /** @type {Person[]} */ (state.people).filter((p) => p.id !== person);
   return true;
 }
+/**
+ * Whether someone is an Engineer of this map (#362): an Admin, someone an Admin marked Engineer, or someone whose
+ * role says so. Engineers, with whoever drew it, may redraw a system map or stop its drawing.
+ * @param {Members} state @param {Who} who
+ */
+export const isEngineer = (state, who) => !!who && (state.people || []).some((p) => p.id === who && (p.role === 'Admin' || /** @type {any} */ (p).engineer === true || /\bengineer\b/i.test(String(p.role || ''))));
+/** An Admin marks a member Engineer, or not. @param {Members} state @param {Who} who @param {unknown} person @param {boolean} on */
+export function setEngineer(state, who, person, on) {
+  if (!managesAccess(state, who) || typeof person !== 'string') return false;
+  const member = /** @type {any} */ ((state.people || []).find((p) => p.id === person));
+  if (!member || member.role === 'Admin') return false;
+  if (on) member.engineer = true; else delete member.engineer;
+  return true;
+}
 /** @param {Members} state @param {Who} who @param {Req} req */
 export function canAccess(state, who, req) {
   if (who) return !removedFrom(state, who);

@@ -2112,7 +2112,7 @@ let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = fa
 let saveOpen = false;
 function renderSave(){
   const on = S.autosave !== false;
-  const redraw = S.drawing && S.drawing.status !== 'running' && !READ_ONLY && !SHARED && sdClosed() === String(S.drawing.at);
+  const redraw = S.drawing && S.drawing.status !== 'running' && mayRedraw() && sdClosed() === String(S.drawing.at);
   $('savew').innerHTML = `${redraw ? '<button class="tbtn" data-sd-redraw title="Draw this system map again from its newest code">Redraw</button> ' : ''}<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
@@ -2146,7 +2146,7 @@ function renderShare(){
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
       <div class="sh-invite"><input placeholder="Add emails, separated by commas" autocomplete="off"><button type="button" disabled>Invite</button></div>
       <div class="sh-h">Who has access</div>
-      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}</span>${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
+      ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}${p.role !== 'Admin' && (p.engineer || /\bengineer\b/i.test(p.role || '')) ? ' · Engineer' : ''}</span>${canManage && p.id !== ME && p.role !== 'Admin' && !/\bengineer\b/i.test(p.role || '') ? `<button class="gb" data-engineer="${esc(p.id)}" data-on="${p.engineer ? '' : '1'}" title="An Engineer may redraw this map from its code">${p.engineer ? 'Not Engineer' : 'Make Engineer'}</button>` : ''}${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
       ${!FILE && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving || cloudDeleting ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit','restricted'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : mode === 'edit' ? 'Edit' : 'Turn off link'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
       <div class="sh-h">Or send the map itself</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
@@ -2235,6 +2235,10 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 let imageExportBusy = false, imageFontCSS;
+async function markEngineer(person, on){
+  const r = await fetch('api/access', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person, engineer: on }) }).catch(() => null);
+  toast(r?.ok ? (on ? `${person} is an Engineer of this map now.` : `${person} is no longer an Engineer of this map.`) : 'Only an owner can make someone an Engineer.');
+}
 async function updatePersonAccess(person){
   try {
     const r = await fetch('api/access', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ person }) });
@@ -3855,6 +3859,7 @@ document.addEventListener('click', (e) => {
   }
   else if (t.closest('[data-share-file]')){ downloadMap(); }
   else if (t.closest('[data-remove-person]')){ updatePersonAccess(t.closest('[data-remove-person]').dataset.removePerson); }
+  else if (t.closest('[data-engineer]')){ const b = t.closest('[data-engineer]'); markEngineer(b.dataset.engineer, b.dataset.on === '1'); }
   else if (t.closest('[data-share-image]')){ downloadMapImage(); }
   else if (t.closest('[data-fload]')){ loadFile(); }
   // Delete this box asks once; Delete takes the box and its lines off the map for everyone, Keep leaves it
@@ -4005,6 +4010,8 @@ const vtime = (t) => { const d = new Date(t), today = d.toDateString() === new D
 // a system map drawing from code: its panel stays until whoever sees it closes it; the clock ticks while it draws
 const SYS_MAP = location.pathname.split('/')[1] || '';
 let sdAsking = false;
+// who may redraw a system map or stop its drawing, as the server decides it: an Engineer, an Admin, whoever drew it
+const mayRedraw = () => !READ_ONLY && !SHARED && (S?.drawing?.by === ME || S?.people?.some((p) => p.id === ME && (p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(p.role || ''))));
 const sdOpen = () => { try { localStorage.removeItem(`lm-sd-${SYS_MAP}`); } catch { /* storage blocked: it shows anyway until closed */ } };
 const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) || ''; } catch { return ''; } }; // storage blocked: the panel just shows
 function renderDrawing(){
@@ -4012,7 +4019,7 @@ function renderDrawing(){
   if (!el) return;
   if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
-  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: !READ_ONLY && !SHARED, asking: sdAsking });
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking });
 }
 setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
 async function sdAct(what){
