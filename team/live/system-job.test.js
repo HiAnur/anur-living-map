@@ -21,9 +21,9 @@ const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-sysjob-'
 const until = async (/** @type {() => boolean} */ ok) => { for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 10)); expect(ok()).toBe(true); };
 
 /** A map's state and a job on it, with a scripted drawing. @param {any} draw */
-function jobOn(draw, initial = /** @type {any} */ ({ nodes: [], edges: [] })) {
+function jobOn(draw, initial = /** @type {any} */ ({ nodes: [], edges: [] }), /** @type {any} */ gh = undefined) {
   const home = tmp(), state = initial, pushes = /** @type {any[]} */ ([]);
-  const job = systemJob({ home, getState: () => state, save: () => {}, push: () => pushes.push(structuredClone(state.drawing)), agent: { answer: async () => ({ ms: 0 }) }, draw });
+  const job = systemJob({ home, getState: () => state, save: () => {}, push: () => pushes.push(structuredClone(state.drawing)), agent: { answer: async () => ({ ms: 0 }) }, draw, ...(gh ? { github: () => gh } : {}) });
   return { home, state, pushes, job };
 }
 const built = { nodes: [{ id: 'system-api', label: 'api' }], edges: [], start: 'system-api' };
@@ -43,10 +43,11 @@ describe('a system map drawing in the background', () => {
     expect(state.nodes).toEqual(built.nodes);
     expect(state.drawing).toMatchObject({ by: 'Harshit', repos: 1, rejected: 1, leftOut: 3, cost: { value: 0.30000000000000004 }, unread: [{ repo: 'ts', why: 'run `npx cdk synth`' }] });
     expect(JSON.stringify(state)).not.toContain('/x/api');
-    expect(JSON.parse(fs.readFileSync(path.join(home, 'system-folders.json'), 'utf8'))).toEqual(['/x/api']);
+    expect(JSON.parse(fs.readFileSync(path.join(home, 'system-folders.json'), 'utf8'))).toEqual({ folders: ['/x/api'], repos: [] });
   });
   it('stops when cancelled and leaves the map as it was', async () => {
-    const { state, job } = jobOn((/** @type {any} */ o) => new Promise((resolve) => o.signal.addEventListener('abort', () => resolve({ state: null, report: report([{ repo: 'api', stage: 'cancelled' }]), cancelled: true }))));
+    const stopped = { state: null, report: report([{ repo: 'api', stage: 'cancelled' }]), cancelled: true };
+    const { state, job } = jobOn((/** @type {any} */ o) => new Promise((resolve) => { if (o.signal.aborted) resolve(stopped); o.signal.addEventListener('abort', () => resolve(stopped)); }));
     job.start({ folders: ['/x/api'], by: 'Harshit' });
     expect(job.cancel()).toBe(true);
     await until(() => state.drawing.status === 'cancelled');
@@ -68,6 +69,27 @@ describe('a system map drawing in the background', () => {
     await until(() => reused.length === 2 && state.drawing.status !== 'running');
     expect(reused).toEqual([[null, null], [{ boxes: ['kept'] }, null]]);
   });
+  it('downloads GitHub repos first as whoever asked, and keeps one GitHub would not give on the panel with why', async () => {
+    /** @type {any[]} */
+    const asked = [];
+    const gh = { fetchRepo: async (/** @type {string} */ who, /** @type {any} */ r) => {
+      asked.push(`${who}:${r.owner}/${r.name}`);
+      if (r.name === 'secret') throw new Error('GitHub said 404 for /repos/Shop/secret.');
+      return { folder: `/cache/${r.name}`, commit: 'c1', branch: 'main' };
+    } };
+    /** @type {string[]} */
+    let drawnFrom = [];
+    const { state, job } = jobOn(async (/** @type {any} */ o) => {
+      drawnFrom = o.folders;
+      return { state: built, report: report([{ repo: 'api', stage: 'done', boxes: 2 }]), cancelled: false };
+    }, undefined, gh);
+    job.start({ folders: ['/x/local'], repos: [{ owner: 'Shop', name: 'api' }, { owner: 'Shop', name: 'secret' }], by: 'Sam' });
+    await until(() => state.drawing.status !== 'running');
+    expect(asked).toEqual(['Sam:Shop/api', 'Sam:Shop/secret']);
+    expect(drawnFrom).toEqual(['/x/local', '/cache/api']);
+    expect(state.drawing).toMatchObject({ status: 'failed', repos: 3, progress: [{ repo: 'secret', stage: 'failed', error: 'GitHub said 404 for /repos/Shop/secret.' }, { repo: 'api', stage: 'done' }] });
+    expect(state.nodes).toEqual(built.nodes);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });
@@ -81,7 +103,10 @@ describe('the system map routes', () => {
   const folders = [repoAt(app()), repoAt(api())];
   fs.mkdirSync(path.join(work, 'notes'));
   const maps = mapList({ openMap, DIR, PROJECT: '', PROJECTS: path.join(DIR, 'projects.json'), mapName: path.basename, demo: () => ({ people: [] }) });
-  const routes = systemRoutes({ maps, PROJECT: '', home });
+  /** @type {any} */
+  const linkedAs = { who: '' };
+  const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });
+  const routes = systemRoutes({ maps, PROJECT: '', home, github: () => gh });
   /** @param {string} route @param {any} [data] @param {{ who?: string, local?: boolean }} [o] */
   const call = async (route, data, { who = 'Harshit', local = true } = {}) => {
     const headers = local ? { host: 'localhost:4323', origin: 'http://localhost:4323', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' } : { host: 'living-map.example.com', origin: 'https://evil.example' };
@@ -96,6 +121,14 @@ describe('the system map routes', () => {
     expect((await call('/api/systemmap/repos?under=/etc')).status).toBe(400);
     const r = await call('/api/systemmap/repos');
     expect(r.body).toEqual({ under: work, repos: [{ name: 'api-service', folder: folders[1] }, { name: 'mobile-app', folder: folders[0] }] });
+  });
+  it('says who you are on GitHub, and draws from GitHub only once you have linked it, with names GitHub could have', async () => {
+    expect((await call('/api/systemmap/github')).body).toEqual({ linked: null, pending: null });
+    expect((await call('/api/systemmap/github', undefined, { local: false })).status).toBe(403);
+    expect((await call('/api/systemmap', { repos: [{ owner: 'Shop', name: 'api' }] })).status).toBe(401);
+    linkedAs.who = 'Harshit';
+    expect((await call('/api/systemmap/github')).body).toEqual({ linked: 'octo', pending: null });
+    expect((await call('/api/systemmap', { repos: [{ owner: 'Shop', name: '../etc' }] })).status).toBe(400);
   });
   it('draws a new map from the repos chosen, and lets whoever started it stop or retry it', async () => {
     vi.spyOn(agent, 'answer').mockImplementation(async () => ({ value: { boxes: [], lines: [] }, cost: { value: 0.01, unit: 'usd' }, ms: 1 }));

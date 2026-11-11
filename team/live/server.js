@@ -220,10 +220,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
-  /** A system map of code folders on this Mac, drawn from their code. @param {{ title: string, folders: string[], by: string }} job */
-  function drawSystem({ title, folders, by }) {
+  /**
+   * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
+   * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
+   */
+  function drawSystem({ title, folders = [], repos = [], by }) {
     state.title = state.renamed = title;
-    return system.start({ folders, by });
+    return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
   function blank() {

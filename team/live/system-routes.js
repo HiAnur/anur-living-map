@@ -1,11 +1,13 @@
 // A system map from code folders on this Mac, at the server's own /api/systemmap...: the repos in a folder to
-// choose from, a new map drawn from the chosen ones, and Cancel and Retry while it draws. Only a person signed in
+// choose from, your GitHub link and the repos it can read, a new map drawn from the chosen ones, and Cancel and
+// Retry while it draws. Only a person signed in
 // on a page this Mac serves may use them, since they read folders on this Mac. Each route answers with the
 // response, and true when it answered.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { sharedGithub } from './github.js';
 import { jsonBody } from './request.js';
 
 const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
@@ -20,8 +22,9 @@ export function reposIn(under) {
   catch { return null; } // not a folder this Mac can read: the answer says so
   return names.filter((n) => fs.existsSync(path.join(under, n, '.git'))).map((name) => ({ name, folder: path.join(under, name) }));
 }
-/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, PROJECT: string, home?: string }} deps */
-export function systemRoutes({ maps, PROJECT, home = os.homedir() }) {
+const GITHUB_NAME = /^[\w.-]+$/;
+/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, PROJECT: string, home?: string, github?: () => ReturnType<typeof import('./github.js').github> }} deps */
+export function systemRoutes({ maps, PROJECT, home = os.homedir(), github = sharedGithub }) {
   /** Whether a folder may be drawn: a repo inside your home folder. @param {unknown} f */
   const drawable = (f) => typeof f === 'string' && path.isAbsolute(f) && path.resolve(f) === f && f.startsWith(home + path.sep) && fs.existsSync(path.join(f, '.git'));
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any) => any} json */
@@ -38,15 +41,29 @@ export function systemRoutes({ maps, PROJECT, home = os.homedir() }) {
       const repos = reposIn(under);
       return repos ? json(200, { under, repos }) : json(404, { error: 'That folder could not be read.' });
     }
+    // your GitHub link: who you are there, or the code to type at github.com while linking; never the token
+    if (url.pathname === '/api/systemmap/github' && req.method === 'GET') return json(200, github().status(who));
+    if (url.pathname === '/api/systemmap/github/link' && req.method === 'POST') {
+      try { return json(200, await github().link(who)); }
+      catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
+    }
+    if (url.pathname === '/api/systemmap/github/unlink' && req.method === 'POST') { github().unlink(who); return json(200, { ok: true }); }
+    if (url.pathname === '/api/systemmap/github/repos' && req.method === 'GET') {
+      try { return json(200, await github().repos(who)); }
+      catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
+    }
     if (url.pathname === '/api/systemmap' && req.method === 'POST') {
       const /** @type {any} */ a = await jsonBody(req, {});
       const folders = Array.isArray(a.folders) ? [...new Set(a.folders)] : [];
-      if (!folders.length || folders.length > 40) return json(400, { error: 'Choose between 1 and 40 repos.' });
+      const repos = (Array.isArray(a.repos) ? a.repos : []).map((/** @type {any} */ r) => ({ owner: String(r?.owner || ''), name: String(r?.name || '') }));
+      if (!folders.length && !repos.length || folders.length + repos.length > 40) return json(400, { error: 'Choose between 1 and 40 repos.' });
       const wrong = folders.find((f) => !drawable(f));
       if (wrong) return json(400, { error: `Not a repo inside your home folder: ${String(wrong).slice(0, 200)}` });
-      const title = String(a.title || '').trim().slice(0, 80) || `${path.basename(path.dirname(folders[0]))} system`;
+      if (repos.some((/** @type {{ owner: string, name: string }} */ r) => !GITHUB_NAME.test(r.owner) || !GITHUB_NAME.test(r.name))) return json(400, { error: 'Not a GitHub repo name.' });
+      if (repos.length && !github().status(who).linked) return json(401, { error: 'Link your GitHub account first.' });
+      const title = String(a.title || '').trim().slice(0, 80) || `${folders.length ? path.basename(path.dirname(folders[0])) : repos[0].owner} system`;
       const name = maps.freeName(title);
-      maps.mapCalled(name).drawSystem({ title, folders, by: who });
+      maps.mapCalled(name).drawSystem({ title, folders, repos, by: who });
       return json(200, { name, href: `/${name}/` });
     }
     const m = /^\/api\/systemmap\/(cancel|retry)$/.exec(url.pathname);
