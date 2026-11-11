@@ -46,7 +46,7 @@ describe('Action box status pills',()=>{
     const p=panel();
     expect(p.actionStatusPill()).toBe('');expect(p.actionStatusPill({stage:'draft'})).toBe('');
     expect(p.actionChat({id:'new',action:{by:'Duy',stage:'draft'}},'')).not.toContain('action-status-pill');
-    for(const [stage,label] of Object.entries({gathering:'Preparing',clarify:'Needs clarity',waiting:'Waiting',ready:'Ready to execute',running:'Executing',error:'Blocked',blocked:'Blocked',sent:'Unconfirmed',unconfirmed:'Unconfirmed'})){
+    for(const [stage,label] of Object.entries({gathering:'Preparing',clarify:'Needs clarity',waiting:'Waiting',ready:'Ready to execute',running:'Executing',error:'Couldn\'t prepare',blocked:'Blocked',sent:'Unconfirmed',unconfirmed:'Unconfirmed'})){
       const action={by:'Duy',stage,question:'Which report?',brief:{goal:'Write',steps:[]},...(['running','blocked'].includes(stage)?{session:'chat',turns:[]}:{} )};
       expect(p.actionStatusPill(action)).toContain(`Action status: ${label}`);
       const rendered=p.actionChat({id:'report',action},'');
