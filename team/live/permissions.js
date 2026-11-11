@@ -50,7 +50,7 @@ export const WHO = {
   // memory, questions and Claude's chats
   editmemory: { standing: 'member', then: 'a box\'s memory only when the box is in their area' },
   forget: { standing: 'member', then: 'a box\'s memory only when the box is in their area' },
-  call: { standing: 'member', then: 'nothing: anyone may answer any open question, also one asked of someone else' },
+  call: { standing: 'member', then: 'the question\'s box is in their area; then any open question, also one asked of someone else' },
   ask: { standing: 'member', then: 'the box asked about is in their area; the question goes into their own chat' },
   apply: { standing: 'member', then: 'the change came from their own chat' },
   drop: { standing: 'member', then: 'the change came from their own chat' },

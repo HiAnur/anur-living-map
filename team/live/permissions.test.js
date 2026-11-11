@@ -21,7 +21,7 @@ const state = (mode = 'edit') => ({
     { id: 'api', label: 'Api', x: 300, y: 90, area: 'api' },
   ],
   edges: [{ from: 'root', to: 'web' }, { from: 'root', to: 'web3' }, { from: 'root', to: 'api' }, { from: 'web', to: 'web2', label: 'Calls' }],
-  calls: [{ id: 'c1', status: 'open', ask: 'Ship it?', for: 'Ana', node: 'api' }],
+  calls: [{ id: 'c1', status: 'open', ask: 'Ship it?', for: 'Ana', node: 'api' }, { id: 'c2', status: 'open', ask: 'Ship the site?', for: 'Ana', node: 'web' }],
   comments: [{ id: 1, x: 0, y: 0, view: 'system', node: 'api', resolved: false, msgs: [{ who: 'Ana', text: 'Why?', at: 1 }] }],
   memory: [{ id: 'k1', text: 'Tuesdays', box: 'api' }, { id: 'k2', text: 'Mondays', box: 'web' }],
   threads: { '@Ana': [{ who: 'Ana', text: 'Hi' }], '@Duy': [{ who: 'Duy', text: 'Hi' }], '@Sam': [{ who: 'Sam', text: 'Hi' }] }, log: [],
@@ -44,7 +44,7 @@ const OK = /** @type {Record<string, any>} */ ({
   rename: { type: 'rename', title: 'Spring launch' }, comment: { type: 'comment', x: 1, y: 2, text: 'Hm' },
   reply: { type: 'reply', id: 1, text: 'Because' }, resolve: { type: 'resolve', id: 1 },
   editmemory: { type: 'editmemory', id: 'k2', text: 'Fridays' }, forget: { type: 'forget', id: 'k2' },
-  call: { type: 'call', id: 'c1', answer: 'confirm' }, describemap: { type: 'describemap', description: 'Spring' },
+  call: { type: 'call', id: 'c2', answer: 'confirm' }, describemap: { type: 'describemap', description: 'Spring' },
   contextmap: { type: 'contextmap', id: 'gtm', include: false }, savenow: { type: 'savenow' }, autosave: { type: 'autosave', on: false },
   open: { type: 'open' }, execute: { type: 'execute' }, planmd: { type: 'planmd' }, actionbox: { type: 'actionbox', id: 'web' },
   plan: { type: 'plan', nodes: [{ id: 'billing', label: 'Billing', sub: 'Stripe' }], note: 'n' },
@@ -60,7 +60,7 @@ const OUTSIDE = /** @type {Record<string, any>} */ ({
   resize: { type: 'resize', id: 'api', x: 300, y: 90, w: 200, h: 60 }, relabel: { type: 'relabel', from: 'root', to: 'api', label: 'Calls' },
   renamebox: { type: 'renamebox', id: 'api', label: 'API' }, describebox: { type: 'describebox', id: 'api', sub: 'The api' },
   editmemory: { type: 'editmemory', id: 'k1', text: 'Fridays' }, forget: { type: 'forget', id: 'k1' },
-  ask: { type: 'ask', node: 'api', text: 'What next?' }, actionbox: { type: 'actionbox', id: 'api' },
+  ask: { type: 'ask', node: 'api', text: 'What next?' }, actionbox: { type: 'actionbox', id: 'api' }, call: { type: 'call', id: 'c1', answer: 'confirm' },
 });
 
 describe('who may take each action', () => {
@@ -108,7 +108,7 @@ describe('who may take each action', () => {
     expect(await allowed('Sam', { type: 'move', id: 'api', x: 310, y: 100 })).toBe(true);
   });
   it('a one-area member may still take the actions with no area: these change the whole map', async () => {
-    for (const type of ['rename', 'tidy', 'reset', 'savenow', 'autosave', 'call', 'comment', 'reply', 'resolve', 'plan', 'edit', 'pr', 'open', 'newchat'])
+    for (const type of ['rename', 'tidy', 'reset', 'savenow', 'autosave', 'comment', 'reply', 'resolve', 'plan', 'edit', 'pr', 'open', 'newchat'])
       expect(await allowed('Sam', OK[type]), type).toBe(true);
   });
   it('a member and a program on this Mac may take every other action that is theirs', async () => {
