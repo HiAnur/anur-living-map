@@ -76,16 +76,17 @@ describe('reading repos from GitHub', () => {
     fs.writeFileSync(path.join(dir, 'github', 'Harshit.json'), JSON.stringify({ access: 'tok', login: 'octo' }));
     const fake = fakeGitHub({
       'GET /user/installations?': () => ({ installations: [{ id: 1, account: { login: 'Shop' } }, { id: 2, account: { login: 'octo' } }] }),
-      'GET /user/installations/1/repositories': () => ({ repositories: [{ owner: { login: 'Shop' }, name: 'api', private: true, default_branch: 'main' }, { owner: { login: 'Shop' }, name: 'old-api', private: true, archived: true, default_branch: 'main' }] }),
+      'GET /user/installations/1/repositories': () => ({ repositories: [{ owner: { login: 'Shop' }, name: 'api', private: true, default_branch: 'main', language: 'Python', pushed_at: '2026-11-01T00:00:00Z', size: 900 }, { owner: { login: 'Shop' }, name: 'old-api', private: true, archived: true, default_branch: 'main' },
+        { owner: { login: 'Shop' }, name: 'some-fork', fork: true, default_branch: 'main' }, { owner: { login: 'Shop' }, name: 'empty', size: 0, default_branch: 'main' }] }),
       'GET /user/installations/2/repositories': () => ({ repositories: [{ owner: { login: 'octo' }, name: 'site', private: false, default_branch: 'trunk' }] }),
       ...more,
     });
     return { dir, ...fake };
   }
-  it('lists the repos the person can read where the app is installed, but archived ones, asking as them', async () => {
+  it('lists the repos the person can read where the app is installed, but archived, forked and empty ones, asking as them', async () => {
     const { dir, http, calls } = linked();
     expect(await github({ dir, http }).repos('Harshit')).toEqual({ installed: ['Shop', 'octo'], repos: [
-      { owner: 'Shop', name: 'api', private: true, branch: 'main' }, { owner: 'octo', name: 'site', private: false, branch: 'trunk' }] });
+      { owner: 'Shop', name: 'api', private: true, branch: 'main', language: 'Python', pushed: Date.parse('2026-11-01T00:00:00Z') }, { owner: 'octo', name: 'site', private: false, branch: 'trunk' }] });
     expect(calls.every((c) => c.headers.authorization === 'Bearer tok')).toBe(true);
   });
   it('downloads a repo at its newest commit into a folder named after it, with no symlinks, once per commit', async () => {

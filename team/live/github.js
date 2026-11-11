@@ -101,7 +101,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     return { linked: t ? t.login : null, pending: p && p.until > now() ? p : null };
   }
 
-  /** Every repo the person can read where the app is installed, by account, but archived ones. @param {string} who */
+  /** Every repo the person can read where the app is installed, by account, but archived, forked and empty ones. @param {string} who */
   async function repos(who) {
     const { installations } = await (await api(who, '/user/installations?per_page=100')).json();
     /** @type {{ owner: string, name: string, private: boolean, branch: string }[]} */
@@ -109,8 +109,9 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     for (const inst of installations || []) {
       for (let page = 1; page <= 10; page++) {
         const r = await (await api(who, `/user/installations/${inst.id}/repositories?per_page=100&page=${page}`)).json();
-        // an archived repo is no longer part of the running system
-        for (const x of r.repositories || []) if (!x.archived && !x.disabled) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch });
+        // an archived repo is no longer part of the running system, a fork is someone else's code, an empty one holds none
+        for (const x of r.repositories || []) if (!x.archived && !x.disabled && !x.fork && x.size !== 0) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch,
+          ...(x.language ? { language: String(x.language) } : {}), ...(x.pushed_at ? { pushed: Date.parse(x.pushed_at) } : {}) });
         if ((r.repositories || []).length < 100) break;
       }
     }
