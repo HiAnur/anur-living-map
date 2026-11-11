@@ -2528,6 +2528,20 @@ function pointsRow(n){
   if (!can) return '';
   return `<div class="pts"><label for="pts-in">Points at a box in ${esc(S.buildsOn.title)}</label><input id="pts-in" list="pts-list" data-point="${esc(n.id)}" placeholder="Search its boxes" autocomplete="off"><datalist id="pts-list">${(baseBoxes || []).map((b) => `<option value="${esc(b.pick)}"></option>`).join('')}</datalist></div>`;
 }
+// Trace a request: the server follows the box's facts through the code and puts the steps on the box as a sequence;
+// the box's diagram opens once the map has it
+document.addEventListener('click', async (e) => {
+  const b = e.target instanceof Element ? e.target.closest('[data-trace]') : null; if (!b) return;
+  const id = b.dataset.trace; b.disabled = true; b.textContent = 'Tracing…';
+  const r = await fetch('api/system-trace', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id }) })
+    .then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
+  b.disabled = false; b.textContent = 'Trace a request';
+  if (r.error){ toast(r.error); return; }
+  for (let i = 0; i < 40 && !nodeById(id)?.diagram; i++) await new Promise((ok) => setTimeout(ok, 50));
+  // the map's own updates for the trace land first: one arriving after the sequence opened would move the view back
+  // to where the box sat
+  if (nodeById(id)?.diagram){ await new Promise((ok) => setTimeout(ok, 300)); openDiagram(id); }
+});
 function renderSide(){
   const el = $('side');
   if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
@@ -2620,7 +2634,7 @@ function renderSide(){
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
   el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${actionView().boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
-    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button></div>
+    <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button>${S.drawing && n.source?.facts?.length && !READ_ONLY && !SHARED && !FILE && !PREVIEW ? `<button class="gb" data-trace="${esc(n.id)}" title="Follow a request from this box through the code, hop by hop, and draw it as a sequence">Trace a request</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">${pointsRow(n)}
     ${(() => {

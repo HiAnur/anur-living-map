@@ -16,7 +16,9 @@ import { sharedGithub } from './github.js';
 import { systemState } from './system-build.js';
 import { repoHead } from './system-facts.js';
 import { drawSystem } from './system-draw.js';
+import { allBoxesOf } from './map-walk.js';
 import { keepHandEdits, redrawChanges } from './system-merge.js';
+import { traceFrom } from './system-trace.js';
 import { onGitHub, workFinder } from './system-work.js';
 
 /** @type {ReturnType<typeof workFinder> | null} */
@@ -31,6 +33,23 @@ const sharedWork = () => (finder ||= workFinder({ home: os.homedir(), data: DATA
 export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub, work = sharedWork }) {
   // a redraw waiting to be applied, as code drew it: kept beside the map, never sent to a page
   const PENDING = path.join(home, 'system-pending.json');
+  // the facts and cross-repo links the map was drawn from, for tracing a request; kept beside the map, never sent to a
+  // page (a redraw waiting for review keeps its own until it is applied)
+  const FACTS = path.join(home, 'system-facts.json'), FACTS_PENDING = path.join(home, 'system-facts-pending.json');
+  /** @param {string} file @param {any} store */
+  const keepFacts = (file, store) => { if (store) fs.writeFileSync(file, JSON.stringify(store)); };
+  /**
+   * A request traced from a box, as the person asking may read it: the box's facts followed hop by hop. Null when
+   * the map keeps no facts (drawn before facts were kept: draw it again) or the box stands for none.
+   * @param {string} id @param {string} who @returns {{ steps: import('./system-trace.js').Step[], repos: [string, string][] } | null}
+   */
+  function trace(id, who) {
+    if (!fs.existsSync(FACTS)) return null;
+    const n = allBoxesOf(getState()).find((/** @type {any} */ b) => b.id === id);
+    const repo = n?.source?.repo, start = n?.source?.facts;
+    if (!repo || !Array.isArray(start) || !start.length) return null;
+    return traceFrom(repo, start, JSON.parse(fs.readFileSync(FACTS, 'utf8')), hiddenFor(who));
+  }
   /** puts a drawing on the map, keeping what people did to it @param {any} drawn */
   const applyDrawn = (drawn) => { const merged = keepHandEdits(getState(), drawn); Object.assign(getState(), { nodes: merged.nodes, edges: merged.edges, start: merged.start }); };
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
@@ -106,7 +125,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
       onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); showSoFar(r, d); },
       onProgress: tell,
-    })).then(({ state, report, cancelled }) => {
+    })).then(({ state, report, cancelled, store: facts }) => {
       fs.writeFileSync(REPORT, JSON.stringify(report, null, 1));
       Object.assign(drawing, {
         progress: [...missed, ...report.progress], ms: report.ms, rejected: report.rejected.length, leftOut: report.leftOut,
@@ -117,11 +136,11 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       drawing.status = cancelled ? 'cancelled' : failed.length ? 'failed' : 'done';
       // a new map takes its drawing at once; a map drawn again keeps what people did to it (system-merge.js), and what
       // code would change waits for an Engineer to apply it
-      if (state && fresh) Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start });
+      if (state && fresh) { Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start }); keepFacts(FACTS, facts); }
       else if (state) {
         const changes = redrawChanges(getState(), keepHandEdits(getState(), structuredClone(state)));
-        if (!changes.length) applyDrawn(state);
-        else { fs.writeFileSync(PENDING, JSON.stringify(state)); getState().redraw = { at: Date.now(), by: drawing.by, count: changes.length, changes: changes.slice(0, 300) }; }
+        if (!changes.length) { applyDrawn(state); keepFacts(FACTS, facts); }
+        else { fs.writeFileSync(PENDING, JSON.stringify(state)); keepFacts(FACTS_PENDING, facts); getState().redraw = { at: Date.now(), by: drawing.by, count: changes.length, changes: changes.slice(0, 300) }; }
       }
     }).catch((/** @type {any} */ e) => {
       console.error('[map] system drawing', e);
@@ -296,15 +315,17 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     applyRedraw: () => {
       if (!getState().redraw || !fs.existsSync(PENDING)) return false;
       applyDrawn(JSON.parse(fs.readFileSync(PENDING, 'utf8')));
+      if (fs.existsSync(FACTS_PENDING)) fs.renameSync(FACTS_PENDING, FACTS);
       delete getState().redraw; fs.rmSync(PENDING, { force: true });
       return true;
     },
     /** Keeps the map as it is and drops the redraw waiting for review. @returns {boolean} whether one was waiting */
     dropRedraw: () => {
       if (!getState().redraw) return false;
-      delete getState().redraw; fs.rmSync(PENDING, { force: true });
+      delete getState().redraw; fs.rmSync(PENDING, { force: true }); fs.rmSync(FACTS_PENDING, { force: true });
       return true;
     },
+    trace,
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */
