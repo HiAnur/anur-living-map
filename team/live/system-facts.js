@@ -52,7 +52,7 @@ export function pythonFacts(root) {
 /**
  * Everything code can read about one repo: what kinds of source it holds, the facts, and the commit they are from.
  * @param {string} root the repo's folder
- * @returns {Promise<{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[] }>}
+ * @returns {Promise<{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[], unread: string[] }>}
  */
 export async function readRepo(root) {
   const files = repoFiles(root);
@@ -71,5 +71,11 @@ export async function readRepo(root) {
   const amp = amplifyFacts(root);
   if (amp.length) { kinds.push('amplify'); facts.push(...amp); }
   facts.forEach((f, i) => { f.id = `f${i + 1}`; });
-  return { repo: path.basename(root), root, head: repoHead(root), kinds, facts };
+  /** @type {string[]} */
+  const unread = [];
+  // CDK in TypeScript is read only from what it compiles to, which git does not keep
+  if (files.includes('cdk.json') && !cfn.length && !/python/.test(fs.readFileSync(path.join(root, 'cdk.json'), 'utf8'))) {
+    unread.push('Its infrastructure is CDK in TypeScript with no cdk.out here: run `npx cdk synth` in it so the map can read its functions, tables and permissions.');
+  }
+  return { repo: path.basename(root), root, head: repoHead(root), kinds, facts, unread };
 }

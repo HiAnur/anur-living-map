@@ -113,8 +113,11 @@ export function cfnFacts(root) {
         const physical = NAMES.map((k) => literal(p[k])).find(Boolean);
         const keys = (p.KeySchema || []).map((/** @type {any} */ k) => k.AttributeName);
         const targets = [...new Set((p.Targets || []).flatMap((/** @type {any} */ tg) => [...refs(tg.Arn)]))];
+        // a user pool's sign-up and sign-in triggers are functions it runs, like a schedule's targets
+        const triggers = [...refs(p.LambdaConfig || {})].filter((x) => allFunctions.has(x));
         add(KINDS[r.Type], at(lid), { path: pathOf(r), stack, ...(physical ? { name: physical } : {}), ...(keys.length ? { keys } : {}),
-          ...(p.ScheduleExpression ? { schedule: p.ScheduleExpression } : {}), ...(targets.length ? { targets: functionsNamed(p.Targets) } : {}) });
+          ...(p.ScheduleExpression ? { schedule: p.ScheduleExpression } : {}), ...(targets.length ? { targets: functionsNamed(p.Targets) } : {}),
+          ...(triggers.length ? { targets: triggers } : {}) });
       } else if (r.Type === 'AWS::IAM::Policy') {
         for (const st of p.PolicyDocument?.Statement || []) {
           const acts = /** @type {unknown[]} */ ([]).concat(st.Action || []);
