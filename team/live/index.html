@@ -2450,7 +2450,8 @@ function renderSide(){
   el.classList.toggle('on', !!(n || pb));
   // Live map changes keep the name being typed and its cursor in place.
   if (sideRename && $('side-name')) return;
-  el.classList.remove('info');
+  // Proposed and restricted boxes use the pane's own scrollbar, not the chat layout.
+  el.classList.remove('info', 'sc');
   // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
   if (pb){
     el.innerHTML = `<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(pb.id)}" title="Double-click to rename">${prose(pb.label)}</span>`}<span class="ct-r"><span class="x" data-close>×</span></span></div>
