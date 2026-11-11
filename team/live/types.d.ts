@@ -192,6 +192,8 @@ interface AnswerJob {
   schema: object;
   model?: string;
   timeoutMs?: number;
+  /** stops the agent, answering `stopped` */
+  signal?: AbortSignal;
 }
 /** An answer held to its schema, or why there is none, and what it cost (in the agent's own unit). */
 interface AnswerResult {
@@ -199,6 +201,7 @@ interface AnswerResult {
   error?: string;
   cost?: { value: number; unit: string };
   ms: number;
+  stopped?: boolean;
 }
 interface ConverseJob {
   cwd: string;
