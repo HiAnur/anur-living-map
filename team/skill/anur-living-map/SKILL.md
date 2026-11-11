@@ -25,6 +25,8 @@ When the arguments begin with `map:<name>` (`/anur-living-map map:hiring-plan ma
 
 **Then go straight on.** Do not check again that the map opened, and do not read the map, the code or the database to see what is there: the script's lines say it. The test: one round of tool calls between the user's message and the work they asked for. 
 
+When the script prints `system map: <name>`, this repo is part of a system map drawn from code: the chat is linked to that map and Chrome opens on this repo's box there (the `chrome:` line gives the address). Start a listener for `<name>` too, and point the browser pane at that address.
+
 Never stop the server to open another repo: other repos' maps and other chats' listeners live on it. If the script prints `could not add`, say it and stop.
 
 Opening keeps the map as it was left: every change saves itself, and History, on the map's right rail, has every earlier version to look at or go back to. If the map does not answer, read `.living-map/server.log` in the repo. When the script prints `gitignore:`, add `.living-map/` to the repo's `.gitignore`: it holds the map's state.
