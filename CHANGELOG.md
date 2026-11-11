@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Couldn't prepare, apart from Blocked</strong></dt>
+<dd>
+
+An Action whose preparation stopped now reads **Couldn't prepare**, so you know to prepare it again; **Blocked** now means only a run that could not go on, which **Continue** picks up. <!-- source: https://github.com/HiAnur/anur-living-map/pull/348 --> <!-- merged-at: 2026-11-11T00:21:45Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] A clearer map</strong></dt>
 <dd>
 
