@@ -86,7 +86,7 @@ describe('reading repos from GitHub', () => {
   it('lists the repos the person can read where the app is installed, but archived, forked and empty ones, asking as them', async () => {
     const { dir, http, calls } = linked();
     expect(await github({ dir, http }).repos('Harshit')).toEqual({ installed: ['Shop', 'octo'], repos: [
-      { owner: 'Shop', name: 'api', private: true, branch: 'main', language: 'Python', pushed: Date.parse('2026-11-01T00:00:00Z') }, { owner: 'octo', name: 'site', private: false, branch: 'trunk' }] });
+      { owner: 'Shop', name: 'api', private: true, branch: 'main', language: 'Python', pushed: Date.parse('2026-11-01T00:00:00Z'), size: 900 }, { owner: 'octo', name: 'site', private: false, branch: 'trunk' }] });
     expect(calls.every((c) => c.headers.authorization === 'Bearer tok')).toBe(true);
   });
   it('downloads a repo at its newest commit into a folder named after it, with no symlinks, once per commit', async () => {

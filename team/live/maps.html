@@ -190,6 +190,8 @@ if (SIGNED_IN){
 }
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+// a repo's size from GitHub's kilobytes, in words a person reads at a glance
+const sizeOf = (kb) => kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : kb < 1024 * 1024 ? `${Math.round(kb / 1024)} MB` : `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 // a new map: Claude Code starts drawing it on a blank canvas, and the map opens with its chat beside it
 const form = document.getElementById('new'), box = form.querySelector('textarea'), go = form.querySelector('button'), err = document.getElementById('err');
@@ -282,7 +284,7 @@ async function showGitHub(){
   }
   const owners = [...new Set(got.b.repos.map((x) => x.owner))];
   set('gh-state', who);
-  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span>${esc(x.name)}<small>${[x.private ? 'private' : '', x.language || '', x.pushed ? `pushed ${ago(x.pushed)}` : ''].filter(Boolean).map(esc).join(' · ')}</small></span></label>`; }).join('')}`).join('')
+  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span>${esc(x.name)}<small>${[x.private ? 'private' : '', x.language || '', x.size ? sizeOf(x.size) : '', x.pushed ? `pushed ${ago(x.pushed)}` : ''].filter(Boolean).map(esc).join(' · ')}</small></span></label>`; }).join('')}`).join('')
     + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`);
   if (!$('code-title').value) $('code-title').placeholder = `${owners[0]} system`;
   $('code-pick').hidden = false;
