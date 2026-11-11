@@ -3,6 +3,7 @@
 import { readPlannedTask } from './action-plan.js';
 import { autoPlanAdditions } from './auto-plan.js';
 import { diagramOf, diagramSaid } from './diagram.js';
+import { allLinesOf } from './map-walk.js';
 
 // a person's chats with Claude: their own (`@Duy`), the ones they kept (`@Duy#…`) and their side chats (`@Duy>box`)
 /** @param {string} key @param {any} by */
@@ -85,7 +86,7 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       if (had.action) { dropped.push({ text: `remove ${had.label}`, why: 'it holds an Action: only its author or an Admin takes it off the map, by hand' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
     }
-    const lineOn = (/** @type {any} */ from, /** @type {any} */ to) => [getState(), ...getState().nodes.map((/** @type {any} */ n) => n.inside).filter(Boolean)].some((s) => (s.edges || []).some((/** @type {any} */ e) => e.from === from && e.to === to));
+    const lineOn = (/** @type {any} */ from, /** @type {any} */ to) => [{ edges: allLinesOf(getState()) }].some((s) => (s.edges || []).some((/** @type {any} */ e) => e.from === from && e.to === to));
     for (const e of (p.unlink || []).slice(0, 12)) {
       const a = nodeOf(e?.from), z = nodeOf(e?.to);
       if (!a || !z || !lineOn(a.id, z.id)) { dropped.push({ text: `remove the line ${e?.from} → ${e?.to}`, why: 'no such line' }); continue; }

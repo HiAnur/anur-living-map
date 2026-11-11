@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { localTool, managesAccess, removedFrom } from './access.js';
+import { allBoxesOf } from './map-walk.js';
 
 export { localTool };
 /** @param {Shared} state @param {Req} req */
@@ -53,7 +54,7 @@ const OUTLINE = ['id', 'label', 'x', 'y', 'w', 'h', 'area', 'kind', 'icon', 'mov
  * @param {any} state @param {string} sees
  */
 export function forArea(state, sees) {
-  const all = (state.nodes || []).flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]);
+  const all = allBoxesOf(state);
   const away = new Set(all.filter((/** @type {any} */ n) => n.area !== sees).map((/** @type {any} */ n) => n.id));
   const line = (/** @type {any} */ e) => away.has(e.from) || away.has(e.to) ? (({ label: _, ...rest }) => rest)(e) : e;
   /** @param {any} n @returns {any} */

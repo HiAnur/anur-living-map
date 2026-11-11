@@ -58,6 +58,7 @@ import { mayAct } from './permissions.js';
 import { linkRole, localTool, permission, sharedState } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
+import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 
 // the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
 const PORT = Number(/^\d+$/.test(process.argv[2] || '') ? process.argv[2] : process.env.PORT || 4323);
@@ -132,7 +133,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   if (!memory && (project || name)) state.people = (state.people || []).filter((/** @type {any} */ p) => p.joined).map((/** @type {any} */ p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
-  for (const n of state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])) recoverAction(n);
+  for (const n of allBoxesOf(state)) recoverAction(n);
   oneChat(state);
   const clients = new Set();
   const activeAsks = new Set();
@@ -300,8 +301,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const ownerOf = (nodeId, call) => call?.session || nodeOf(nodeId)?.session || state.owner || '*';
   const stamp = () => new Date().toTimeString().slice(0, 5);
 
-  const allNodes = () => state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes ?? [])]);
-  const allEdges = () => state.edges.concat(state.nodes.flatMap((/** @type {any} */ n) => n.inside?.edges ?? []));
+  const allNodes = () => allBoxesOf(state);
+  const allEdges = () => allLinesOf(state);
   const nodeOf = (/** @type {any} */ id) => allNodes().find((/** @type {any} */ n) => n.id === id);
 
 
@@ -341,7 +342,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   /** @param {any} from @param {any} to */
   function unlinkEdge(from, to) {
     let gone = false;
-    for (const s of [state, ...state.nodes.map((/** @type {any} */ n) => n.inside).filter(Boolean)]) {
+    for (const s of graphsOf(state)) {
       const before = (s.edges || []).length; s.edges = (s.edges || []).filter((/** @type {any} */ e) => !(e.from === from && e.to === to)); gone ||= s.edges.length < before;
     }
     return gone;
@@ -540,7 +541,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const result = actingAs(a.by, () => {
         const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
         if (done.ok) {
-          actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])]));
+          actions.reconcile(allBoxesOf(state));
           updateBoxDates(state, undefined, a.by);
           if (before) edits.record(a.by, before, editSnapshot(state));
           remember(a.type, a.by, big); save();
@@ -583,7 +584,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (wrong) return { ok: false, error: wrong };
     const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
     const result = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
-    if (result.ok) { actions.reconcile(state.nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes || [])])); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
+    if (result.ok) { actions.reconcile(allBoxesOf(state)); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
   return { handle, summary, build, blank, close, allowed, access, canDelete, editShared,

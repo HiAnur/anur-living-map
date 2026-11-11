@@ -3,6 +3,7 @@
 import { managesAccess } from './access.js';
 import { leaving } from './action-leave.js';
 import { note } from './action-box.js';
+import { parentBoxOf } from './map-walk.js';
 
 /** @param {{ getState: () => MapState, nodeOf: (id: any) => Box | undefined, seesOf: (by: any) => string, tell: Function }} deps */
 export function archiveActs({ getState, nodeOf, seesOf, tell }) {
@@ -13,7 +14,7 @@ export function archiveActs({ getState, nodeOf, seesOf, tell }) {
     actionarchive(a) {
       const n = nodeOf(a.id);
       if (!n?.action || !inArea(n, a.by) || leaving(getState(), n, a.by) !== 'archive') return false;
-      const holder = getState().nodes.find((p) => p.inside?.nodes?.includes(n)), s = holder?.inside || getState();
+      const holder = parentBoxOf(getState(), n.id), s = holder?.inside || getState();
       const edges = (s.edges || []).filter((/** @type {Line} */ e) => e.from === n.id || e.to === n.id);
       s.nodes = s.nodes.filter((/** @type {Box} */ x) => x !== n);
       s.edges = (s.edges || []).filter((/** @type {Line} */ e) => !edges.includes(e));

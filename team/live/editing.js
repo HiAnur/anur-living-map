@@ -1,8 +1,10 @@
-// A branch includes folded descendants and boxes inside it. Cycles are visited once.
+import { allBoxesOf, allLinesOf } from './map-walk.js';
+
+// A branch includes folded descendants and boxes inside it, at any depth. Cycles are visited once.
 /** @param {MapState} state @param {string[]} roots */
 export function branchIds(state, roots) {
-  const nodes = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
-  const edges = [...(state.edges || []), ...state.nodes.flatMap((n) => n.inside?.edges || [])];
+  const nodes = allBoxesOf(state);
+  const edges = allLinesOf(state);
   const ids = new Set(roots), queue = [...ids];
   for (let i = 0; i < queue.length; i++) {
     const id = queue[i], node = nodes.find((n) => n.id === id);
@@ -15,7 +17,7 @@ export function branchIds(state, roots) {
 // changing any line or box, so a concurrent edit cannot leave half a branch moved.
 /** @param {MapState} state @param {any} a the move a page asked for: checked field by field here */
 export function reparentTopic(state, a, /** @type {(n?: any) => boolean} */ canEdit = () => true) {
-  const all = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+  const all = allBoxesOf(state);
   const graph = !a.view || a.view === 'system' ? state : all.find((n) => n.id === a.view)?.inside;
   if (!graph) return false;
   const roots = a.ids || [a.id], parent = graph.nodes.find((n) => n.id === a.parent);
@@ -83,9 +85,9 @@ function applyEdit(state, from, to, canEdit) {
     for (const id of new Set([...a.keys(), ...b.keys()])) {
       if (equal(a.get(id), b.get(id))) continue;
       if (!equal(current.get(id), a.get(id))) return false;
-      if (field === 'nodes' && [a.get(id), b.get(id)].filter(Boolean).flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => !canEdit(n))) return false;
+      if (field === 'nodes' && allBoxesOf({ nodes: [a.get(id), b.get(id)].filter(Boolean) }).some((n) => !canEdit(n))) return false;
       if (field === 'edges') {
-        const nodes = [...state.nodes, ...from.nodes, ...to.nodes].flatMap((n) => [n, ...(n.inside?.nodes || [])]);
+        const nodes = allBoxesOf({ nodes: [...state.nodes, ...from.nodes, ...to.nodes] });
         if ([a.get(id), b.get(id)].filter(Boolean).some((e) => [e.from, e.to].some((end) => { const n = nodes.find((x) => x.id === end); return !n || !canEdit(n); }))) return false;
       }
       if (b.has(id)) current.set(id, structuredClone(b.get(id))); else current.delete(id);
@@ -97,7 +99,7 @@ function applyEdit(state, from, to, canEdit) {
     if (!equal(state[field], from[field])) return false;
     next[field] = to[field];
   }
-  const ids = new Set(next.nodes.flatMap((/** @type {any} */ n) => [n.id, ...(n.inside?.nodes || []).map((/** @type {any} */ x) => x.id)]));
+  const ids = new Set(allBoxesOf(next).map((/** @type {any} */ n) => n.id));
   if (next.edges.some((/** @type {any} */ e) => (changed.has(e.from) || changed.has(e.to)) && (!ids.has(e.from) || !ids.has(e.to)))) return false;
   Object.assign(state, next); return true;
 }

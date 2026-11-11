@@ -1,143 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { expect, test } from "@playwright/test";
 import fs from "node:fs";
-import http from "node:http";
-import type { AddressInfo } from "node:net";
-import os from "node:os";
 import path from "node:path";
 
-// The team map's page (team/live/index.html), on a copy of the team server
-// with a sample topic map, driven the way you use it. These hold what the
-// unit tests that read the page's script cannot see: that the page still
-// loads and works as a whole after its script is moved or split, and that
-// Share as a file still opens on its own.
+import {
+  SAMPLE,
+  box,
+  openSample,
+  server,
+  useTeamServer,
+} from "./team-map.harness.ts";
 
-const LIVE = path.resolve(import.meta.dirname, "../team/live");
-const SAMPLE = {
-  title: "Launch plan",
-  start: "launch",
-  nodes: [
-    {
-      id: "launch",
-      label: "Launch plan",
-      sub: "What we ship in spring",
-      x: 0,
-      y: 0,
-    },
-    {
-      id: "pricing",
-      label: "Pricing",
-      sub: "Plans and trials",
-      x: 300,
-      y: -90,
-    },
-    { id: "audience", label: "Audience", sub: "Who it is for", x: 300, y: 90 },
-    { id: "trial", label: "Free trial", sub: "Fourteen days", x: 600, y: -90 },
-  ],
-  edges: [
-    { from: "launch", to: "pricing" },
-    { from: "launch", to: "audience" },
-    { from: "pricing", to: "trial" },
-  ],
-  calls: [],
-  people: [],
-};
+// The team map's page (team/live/index.html) on a copy of the team server with a sample topic map, driven the way
+// you use it: what the unit tests that read the page's script cannot see.
 
-let root = "";
-let app = "";
-let origin = "";
-let session = "";
-let env: NodeJS.ProcessEnv = {};
-let server: ChildProcess | undefined;
-let crashes: string[];
-
-// A sign-in for a person, made the way the server makes one, for its cookie.
-const signIn = (who: string) =>
-  execFileSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `import {users} from './users.js';console.log(users.start(${JSON.stringify(who)}))`,
-    ],
-    { cwd: app, env, encoding: "utf8" },
-  ).trim();
-
-// One server per worker, from its own copy, so maps and sign-ins stay apart.
-test.beforeAll(async () => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "lm-team-page-"));
-  app = path.join(root, "app");
-  fs.mkdirSync(app);
-  for (const f of fs.readdirSync(LIVE))
-    if (/\.(js|html|json|md)$/.test(f) && f !== "projects.json")
-      fs.copyFileSync(path.join(LIVE, f), path.join(app, f));
-  fs.cpSync(path.join(LIVE, "agents"), path.join(app, "agents"), {
-    recursive: true,
-  });
-  env = {
-    ...process.env,
-    HOME: path.join(root, "home"),
-    LIVING_MAP_USERS: path.join(root, "users.db"),
-    LIVING_MAP_LOGIN_URL: "",
-    LIVING_MAP_CLOUD_CONFIG: path.join(root, "no-cloud.json"),
-  };
-  session = signIn("Duy");
-  const reserve = http.createServer();
-  await new Promise<void>((r) => reserve.listen(0, "127.0.0.1", r));
-  const port = (reserve.address() as AddressInfo).port;
-  await new Promise((r) => reserve.close(r));
-  origin = `http://localhost:${port}`;
-  server = spawn(process.execPath, ["server.js", String(port)], {
-    cwd: app,
-    env,
-    stdio: "ignore",
-  });
-  for (let i = 0; ; i++) {
-    try {
-      if ((await fetch(`${origin}/api/version`)).ok) break;
-    } catch {
-      // not listening yet
-    }
-    if (i > 100) throw new Error("The team server did not start");
-    await new Promise((r) => setTimeout(r, 50));
-  }
-});
-
-test.afterAll(() => {
-  server?.kill();
-  fs.rmSync(root, { recursive: true, force: true });
-});
-
-// Each test opens a map of its own, named after it, holding the sample.
-const openSample = async (page: Page, state: object = SAMPLE) => {
-  const name = `t-${test
-    .info()
-    .testId.toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")}`;
-  fs.mkdirSync(path.join(app, "maps", name), { recursive: true });
-  fs.writeFileSync(
-    path.join(app, "maps", name, "state.json"),
-    JSON.stringify(state),
-  );
-  await page.goto(`${origin}/${name}/`);
-  await expect(page.locator("#nodes .node")).toHaveCount(4);
-  return name;
-};
-
-const box = (page: Page, name: string) =>
-  page.locator("#nodes .node", { hasText: name });
-
-test.beforeEach(async ({ context, page }) => {
-  crashes = [];
-  page.on("pageerror", (e) => crashes.push(String(e)));
-  await context.addCookies([
-    { name: "lm_session", value: session, domain: "localhost", path: "/" },
-  ]);
-});
-
-test.afterEach(() => {
-  expect(crashes).toEqual([]);
-});
+useTeamServer();
 
 test("draws the map's boxes and lines", async ({ page }) => {
   await openSample(page);
@@ -174,7 +50,7 @@ test("Tab adds a topic under the selected box, and the map keeps it", async ({
   await expect
     .poll(async () => {
       const state = await (
-        await page.request.get(`${origin}/${name}/api/state`)
+        await page.request.get(`${server.origin}/${name}/api/state`)
       ).json();
       return state.edges.map(
         (e: { from: string; to: string }) => `${e.from}>${e.to}`,
@@ -206,10 +82,13 @@ test("someone with a view link, not signed in, sees the map", async ({
   browser,
 }) => {
   const name = await openSample(page);
-  const shared = await page.request.post(`${origin}/${name}/api/sharing`, {
-    headers: { origin, "content-type": "application/json" },
-    data: { mode: "view" },
-  });
+  const shared = await page.request.post(
+    `${server.origin}/${name}/api/sharing`,
+    {
+      headers: { origin: server.origin, "content-type": "application/json" },
+      data: { mode: "view" },
+    },
+  );
   expect(shared.ok()).toBe(true);
   const { token } = (await shared.json()) as { token: string };
 
@@ -217,225 +96,17 @@ test("someone with a view link, not signed in, sees the map", async ({
   const visitor = await guest.newPage();
   const errors: string[] = [];
   visitor.on("pageerror", (e) => errors.push(String(e)));
-  await visitor.goto(`${origin}/${name}/?share=${token}`);
+  await visitor.goto(`${server.origin}/${name}/?share=${token}`);
   for (const box_ of ["Launch plan", "Pricing", "Audience", "Free trial"])
     await expect(box(visitor, box_)).toBeVisible();
   expect(errors).toEqual([]);
   await guest.close();
 });
 
-test("an Action box shows where it stands", async ({ page }) => {
-  const action = (id: string, stage: object) =>
-    SAMPLE.nodes.map((n) => (n.id === id ? { ...n, action: stage } : n));
-  await openSample(page, {
-    ...SAMPLE,
-    nodes: action("trial", {
-      by: "Duy",
-      stage: "finished",
-      completion: { status: "completed", evidence: ["Trial page is live"] },
-    }).map((n) =>
-      n.id === "audience" ? { ...n, action: { by: "Duy", stage: "ready" } } : n,
-    ),
-  });
-  await expect(
-    box(page, "Free trial").getByLabel("Action status: Executed"),
-  ).toBeVisible();
-  await expect(
-    box(page, "Audience").getByLabel("Action status: Ready to execute"),
-  ).toBeVisible();
-});
-
 test("the plan's go-ahead reads Build the plan", async ({ page }) => {
   await openSample(page, { ...SAMPLE, prompt: "Add billing" });
   await expect(page.locator("[data-execute]")).toHaveText("Build the plan");
   await expect(page.locator("body")).not.toContainText("Execute on Claude");
-});
-
-test("cancelling an Action keeps it, and Prepare again brings it back", async ({
-  page,
-}) => {
-  const ready = {
-    by: "Duy",
-    stage: "ready",
-    id: "r1",
-    intent: "Write the trial page",
-    history: [],
-    brief: {
-      kind: "other",
-      goal: "Write the trial page",
-      target: "The website",
-      result: "A trial page people can read",
-      steps: ["Write the page"],
-    },
-  };
-  await openSample(page, {
-    ...SAMPLE,
-    nodes: SAMPLE.nodes.map((n) =>
-      n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
-    ),
-  });
-  await box(page, "Free trial").click();
-  await page.getByRole("button", { name: "Cancel Action" }).click();
-  await expect(
-    page.getByLabel("Action status: Cancelled").first(),
-  ).toBeVisible();
-  await expect(page.locator(".action-card h3")).toHaveText("Cancelled");
-  // still an Action: the toggle stays on and cannot turn it back
-  await expect(page.locator(".action-type-toggle")).toBeDisabled();
-  // the history code keeps on the Action names who cancelled it
-  await page.getByText("Action history").click();
-  await expect(page.locator(".action-history li").first()).toContainText(
-    "Cancelled · Duy",
-  );
-  await page.getByRole("button", { name: "Prepare again" }).click();
-  await expect(page.getByLabel("Action instructions")).toHaveValue(
-    "Write the trial page",
-  );
-});
-
-test("an Action box is deleted only after a question, and archived once it has run", async ({
-  page,
-}) => {
-  const draft = { by: "Duy", stage: "draft", id: "d1", intent: "Plan it" };
-  const ran = {
-    by: "Duy",
-    stage: "blocked",
-    id: "b1",
-    session: "s1",
-    intent: "Write the trial page",
-    history: [],
-  };
-  await openSample(page, {
-    ...SAMPLE,
-    nodes: SAMPLE.nodes.map((n) =>
-      n.id === "trial"
-        ? { ...n, action: ran, boxType: "action" }
-        : n.id === "audience"
-          ? { ...n, action: draft, boxType: "action" }
-          : n,
-    ),
-  });
-  // before it runs, Delete asks first and names the Action
-  await box(page, "Audience").click();
-  await page.locator('#side [data-side-tab="box"]').click();
-  await page.locator("#side [data-delete]").click();
-  await expect(page.locator(".delq")).toContainText(
-    "Delete this box and its Action?",
-  );
-  await page.locator("[data-delete-no]").click();
-  await expect(box(page, "Audience")).toHaveCount(1);
-  // once it has run, the details offer Archive instead of Delete
-  await box(page, "Free trial").click();
-  await page.locator('#side [data-side-tab="box"]').click();
-  await expect(page.locator("#side [data-delete]")).toHaveCount(0);
-  await page.locator("#side [data-archive]").click();
-  await expect(box(page, "Free trial")).toHaveCount(0);
-  // History lists it, and Put back on the map brings it back
-  await page.locator('#rail [data-rail="history"]').click();
-  await expect(page.locator("#hist .ha")).toContainText("Free trial");
-  await page.getByRole("button", { name: "Put back on the map" }).click();
-  await expect(box(page, "Free trial")).toHaveCount(1);
-});
-
-test("a run the map could not verify waits for its author to confirm it", async ({
-  page,
-}) => {
-  const completion = {
-    status: "unverified",
-    summary: "Wrote the trial page",
-    evidence: [],
-    claimed: ["Saved trial.html"],
-  };
-  const finished = {
-    by: "Duy",
-    stage: "finished",
-    id: "r2",
-    session: "s1",
-    intent: "Write the trial page",
-    history: [],
-    brief: {
-      kind: "other",
-      goal: "Write the trial page",
-      target: "The website",
-      result: "A trial page",
-      steps: ["Write it"],
-    },
-    completion,
-    turns: [{ who: "Claude", text: "Wrote the trial page", completion, at: 1 }],
-  };
-  await openSample(page, {
-    ...SAMPLE,
-    nodes: SAMPLE.nodes.map((n) =>
-      n.id === "trial" ? { ...n, action: finished, boxType: "action" } : n,
-    ),
-  });
-  await expect(
-    box(page, "Free trial").getByLabel("Action status: Done, unverified"),
-  ).toBeVisible();
-  await box(page, "Free trial").click();
-  await expect(page.locator(".action-evidence.claimed")).toContainText(
-    "Saved trial.html",
-  );
-  await page.getByRole("button", { name: "Confirm done" }).click();
-  await expect(
-    box(page, "Free trial").getByLabel("Action status: Executed"),
-  ).toBeVisible();
-});
-
-test("an Admin hands an Action to another member", async ({
-  page,
-  browser,
-}) => {
-  const ready = {
-    by: "Duy",
-    stage: "ready",
-    id: "r3",
-    intent: "Write the trial page",
-    history: [],
-    brief: {
-      kind: "other",
-      goal: "Write the trial page",
-      target: "The website",
-      result: "A trial page",
-      steps: ["Write it"],
-    },
-  };
-  const name = await openSample(page, {
-    ...SAMPLE,
-    nodes: SAMPLE.nodes.map((n) =>
-      n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
-    ),
-  });
-  // a map's people are those who have opened it: Harshit opens it once
-  const other = await browser.newContext();
-  await other.addCookies([
-    {
-      name: "lm_session",
-      value: signIn("Harshit"),
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
-  const visit = await other.newPage();
-  await visit.goto(`${origin}/${name}/`);
-  await expect(visit.locator("#nodes .node")).toHaveCount(4);
-  await other.close();
-  await box(page, "Free trial").click();
-  await page.getByText("Hand over").click();
-  await page.getByRole("button", { name: "Harshit" }).click();
-  await expect
-    .poll(async () => {
-      const state = await (
-        await page.request.get(`${origin}/${name}/api/state`)
-      ).json();
-      return state.nodes.find((n: { id: string }) => n.id === "trial").action
-        .by;
-    })
-    .toBe("Harshit");
-  await page.getByText("Action history").click();
-  await expect(page.locator(".action-history li").first()).toContainText(
-    "Handed over · Duy",
-  );
 });
 
 test("a comment thread opens from the Comments panel and takes a reply", async ({
@@ -493,6 +164,50 @@ test("History shows an earlier version over the map, and goes back to now", asyn
   await expect(box(page, "Annual plan")).toBeVisible();
 });
 
+test("a box inside a box inside a box opens level by level, and Back goes up one", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) =>
+      n.id === "trial"
+        ? {
+            ...n,
+            inside: {
+              nodes: [
+                {
+                  id: "billing",
+                  label: "Billing",
+                  x: 0,
+                  y: 0,
+                  inside: {
+                    nodes: [{ id: "charge", label: "Charge card", x: 0, y: 0 }],
+                    edges: [],
+                  },
+                },
+              ],
+              edges: [],
+            },
+          }
+        : n,
+    ),
+  });
+  await page.locator('[data-expand="trial"]').click();
+  await expect(box(page, "Billing")).toBeVisible();
+  await page.locator('[data-expand="billing"]').click();
+  await expect(box(page, "Charge card")).toBeVisible();
+  // the path shows every level, and each one goes back to it
+  await expect(page.locator("#crumbs")).toContainText("Free trial");
+  await expect(page.locator("#crumbs")).toContainText("Billing");
+  await expect(page.locator("#backb")).toHaveText("‹ Back to Free trial");
+  await page.locator("#backb").click();
+  await expect(box(page, "Billing")).toBeVisible();
+  await expect(page.locator("#backb")).toHaveText("‹ Back to the map");
+  await page.locator('[data-expand="billing"]').click();
+  await page.locator('#crumbs [data-enter="trial"]').click();
+  await expect(box(page, "Billing")).toBeVisible();
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();
@@ -502,7 +217,7 @@ test("Export image downloads the view as a picture", async ({ page }) => {
     page.locator("[data-share-image]").click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.png$/);
-  const file = path.join(root, "view.png");
+  const file = path.join(server.root, "view.png");
   await download.saveAs(file);
   // a PNG, and not an empty one
   expect(fs.readFileSync(file).subarray(1, 4).toString()).toBe("PNG");
@@ -520,7 +235,7 @@ test("Share as a file opens on its own, with no server", async ({
     page.locator("[data-share-file]").click(),
   ]);
   expect(download.suggestedFilename()).toBe("Launch plan.html");
-  const file = path.join(root, "shared.html");
+  const file = path.join(server.root, "shared.html");
   await download.saveAs(file);
 
   const offline = await browser.newPage();
