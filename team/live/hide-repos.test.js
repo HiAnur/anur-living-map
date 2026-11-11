@@ -36,6 +36,14 @@ describe('leaving out the repos someone may not read', () => {
     const cut = withoutRepos({ ...system(), redraw }, new Set(['api']));
     expect(cut.redraw).toEqual({ at: 1, by: 'Duy', count: 1, changes: [redraw.changes[2]] });
   });
+  it('does not name a hidden repo in the drawing panel, nor say why it could not be read', () => {
+    const drawing = { status: 'done', at: 1, repos: 2, progress: [{ repo: 'api', stage: 'done', boxes: 4, facts: 30 }, { repo: 'web', stage: 'failed', error: 'no access' }],
+      unread: [{ repo: 'api', why: 'run cdk synth' }, { repo: 'web', why: 'nothing read' }] };
+    const cut = withoutRepos({ ...system(), drawing }, new Set(['api']));
+    expect(cut.drawing.progress).toEqual([{ repo: PRIVATE_REPO, stage: 'done', boxes: 4 }, drawing.progress[1]]);
+    expect(cut.drawing.unread).toEqual([drawing.unread[1]]);
+    expect(JSON.stringify(cut)).not.toContain('"api"');
+  });
   it('keeps a hidden repo\'s place, unnamed and empty, its lines without words, and nothing written about it', () => {
     const cut = withoutRepos(system(), new Set(['api']));
     expect(cut.nodes[0]).toEqual({ id: 'system-api', x: 100, y: 100, label: PRIVATE_REPO, hiddenRepo: true });
