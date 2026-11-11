@@ -14,7 +14,8 @@ export function actionStatus(a){
     waiting:{label:'Waiting',tone:'waiting'},
     ready:{label:'Ready to execute',tone:'active'},
     running:{label:'Executing',tone:'active'},
-    error:{label:'Blocked',tone:'blocked'},
+    // preparation stopped: prepare it again; a run that was blocked is Continued instead
+    error:{label:'Couldn\'t prepare',tone:'blocked'},
     blocked:{label:'Blocked',tone:'blocked'},
     cancelled:{label:'Cancelled',tone:'cancelled'},
     unconfirmed:{label:'Unconfirmed',tone:'waiting'},
