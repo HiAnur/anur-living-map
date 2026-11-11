@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Boxes inside boxes, at any depth</strong></dt>
+<dd>
+
+A box inside another box can now hold a map of its own, as deep as you need: **Expand ›** opens it, the path at the top shows every level to go back to, and **Back** goes up one level. **Expand ›** is no longer hidden under a box's connection dot. <!-- source: https://github.com/HiAnur/anur-living-map/pull/365 --> <!-- merged-at: 2026-11-11T03:16:42Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Couldn't prepare, apart from Blocked</strong></dt>
 <dd>
 
