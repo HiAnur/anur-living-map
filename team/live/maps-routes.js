@@ -110,6 +110,17 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
           ...(url.searchParams.has('sections') ? {sections:/** @type {string} */ (url.searchParams.get('sections')).split(',')} : {}) }));
       } catch (/** @type {any} */ e) { return json(400, { error: e.message }); }
     }
+    // a chat opening the map from a clone finds the system map drawn from that repo, and the repo's box on it
+    if (url.pathname === '/api/maps/system-of' && req.method === 'GET') {
+      if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
+      const folder = path.resolve(String(url.searchParams.get('folder') || '/'));
+      for (const [name, m] of everyMap()) {
+        if (!m.allowed(who, req)) continue;
+        const box = m.repoBox?.(folder);
+        if (box) return json(200, { name, box, href: `/${name}/?brain-box=${encodeURIComponent(box)}` });
+      }
+      return json(200, {});
+    }
     if (url.pathname === '/api/maps') {
       const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));

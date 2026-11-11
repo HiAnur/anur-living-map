@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -179,6 +180,20 @@ describe('a system map drawing in the background', () => {
     // billing changed too, but Sam may not read it; Kim has no GitHub link, so nothing on GitHub is asked for Kim
     expect(await job.changed('Sam')).toEqual(['api']);
     expect(await job.changed('Kim')).toEqual([]);
+  });
+  it("finds a repo's box from a clone of it on this Mac, by its GitHub origin or the very folder drawn", async () => {
+    const folder = (/** @type {string} */ n) => { const d = path.join(tmp(), n); fs.mkdirSync(d); return d; };
+    const local = folder('local-svc'), clone = folder('my-api'), other = folder('other');
+    execFileSync('git', ['init', '-q', clone]);
+    execFileSync('git', ['-C', clone, 'remote', 'add', 'origin', 'git@github.com:shop/API.git']);
+    const gh = { fetchRepo: async () => ({ folder: '/cache/api', commit: 'c1', branch: 'main' }) };
+    const drawn = { nodes: [{ id: 'system-orders', label: 'Orders', source: { repo: 'api' } }, { id: 'system-svc', label: 'Svc', source: { repo: 'local-svc' } }], edges: [], start: 'system-orders' };
+    const { state, job } = jobOn(async () => ({ state: drawn, report: { ...report([]), repos: [{ repo: 'local-svc', root: local, unread: [] }, { repo: 'api', root: '/cache/api', unread: [] }] }, cancelled: false }), undefined, gh);
+    job.start({ folders: [local], repos: [{ owner: 'Shop', name: 'api' }], by: 'Harshit' });
+    await until(() => state.drawing.status !== 'running');
+    expect(job.boxOf(clone)).toBe('system-orders');
+    expect(job.boxOf(local)).toBe('system-svc');
+    expect(job.boxOf(other)).toBeNull();
   });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });

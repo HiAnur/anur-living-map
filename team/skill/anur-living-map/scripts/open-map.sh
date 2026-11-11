@@ -68,13 +68,23 @@ if [ "$M" = "$(name_of "$(basename "$R")")" ]; then
   named=$(printf '%s' "$out" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p'); [ -n "$named" ] && { M="$named"; U="http://localhost:4323/$M/"; }
   git -C "$R" check-ignore -q .living-map/ 2>/dev/null || echo "gitignore: add .living-map/ to $R/.gitignore (it holds the map's state)"
 fi
+# 2b. a repo a system map was drawn from opens on that map, at the repo's own box (unless a map was named)
+OPEN="$U"
+if [ -z "${1:-}" ]; then
+  sys=$(curl -s -G localhost:4323/api/maps/system-of --data-urlencode "folder=$R")
+  sname=$(printf '%s' "$sys" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p'); shref=$(printf '%s' "$sys" | sed -n 's/.*"href":"\([^"]*\)".*/\1/p')
+  if [ -n "$sname" ] && [ -n "$shref" ]; then
+    M="$sname"; U="http://localhost:4323/$M/"; OPEN="http://localhost:4323$shref"
+    echo "system map: $M, drawn from this repo; it opens on the repo's box (listen to the map $M)"
+  fi
+fi
 curl -s -X POST "${U}api/act" -H 'content-type: application/json' --data '{"type":"open","by":"Claude"}' >/dev/null
 curl -s "${U}api/history" | node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>{let h=[];try{h=JSON.parse(s)}catch{}
 console.log(`map: ${process.argv[1]}, ${h.length>1?`as it was left, ${h.length} versions in History`:"fresh"}`)})' "$U"
 
 # 3. the map in Chrome: the tab already on it comes to the front, otherwise a new tab
-how=$(osascript - "$U" 2>/dev/null <<'OSA'
-on run {u}
+how=$(osascript - "$U" "$OPEN" 2>/dev/null <<'OSA'
+on run {u, o}
   if application "Google Chrome" is not running then return "none"
   tell application "Google Chrome"
     repeat with w in windows
@@ -82,6 +92,7 @@ on run {u}
       repeat with t in tabs of w
         set i to i + 1
         if URL of t starts with u then
+          if o is not u then set URL of t to o
           set active tab index of w to i
           set index of w to 1
           activate
@@ -95,7 +106,7 @@ end run
 OSA
 )
 if [ "$how" = front ]; then echo "chrome: already open on the map, brought to the front"
-else open -a "Google Chrome" "$U" && echo "chrome: opened $U"; fi
+else open -a "Google Chrome" "$OPEN" && echo "chrome: opened $OPEN"; fi
 
 # 4. this chat linked to the map, so the map's Claude pane shows it and what is typed there comes here
 if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then

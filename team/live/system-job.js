@@ -217,6 +217,19 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     const root = (report.repos || []).find((/** @type {any} */ x) => x.repo === repo)?.root;
     return root && folders.includes(root) ? { folder: String(root) } : null;
   }
+  /**
+   * The box a repo has on this map, for a clone on this Mac: matched by its GitHub origin, or by the very folder the
+   * map was drawn from. Nothing when the map was not drawn from that repo.
+   * @param {string} folder @returns {string | null}
+   */
+  function boxOf(folder) {
+    const origin = onGitHub(folder), same = (/** @type {string} */ a, /** @type {string} */ b) => a.toLowerCase() === b.toLowerCase();
+    const report = fs.existsSync(REPORT) ? JSON.parse(fs.readFileSync(REPORT, 'utf8')) : { repos: [] };
+    const repo = onGitHubRepos().find((r) => origin && same(r.owner, origin.owner) && same(r.name, origin.name))?.repo
+      || (report.repos || []).find((/** @type {any} */ r) => r.root === folder)?.repo;
+    if (!repo) return null;
+    return (getState().nodes || []).find((/** @type {any} */ n) => n.source?.repo === repo)?.id || null;
+  }
   /** what changed since the drawing, by who @type {Map<string, { at: number, drawn: number, repos: string[] }>} */
   const changes = new Map();
   /**
@@ -245,7 +258,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     return list;
   }
   return {
-    start, codeFor, workFor, sourceOf, hiddenFor, changed,
+    start, codeFor, workFor, sourceOf, hiddenFor, changed, boxOf,
     /** whether any repo of this map is private on GitHub, or may be */
     holdsPrivate: () => onGitHubRepos().some((r) => r.private),
     /** @returns {boolean} whether a drawing was running */
