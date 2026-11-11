@@ -6,6 +6,7 @@
 // where its code sits on this Mac. Repos from GitHub are downloaded first, as whoever asks, so they draw only
 // what that person may read there; a Retry downloads each one's newest commit again.
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -27,6 +28,8 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     for (const p of was.progress || []) if (!['done', 'failed'].includes(p.stage)) p.stage = 'cancelled';
     save();
   }
+  /** What a drawing of a repo rests on: its commit and the facts read from it, so a better reader draws it again. @param {{ head: { commit: string } | null, facts?: unknown[] }} r */
+  const basis = (r) => `${r.head?.commit || ''}:${crypto.createHash('sha1').update(JSON.stringify(r.facts || [])).digest('hex').slice(0, 16)}`;
   /** @returns {Record<string, { commit: string, drawn: any }>} */
   const kept = () => {
     try { return JSON.parse(fs.readFileSync(KEPT, 'utf8')); }
@@ -54,20 +57,24 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     };
     /** repos GitHub would not give: they stay on the panel as failed, with why */
     const missed = /** @type {any[]} */ ([]);
+    // four at a time; each says when it is down, then waits its turn to be read
     const download = async () => {
       const got = [...folders];
-      for (const r of repos) {
-        if (controller.signal.aborted) break;
-        tell({ repo: r.name, stage: 'downloading' });
-        try { got.push((await github().fetchRepo(by, r)).folder); }
-        catch (/** @type {any} */ e) { const p = { repo: r.name, stage: 'failed', error: String(e?.message || e).slice(0, 200) }; missed.push(p); tell(p); }
-      }
+      for (const r of repos) tell({ repo: r.name, stage: 'downloading' });
+      let next = 0;
+      await Promise.all(Array.from({ length: Math.min(4, repos.length) }, async () => {
+        while (next < repos.length && !controller.signal.aborted) {
+          const r = repos[next++];
+          try { got.push((await github().fetchRepo(by, r)).folder); tell({ repo: r.name, stage: 'downloaded' }); }
+          catch (/** @type {any} */ e) { const p = { repo: r.name, stage: 'failed', error: String(e?.message || e).slice(0, 200) }; missed.push(p); tell(p); }
+        }
+      }));
       return got;
     };
     download().then((all) => draw({
       folders: all, agent, signal: controller.signal,
-      reuse: (r) => { const k = store[r.repo]; return k && k.commit === (r.head?.commit || '') ? k.drawn : null; },
-      onDrawn: (r, d) => { store[r.repo] = { commit: r.head?.commit || '', drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); },
+      reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
+      onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); },
       onProgress: tell,
     })).then(({ state, report, cancelled }) => {
       fs.writeFileSync(REPORT, JSON.stringify(report, null, 1));

@@ -56,9 +56,9 @@ describe('reading a repo', () => {
     const root = trading();
     expect(JSON.stringify((await readRepo(root)).facts)).toBe(JSON.stringify((await readRepo(root)).facts));
   });
-  it('says when TypeScript CDK was never compiled, rather than drawing a repo with nothing in it', async () => {
-    const r = await readRepo(repo('ts-service', { 'cdk.json': '{"app": "npx ts-node bin/app.ts"}', 'lib/stack.ts': 'export class Stack {}\n' }));
-    expect(r.unread).toEqual([expect.stringContaining('npx cdk synth')]);
+  it('says when TypeScript CDK holds no function its source shows, rather than drawing a repo with nothing in it', async () => {
+    const r = await readRepo(repo('ts-empty', { 'cdk.json': '{"app": "npx ts-node bin/app.ts"}', 'lib/stack.ts': 'export class Stack {}\n' }));
+    expect(r.unread).toEqual([expect.stringContaining('CDK in TypeScript')]);
     expect((await readRepo(api())).unread).toEqual([]);
     expect((await readRepo(trading())).unread).toEqual([]);
   });

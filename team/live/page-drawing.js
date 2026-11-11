@@ -21,6 +21,7 @@ export function drawingPanel(d, view){
   /** what one repo is doing, in a few words @param {any} p */
   const stage = (p) => p.stage === 'waiting' ? `Waiting, ${p.facts || 0} facts read`
     : p.stage === 'downloading' ? 'Downloading from GitHub'
+    : p.stage === 'downloaded' ? 'Downloaded, waiting its turn'
     : p.stage === 'reading' ? 'Reading its code'
     : p.stage === 'drawing' ? (p.repo === 'platform' ? 'Claude is joining the repos by what code links' : `Claude is grouping ${p.facts || 0} facts`)
     : p.stage === 'checking' ? 'Checking every box against the code'
