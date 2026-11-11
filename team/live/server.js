@@ -566,6 +566,11 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       here();
       return true;
     }
+    // a system map's repos with commits newer than the drawing, among those the asker may read
+    if (p === '/api/system-changed' && req.method === 'GET') {
+      const repos = who && !guest ? await system.changed(who).catch((/** @type {any} */ e) => { console.error('[map] system changes', e); return []; }) : [];
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify({ repos })); return true;
+    }
     if (p === '/api/act' && req.method === 'POST') {
       let /** @type {any} */ a = await jsonBody(req, {});
       if (!a || typeof a !== 'object' || Array.isArray(a)) { res.writeHead(400).end(); return true; }
