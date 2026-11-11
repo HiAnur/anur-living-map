@@ -87,6 +87,8 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
         if (!t.access_token) continue;
         const me = await (await http(`${API}/user`, { headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${t.access_token}` } })).json();
         save(who, tokenOf(t, String(me.login || '')));
+        // what they may read is asked again at once, so a map shows their repos as soon as they link
+        readable.delete(who);
         break;
       }
       if (pending.get(who)?.code === got.user_code) pending.delete(who);
