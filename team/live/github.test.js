@@ -111,6 +111,14 @@ describe('reading repos from GitHub', () => {
     expect(calls.filter((c) => c.key.includes('tarball'))).toHaveLength(1);
     await expect(gh.fetchRepo('Harshit', { owner: '..', name: 'x' })).rejects.toThrow('Not a GitHub repo name.');
   });
+  it("names the newest commit on a repo's default branch, asking as the person", async () => {
+    const { dir, http, calls } = linked({
+      'GET /repos/Shop/api/commits/trunk': () => ({ text: `${'b'.repeat(40)}\n` }),
+      'GET /repos/Shop/api': () => ({ default_branch: 'trunk' }),
+    });
+    expect(await github({ dir, http }).headOf('Harshit', 'Shop', 'api')).toBe('b'.repeat(40));
+    expect(calls.map((c) => c.key)).toEqual(['GET /repos/Shop/api', 'GET /repos/Shop/api/commits/trunk']);
+  });
   it('says whether a person may read a repo, asking GitHub at most every few minutes', async () => {
     let clock = 0;
     const { dir, http, calls } = linked();

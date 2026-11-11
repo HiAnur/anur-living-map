@@ -2,9 +2,9 @@
 // about how long is left, and Cancel, Draw again or Close. A page module (see page-modules.js):
 // the page hands in the map's `drawing` (system-job.js) and what it needs of the page, as `view`:
 //   esc   how the page writes text into HTML     now   the time it draws at     mine   they may stop or retry it
-//   asking  Draw again was pressed and waits to be confirmed
+//   asking  Draw again was pressed and waits to be confirmed     changed  the repos with newer commits than it read
 
-/** @param {any} d the map's drawing @param {{ esc: (t: unknown) => string, now: number, mine: boolean, asking?: boolean }} view */
+/** @param {any} d the map's drawing @param {{ esc: (t: unknown) => string, now: number, mine: boolean, asking?: boolean, changed?: string[] }} view */
 export function drawingPanel(d, view){
   const { esc } = view;
   const progress = /** @type {any[]} */ (d.progress || []);
@@ -35,6 +35,7 @@ export function drawingPanel(d, view){
     ...(d.error ? [d.error] : []),
     ...(d.status === 'done' && d.rejected ? [`${d.rejected} ${d.rejected === 1 ? 'thing' : 'things'} Claude proposed ${d.rejected === 1 ? 'was' : 'were'} left off: the code does not show ${d.rejected === 1 ? 'it' : 'them'}.`] : []),
     ...(d.unread || []).map((/** @type {any} */ u) => `${u.repo}: ${u.why}`),
+    ...(!running && view.changed?.length ? [`${view.changed.length} ${view.changed.length === 1 ? 'repo has' : 'repos have'} new commits since this drawing: ${view.changed.join(', ')}.`] : []),
   ];
   const act = !view.mine ? '' : running ? '<button data-sd-cancel>Cancel</button>'
     : view.asking ? '<button data-sd-nevermind>Keep this map</button><button data-sd-retry>Draw again</button>'

@@ -14,6 +14,7 @@ import path from 'node:path';
 import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
 import { systemState } from './system-build.js';
+import { repoHead } from './system-facts.js';
 import { drawSystem } from './system-draw.js';
 import { onGitHub, workFinder } from './system-work.js';
 
@@ -24,7 +25,7 @@ const sharedWork = () => (finder ||= workFinder({ home: os.homedir(), data: DATA
 
 /**
  * @param {{ home: string, getState: () => any, save: () => void, push: () => void, agent: Pick<AgentWorker, 'answer'>, draw?: typeof drawSystem,
- *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead'>, work?: () => Pick<ReturnType<typeof workFinder>, 'workIn'> }} deps
+ *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead' | 'headOf' | 'status'>, work?: () => Pick<ReturnType<typeof workFinder>, 'workIn'> }} deps
  */
 export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub, work = sharedWork }) {
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
@@ -214,8 +215,35 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     const root = (report.repos || []).find((/** @type {any} */ x) => x.repo === repo)?.root;
     return root && folders.includes(root) ? { folder: String(root) } : null;
   }
+  /** what changed since the drawing, by who @type {Map<string, { at: number, drawn: number, repos: string[] }>} */
+  const changes = new Map();
+  /**
+   * The repos with newer commits than the drawing read, among those this person may read: one downloaded from GitHub
+   * asked with their own GitHub link (none: not asked), a folder on this Mac by its clone's commit. Kept five minutes.
+   * @param {string} who @returns {Promise<string[]>}
+   */
+  async function changed(who) {
+    const d = getState().drawing;
+    if (!d || d.status === 'running' || !fs.existsSync(REPORT) || !fs.existsSync(FOLDERS)) return [];
+    const kept = changes.get(who);
+    if (kept && kept.drawn === d.at && Date.now() - kept.at < 5 * 60_000) return kept.repos;
+    const was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8')), report = JSON.parse(fs.readFileSync(REPORT, 'utf8'));
+    const { folders = [], repos = [] } = Array.isArray(was) ? { folders: was } : was;
+    const hidden = hiddenFor(who), linked = !!github().status(who).linked;
+    const found = await Promise.all((report.repos || []).map(async (/** @type {any} */ r) => {
+      if (hidden.has(r.repo) || !r.head?.commit) return null;
+      const gh = repos.find((/** @type {any} */ x) => x.name === r.repo);
+      try {
+        const now = gh ? (linked ? await github().headOf(who, gh.owner, gh.name) : null) : folders.includes(r.root) ? repoHead(r.root)?.commit : null;
+        return now && now !== r.head.commit ? String(r.repo) : null;
+      } catch { return null; } // GitHub would not say: it is not counted as changed
+    }));
+    const list = /** @type {string[]} */ (found.filter(Boolean));
+    changes.set(who, { at: Date.now(), drawn: d.at, repos: list });
+    return list;
+  }
   return {
-    start, codeFor, workFor, sourceOf, hiddenFor,
+    start, codeFor, workFor, sourceOf, hiddenFor, changed,
     /** whether any repo of this map is private on GitHub, or may be */
     holdsPrivate: () => onGitHubRepos().some((r) => r.private),
     /** @returns {boolean} whether a drawing was running */
