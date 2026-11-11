@@ -40,7 +40,7 @@ Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for
 
 ## Security
 
-The server listens on `127.0.0.1` only, and every API call needs a local token kept in `~/.living-map/token`, readable only by you. See [SECURITY.md](SECURITY.md) to report a problem.
+Both servers listen on `127.0.0.1` only. The chat map's API needs a local token kept in `~/.living-map/token`, readable only by you; the team map's API is open to this Mac's own tools, and its pages ask you to sign in (see [team/live/README.md](team/live/README.md)). See [SECURITY.md](SECURITY.md) to report a problem.
 
 ## License
 

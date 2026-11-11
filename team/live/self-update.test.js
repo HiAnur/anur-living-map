@@ -4,7 +4,7 @@ import { selfUpdate } from './self-update.js';
 
 // Keeping itself current never cuts Claude's work short: while a map is busy, nothing is pulled or restarted.
 
-/** A stand-in git on main with two new commits on origin, whose pull fails so nothing on disk changes. */
+/** A stand-in git on main, two commits behind origin's newest release, whose move to it fails so nothing on disk changes. */
 function fakeGit() {
   /** @type {string[]} */
   const calls = [];
@@ -12,12 +12,13 @@ function fakeGit() {
     const cmd = a.filter((x) => !String(x).startsWith('http.') && x !== '-c').join(' ');
     calls.push(cmd);
     if (cmd === 'rev-parse --is-inside-work-tree') return 'true';
-    if (cmd.startsWith('rev-list --count HEAD..origin/main')) return '2';
+    if (cmd === 'describe --tags --abbrev=0 --match v[0-9]* origin/main') return 'v0.1.42';
+    if (cmd === 'rev-list --count HEAD..v0.1.42') return '2';
     if (cmd === 'branch --show-current') return 'main';
-    if (cmd.startsWith('pull')) return null;
+    if (cmd.startsWith('merge')) return null;
     return '';
   };
-  return { git, calls, pulled: () => calls.filter((c) => c.startsWith('pull')).length };
+  return { git, calls, pulled: () => calls.filter((c) => c.startsWith('merge')).length };
 }
 const server = /** @type {any} */ ({ closeAllConnections() {}, close() {} });
 const until = async (/** @type {() => boolean} */ ok) => { for (let i = 0; i < 100 && !ok(); i++) await new Promise((r) => setTimeout(r, 5)); expect(ok()).toBe(true); };
@@ -38,5 +39,14 @@ describe('keeping itself current', () => {
     const g = fakeGit();
     await selfUpdate(server, () => false, { git: g.git }).keepCurrent();
     expect(g.pulled()).toBe(1);
+  });
+  it('moves to the newest release, never to main itself', async () => {
+    const g = fakeGit();
+    const u = selfUpdate(server, () => false, { git: g.git });
+    expect(await u.checkLatest()).toBe(false);
+    expect(u.VERSION.behind).toBe(2);
+    await u.pull();
+    expect(g.calls).toContain('merge -q --ff-only v0.1.42');
+    expect(g.calls.some((c) => c.startsWith('pull') || c.includes('origin/main') && !c.startsWith('describe'))).toBe(false);
   });
 });
