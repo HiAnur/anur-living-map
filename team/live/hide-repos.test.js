@@ -27,6 +27,15 @@ const system = () => ({
 });
 
 describe('leaving out the repos someone may not read', () => {
+  it('leaves out a redraw\'s changes that touch a hidden repo, at either end of a line', () => {
+    const redraw = { at: 1, by: 'Duy', count: 3, changes: [
+      { what: 'added', kind: 'box', label: 'Refunds', repo: 'api' },
+      { what: 'added', kind: 'line', label: 'web → api', repo: 'web', toRepo: 'api' },
+      { what: 'changed', kind: 'box', label: 'Shop site', was: 'web', repo: 'web' },
+    ] };
+    const cut = withoutRepos({ ...system(), redraw }, new Set(['api']));
+    expect(cut.redraw).toEqual({ at: 1, by: 'Duy', count: 1, changes: [redraw.changes[2]] });
+  });
   it('does not name a hidden repo in the drawing panel, nor say why it could not be read', () => {
     const drawing = { status: 'done', at: 1, repos: 2, progress: [{ repo: 'api', stage: 'done', boxes: 4, facts: 30 }, { repo: 'web', stage: 'failed', error: 'no access' }],
       unread: [{ repo: 'api', why: 'run cdk synth' }, { repo: 'web', why: 'nothing read' }] };

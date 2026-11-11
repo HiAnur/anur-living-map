@@ -201,6 +201,29 @@ describe('a system map drawing in the background', () => {
     expect(job.boxOf(local)).toBe('system-svc');
     expect(job.boxOf(other)).toBeNull();
   });
+  it('holds what a redraw would change for review, and applies it, with what people did since, or keeps the map', async () => {
+    const was = { nodes: [{ id: 'system-api', label: 'api', origin: 'code', source: { repo: 'api' } }], edges: [], start: 'system-api' };
+    const next = { nodes: [{ id: 'system-api', label: 'API service', origin: 'code', source: { repo: 'api' } }, { id: 'system-jobs', label: 'jobs', origin: 'code', source: { repo: 'jobs' } }], edges: [], start: 'system-api' };
+    const { state, job } = jobOn(async () => ({ state: structuredClone(next), report: report([]), cancelled: false }), structuredClone(was));
+    job.start({ folders: ['/x/api'], by: 'Sam' });
+    await until(() => state.drawing.status === 'done');
+    // nothing on the map yet: the changes wait, by repo
+    expect(state.nodes).toEqual(was.nodes);
+    expect(state.redraw).toMatchObject({ by: 'Sam', count: 2, changes: [{ what: 'changed', label: 'API service', was: 'api', repo: 'api' }, { what: 'added', label: 'jobs', repo: 'jobs' }] });
+    // someone adds a box meanwhile: applying keeps it
+    state.nodes.push({ id: 'mine', label: 'My note' });
+    expect(job.applyRedraw()).toBe(true);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
+    expect(state.redraw).toBeUndefined();
+    expect(job.applyRedraw()).toBe(false);
+    // drawn again and dropped: the map stays as it is
+    const kept = structuredClone(state.nodes);
+    next.nodes[0].label = 'API';
+    job.retry('Sam');
+    await until(() => state.drawing.status === 'done' && !!state.redraw);
+    expect(job.dropRedraw()).toBe(true);
+    expect(state.nodes).toEqual(kept);
+  });
   it('notices new commits by itself, as whoever drew the map, and keeps them in the drawing', async () => {
     const heads = /** @type {Record<string, string>} */ ({ api: 'c2', site: 'c1' });
     const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: false }),

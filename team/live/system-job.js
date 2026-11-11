@@ -16,7 +16,7 @@ import { sharedGithub } from './github.js';
 import { systemState } from './system-build.js';
 import { repoHead } from './system-facts.js';
 import { drawSystem } from './system-draw.js';
-import { keepHandEdits } from './system-merge.js';
+import { keepHandEdits, redrawChanges } from './system-merge.js';
 import { onGitHub, workFinder } from './system-work.js';
 
 /** @type {ReturnType<typeof workFinder> | null} */
@@ -29,6 +29,10 @@ const sharedWork = () => (finder ||= workFinder({ home: os.homedir(), data: DATA
  *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead' | 'headOf' | 'status'>, work?: () => Pick<ReturnType<typeof workFinder>, 'workIn'> }} deps
  */
 export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub, work = sharedWork }) {
+  // a redraw waiting to be applied, as code drew it: kept beside the map, never sent to a page
+  const PENDING = path.join(home, 'system-pending.json');
+  /** puts a drawing on the map, keeping what people did to it @param {any} drawn */
+  const applyDrawn = (drawn) => { const merged = keepHandEdits(getState(), drawn); Object.assign(getState(), { nodes: merged.nodes, edges: merged.edges, start: merged.start }); };
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
   /** @type {AbortController | null} */
   let stop = null;
@@ -111,8 +115,14 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       });
       const failed = drawing.progress.filter((/** @type {any} */ p) => p.stage === 'failed');
       drawing.status = cancelled ? 'cancelled' : failed.length ? 'failed' : 'done';
-      // drawn again: what people did to the map stays (system-merge.js)
-      if (state) { const drawn = fresh ? state : keepHandEdits(getState(), state); Object.assign(getState(), { nodes: drawn.nodes, edges: drawn.edges, start: drawn.start }); }
+      // a new map takes its drawing at once; a map drawn again keeps what people did to it (system-merge.js), and what
+      // code would change waits for an Engineer to apply it
+      if (state && fresh) Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start });
+      else if (state) {
+        const changes = redrawChanges(getState(), keepHandEdits(getState(), structuredClone(state)));
+        if (!changes.length) applyDrawn(state);
+        else { fs.writeFileSync(PENDING, JSON.stringify(state)); getState().redraw = { at: Date.now(), by: drawing.by, count: changes.length, changes: changes.slice(0, 300) }; }
+      }
     }).catch((/** @type {any} */ e) => {
       console.error('[map] system drawing', e);
       Object.assign(drawing, { status: 'failed', error: `The drawing stopped: ${String(e?.message || e).slice(0, 200)}` });
@@ -282,6 +292,19 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     start, codeFor, workFor, sourceOf, hiddenFor, changed, watch, boxOf,
     /** whether any repo of this map is private on GitHub, or may be */
     holdsPrivate: () => onGitHubRepos().some((r) => r.private),
+    /** Applies the redraw waiting for review, with what people did since it was drawn. @returns {boolean} whether one was waiting */
+    applyRedraw: () => {
+      if (!getState().redraw || !fs.existsSync(PENDING)) return false;
+      applyDrawn(JSON.parse(fs.readFileSync(PENDING, 'utf8')));
+      delete getState().redraw; fs.rmSync(PENDING, { force: true });
+      return true;
+    },
+    /** Keeps the map as it is and drops the redraw waiting for review. @returns {boolean} whether one was waiting */
+    dropRedraw: () => {
+      if (!getState().redraw) return false;
+      delete getState().redraw; fs.rmSync(PENDING, { force: true });
+      return true;
+    },
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */

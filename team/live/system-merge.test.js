@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { allBoxesOf } from './map-walk.js';
-import { keepHandEdits } from './system-merge.js';
+import { keepHandEdits, redrawChanges } from './system-merge.js';
 
 const box = (/** @type {string} */ id, /** @type {any} */ more = {}) => ({ id, x: 0, y: 0, label: id, sub: `${id} line`, origin: 'code', ...more });
 const find = (/** @type {any} */ map, /** @type {string} */ id) => /** @type {any} */ (allBoxesOf(map).find((/** @type {any} */ n) => n.id === id));
@@ -61,5 +61,23 @@ describe('keepHandEdits', () => {
     const drawn = { nodes: [box('a'), box('b')], edges: [{ from: 'a', to: 'b', label: 'calls', origin: 'code' }] };
     keepHandEdits(before, drawn);
     expect(drawn.edges).toHaveLength(1);
+  });
+});
+
+describe('redrawChanges', () => {
+  it('lists what code added, took away or renamed, with each repo, and never a box people added', () => {
+    const repo = (/** @type {string} */ id, /** @type {any[]} */ inside) => box(id, { source: { repo: id }, inside: { nodes: inside, edges: [] } });
+    const before = { nodes: [repo('api', [box('orders'), box('old')]), repo('web', []), { id: 'mine', label: 'My note' }],
+      edges: [{ from: 'api', to: 'web', label: 'calls', origin: 'code' }] };
+    const after = { nodes: [repo('api', [box('orders', { label: 'Order service' }), box('refunds')]), repo('web', []), { id: 'mine', label: 'My note' }],
+      edges: [{ from: 'web', to: 'api', label: 'calls', origin: 'code' }] };
+    expect(redrawChanges(before, after)).toEqual([
+      { what: 'changed', kind: 'box', label: 'Order service', was: 'orders', repo: 'api' },
+      { what: 'added', kind: 'box', label: 'refunds', repo: 'api' },
+      { what: 'gone', kind: 'box', label: 'old', repo: 'api' },
+      { what: 'added', kind: 'line', label: 'web → api', repo: 'web', toRepo: 'api' },
+      { what: 'gone', kind: 'line', label: 'api → web', repo: 'api', toRepo: 'web' },
+    ]);
+    expect(redrawChanges(before, structuredClone(before))).toEqual([]);
   });
 });

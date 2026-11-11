@@ -62,7 +62,7 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
       maps.mapCalled(name).drawSystem({ title, folders, repos, by: who });
       return json(200, { name, href: `/${name}/` });
     }
-    const m = /^\/api\/systemmap\/(cancel|retry)$/.exec(url.pathname);
+    const m = /^\/api\/systemmap\/(cancel|retry|apply|dismiss)$/.exec(url.pathname);
     if (m && req.method === 'POST') {
       const /** @type {any} */ a = await jsonBody(req, {});
       const name = String(a.name || '');
@@ -70,6 +70,8 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
       const map = maps.mapCalled(name), drawing = map.snapshot().drawing;
       if (!drawing) return json(404, { error: 'That map is not drawn from code.' });
       if (!map.mayRedraw(who)) return json(403, { error: 'Only an Engineer of this map, or whoever drew it, can redraw it or stop its drawing.' });
+      // a redraw's changes, reviewed: applied, or the map kept as it is
+      if (m[1] === 'apply' || m[1] === 'dismiss') return (m[1] === 'apply' ? map.applyRedraw() : map.dropRedraw()) ? json(200, { ok: true }) : json(409, { error: 'No redraw is waiting for review.' });
       const done = m[1] === 'cancel' ? map.cancelDrawing() : map.retryDrawing(who);
       return done ? json(200, { ok: true }) : json(409, { error: m[1] === 'cancel' ? 'It is not drawing.' : 'It is still drawing.' });
     }
