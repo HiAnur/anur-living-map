@@ -34,14 +34,56 @@ export const withoutActions = (nodes) => nodes.map(({ action, task, ...n }) => (
  * with only that area's content (forArea). `who` is the person, unset for a program on this Mac.
  * @param {MapState} state @param {boolean} [owner] @param {boolean} [guest] @param {string | null} [who]
  */
-export function sharedState(state, owner = false, guest = false, who = null) {
-  const result = { ...state, linkSharing: owner ? state.linkSharing || { mode: 'restricted' } : { mode: state.linkSharing?.mode || 'restricted' } };
+export function sharedState(state, owner = false, guest = false, who = null, hidden = NONE) {
+  const result = withoutRepos({ ...state, linkSharing: owner ? state.linkSharing || { mode: 'restricted' } : { mode: state.linkSharing?.mode || 'restricted' } }, hidden);
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
   if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], project: undefined });
   const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
   return sees && sees !== 'all' ? forArea(result, sees) : result;
+}
+
+/** @type {Set<string>} */
+const NONE = new Set();
+// what a box drawn from a repo the viewer may not read keeps: where it is, never what it is
+const UNNAMED = ['id', 'x', 'y', 'w', 'h', 'moved'];
+export const PRIVATE_REPO = 'A private repo';
+
+/**
+ * The map as someone who may not read some of its repos on GitHub receives it (#362). A box drawn from such a
+ * repo keeps only its place and becomes "A private repo", unnamed, with nothing inside it; its lines keep their
+ * ends but lose their words; and everything written about it or anything inside it (comments, questions, notes,
+ * side chats, log lines, proposals) is left out. A version from History is cut the same way.
+ * @param {any} state @param {Set<string>} hidden the repos, by name, this viewer may not read
+ */
+export function withoutRepos(state, hidden) {
+  if (!hidden?.size) return state;
+  /** @type {Set<string>} */
+  const away = new Set();
+  /** @param {any[]} nodes @param {boolean} inHidden */
+  const mark = (nodes, inHidden) => { for (const n of nodes || []) { const here = inHidden || hidden.has(n?.source?.repo); if (here) away.add(n.id); mark(n.inside?.nodes, here); } };
+  mark(state.nodes, false);
+  if (!away.size) return state;
+  const line = (/** @type {any} */ e) => away.has(e.from) || away.has(e.to) ? (({ label: _, ...rest }) => rest)(e) : e;
+  /** @param {any} n @returns {any} */
+  const box = (n) => away.has(n.id) ? { ...Object.fromEntries(UNNAMED.filter((k) => k in n).map((k) => [k, n[k]])), label: PRIVATE_REPO, hiddenRepo: true }
+    : n.inside ? { ...n, inside: { ...n.inside, nodes: (n.inside.nodes || []).map(box), edges: (n.inside.edges || []).map(line) } } : n;
+  const near = (/** @type {any} */ id) => !id || !away.has(id);
+  const callOn = new Map((state.calls || []).map((/** @type {any} */ c) => [c.id, c.node]));
+  return {
+    ...state,
+    nodes: (state.nodes || []).map(box),
+    edges: (state.edges || []).map(line),
+    comments: (state.comments || []).filter((/** @type {any} */ c) => near(c.node) && (c.view === 'system' || near(c.view))),
+    calls: (state.calls || []).filter((/** @type {any} */ c) => near(c.node)),
+    memory: (state.memory || []).filter((/** @type {any} */ m) => near(m.box)),
+    log: (state.log || []).filter((/** @type {any} */ l) => near(l.node) && near(callOn.get(l.call))),
+    archived: (state.archived || []).filter((/** @type {any} */ x) => near(x.box?.id) && !hidden.has(x.box?.source?.repo)),
+    threads: Object.fromEntries(Object.entries(state.threads || {}).filter(([k]) => near(k.split('>')[1]))),
+    proposals: (state.proposals || []).filter((/** @type {any} */ p) => [...(p.plan?.nodes || []).map((/** @type {any} */ n) => n.id), ...(p.plan?.remove || [])].every(near)),
+    ...(state.start && away.has(state.start) ? { start: undefined } : {}),
+  };
 }
 
 // what the page needs to draw a box outside your area, locked, under its name
