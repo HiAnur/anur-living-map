@@ -17,7 +17,7 @@ const PYTHON = path.join(import.meta.dirname, 'system_facts.py');
 /** The repo's files, as git lists them (or every file, for a folder that is not a repo). @param {string} root @returns {string[]} */
 export function repoFiles(root) {
   try {
-    return execFileSync('git', ['-C', root, 'ls-files'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000 }).split('\n').filter(Boolean);
+    return execFileSync('git', ['-C', root, 'ls-files'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000, stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
   } catch {
     /** @type {string[]} */
     const out = [];
@@ -31,8 +31,8 @@ export function repoFiles(root) {
 /** The commit a repo is at, and its branch, or nothing for a folder that is not a repo. @param {string} root */
 export function repoHead(root) {
   try {
-    const commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000 }).trim();
-    const branch = execFileSync('git', ['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', timeout: 10_000 }).trim();
+    const commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const branch = execFileSync('git', ['-C', root, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return { commit, branch };
   } catch {
     return null;
