@@ -373,7 +373,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   /** @param {any} p @param {any} by @param {any} source */
   function draw(p, by, source) {
     // only what draw-guard.js lets this sender draw: a box's content, on boxes in their area
-    p = guardDrawing(p, nodeOf, seesOf(by));
+    p = guardDrawing(p, nodeOf, seesOf(by), (id) => state.calls.find((/** @type {any} */ c) => c.id === id));
     // A drawing can change a box's content, but its original creator, source and dates come from the map.
     const markCreators = (/** @type {any} */ nodes, /** @type {any} */ previous) => {
       for (const n of nodes || []) if (n) {
