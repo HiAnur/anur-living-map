@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { allBoxesOf } from './map-walk.js';
+import { evidence } from './system-build.js';
 import { compact, drawSystem } from './system-draw.js';
 import { api, app, repo, trading } from './system.harness.js';
 
@@ -64,6 +65,14 @@ describe('drawing a system map', () => {
     expect(users?.desc).toContain('function: GetUser (cdk.out/Api.template.json#UsersFnAB12CD34)');
     expect(users?.source).toMatchObject({ kind: 'code', repo: 'api-service' });
     expect(users?.origin).toBe('code');
+  });
+  it('links a box\'s evidence to the file and line on GitHub, at the commit it was drawn from, but not compiled output', () => {
+    const reading = /** @type {any} */ ({ repo: 'api', github: { owner: 'Shop', name: 'api' }, head: { commit: 'abc123', branch: 'main' } });
+    expect(evidence({ id: 'f1', kind: 'aws_call', at: 'src/users/get user.py:41', call: 'get_item' }, reading))
+      .toBe('- aws call: aws_call ([src/users/get user.py:41](https://github.com/Shop/api/blob/abc123/src/users/get%20user.py#L41))');
+    expect(evidence({ id: 'f2', kind: 'function', at: 'cdk.out/Api.template.json#UsersFn', name: 'GetUser' }, reading)).toBe('- function: GetUser (cdk.out/Api.template.json#UsersFn)');
+    expect(evidence({ id: 'f3', kind: 'function', at: 'stacks/api.ts:12#Users', name: 'GetUser' }, reading)).toContain('(https://github.com/Shop/api/blob/abc123/stacks/api.ts#L12)');
+    expect(evidence({ id: 'f4', kind: 'module', at: 'a.py:1', module: 'a.py' })).toBe('- module: a.py (a.py:1)');
   });
   it('rejects a made-up citation and a line its facts do not show, and says so', async () => {
     const { state, report } = await drawSystem({ folders: [app(), api(), trading()], agent });

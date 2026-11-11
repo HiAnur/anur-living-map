@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { amplifyFacts, appFacts } from './system-facts-app.js';
 import { cfnFacts } from './system-facts-cfn.js';
+import { onGitHub } from './system-work.js';
 import { tsCdkFacts } from './system-facts-ts.js';
 
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
@@ -42,6 +43,18 @@ export function repoHead(root) {
   }
 }
 
+/**
+ * The repo on GitHub a folder is, for links to its files: a download says so beside its files, a clone by its origin.
+ * @param {string} root @returns {{ owner: string, name: string } | null}
+ */
+export function githubOf(root) {
+  try {
+    const [owner, name] = String(JSON.parse(fs.readFileSync(path.join(root, '.living-map-head.json'), 'utf8')).repo || '').split('/');
+    if (owner && name) return { owner, name };
+  } catch { /* not a download: its clone's origin says */ }
+  return onGitHub(root);
+}
+
 /** Python facts, from system_facts.py run with the Mac's python3; none when python3 is missing. @param {string} root @returns {Promise<Fact[]>} */
 export function pythonFacts(root) {
   return new Promise((resolve) => {
@@ -55,7 +68,7 @@ export function pythonFacts(root) {
 /**
  * Everything code can read about one repo: what kinds of source it holds, the facts, and the commit they are from.
  * @param {string} root the repo's folder
- * @returns {Promise<{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[], unread: string[] }>}
+ * @returns {Promise<{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[], unread: string[], github: { owner: string, name: string } | null }>}
  */
 export async function readRepo(root) {
   const files = repoFiles(root);
@@ -82,5 +95,5 @@ export async function readRepo(root) {
   /** @type {string[]} */
   const unread = [];
   if (tsCdk && !ts.some((f) => f.kind === 'function')) unread.push('Its infrastructure is CDK in TypeScript, and no function could be read from its source.');
-  return { repo: path.basename(root), root, head: repoHead(root), kinds, facts, unread };
+  return { repo: path.basename(root), root, head: repoHead(root), kinds, facts, unread, github: githubOf(root) };
 }
