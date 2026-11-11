@@ -251,3 +251,32 @@ test("Share as a file opens on its own, with no server", async ({
   expect(errors).toEqual([]);
   await offline.close();
 });
+
+test("boxes show titles and reveal descriptions without moving on hover", async ({
+  page,
+}) => {
+  await openSample(page);
+  const pricing = box(page, "Pricing");
+  await expect(pricing).not.toContainText("Plans and trials");
+  const before = await pricing.boundingBox();
+  await pricing.hover();
+  const hint = page.getByRole("tooltip");
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText("Plans and trials");
+  expect(await pricing.boundingBox()).toEqual(before);
+  await expect(page.locator("#side")).not.toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("box-hover.png") });
+  await pricing.click();
+  await expect(hint).not.toBeVisible();
+  await expect(page.locator("#side .side-summary")).toHaveText(
+    "Plans and trials",
+  );
+  await page.locator("#side .side-summary").dblclick();
+  await expect(
+    page.getByRole("textbox", { name: "Box description" }),
+  ).toHaveValue("Plans and trials");
+  await page.keyboard.press("Escape");
+  await pricing.dblclick();
+  await expect(page.locator("#newbox textarea")).toHaveValue("Pricing");
+  await page.keyboard.press("Escape");
+});
