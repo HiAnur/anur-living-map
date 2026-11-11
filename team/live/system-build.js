@@ -7,17 +7,24 @@
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
 /** @typedef {{ id: string, name: string, kind: string, description: string, facts: string[], repo?: string, unconfirmed?: boolean }} CheckedBox */
 /** @typedef {{ from: string, to: string, label: string, facts: string[], unconfirmed?: boolean }} CheckedLine */
-/** @typedef {{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[] }} Reading */
+/** @typedef {{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[], github?: { owner: string, name: string } | null }} Reading */
 
 const COMPONENT = new Set(['function', 'outside_function', 'table', 'queue', 'topic', 'bucket', 'api', 'http_route', 'state_machine', 'schedule',
   'user_pool', 'stream', 'secret', 'parameter', 'construct', 'screens', 'state_slice', 'amplify_resource']);
 const UNCONFIRMED = 'Unconfirmed: only descriptions show this. Confirm it or take it off.';
 const slug = (/** @type {string} */ s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
 
-/** One line saying what a fact is and where it came from, for a box's notes. @param {Fact} f */
-export function evidence(f) {
+/**
+ * One line saying what a fact is and where it came from, for a box's notes; where it came from links to that file and
+ * line on GitHub, at the commit the map was drawn from, when the repo is there and the file is in git.
+ * @param {Fact} f @param {Reading | null} [reading]
+ */
+export function evidence(f, reading = null) {
   const what = f.kind === 'api_call' ? `${f.method} ${f.path}` : f.name || f.logical_id || f.route || f.function || f.resource || f.folder || f.module || (typeof f.path === 'string' ? f.path.split('/').pop() : '') || f.text?.slice(0, 60) || f.kind;
-  return `- ${f.kind.replace(/_/g, ' ')}: ${what}${f.at && f.at !== 'links' ? ` (${f.at})` : ''}`;
+  const where = f.at && f.at !== 'links' ? String(f.at) : '';
+  const file = /^([^#:]+\.[\w]+):(\d+)/.exec(where), gh = reading?.github, commit = reading?.head?.commit;
+  const linked = file && gh && commit && !file[1].startsWith('cdk.out/') ? `[${where}](https://github.com/${gh.owner}/${gh.name}/blob/${commit}/${file[1].split('/').map(encodeURIComponent).join('/')}#L${file[2]})` : where;
+  return `- ${f.kind.replace(/_/g, ' ')}: ${what}${where ? ` (${linked})` : ''}`;
 }
 
 const COL = 340, ROW = 130, TALL = 8;
@@ -90,7 +97,7 @@ function components(facts, reading, prefix) {
     nodes: nodes.map(({ f, id }) => ({
       id, label: String(evidence(f).replace(/^- [^:]+: /, '').replace(/ \(.*\)$/, '')).slice(0, 60),
       sub: (f.routes?.length ? f.routes.slice(0, 3).join(', ') : f.kind.replace(/_/g, ' ')).slice(0, 80),
-      ...pos.get(id), desc: evidence(f), origin: 'code',
+      ...pos.get(id), desc: evidence(f, reading), origin: 'code',
       source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), path: f.at },
       ...(f.kind === 'table' ? { icon: 'db' } : {}), ...(f.kind === 'outside_function' ? { kind: 'ext' } : {}),
     })),
@@ -111,7 +118,7 @@ export function repoMap(drawn, reading) {
     const inside = components(cited, reading, `${prefix}-${slug(b.id)}`);
     return {
       id: `${prefix}-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), ...pos.get(b.id), origin: 'code',
-      desc: `${b.description}\n\nShown by:\n${cited.slice(0, 20).map(evidence).join('\n')}`.slice(0, 1500),
+      desc: `${b.description}\n\nShown by:\n${cited.slice(0, 20).map((f) => evidence(f, reading)).join('\n')}`.slice(0, 3000),
       source: { kind: 'code', repo: reading.repo, ...(reading.head || {}) },
       ...(b.kind === 'person' ? { kind: 'actor' } : b.kind === 'external' ? { kind: 'ext' } : {}), ...(b.kind === 'store' ? { icon: 'db' } : {}),
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}), ...(inside ? { inside } : {}),
@@ -134,7 +141,7 @@ export function systemState(platform, links, repos) {
     const cited = b.facts.map((i) => links.get(i)).filter(/** @returns {f is Fact} */ (f) => !!f);
     return {
       id: `system-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), ...pos.get(b.id), origin: 'code',
-      desc: `${b.description}${cited.length ? `\n\nShown by:\n${cited.slice(0, 12).map(evidence).join('\n')}` : ''}`.slice(0, 1500),
+      desc: `${b.description}${cited.length ? `\n\nShown by:\n${cited.slice(0, 12).map((f) => evidence(f)).join('\n')}` : ''}`.slice(0, 1500),
       ...(r ? { source: { kind: 'code', repo: r.reading.repo, ...(r.reading.head || {}), drawnAt: Date.now() }, inside: repoMap(r.drawn, r.reading) } : {}),
       ...(b.kind === 'person' ? { kind: 'actor' } : b.kind === 'external' ? { kind: 'ext' } : {}),
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}),

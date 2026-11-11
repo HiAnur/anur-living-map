@@ -45,6 +45,35 @@ describe('a system map drawing in the background', () => {
     expect(JSON.stringify(state)).not.toContain('/x/api');
     expect(JSON.parse(fs.readFileSync(path.join(home, 'system-folders.json'), 'utf8'))).toEqual({ folders: ['/x/api'], repos: [] });
   });
+  it('shows each repo of a new map as soon as it is drawn, and leaves a map drawn again as it is until the end', async () => {
+    const reading = (/** @type {string} */ repo) => ({ repo, kinds: ['python'], head: null, facts: [{ id: 'f1', kind: 'function', at: 'a.py:1', name: 'Fn' }] });
+    const drawn = { boxes: [{ id: 'fn', name: 'Fn', kind: 'function', description: 'Does it', facts: ['f1'] }], lines: [], rejected: [], leftOut: [] };
+    /** @type {any[]} */
+    const seen = [];
+    let release = () => {};
+    const draw = async (/** @type {any} */ o) => {
+      o.onDrawn(reading('api'), drawn);
+      seen.push(state.nodes.map((/** @type {any} */ n) => n.label));
+      await new Promise((/** @type {any} */ r) => { release = r; });
+      return { state: built, report: report([]), cancelled: false };
+    };
+    const { state, job } = jobOn(draw);
+    job.start({ folders: ['/x/api', '/x/bot'], by: 'Sam' });
+    await until(() => seen.length === 1);
+    expect(seen[0]).toEqual(['api']);
+    expect(state.nodes[0].inside.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Fn']);
+    release();
+    await until(() => state.drawing.status === 'done');
+    expect(state.nodes).toEqual(built.nodes);
+    // drawn again over a map that has boxes: nothing changes until the drawing is done
+    seen.length = 0;
+    job.retry('Sam');
+    await until(() => seen.length === 1);
+    expect(seen[0]).toEqual(['api']);
+    expect(state.nodes).toEqual(built.nodes);
+    release();
+    await until(() => state.drawing.status === 'done');
+  });
   it('stops when cancelled and leaves the map as it was', async () => {
     const stopped = { state: null, report: report([{ repo: 'api', stage: 'cancelled' }]), cancelled: true };
     const { state, job } = jobOn((/** @type {any} */ o) => new Promise((resolve) => { if (o.signal.aborted) resolve(stopped); o.signal.addEventListener('abort', () => resolve(stopped)); }));

@@ -13,6 +13,7 @@ import path from 'node:path';
 
 import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
+import { systemState } from './system-build.js';
 import { drawSystem } from './system-draw.js';
 import { keepHandEdits } from './system-merge.js';
 import { onGitHub, workFinder } from './system-work.js';
@@ -53,10 +54,22 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if (stop) return false;
     const controller = new AbortController();
     stop = controller;
-    const fresh = !(getState().nodes || []).length;
     const store = again ? kept() : {};
     if (!again) { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(KEPT, '{}'); fs.writeFileSync(FOLDERS, JSON.stringify({ folders, repos })); }
     const drawing = { by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]) };
+    // a new map shows each repo as soon as it is drawn, so it can be read before the rest are done; a map drawn
+    // again keeps what it has until the whole drawing is ready
+    const fresh = !(getState().nodes || []).length;
+    /** @type {Map<string, { reading: any, drawn: any }>} */
+    const sofar = new Map();
+    /** @param {any} r @param {any} d */
+    const showSoFar = (r, d) => {
+      if (!fresh) return;
+      sofar.set(r.repo, { reading: r, drawn: d });
+      const boxes = [...sofar.values()].map(({ reading }) => ({ id: reading.repo, name: reading.repo, kind: 'library', description: (reading.kinds || []).join(', '), facts: [`repo:${reading.repo}`], repo: reading.repo }));
+      const partial = systemState({ boxes, lines: [] }, new Map(), [...sofar.values()]);
+      Object.assign(getState(), { nodes: partial.nodes, edges: [], start: partial.start });
+    };
     getState().drawing = drawing;
     save(); push();
     /** @param {any} p */
@@ -86,7 +99,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     download().then((all) => draw({
       folders: all, agent, signal: controller.signal,
       reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
-      onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); },
+      onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); showSoFar(r, d); },
       onProgress: tell,
     })).then(({ state, report, cancelled }) => {
       fs.writeFileSync(REPORT, JSON.stringify(report, null, 1));
