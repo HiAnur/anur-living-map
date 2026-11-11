@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Plan on top of your system map</strong></dt>
+<dd>
+
+**New map → Default map** asks whether the new map builds on one of your system maps; one that does says **builds on** that map at the top, linking to it, and its chats read your system as background. <!-- source: https://github.com/HiAnur/anur-living-map/pull/398 --> <!-- merged-at: 2026-11-11T09:13:28Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Open the system map from your repo</strong></dt>
 <dd>
 
