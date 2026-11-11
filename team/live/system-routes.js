@@ -57,7 +57,7 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub 
       if (!/^[a-z0-9-]+$/.test(name) || !maps.named.has(name)) return json(404, { error: 'That map is not on this Mac.' });
       const map = maps.mapCalled(name), drawing = map.snapshot().drawing;
       if (!drawing) return json(404, { error: 'That map is not drawn from code.' });
-      if (drawing.by !== who && !map.canDelete(who)) return json(403, { error: 'Only whoever started the drawing, or the map\'s owner, can stop or retry it.' });
+      if (!map.mayRedraw(who)) return json(403, { error: 'Only an Engineer of this map, or whoever drew it, can redraw it or stop its drawing.' });
       const done = m[1] === 'cancel' ? map.cancelDrawing() : map.retryDrawing(who);
       return done ? json(200, { ok: true }) : json(409, { error: m[1] === 'cancel' ? 'It is not drawing.' : 'It is still drawing.' });
     }
