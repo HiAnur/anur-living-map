@@ -81,6 +81,20 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       Object.assign(n, { x: Math.round(a.x), y: Math.round(a.y), w, h, moved: true });
       return true;
     },
+    // a box on a map that builds on a system map points at the box there it is about, or no longer does; only the
+    // box's id is kept, so each viewer reads its name from the system map as they may see it (a private repo's
+    // boxes stay unnamed for someone who can't read it)
+    /** @param {Act<'pointbox'>} a */
+    pointbox(a) {
+      const n = nodeOf(a.id), base = getState().buildsOn; if (!n || !base) return false;
+      const sees = seesOf(a.by); if (sees !== 'all' && n.area !== sees) return false;
+      const box = String(a.box || '');
+      if (!box) { if (!n.pointsAt) return false; delete n.pointsAt; tell(`${a.by} took the pointer off ${n.label}`); return true; }
+      if (!/^[\w.:-]{1,120}$/.test(box)) return false;
+      n.pointsAt = { map: base.name, box };
+      tell(`${a.by} pointed ${n.label} at a box in ${base.title}`);
+      return true;
+    },
     // a line's words changed by a double click on them; empty words take them off the line
     /** @param {Act<'relabel'>} a */
     relabel(a) {

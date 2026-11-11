@@ -489,7 +489,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
-  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'rename']);
+  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
   const ACTS = {
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
     ...chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,

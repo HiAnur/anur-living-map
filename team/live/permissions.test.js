@@ -13,7 +13,7 @@ import { LINK_EDITS } from './sharing.js';
 const state = (mode = 'edit') => ({
   title: 'Launch', prompt: 'Build it', start: 'root', linkSharing: { mode, token: TOKEN },
   people: [{ id: 'Ana', role: 'Admin', sees: 'all' }, { id: 'Duy', sees: 'all' }, { id: 'Sam', sees: 'web' }],
-  removedPeople: ['Lee'],
+  removedPeople: ['Lee'], buildsOn: { name: 'shop', title: 'Shop' },
   nodes: [
     { id: 'root', label: 'Launch', x: 0, y: 0 },
     { id: 'web', label: 'Web', x: 300, y: -90, area: 'web' }, { id: 'web2', label: 'Web two', x: 600, y: -90, area: 'web' },
@@ -42,6 +42,7 @@ const OK = /** @type {Record<string, any>} */ ({
   remove: { type: 'remove', id: 'web2' }, unlink: { type: 'unlink', from: 'web', to: 'web2' },
   resize: { type: 'resize', id: 'web', x: 300, y: -90, w: 200, h: 60 }, relabel: { type: 'relabel', from: 'web', to: 'web2', label: 'Sends' },
   renamebox: { type: 'renamebox', id: 'web', label: 'Website' }, describebox: { type: 'describebox', id: 'web', sub: 'The site' },
+  pointbox: { type: 'pointbox', id: 'web', box: 'system-site' },
   rename: { type: 'rename', title: 'Spring launch' }, comment: { type: 'comment', x: 1, y: 2, text: 'Hm' },
   reply: { type: 'reply', id: 2, text: 'Because' }, resolve: { type: 'resolve', id: 2 },
   editmemory: { type: 'editmemory', id: 'k2', text: 'Fridays' }, forget: { type: 'forget', id: 'k2' },
@@ -60,6 +61,7 @@ const OUTSIDE = /** @type {Record<string, any>} */ ({
   remove: { type: 'remove', id: 'api' }, unlink: { type: 'unlink', from: 'root', to: 'api' },
   resize: { type: 'resize', id: 'api', x: 300, y: 90, w: 200, h: 60 }, relabel: { type: 'relabel', from: 'root', to: 'api', label: 'Calls' },
   renamebox: { type: 'renamebox', id: 'api', label: 'API' }, describebox: { type: 'describebox', id: 'api', sub: 'The api' },
+  pointbox: { type: 'pointbox', id: 'api', box: 'system-api' },
   editmemory: { type: 'editmemory', id: 'k1', text: 'Fridays' }, forget: { type: 'forget', id: 'k1' },
   ask: { type: 'ask', node: 'api', text: 'What next?' }, actionbox: { type: 'actionbox', id: 'api' }, call: { type: 'call', id: 'c1', answer: 'confirm' },
   comment: { type: 'comment', x: 1, y: 2, text: 'Hm', node: 'api' }, reply: { type: 'reply', id: 1, text: 'Because' }, resolve: { type: 'resolve', id: 1 },

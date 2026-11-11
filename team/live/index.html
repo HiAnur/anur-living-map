@@ -524,6 +524,10 @@ button,input,textarea{font:inherit;color:inherit}
 .i-p{margin:0 0 8px}.i-p b{font-weight:600}
 .info-body .notes .i-p:first-child::first-letter{text-transform:uppercase}
 .info-body .i-h:first-child{margin-top:2px}
+.pts{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 10px;font-size:13px;color:var(--text-2)}
+.pts a{color:var(--text)}
+.pts label{width:100%}
+.pts input{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--rule-2);border-radius:8px;font:13px var(--plex);color:var(--text);background:#fff}
 #side.info .d:not(.done){border-left:3px solid var(--todo);background:#fffcf2}
 /* a question with options: one button per answer, then your own words */
 .d-opts{display:flex;flex-direction:column;gap:6px;margin-top:10px}
@@ -2492,6 +2496,33 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); e.stopImmediatePropagation();
   popup.hidePopover(); popup.previousElementSibling.focus();
 }, true);
+// On a map that builds on a system map, a box may point at the box there it is about: a link to it, or a search of
+// that map's boxes to pick one. The system map's boxes are read once, as the viewer may see them.
+let baseBoxes = null;
+function loadBaseBoxes(){
+  if (baseBoxes || !S.buildsOn) return;
+  baseBoxes = [];
+  fetch(`/${encodeURIComponent(S.buildsOn.name)}/api/state`).then((r) => r.ok ? r.json() : null).then((st) => {
+    const out = [];
+    const walk = (nodes, above) => { for (const b of nodes || []){ if (b.hiddenRepo || !b.label) continue; out.push({ id: b.id, label: b.label, pick: above ? `${b.label} (in ${above})` : b.label }); walk(b.inside?.nodes, b.label); } };
+    walk(st?.nodes, '');
+    baseBoxes = out; renderSide();
+  }).catch(() => { /* the system map did not answer: there is nothing to pick from */ });
+}
+/** @param {any} n */
+function pointsRow(n){
+  if (!S.buildsOn) return '';
+  const can = !READ_ONLY && !SHARED && !FILE && !PREVIEW;
+  loadBaseBoxes();
+  if (n.pointsAt){
+    // its name as this viewer may see the system map: a box they can't see is named as such
+    const named = (baseBoxes || []).find((b) => b.id === n.pointsAt.box)?.label;
+    const what = named ? `<a href="/${encodeURIComponent(n.pointsAt.map)}/?brain-box=${encodeURIComponent(n.pointsAt.box)}" data-content>${esc(named)}</a>` : baseBoxes?.length ? 'a box you can\'t see' : '…';
+    return `<div class="pts">In ${esc(S.buildsOn.title)}: ${what}${can ? ` <button class="gb" data-unpoint="${esc(n.id)}">Unpoint</button>` : ''}</div>`;
+  }
+  if (!can) return '';
+  return `<div class="pts"><label for="pts-in">Points at a box in ${esc(S.buildsOn.title)}</label><input id="pts-in" list="pts-list" data-point="${esc(n.id)}" placeholder="Search its boxes" autocomplete="off"><datalist id="pts-list">${(baseBoxes || []).map((b) => `<option value="${esc(b.pick)}"></option>`).join('')}</datalist></div>`;
+}
 function renderSide(){
   const el = $('side');
   if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
@@ -2586,7 +2617,7 @@ function renderSide(){
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
-    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">
+    ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">${pointsRow(n)}
     ${(() => {
       // the box at a glance, read top to bottom: what was decided, green and bold (hovering it says who decided
       // it and when), then its notes as plain lines; "Why them: …" reads "Why them? …", a catch or a risk carries
@@ -3994,6 +4025,13 @@ document.addEventListener('change', async (e) => {
   finally { input.disabled = false; }
 });
 document.addEventListener('change', (e) => { if (e.target.matches?.('#chat [data-pick]')) addPics(e.target.files); });
+// a box picked from the system map it builds on
+document.addEventListener('change', (e) => {
+  const input = e.target.closest?.('[data-point]'); if (!input) return;
+  const b = (baseBoxes || []).find((x) => x.pick === input.value); if (!b) return;
+  act('pointbox', { id: input.dataset.point, box: b.id });
+});
+document.addEventListener('click', (e) => { const b = e.target.closest?.('[data-unpoint]'); if (b) act('pointbox', { id: b.dataset.unpoint }); });
 document.addEventListener('paste', (e) => { const f = [...(e.clipboardData?.files || [])]; if (MIRROR && f.length && e.target.closest?.('#chat')){ e.preventDefault(); addPics(f); } });
 $('chat').addEventListener('dragover', (e) => { if (MIRROR && e.dataTransfer?.types.includes('Files')){ e.preventDefault(); $('chat').classList.add('drop'); } });
 $('chat').addEventListener('dragleave', (e) => { if (!$('chat').contains(e.relatedTarget)) $('chat').classList.remove('drop'); });
