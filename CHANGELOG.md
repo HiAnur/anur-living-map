@@ -3,6 +3,24 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Claude never reads your home folder</strong></dt>
+<dd>
+
+A chat or team map started in your home folder, or a folder above it, no longer gives Claude that whole folder: side chats, Ask Claude and Actions get only the map's own files there. <!-- source: https://github.com/HiAnur/anur-living-map/pull/407 --> <!-- merged-at: 2026-11-11T19:36:22Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>The team map updates only to tested releases</strong></dt>
+<dd>
+
+The team map now updates itself only to a release that passed every check, and setting `ANUR_LIVING_MAP_NO_UPDATE=1` turns its automatic update off. <!-- source: https://github.com/HiAnur/anur-living-map/pull/405 --> <!-- merged-at: 2026-11-11T19:33:10Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>A clearer list of repos to choose from</strong></dt>
 <dd>
 
