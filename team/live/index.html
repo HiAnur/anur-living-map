@@ -22,7 +22,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex);overflow:hidden;user-select:none}
 /* words you may want to copy: everything in the panels beside the map, never the map itself, where a drag moves boxes */
-#side,#chat,#decs,#hist,#mem,#thread,#sysdraw,#share,#box-metadata,#search-results,#ticket{user-select:text}
+#side,#chat,#decs,#hist,#mem,#thread,#sysdraw,#lockwhy,#share,#box-metadata,#search-results,#ticket{user-select:text}
 #side button,#chat button,#decs button,#hist button,#mem button,#thread button,#sysdraw button,#share button,body.resizing #side,body.resizing #chat{user-select:none}
 button,input,textarea{font:inherit;color:inherit}
 #top{position:fixed;left:0;right:0;top:0;height:var(--topbar);display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--rule);background:var(--canvas);z-index:20;white-space:nowrap}
@@ -4086,9 +4086,14 @@ function lockedNote(){
   const p = lockWhy.pending;
   return `<div class="lock-why"><b>${locked} ${locked === 1 ? 'box is' : 'boxes are'} locked: private on GitHub.</b> ${lockWhy.linked
     ? `GitHub doesn't let ${esc(lockWhy.linked)} read ${locked === 1 ? 'that repo' : 'those repos'}. Ask its owner on GitHub for access.`
-    : p ? `Enter <code>${esc(p.code)}</code> on GitHub's page, then approve Anur Living Map. Your repos show here a moment after. <a class="gb" href="${esc(p.uri)}" target="_blank" rel="noopener">Open GitHub</a>`
+    : p ? `Go to <b>${esc(String(p.uri).replace(/^https:\/\//, ''))}</b>, enter <code>${esc(p.code)}</code> and approve Anur Living Map. Your repos show here a moment after. <a class="gb" href="${esc(p.uri)}" target="_blank" rel="noopener">Open GitHub</a><button class="gb" data-copy-code="${esc(p.code)}">Copy code</button>`
     : `Connect your GitHub account to see the ones you can read. <button class="gb" data-lock-link>Connect GitHub</button>`}</div>`;
 }
+// the code to enter at GitHub, copied in one click: the note's words can be selected too
+document.addEventListener('click', (e) => {
+  const b = e.target instanceof Element ? e.target.closest('[data-copy-code]') : null; if (!b) return;
+  navigator.clipboard.writeText(b.dataset.copyCode).then(() => { b.textContent = 'Copied'; }, () => toast(`The code is ${b.dataset.copyCode}`));
+});
 document.addEventListener('click', async (e) => {
   if (!(e.target instanceof Element) || !e.target.closest('[data-lock-link]')) return;
   const r = await fetch('/api/systemmap/github/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
