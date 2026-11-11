@@ -52,7 +52,10 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
       if (words) onText(words);
     }
     if (d.type === 'result') {
-      const denied = Array.isArray(d.permission_denials) && d.permission_denials.length > 0;
+      // a push or a call to GitHub's CLI is the map's own job after the run (HANDS_OFF): refusing it is the run
+      // keeping to its brief, not access it lacked, and must not stop the map pushing what it made
+      const handsOff = (/** @type {any} */ x) => x?.tool_name === 'Bash' && HANDS_OFF.some((re) => new RegExp(re).test(String(x?.tool_input?.command || '')));
+      const denied = Array.isArray(d.permission_denials) && d.permission_denials.some((/** @type {any} */ x) => !handsOff(x));
       const completion = !d.is_error && !denied ? readResult(d.structured_output) : null;
       result = { text: String(completion?.summary || d.result || (Array.isArray(d.errors) ? d.errors.join('\n') : '') || words || 'Claude returned no answer.').slice(-MAX), blocked: !!d.is_error || denied };
       if (completion && !result.blocked) { /** @type {any} */ (result).completion = completion; result.blocked = completion.status === 'blocked'; }
