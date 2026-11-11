@@ -30,6 +30,7 @@ import { readPlannedTask } from './action-plan.js';
 import { completionSchema, executionPrompt, readCompletion } from './action-completion.js';
 import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
+import { systemJob } from './system-job.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { appendProposed } from './proposal-layout.js';
@@ -38,6 +39,7 @@ import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
+import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
 import { readRoutes } from './read-routes.js';
@@ -215,6 +217,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         if (file || ++tries > 240) clearInterval(look);
       }, 500);
     }
+  }
+  // a system map drawing from code folders in the background, its progress in `state.drawing`
+  const system = systemJob({ home, getState: () => state, save, push, agent });
+  /** A system map of code folders on this Mac, drawn from their code. @param {{ title: string, folders: string[], by: string }} job */
+  function drawSystem({ title, folders, by }) {
+    state.title = state.renamed = title;
+    return system.start({ folders, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
   function blank() {
@@ -561,7 +570,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const shared = inCloud ? ['view', 'edit'].includes(online.mode)
       : !!state.linkSharing?.token && ['view', 'edit'].includes(state.linkSharing.mode);
     return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((/** @type {any} */ c) => c.status === 'open').length,
-      at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud };
+      at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud,
+      ...(state.drawing ? { system: state.drawing.status } : {}) };
   };
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
@@ -573,6 +583,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.(); queued.length = 0;
+    system.cancel();
     for (const r of clients) r.end();
   }
 
@@ -587,7 +598,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     if (result.ok) { actions.reconcile(allBoxesOf(state)); updateBoxDates(state, undefined, a.by); if (before) edits.record(a.by, before, editSnapshot(state)); }
     return { ...result, ...(a.created ? { id: a.created } : {}) };
   }
-  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared,
+  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem,
+    cancelDrawing: system.cancel, retryDrawing: system.retry,
     snapshot: () => structuredClone(state), undoSnapshot: () => edits.snapshot() };
 }
 
@@ -610,6 +622,7 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
+const systemMaps = systemRoutes({ maps, PROJECT });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');
@@ -629,6 +642,7 @@ const server = http.createServer(async (req, res) => {
   // with a project, / lists every map to choose from: the project's own, then each named one
   if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
   if (await mapRoutes(req, res, url, who, json)) return;
+  if (await systemMaps(req, res, url, who, json)) return;
   // which code this server runs: the package version, the build (commits in the clone), and whether main holds
   // newer ones; ?check=1 asks origin first (about a second), otherwise the answer is from the last check
   if (url.pathname === '/api/version') return (url.searchParams.get('check') ? checkLatest() : Promise.resolve()).then(() => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(VERSION)));

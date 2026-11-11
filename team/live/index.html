@@ -64,6 +64,16 @@ button,input,textarea{font:inherit;color:inherit}
 .prchip.none{cursor:default;color:var(--text-3)}
 /* Execute on Claude: the map's one call to action, bottom right beside Tidy up, in Claude's colour */
 #plan{position:fixed;right:88px;bottom:58px;display:flex;align-items:center;gap:10px;z-index:10}
+/* a system map drawing from code: its progress over the map, until it is closed */
+#sysdraw{position:fixed;top:calc(var(--topbar) + 16px);left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));max-height:calc(100% - var(--topbar) - 120px);overflow:auto;padding:14px 16px;background:var(--card);border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 6px 24px var(--rule);z-index:15}
+#sysdraw[hidden]{display:none}
+.sd-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}.sd-h b{font-weight:600}.sd-h span{color:var(--text-2);font-size:13px}
+.sd-bar{height:6px;margin:10px 0 8px;border-radius:3px;background:var(--rule)}.sd-bar i{display:block;height:100%;border-radius:3px;background:var(--claude);transition:width .4s var(--ease)}
+.sd-r{list-style:none;font-size:13px}.sd-r li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--rule)}
+.sd-r li span:first-child{font-weight:500}.sd-r li span:last-child{color:var(--text-2);text-align:right}
+.sd-r .sd-failed span:last-child{color:var(--gone)}.sd-r .sd-done span:last-child{color:var(--ok)}
+.sd-n{margin-top:8px;font-size:13px;color:var(--text-2)}
+.sd-a{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.sd-a button{height:30px;padding:0 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--box);cursor:pointer}
 #plan:empty{display:none}
 .tbtn.xbtn{height:34px;padding:0 16px;border:0;border-radius:9px;background:var(--claude);color:#fff;font:600 13px var(--plex);box-shadow:0 2px 10px rgba(201,100,66,.35)}
 .tbtn.xbtn:hover{filter:brightness(1.06)}
@@ -1037,6 +1047,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <button class="tbtn" id="tidyb" aria-keyshortcuts="Meta+Shift+L Control+Shift+L" title="Tidy up (⌘⇧L / Ctrl+Shift+L)">Tidy up<kbd>⌘⇧L</kbd></button>
 <div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
+<div id="sysdraw" role="status" aria-live="polite" hidden></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
@@ -1066,6 +1077,7 @@ import { actionExecuted, actionHistory, actionScreens, actionStatus } from './pa
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { historyScreens } from './page-history.js';
+import { drawingPanel } from './page-drawing.js';
 const $ = (id) => document.getElementById(id);
 // Claude's mark, the spark claude.ai serves as its icon; .claude-mark gives it Claude's colour
 const CLAUDE_MARK = '<svg class="claude-mark" viewBox="0 0 248 248" aria-hidden="true"><path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z"/></svg>';
@@ -1942,7 +1954,7 @@ function render(){
   const fb = flowBox();
   const db = !fb && diagramBox();
   if (db && !db.diagram && !diagramChange(db.id)){ view = 'system'; return render(); }
-  if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane(); return; }
+  if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); renderDrawing(); fitPane(); return; }
   let { nodes, edges } = scope();
   while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
   if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
@@ -2044,7 +2056,7 @@ function render(){
   }
   nodesEl.innerHTML = html;
   positionInlineName();
-  renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); fitPane();
+  renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); renderDrawing(); fitPane();
 }
 
 // Share: copy this map's address, manage access, or download it. Invites are not wired up yet.
@@ -3918,6 +3930,28 @@ const when = (t) => { const d = new Date(t), today = new Date().toDateString() =
 const fetchHist = () => { const n = ++histAsk; fetch('api/history').then((r) => r.json()).then((h) => { if (n === histAsk){ HIST = h; renderHist(); } }).catch(() => {}); };
 const vtime = (t) => { const d = new Date(t), today = d.toDateString() === new Date().toDateString(); return `${today ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toTimeString().slice(0, 5)}`; };
 // the History panel's HTML (historyScreens in page-history.js), with what it needs of the page
+// a system map drawing from code: its panel stays until whoever sees it closes it; the clock ticks while it draws
+const SYS_MAP = location.pathname.split('/')[1] || '';
+const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) || ''; } catch { return ''; } }; // storage blocked: the panel just shows
+function renderDrawing(){
+  const el = $('sysdraw'), d = S?.drawing;
+  if (!el) return;
+  if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
+  el.hidden = false;
+  el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: !READ_ONLY && !SHARED });
+}
+setInterval(() => { if (S?.drawing?.status === 'running') renderDrawing(); }, 1000);
+async function sdAct(what){
+  const r = await fetch(`/api/systemmap/${what}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: SYS_MAP }) })
+    .then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
+  if (r.error) toast(r.error);
+}
+document.addEventListener('click', (e) => {
+  const t = e.target instanceof Element ? e.target : null;
+  if (t?.closest('[data-sd-cancel]')) sdAct('cancel');
+  else if (t?.closest('[data-sd-retry]')) sdAct('retry');
+  else if (t?.closest('[data-sd-close]')){ try { localStorage.setItem(`lm-sd-${SYS_MAP}`, String(S?.drawing?.at)); } catch { /* storage blocked: it closes until the page reloads */ } $('sysdraw').hidden = true; }
+});
 const historyView = () => historyScreens({ me: ME, admin: amAdmin(), live: !READ_ONLY, esc, vtime, statusLabel: (a) => actionStatus(a)?.label });
 function renderHist(){
   const el = $('hist'), open = railTab === 'history' && !selected;

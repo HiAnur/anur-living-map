@@ -7,17 +7,17 @@ import { answer } from './answer.js';
 
 // One answer held to a schema, from a stand-in for `claude` that prints what Claude Code would.
 
-/** @param {string} printed what the process writes before it closes @param {{ never?: boolean }} [o] */
+/** @param {string} printed what the process writes before it closes @param {{ never?: boolean, signal?: AbortSignal }} [o] */
 function run(printed, o = {}) {
   /** @type {any} */ const proc = new EventEmitter();
   Object.assign(proc, { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn() });
   /** @type {any[]} */ const calls = [];
   let prompt = '';
   proc.stdin.on('data', (/** @type {Buffer} */ d) => { prompt += d; });
-  const result = answer({ prompt: 'Draw it', schema: { type: 'object' }, model: 'sonnet', timeoutMs: o.never ? 20 : 5000,
+  const result = answer({ prompt: 'Draw it', schema: { type: 'object' }, model: 'sonnet', timeoutMs: o.never ? 20 : 5000, signal: o.signal,
     spawnProcess: /** @type {any} */ ((/** @type {any[]} */ ...args) => { calls.push(args); return proc; }) });
   if (!o.never) setTimeout(() => { proc.stdout.end(printed); proc.emit('close', 0); });
-  return { result, calls, prompt: () => prompt };
+  return { result, calls, prompt: () => prompt, proc };
 }
 
 describe('answer', () => {
@@ -40,5 +40,12 @@ describe('answer', () => {
   it('gives up after its time limit', async () => {
     const r = run('', { never: true });
     expect((await r.result).error).toBe('The agent took too long to answer.');
+  });
+  it('stops the agent when asked', async () => {
+    const stop = new AbortController();
+    const r = run('', { never: true, signal: stop.signal });
+    stop.abort();
+    expect(await r.result).toMatchObject({ stopped: true });
+    expect(r.proc.kill).toHaveBeenCalled();
   });
 });

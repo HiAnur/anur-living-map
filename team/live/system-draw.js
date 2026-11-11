@@ -10,7 +10,8 @@ import { linkRepos } from './system-links.js';
 
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
 /** @typedef {Awaited<ReturnType<typeof readRepo>>} Reading */
-/** @typedef {{ repo: string, stage: 'waiting' | 'reading' | 'drawing' | 'checking' | 'done' | 'failed', facts?: number, boxes?: number, cost?: { value: number, unit: string }, error?: string, ms?: number, unread?: string[] }} Progress */
+/** @typedef {ReturnType<typeof checkDrawing>} Checked */
+/** @typedef {{ repo: string, stage: 'waiting' | 'reading' | 'drawing' | 'checking' | 'done' | 'failed' | 'cancelled', reused?: boolean, facts?: number, boxes?: number, cost?: { value: number, unit: string }, error?: string, ms?: number, unread?: string[] }} Progress */
 
 const KIND = ['function', 'store', 'queue', 'secret', 'setting', 'alarm', 'library', 'api', 'screen', 'state', 'external', 'person'];
 const str = { type: 'string' }, ids = { type: 'array', items: str };
@@ -53,10 +54,12 @@ async function pool(items, limit, work) {
 }
 
 /**
- * Draws a system map from repos on this Mac.
- * @param {{ folders: string[], agent: Pick<AgentWorker, 'answer'>, onProgress?: (p: Progress) => void, model?: string, concurrency?: number }} job
+ * Draws a system map from repos on this Mac. `reuse` hands back a repo's earlier checked drawing when it still
+ * holds (a retry draws only what failed), `onDrawn` keeps each one as it is checked, and `signal` stops the drawing.
+ * @param {{ folders: string[], agent: Pick<AgentWorker, 'answer'>, onProgress?: (p: Progress) => void, model?: string, concurrency?: number,
+ *   signal?: AbortSignal, reuse?: (r: Reading) => Checked | null, onDrawn?: (r: Reading, drawn: Checked) => void }} job
  */
-export async function drawSystem({ folders, agent, onProgress = () => {}, model, concurrency = 3 }) {
+export async function drawSystem({ folders, agent, onProgress = () => {}, model, concurrency = 3, signal, reuse = () => null, onDrawn = () => {} }) {
   const started = Date.now();
   /** @type {Map<string, Progress>} */
   const progress = new Map();
@@ -65,6 +68,7 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   /** @type {Reading[]} */
   const readings = [];
   for (const folder of folders) {
+    if (signal?.aborted) break;
     const name = folder.split('/').filter(Boolean).pop() || folder;
     tell({ repo: name, stage: 'reading' });
     const r = await readRepo(folder);
@@ -77,40 +81,51 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   /** @type {{ reading: Reading, drawn: ReturnType<typeof checkDrawing> }[]} */
   const drawn = [];
   await pool(readings.filter((r) => r.facts.length), concurrency, async (r) => {
+    if (signal?.aborted) return;
+    const kept = reuse(r);
+    if (kept) { drawn.push({ reading: r, drawn: kept }); tell({ repo: r.repo, stage: 'done', boxes: kept.boxes.length, reused: true }); return; }
     const t = Date.now();
     tell({ repo: r.repo, stage: 'drawing' });
     const { facts, cut } = compact(r.facts);
     const kinds = r.kinds.includes('app') ? '\nThis repo is an app: its boxes are its main areas (screen groups), its state, its client for each backend, and the outside services and SDKs that matter. Group backend calls by area, naming the paths in descriptions.\n' : '';
     const prompt = `${RULES}\n${kinds}\nThe repo is ${r.repo}.${cut ? ' Its facts were cut to the most structural ones to fit.' : ''}\n\nFacts (one JSON object per line):\n${facts.join('\n')}\n`;
-    const a = await agent.answer({ prompt, schema: drawingSchema(false), model });
+    const a = await agent.answer({ prompt, schema: drawingSchema(false), model, signal });
     if (a.cost) costs.push(a.cost);
+    if (a.stopped || signal?.aborted) return;
     if (!a.value) { tell({ repo: r.repo, stage: 'failed', error: a.error || 'No drawing came back.', ms: Date.now() - t, ...(a.cost ? { cost: a.cost } : {}) }); return; }
     tell({ repo: r.repo, stage: 'checking' });
     const checked = checkDrawing(/** @type {any} */ (a.value), new Map(r.facts.map((f) => [f.id, f])));
     drawn.push({ reading: r, drawn: checked });
+    onDrawn(r, checked);
     tell({ repo: r.repo, stage: 'done', boxes: checked.boxes.length, ms: Date.now() - t, ...(a.cost ? { cost: a.cost } : {}) });
   });
+  /** what the report says, however the drawing ended */
+  const report = () => ({
+    repos: readings.map((r) => ({ repo: r.repo, root: r.root, kinds: r.kinds, head: r.head, facts: r.facts.length, unread: r.unread })),
+    links: links.length, unmatched, rejected: [...drawn.flatMap((d) => d.drawn.rejected.map((x) => ({ repo: d.reading.repo, ...x }))), ...platform.rejected.map((x) => ({ repo: 'platform', ...x }))],
+    leftOut: drawn.reduce((n, d) => n + d.drawn.leftOut.length, 0), costs, ms: Date.now() - started, progress: [...progress.values()],
+  });
+  /** @type {Checked} */
+  let platform = { boxes: [], lines: [], rejected: [], leftOut: [] };
+  if (signal?.aborted) {
+    for (const p of progress.values()) if (!['done', 'failed'].includes(p.stage)) tell({ repo: p.repo, stage: 'cancelled' });
+    return { state: null, report: report(), cancelled: true };
+  }
   // the platform: one box per repo that was drawn, outside systems and people, from the links code found
   const repoNames = drawn.map((d) => d.reading.repo);
   const summary = drawn.map((d) => ({ repo: d.reading.repo, kinds: d.reading.kinds, boxes: d.drawn.boxes.slice(0, 40).map((b) => `${b.name}: ${b.description}`.slice(0, 120)) }));
   const platformPrompt = `${RULES}\n\nThis is the platform map across repos: one box per repo (set repo to its exact name: ${repoNames.join(', ')}), and boxes for outside systems and people the links show (set repo to ""). A repo box cites "repo:<its name>". A line cites the link facts (x1, x2, …) that join its two repos; summarise many links of one kind into one line, naming the main areas.\n\nEach repo's own map (for naming only):\n${JSON.stringify(summary)}\n\nLinks between repos, found by code (one per line):\n${links.map((l) => JSON.stringify(l)).join('\n')}\n`;
   tell({ repo: 'platform', stage: 'drawing' });
-  const p = drawn.length ? await agent.answer({ prompt: platformPrompt, schema: drawingSchema(true), model }) : { error: 'No repo was drawn.', ms: 0 };
+  /** @type {AnswerResult} */
+  const p = drawn.length ? await agent.answer({ prompt: platformPrompt, schema: drawingSchema(true), model, signal }) : { error: 'No repo was drawn.', ms: 0 };
   if (p.cost) costs.push(p.cost);
+  if (p.stopped || signal?.aborted) { tell({ repo: 'platform', stage: 'cancelled' }); return { state: null, report: report(), cancelled: true }; }
   /** @type {any} */
   const value = p.value || { boxes: drawn.map((d) => ({ id: d.reading.repo, name: d.reading.repo, kind: 'library', description: d.reading.kinds.join(', '), facts: [`repo:${d.reading.repo}`], repo: d.reading.repo })), lines: [] };
   for (const b of value.boxes || []) if (!repoNames.includes(b.repo)) delete b.repo;
   // a repo box cites its repo: only the repos that were drawn are facts it may cite
   const linkMap = new Map([...links.map((l) => /** @type {[string, Fact]} */ ([l.id, l])), ...repoNames.map((n) => /** @type {[string, Fact]} */ ([`repo:${n}`, { id: `repo:${n}`, kind: 'repo', at: 'repo', fromRepo: n, toRepo: n }]))]);
-  const platform = checkDrawing(value, linkMap);
+  platform = checkDrawing(value, linkMap);
   tell({ repo: 'platform', stage: p.value ? 'done' : 'failed', ...(p.error ? { error: p.error } : {}), boxes: platform.boxes.length });
-  const state = systemState(platform, linkMap, drawn);
-  return {
-    state,
-    report: {
-      repos: readings.map((r) => ({ repo: r.repo, root: r.root, kinds: r.kinds, head: r.head, facts: r.facts.length, unread: r.unread })),
-      links: links.length, unmatched, rejected: [...drawn.flatMap((d) => d.drawn.rejected.map((x) => ({ repo: d.reading.repo, ...x }))), ...platform.rejected.map((x) => ({ repo: 'platform', ...x }))],
-      leftOut: drawn.reduce((n, d) => n + d.drawn.leftOut.length, 0), costs, ms: Date.now() - started, progress: [...progress.values()],
-    },
-  };
+  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false };
 }

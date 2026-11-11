@@ -60,6 +60,25 @@ a.map:hover{border-color:var(--text)}
 #new-blank:hover{border-color:var(--text)}
 #new-blank:disabled{opacity:.5;cursor:wait}
 #new-blank svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round}
+/* a system map from code folders on this Mac: choose the repos, see what it will take, draw */
+.head-acts{display:flex;gap:8px}
+#from-code{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
+#from-code:hover{border-color:var(--text)}
+#code{margin:0 0 28px;padding:14px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:12px}
+#code[hidden]{display:none}
+#code p{margin:0 0 10px;color:var(--text-2);font-size:13px}
+#code .line{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+#code .line label{flex:none;font-size:13px;color:var(--text-2);width:64px}
+#code input[type=text]{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid var(--rule-2);border-radius:7px;font:13px var(--plex)}
+#code .line button{height:32px;padding:0 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;font:13px var(--plex);cursor:pointer}
+#code-repos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin:0 0 10px;max-height:240px;overflow:auto}
+#code-repos label{display:flex;gap:6px;align-items:center;font-size:13px;overflow-wrap:anywhere}
+#code .go{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#code-est{color:var(--text-2);font-size:13px}
+#code-go{height:34px;padding:0 14px;border:0;border-radius:8px;background:var(--claude);color:#fff;font:500 13px var(--plex);cursor:pointer}
+#code-go:disabled{opacity:.5;cursor:default}
+#code-err{margin-top:8px;color:#B42318;font-size:13px}
+.tag-sys{font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--rule-2);color:var(--text-2)}
 .sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
 .sort button:hover{color:var(--text)}
@@ -106,7 +125,15 @@ a.map:hover{border-color:var(--text)}
 <div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
 <div class="home">
 <main>
-  <div class="head"><h1>Start a new map</h1><button id="new-blank" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div>
+  <div class="head"><h1>Start a new map</h1><div class="head-acts"><button id="from-code" type="button" aria-expanded="false" aria-controls="code">System map from code</button><button id="new-blank" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
+  <form id="code" hidden aria-label="System map from code">
+    <p>Pick the repos on this Mac that make up your system. Code reads each one and Claude groups what it reads into boxes; nothing goes on the map that the code does not show.</p>
+    <div class="line"><label for="code-under">Folder</label><input type="text" id="code-under" spellcheck="false" autocomplete="off"><button type="button" id="code-look">Look</button></div>
+    <div id="code-repos"></div>
+    <div class="line"><label for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off"></div>
+    <div class="go"><span id="code-est"></span><button type="submit" id="code-go" disabled>Draw the map</button></div>
+    <div id="code-err" role="alert" hidden></div>
+  </form>
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" role="alert" hidden></div>
@@ -156,6 +183,40 @@ box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey &&
 form.addEventListener('submit', (e) => {
   e.preventDefault(); const prompt = box.value.trim(); if (!prompt || go.disabled) return;
   createMap({ prompt }, 'chat=1');
+});
+// a system map from code folders on this Mac: the repos in a folder, all chosen at first, drawn into a new map
+const code = $('code');
+const chosen = () => [...$('code-repos').querySelectorAll('input:checked')].map((i) => i.value);
+const codeError = (text) => { $('code-err').textContent = text; $('code-err').hidden = !text; };
+function estimate(){
+  const n = chosen().length;
+  $('code-est').textContent = n ? `${n} ${n === 1 ? 'repo' : 'repos'}: about ${Math.max(1, Math.round((Math.ceil(n / 3) * 60 + 25) / 60))} min and $${(n * 0.25 + 0.1).toFixed(2)} of your Claude Code. Claude is sent what code reads (names, routes, permissions, descriptions), not your files.` : 'Choose at least one repo.';
+  $('code-go').disabled = !n;
+}
+async function lookIn(under){
+  const r = await fetch(`/api/systemmap/repos${under ? `?under=${encodeURIComponent(under)}` : ''}`).then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
+  if (!r.ok){ codeError(r.b.error || 'That folder could not be read.'); return; }
+  codeError(''); code.dataset.loaded = '1';
+  $('code-under').value = r.b.under;
+  $('code-title').placeholder = `${r.b.under.split('/').pop()} system`;
+  $('code-repos').innerHTML = r.b.repos.length ? r.b.repos.map((x) => `<label><input type="checkbox" value="${esc(x.folder)}" checked>${esc(x.name)}</label>`).join('') : '<span class="none">No repos in this folder. Choose the folder that holds them.</span>';
+  estimate();
+}
+$('from-code').addEventListener('click', () => {
+  code.hidden = !code.hidden; $('from-code').setAttribute('aria-expanded', String(!code.hidden));
+  if (!code.hidden && !code.dataset.loaded) lookIn('');
+});
+$('code-look').addEventListener('click', () => lookIn($('code-under').value.trim()));
+$('code-under').addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); lookIn($('code-under').value.trim()); } });
+$('code-repos').addEventListener('change', estimate);
+code.addEventListener('submit', async (e) => {
+  e.preventDefault(); if ($('code-go').disabled) return;
+  $('code-go').disabled = true; codeError('');
+  const title = $('code-title').value.trim() || $('code-title').placeholder;
+  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, folders: chosen() }) })
+    .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
+  if (!r.ok){ codeError(r.b.error || 'The map could not start.'); estimate(); return; }
+  location.href = `${r.b.href}${location.search}`;
 });
 // a map file (Share as a file) carries the map's data inside its page: that data becomes a map here, and it opens
 const pick = document.querySelector('.load input'), lerr = document.getElementById('lerr');
@@ -257,8 +318,10 @@ function list(){
   if (!maps.length) { el.textContent = 'No maps yet.'; return; }
   el.className = '';
   const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
-    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)));
-  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span></span><span class="addr">${m.href}</span><span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
+    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
+    // system maps stay at the top, whichever way the list is sorted
+    .sort((a, b) => Number(!!b.system) - Number(!!a.system));
+  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
 }
 $('list').addEventListener('click', (e) => { const button = e.target.closest('[data-trash]'); if (button) moveToTrash(button.dataset.trash, button); });
 document.querySelector('.sort').addEventListener('click', (e) => {

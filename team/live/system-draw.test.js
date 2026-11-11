@@ -49,8 +49,8 @@ const agent = {
 describe('drawing a system map', () => {
   it('builds the platform, each repo inside its box, and each box\'s components inside it', async () => {
     const { state } = await drawSystem({ folders: [app(), api(), trading()], agent });
-    expect(state.nodes.map((n) => n.label)).toEqual(['mobile-app', 'api-service', 'trading-service']);
-    const apiBox = state.nodes.find((n) => n.label === 'api-service');
+    expect(state?.nodes.map((n) => n.label)).toEqual(['mobile-app', 'api-service', 'trading-service']);
+    const apiBox = state?.nodes.find((n) => n.label === 'api-service');
     expect(apiBox?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
     // the Users API box opens into its components, built by code from its facts: no model
     const usersApi = apiBox?.inside?.nodes.find((n) => n.label === 'Users API');
@@ -72,7 +72,7 @@ describe('drawing a system map', () => {
       { repo: 'api-service', item: 'box "Ghost"', why: 'cites facts that do not exist: f999' },
       { repo: 'platform', item: 'line mobile-app → trading-service', why: 'its facts do not show both of its ends' },
     ]));
-    expect(state.edges.map((e) => e.label)).toEqual(['calls routes', 'routes trades']);
+    expect(state?.edges.map((e) => e.label)).toEqual(['calls routes', 'routes trades']);
   });
   it('marks what only descriptions show, with a warning on the map', async () => {
     const { state } = await drawSystem({ folders: [trading()], agent });
@@ -90,7 +90,36 @@ describe('drawing a system map', () => {
     const failing = { answer: async (/** @type {{ prompt: string }} */ job) => job.prompt.includes('api-service') && !job.prompt.includes('platform map') ? { error: 'Claude Code is signed out.', ms: 1 } : agent.answer(job) };
     const { state, report } = await drawSystem({ folders: [app(), api()], agent: failing });
     expect(report.progress.find((p) => p.repo === 'api-service')).toMatchObject({ stage: 'failed', error: 'Claude Code is signed out.' });
-    expect(state.nodes.map((n) => n.label)).toEqual(['mobile-app']);
+    expect(state?.nodes.map((n) => n.label)).toEqual(['mobile-app']);
+  });
+});
+
+describe('stopping and drawing again', () => {
+  it('stops when cancelled: the agent is stopped, nothing is built, and every unfinished repo says so', async () => {
+    const stop = new AbortController();
+    const slow = { answer: (/** @type {{ signal?: AbortSignal }} */ job) => new Promise((resolve) => {
+      if (job.signal?.aborted) resolve({ stopped: true, ms: 1 });
+      job.signal?.addEventListener('abort', () => resolve({ stopped: true, ms: 1 }));
+    }) };
+    const result = drawSystem({ folders: [app(), api()], agent: slow, signal: stop.signal,
+      onProgress: (p) => { if (p.stage === 'drawing') stop.abort(); } });
+    const { state, report, cancelled } = await result;
+    expect(cancelled).toBe(true);
+    expect(state).toBeNull();
+    expect(report.progress.map((p) => p.stage)).toEqual(['cancelled', 'cancelled']);
+  });
+  it('reuses a repo\'s earlier drawing when asked, and asks the agent only about the rest', async () => {
+    /** @type {string[]} */
+    const asked = [];
+    const counting = { answer: (/** @type {{ prompt: string }} */ job) => { asked.push(job.prompt.includes('platform map') ? 'platform' : /The repo is ([\w-]+)/.exec(job.prompt)?.[1] || ''); return agent.answer(job); } };
+    /** @type {Map<string, any>} */
+    const kept = new Map();
+    await drawSystem({ folders: [app(), api()], agent: counting, onDrawn: (r, d) => kept.set(r.repo, d) });
+    asked.length = 0;
+    const { state, report } = await drawSystem({ folders: [app(), api()], agent: counting, reuse: (r) => r.repo === 'api-service' ? kept.get(r.repo) : null });
+    expect(asked).toEqual(['mobile-app', 'platform']);
+    expect(report.progress.find((p) => p.repo === 'api-service')).toMatchObject({ stage: 'done', reused: true });
+    expect(state?.nodes.find((n) => n.label === 'api-service')?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
   });
 });
 

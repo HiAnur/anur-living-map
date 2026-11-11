@@ -11,7 +11,7 @@ import { claudeEnv } from './process.js';
  * @param {AnswerJob & { spawnProcess?: typeof spawn }} job
  * @returns {Promise<AnswerResult>}
  */
-export function answer({ prompt, schema, model, timeoutMs = 300_000, spawnProcess = spawn }) {
+export function answer({ prompt, schema, model, timeoutMs = 300_000, signal, spawnProcess = spawn }) {
   return new Promise((resolve) => {
     const args = ['-p', '--output-format', 'json', '--json-schema', JSON.stringify(schema), '--tools', '', '--no-session-persistence',
       '--setting-sources', '', '--strict-mcp-config', ...(model ? ['--model', model] : [])];
@@ -19,8 +19,10 @@ export function answer({ prompt, schema, model, timeoutMs = 300_000, spawnProces
     const proc = spawnProcess('claude', args, { cwd: os.tmpdir(), env: claudeEnv(childEnv()), stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '', err = '', done = false;
     /** @param {AnswerResult} r */
-    const finish = (r) => { if (done) return; done = true; clearTimeout(limit); resolve(r); };
+    const finish = (r) => { if (done) return; done = true; clearTimeout(limit); signal?.removeEventListener('abort', stop); resolve(r); };
     const limit = setTimeout(() => { proc.kill(); finish({ error: 'The agent took too long to answer.', ms: Date.now() - started }); }, timeoutMs);
+    const stop = () => { proc.kill(); finish({ error: 'Stopped.', stopped: true, ms: Date.now() - started }); };
+    if (signal?.aborted) stop(); else signal?.addEventListener('abort', stop, { once: true });
     proc.stdout?.on('data', (d) => { out += d; });
     proc.stderr?.on('data', (d) => { err += d; });
     proc.on('error', () => finish({ error: 'Claude Code could not be started. Is it installed?', ms: Date.now() - started }));
