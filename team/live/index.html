@@ -1064,6 +1064,7 @@ import { imageExportSize, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus } from './page-action.js';
 import { commentScreens } from './page-comments.js';
+import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { historyScreens } from './page-history.js';
 const $ = (id) => document.getElementById(id);
 // Claude's mark, the spark claude.ai serves as its icon; .claude-mark gives it Claude's colour
@@ -1307,7 +1308,7 @@ const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) 
 // A box opened by a click stays where it is; if its pane covers it, reveal only the hidden part.
 const keepInView = (id) => { const n = nodeById(id) || proposedBox(id); if (n) keepEditorVisible(n, W(n), HT(n)); };
 function centerOn(id){
-  const parent = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
+  const parent = parentBoxOf(S, id);
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
   const n = nodeById(id) || proposed().nodes.find((x) => x.id === id); if (!n) return;
   const r = canvas.getBoundingClientRect(), z = Math.max(cam.z, 0.8);
@@ -1327,7 +1328,7 @@ const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [
 
 /* the view: the system, or the inside of one box */
 const scope = () => {
-  const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (S.nodes.find((n) => n.id === view)?.inside || { nodes: [], edges: [] });
+  const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (nodeById(view)?.inside || { nodes: [], edges: [] });
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
   if (view !== 'system') return unfolded(all);
   const p = proposed();
@@ -1486,7 +1487,7 @@ const proposed = () => {
   };
 };
 const locked = (n) => !canSee(n);
-const nodeById = (id) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === id);
+const nodeById = (id) => allBoxesOf(S).find((n) => n.id === id);
 // a flow is a third level: the calls one route makes, drawn as a sequence, at view "flow:<box id>"
 const flowBox = () => view.startsWith('flow:') ? nodeById(view.slice(5)) : null;
 const flowOf = (n) => n?.flow ? n : n?.inside?.nodes?.find((x) => x.flow) || null;
@@ -1570,7 +1571,7 @@ function openDiagram(id){
 function closeDiagram(){
   if (stage.classList.contains('dgclose')) return;
   const id = view.slice(8), n = nodeById(id) || proposedBox(id), f = $('dgf'), back = dgBack;
-  const up = S.nodes.find((x) => x.inside?.nodes?.some((m) => m.id === id));
+  const up = parentBoxOf(S, id);
   const done = () => {
     view = back?.view || (up ? up.id : 'system'); dgBack = null; selected = null; stage.classList.remove('dgclose'); render();
     if (back){ Object.assign(cam, back.cam); place(); } else fit();
@@ -2028,7 +2029,8 @@ function render(){
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
       ${!locked(n) && n.action?.stage === 'ready' && n.action.by === ME && !READ_ONLY && !FILE && !PREVIEW ? `<button class="map-execute" data-box-action="actionexecute" data-action-id="${esc(n.id)}" data-action-revision="${esc(n.action.id)}" aria-label="Execute ${esc(n.label)}">Execute</button>` : ''}
-      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId)).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${/* a box's Expand or diagram pill sits on its bottom edge, so it has no bottom dot to draw a line from */ ''}
+      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>${esc(deleteQuestion('*'))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>${esc(deleteQuestion(n.id))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
@@ -2296,7 +2298,7 @@ document.addEventListener('click', (e) => {
 function renderTop(){
   renderShare();
   const fb = flowBox();
-  const inside = fb ? S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === fb.id)) : view !== 'system' ? nodeById(view) : null;
+  const inside = fb ? parentBoxOf(S, fb.id) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
   const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
   const where = `<b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
@@ -2306,14 +2308,14 @@ function renderTop(){
     ? `${where} <span class="sep">›</span> <b>${esc(db.label)}</b>`
     : fb
     ? `${where} <span class="sep">›</span> <b data-enter="${inside.id}" style="cursor:pointer">${esc(inside.label)}</b> <span class="sep">›</span> <b>${fb.flow.title}</b>`
-    : `${where}${inside ? ` <span class="sep">›</span> <b>${esc(inside.label)}</b>` : ''}`;
+    : `${where}${inside ? `${pathTo(S, inside.id).map((p) => ` <span class="sep">›</span> <b data-enter="${esc(p.id)}" style="cursor:pointer">${esc(p.label)}</b>`).join('')} <span class="sep">›</span> <b>${esc(inside.label)}</b>` : ''}`;
   // inside a box, a flow or a diagram, Back sits at the top left above your answers, where the eye starts
-  const up = db && S.nodes.find((n) => n.inside?.nodes?.some((x) => x.id === db.id)), back = $('backb'), deep = Boolean(db || fb || inside);
+  const up = db && parentBoxOf(S, db.id), back = $('backb'), deep = Boolean(db || fb || inside);
   back.classList.toggle('on', deep); document.body.classList.toggle('deep', deep);
   for (const k of ['dback', 'enter', 'v']) delete back.dataset[k];
   if (db){ back.dataset.dback = ''; back.textContent = `‹ Back to ${up ? up.label : 'the map'}`; }
   else if (fb){ back.dataset.enter = inside.id; back.textContent = `‹ Back to ${inside.label}`; }
-  else if (inside){ back.dataset.v = 'system'; back.textContent = '‹ Back to the map'; }
+  else if (inside){ const above = parentBoxOf(S, inside.id); if (above){ back.dataset.enter = above.id; back.textContent = `‹ Back to ${above.label}`; } else { back.dataset.v = 'system'; back.textContent = '‹ Back to the map'; } }
   $('ticket').innerHTML = prChip();
   $('plan').innerHTML = planBar();
   document.title = `Living Map · ${S.title}`;
@@ -2403,7 +2405,7 @@ function boxSource(source) {
     ? `<button type="button" class="source-link" data-scopen="${esc(box.id)}">${label}</button>` : label;
 }
 function boxMetadata(n) {
-  const container = S.nodes.find((box) => box.inside?.nodes.some((child) => child.id === n.id));
+  const container = parentBoxOf(S, n.id);
   return `<button type="button" class="box-meta-button" popovertarget="box-metadata" title="Box metadata" aria-label="Box metadata"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8.5 8h7m-7 4h7m-7 4h4"/></svg></button>
   <div id="box-metadata" class="box-meta" popover="auto" data-box="${esc(n.id)}"><h3>Box metadata</h3>
     <dl class="box-dates"><dt>Created by</dt><dd>${n.by ? esc(n.by) : 'Not recorded'}</dd><dt>Created</dt><dd>${boxDate(n.createdAt)}</dd><dt>Updated</dt><dd>${boxDate(n.updatedAt)}</dd><dt>Last edited by</dt><dd>${n.updatedBy ? esc(n.updatedBy) : 'Not recorded'}</dd>${n.action?.events?.length ? (([last]) => `<dt>Last Action step</dt><dd>${esc(last.label)}${last.who ? ` · ${esc(last.who)}` : ''}</dd>`)(actionHistory(n.action.events)) : ''}<dt>Source</dt><dd>${boxSource(n.source)}</dd>${container && !locked(container) ? `<dt>Inside</dt><dd>${esc(container.label)}</dd>` : ''}<dt>Box ID</dt><dd><code>${esc(n.id)}</code></dd></dl></div>`;
@@ -2958,10 +2960,10 @@ document.addEventListener('keydown', (e) => {
 });
 // A leaf disappears immediately. A branch is removed together only after confirmation.
 const groupLead = () => [...group].map((id) => nodeById(id)).filter(Boolean).sort((a, b) => a.y - b.y || a.x - b.x)[0]?.id;
-// A branch includes folded descendants and boxes inside it. Cycles are visited once.
+// A branch includes folded descendants and boxes inside it, at any depth. Cycles are visited once.
 function branchIds(state, roots) {
-  const nodes = state.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]);
-  const edges = [...(state.edges || []), ...state.nodes.flatMap((n) => n.inside?.edges || [])];
+  const nodes = allBoxesOf(state);
+  const edges = allLinesOf(state);
   const ids = new Set(roots), queue = [...ids];
   for (let i = 0; i < queue.length; i++) {
     const id = queue[i], node = nodes.find((n) => n.id === id);
@@ -3003,7 +3005,7 @@ function deleteBlocker(ids){
   return null;
 }
 // the Actions outside these boxes that wait on one of them
-const waitingOn = (ids) => S.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).filter((n) => !ids.has(n.id) && n.action?.plan?.dependsOn?.some((d) => ids.has(d)));
+const waitingOn = (ids) => allBoxesOf(S).filter((n) => !ids.has(n.id) && n.action?.plan?.dependsOn?.some((d) => ids.has(d)));
 const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 function deleteQuestion(id){
   const roots = id === '*' ? [...group] : [id], ids = branchIds(S, roots), held = [...ids].filter((c) => nodeById(c)?.action).length, waits = waitingOn(ids).length;
@@ -3131,7 +3133,7 @@ async function refreshMap(){
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
-  clean(state); for (const n of state.nodes) if (n.inside) clean(n.inside);
+  for (const g of graphsOf(state)) clean(g);
 }
 function topicParent(n){
   if (!n) return null;
@@ -3983,15 +3985,15 @@ function listen(){
   let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
-    const arrived = new Set(next.nodes.flatMap((n) => [n.id, ...(n.inside?.nodes || []).map((c) => c.id)]));
+    const arrived = new Set(allBoxesOf(next).map((n) => n.id));
     for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
-    for (const id of pendingRemovals) if (!next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === id)) pendingRemovals.delete(id);
+    for (const id of pendingRemovals) if (!allBoxesOf(next).some((n) => n.id === id)) pendingRemovals.delete(id);
     hideRemoved(next);
-    if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
-      for (const m of drag.many || []){ const e = next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).find((n) => n.id === m.n.id); if (e){ e.x = m.n.x; e.y = m.n.y; m.n = e; } } }
+    if (drag){ const d = drag.proposed ? proposedBox(drag.n.id, next) : allBoxesOf(next).find((n) => n.id === drag.n.id); if (d){ d.x = drag.n.x; d.y = drag.n.y; drag.n = d; }
+      for (const m of drag.many || []){ const e = allBoxesOf(next).find((n) => n.id === m.n.id); if (e){ e.x = m.n.x; e.y = m.n.y; m.n = e; } } }
     // a box or flow you are inside that no longer exists sends you back to the system
     const here = view.replace(/^(flow|diagram):/, ''), dg = view.startsWith('diagram:');
-    if (view !== 'system' && !next.nodes.flatMap((n) => [n, ...(n.inside?.nodes || [])]).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))
+    if (view !== 'system' && !allBoxesOf(next).some((n) => n.id === here && (!view.startsWith('flow:') || n.flow))
       && !(dg && proposedBox(here, next)?.diagram)) view = 'system';
     // the comment you just posted opens as a thread
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }

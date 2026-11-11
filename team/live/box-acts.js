@@ -1,6 +1,7 @@
 // Drawing on the map by hand: boxes, lines, moves and Tidy up. The map passes in its state and the helpers it needs.
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
+import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 import { tidy, tidyTree } from './project.js';
 
 
@@ -85,7 +86,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     relabel(a) {
       const from = nodeOf(a.from), to = nodeOf(a.to); if (!from || !to) return false;
       const sees = seesOf(a.by); if (sees !== 'all' && [from, to].some((n) => n.area !== sees)) return false;
-      const all = [getState().edges, ...getState().nodes.map((/** @type {any} */ p) => p.inside?.edges || [])].flat();
+      const all = allLinesOf(getState());
       const e = all.find((x) => x.from === from.id && x.to === to.id); if (!e) return false;
       const label = String(a.label || '').trim().slice(0, 40); if ((e.label || '') === label) return false;
       if (label) e.label = label; else delete e.label;
@@ -111,8 +112,8 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       if ([...ids].some((id) => leaving(getState(), nodeOf(id), a.by) !== 'remove')) return false;
       const label = nodeOf(roots[0]).label;
       const drop = (/** @type {any} */ s) => { s.nodes = s.nodes.filter((/** @type {any} */ n) => !ids.has(n.id)); s.edges = (s.edges || []).filter((/** @type {any} */ e) => !ids.has(e.from) && !ids.has(e.to)); };
-      drop(getState()); for (const n of getState().nodes) if (n.inside) drop(n.inside);
-      forgetPrerequisites(getState().nodes.flatMap((/** @type {any} */ n) => [n, ...(n.inside?.nodes ?? [])]), ids, a.by);
+      for (const g of graphsOf(getState())) drop(g);
+      forgetPrerequisites(allBoxesOf(getState()), ids, a.by);
       tell(`${a.by} took ${label}${ids.size > 1 ? ' and its branch' : ''} off the map`);
       return true;
     },

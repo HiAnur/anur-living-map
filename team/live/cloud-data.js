@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { allBoxesOf } from './map-walk.js';
 
 /** @param {string} id @param {string} token @param {string} key */
 export const signedLink = (id, token, key) => `${token}.${crypto.createHmac('sha256', key).update(`${id}:${token}`).digest('hex')}`;
@@ -27,7 +28,7 @@ export function mapData(input, depth = 0) {
     return out;
   });
   if (new Set(nodes.map((/** @type {any} */ n) => n.id)).size !== nodes.length) throw new Error('Box ids must be unique.');
-  const ids = new Set(nodes.flatMap((/** @type {any} */ n) => [n.id, ...(n.inside?.nodes || []).map((/** @type {any} */ c) => c.id)]));
+  const ids = new Set(allBoxesOf({ nodes }).map((/** @type {any} */ n) => n.id));
   const edges = input.edges.map((/** @type {any} */ e) => {
     if (!e || !ids.has(e.from) || !ids.has(e.to) || e.label !== undefined && !plain(e.label, 500)) throw new Error('A line has an invalid endpoint or label.');
     const out = pick(e, EDGE);

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { actionLeaving } from './action-stages.js';
 import { branchIds } from './editing.js';
+import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 import { actionExecuted } from './page-action.js';
 import { layoutFor } from './page-layout.js';
 
@@ -15,7 +16,7 @@ const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIV
 const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
 function harness(){
   let input, handler, pickTimer;
-  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, ME: 'Ana' });
+  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana' });
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
