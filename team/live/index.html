@@ -1062,7 +1062,7 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { actionExecuted, actionHistory, actionStatus, actionUntouched } from './page-action.js';
+import { actionExecuted, actionHistory, actionScreens, actionStatus } from './page-action.js';
 const $ = (id) => document.getElementById(id);
 // Claude's mark, the spark claude.ai serves as its icon; .claude-mark gives it Claude's colour
 const CLAUDE_MARK = '<svg class="claude-mark" viewBox="0 0 248 248" aria-hidden="true"><path d="M52.4285 162.873L98.7844 136.879L99.5485 134.602L98.7844 133.334H96.4921L88.7237 132.862L62.2346 132.153L39.3113 131.207L17.0249 130.026L11.4214 128.844L6.2 121.873L6.7094 118.447L11.4214 115.257L18.171 115.847L33.0711 116.911L55.485 118.447L71.6586 119.392L95.728 121.873H99.5485L100.058 120.337L98.7844 119.392L97.7656 118.447L74.5877 102.732L49.4995 86.1905L36.3823 76.62L29.3779 71.7757L25.8121 67.2858L24.2839 57.3608L30.6515 50.2716L39.3113 50.8623L41.4763 51.4531L50.2636 58.1879L68.9842 72.7209L93.4357 90.6804L97.0015 93.6343L98.4374 92.6652L98.6571 91.9801L97.0015 89.2625L83.757 65.2772L69.621 40.8192L63.2534 30.6579L61.5978 24.632C60.9565 22.1032 60.579 20.0111 60.579 17.4246L67.8381 7.49965L71.9133 6.19995L81.7193 7.49965L85.7946 11.0443L91.9074 24.9865L101.714 46.8451L116.996 76.62L121.453 85.4816L123.873 93.6343L124.764 96.1155H126.292V94.6976L127.566 77.9197L129.858 57.3608L132.15 30.8942L132.915 23.4505L136.608 14.4708L143.994 9.62643L149.725 12.344L154.437 19.0788L153.8 23.4505L150.998 41.6463L145.522 70.1215L141.957 89.2625H143.994L146.414 86.7813L156.093 74.0206L172.266 53.698L179.398 45.6635L187.803 36.802L193.152 32.5484H203.34L210.726 43.6549L207.415 55.1159L196.972 68.3492L188.312 79.5739L175.896 96.2095L168.191 109.585L168.882 110.689L170.738 110.53L198.755 104.504L213.91 101.787L231.994 98.7149L240.144 102.496L241.036 106.395L237.852 114.311L218.495 119.037L195.826 123.645L162.07 131.592L161.696 131.893L162.137 132.547L177.36 133.925L183.855 134.279H199.774L229.447 136.524L237.215 141.605L241.8 147.867L241.036 152.711L229.065 158.737L213.019 154.956L175.45 145.977L162.587 142.787H160.805V143.85L171.502 154.366L191.242 172.089L215.82 195.011L217.094 200.682L213.91 205.172L210.599 204.699L188.949 188.394L180.544 181.069L161.696 165.118H160.422V166.772L164.752 173.152L187.803 207.771L188.949 218.405L187.294 221.832L181.308 223.959L174.813 222.777L161.187 203.754L147.305 182.486L136.098 163.345L134.745 164.2L128.075 235.42L125.019 239.082L117.887 241.8L111.902 237.31L108.718 229.984L111.902 215.452L115.722 196.547L118.779 181.541L121.58 162.873L123.291 156.636L123.14 156.219L121.773 156.449L107.699 175.752L86.304 204.699L69.3663 222.777L65.291 224.431L58.2867 220.768L58.9235 214.27L62.8713 208.48L86.304 178.705L100.44 160.155L109.551 149.507L109.462 147.967L108.959 147.924L46.6977 188.512L35.6182 189.93L30.7788 185.44L31.4156 178.115L33.7079 175.752L52.4285 162.873Z"/></svg>';
@@ -2021,7 +2021,7 @@ function render(){
       ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
+      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${foldButton(n, byId)}
@@ -2497,7 +2497,7 @@ function renderSide(){
   // laid out like the Claude app: Claude on the left, you on the right
   const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
     : claudes(`${md(m.text)}${contextSources(m)}${change(m, sideKey, i)}${signin(m)}`)).join('');
-  const chat = n.action ? actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}${n.proposed && n.boxType === 'action' && n.task ? plannedActionCard(n,n.task) : ''}</div>
+  const chat = n.action ? actionView().actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}${n.proposed && n.boxType === 'action' && n.task ? actionView().plannedActionCard(n,n.task) : ''}</div>
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off"></textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
   const tab = (id, label) => `<span data-side-tab="${id}" class="${sideTab === id ? 'on' : ''}">${label}</span>`;
@@ -2508,7 +2508,7 @@ function renderSide(){
   const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea');
   const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart || actionInput.closest('form').dataset.actionContinue,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${actionView().boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
     ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button></div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
@@ -2558,92 +2558,9 @@ function renderSide(){
   const seen = `${n.id}:${sideT.map((m) => m.text).join('').length + sideT.length}:${n.action?.stage || ''}:${n.action?.history?.length || 0}:${n.action?.turns?.length || 0}:${n.action?.progress?.length || 0}`, msgs = el.querySelector('.sc-msgs');
   if (msgs){ if (seen !== sideSeen) msgs.scrollTop = n.action?.stage === 'draft' && n.action.plan ? 0 : msgs.scrollHeight; else if (scKeep != null) msgs.scrollTop = scKeep; sideSeen = seen; }
 }
-function actionStatusPill(a, below = false){
-  const status = actionStatus(a);
-  if (!status) return '';
-  return `<span class="action-status-pill${below ? ' below' : ''}" data-tone="${status.tone}" aria-label="Action status: ${status.label}">${['gathering','running'].includes(a?.stage) ? actionSpinner(a) : ''}${status.label}</span>`;
-}
-function actionSpinner(action){
-  // A redraw keeps the spinner at the same point in its turn.
-  const elapsed = Math.max(0, Date.now() - (Number(action.since) || Date.now()));
-  return `<span class="action-spin" aria-hidden="true" style="animation-delay:-${elapsed}ms"></span>`;
-}
-function actionDocuments(a){
-  return (a.documents || []).map((file) => {
-    const key = `action-document:${file.id}`;
-    return `<section class="action-document" aria-label="Previous action document"><a download="${esc(file.name)}" href="data:text/markdown;charset=utf-8,${esc(encodeURIComponent(file.content))}">${esc(file.name)}</a><details data-open-key="${esc(key)}" ${openSecs.has(key) ? 'open' : ''}><summary>View document</summary><pre>${esc(file.content)}</pre></details></section>`;
-  }).join('');
-}
-function boxTypeButton(n){
-  if (n.proposed) return '';
-  // an Action goes back to an Info box only while nothing is written in it; after that it is cancelled and kept
-  const disabled = READ_ONLY || FILE || PREVIEW || n.action && (n.action.by !== ME || !actionUntouched(n.action));
-  return `<button class="action-type-toggle" role="switch" aria-checked="${!!n.action}" data-box-action="${n.action ? 'actioncancel' : 'actionbox'}" data-action-id="${esc(n.id)}" ${disabled ? 'disabled' : ''}${n.action && !actionUntouched(n.action) ? ' title="An Action stays an Action. Cancel it to set it aside; it keeps what it has."' : ''}><span>${n.action ? 'Action box' : 'Info box'}</span><span class="action-type-track" aria-hidden="true"></span></button>`;
-}
-function actionChat(n, previousChat){
-  const a = n.action, mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
-  const asking = a.stage === 'draft' || a.stage === 'clarify';
-  const turns = `${a.intent && a.stage !== 'draft' ? yours(a.intent) : ''}${(a.history || []).map((t) => claudes(md(t.question)) + yours(t.answer)).join('')}`;
-  const choices = mine && a.stage === 'clarify' ? `<div class="action-choices">${(a.choices || []).map((c) => `<button class="gb" data-action-choice="${esc(c)}" data-action-id="${esc(n.id)}">${esc(c)}</button>`).join('')}</div>` : '';
-  const current = a.stage === 'draft' ? a.plan ? plannedActionCard(n,a.plan) : claudes('<p>What do you want to do?</p>')
-    : a.stage === 'clarify' ? claudes(`${md(a.question)}${choices}${mine ? '' : `<p class="quiet">Waiting for ${esc(a.by)}.</p>`}`)
-    : a.stage === 'gathering' ? claudes(`<div class="action-progress">${actionSpinner(a)}<span>Gathering information…</span></div>`)
-    : a.session ? `${(a.turns || []).map((t, i) => t.who === 'Claude' ? claudes(actionResult(t, `${n.id}:${i}`)) : yours(t.text)).join('')}${a.stage === 'running' ? claudes(`${a.progress ? md(a.progress) : ''}<div class="action-progress">${actionSpinner(a)}<span>Claude is working…</span></div>${mine ? `<button class="action-plain" data-box-action="actionstop" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">Stop</button>` : ''}`) : ''}`
-    : actionCard(n);
-  const continuing = a.session && ['finished','blocked'].includes(a.stage);
-  const confirmDone = mine && a.stage === 'finished' && a.completion?.status === 'unverified' ? `<div class="action-controls"><button class="gb" data-box-action="actionconfirm" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}" title="The map could not see this done. Confirm it if it is.">Confirm done</button></div>` : '';
-  const composer = continuing && mine ? `<form class="ask cbox side-ask" data-action-continue="${esc(n.id)}" data-action-revision="${esc(a.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="Continue execution" placeholder="Reply or continue…" maxlength="4000"></textarea><button class="send continue-send" type="submit" title="Continue this chat (Enter)">Continue</button></div></form>` : asking && mine ? `<form class="ask cbox side-ask" data-action-${a.stage === 'draft' ? 'start' : 'answer'}="${esc(n.id)}">${attached(n)}<div class="crow"><textarea rows="2" aria-label="${a.stage === 'draft' ? 'Action instructions' : 'Clarification answer'}" placeholder="${a.stage === 'draft' ? 'Write your action…' : 'Your answer…'}" maxlength="${a.stage === 'draft' ? 4000 : 2000}" required>${a.stage === 'draft' ? esc(a.intent || '') : ''}</textarea><button class="send${a.plan && a.stage === 'draft' ? ' continue-send' : ''}" type="submit" title="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'} (Enter)" aria-label="${a.stage === 'draft' ? 'Prepare action' : 'Send answer'}">${a.plan && a.stage === 'draft' ? 'Prepare' : SEND_ICON}</button></div></form>` : '';
-  const cancel = mine && actionCancellable(a) && !actionUntouched(a) ? `<button class="gb action-cancel" data-box-action="actioncancel" data-action-id="${esc(n.id)}">Cancel Action</button>` : '';
-  // an Admin can hand an Action to another member while nothing is under way for its author
-  const others = (S.people || []).filter((p) => p.id !== a.by && (p.sees === 'all' || !p.sees || p.sees === n.area));
-  const handover = !READ_ONLY && !FILE && !PREVIEW && S.people?.find((p) => p.id === ME)?.role === 'Admin' && !['gathering','running'].includes(a.stage) && others.length
-    ? `<details class="action-handover"><summary>Hand over</summary><div>${others.map((p) => `<button class="gb" data-box-action="actionhandover" data-action-id="${esc(n.id)}" data-action-to="${esc(p.id)}">${esc(p.id)}</button>`).join('')}</div></details>` : '';
-  return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${handover}${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
-}
-// what code recorded of this Action, newest first, folded away until opened
-function actionHistoryList(n){
-  const rows = actionHistory(n.action?.events), key = `action-history:${n.id}`;
-  if (!rows.length) return '';
-  const when = (at) => Number.isFinite(at) ? prose(new Date(at).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })) : '';
-  return `<details class="action-history" data-open-key="${esc(key)}" ${openSecs.has(key) ? 'open' : ''}><summary>Action history</summary><ol>${rows.map((r) => `<li><b>${esc(r.label)}</b>${r.who ? ` · ${esc(r.who)}` : ''}${when(r.at) ? ` · <span class="quiet">${when(r.at)}</span>` : ''}${r.detail ? `<small>${esc(r.detail)}</small>` : ''}</li>`).join('')}</ol></details>`;
-}
-function actionSummary(turn){
-  const text = String(turn.completion?.summary || turn.text || '').split(/\n\s*\n/, 1)[0].replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/\*\*|__|`/g, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s+/g, ' ').trim();
-  return text.length > 220 ? text.slice(0, 217).replace(/\s+\S*$/, '') + '…' : text;
-}
-function actionResult(turn, key){
-  const c = turn.completion, openKey = `action-result:${key}`;
-  const done = c?.status === 'completed' && c.evidence?.length > 0;
-  const label = done ? 'Executed' : {needs_input:'Needs clarity',blocked:'Blocked',unverified:'Done, unverified'}[c?.status] || 'Completion unconfirmed';
-  // Confirmation is what the map saw the run do; Claude's account is what it says it did, shown apart
-  const evidence = (c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
-    + (c?.claimed?.length && !done ? `<div class="action-evidence claimed"><b>Claude's account</b><ul>${c.claimed.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
-    + (c?.note ? `<p class="action-note">${esc(c.note)}</p>` : '');
-  return `<section class="action-result" aria-label="Task result"><h3>${done ? `<span class="result-pill">Executed</span>` : label}</h3>${done ? `<p class="result-summary">${esc(actionSummary(turn))}</p><details class="result-details" data-open-key="${esc(openKey)}" ${openSecs.has(openKey) ? 'open' : ''}><summary>View details</summary><div class="result-detail-body">${md(turn.text)}${evidence}</div></details>` : `${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${evidence}`}</section>`;
-}
-function actionCard(n){
-  const a = n.action; if (!a) return '';
-  const mine = a.by === ME && !READ_ONLY && !FILE && !PREVIEW;
-  const button = (type, label, extra = '') => mine ? `<button class="gb ${extra}" data-box-action="${type}" data-action-id="${esc(n.id)}" data-action-revision="${esc(a.id)}">${label}</button>` : '';
-  const legacy = a.stage === 'unconfirmed';
-  let content = '';
-  if (a.stage === 'ready' || legacy) {
-    const b = a.brief;
-    content = `<h3>${legacy ? 'Completion unconfirmed' : 'Ready to execute'}</h3><p><b>${esc(b.goal)}</b></p><p class="action-note">${esc(b.target)}</p>${legacy ? '<p>No result came back from the earlier attempt. This task is not marked complete.</p>' : `<ol>${b.steps.map((step) => `<li>${esc(step)}</li>`).join('')}</ol><p><b>Expected result:</b> ${esc(b.result)}</p>`}${b.email ? `<details><summary>Review email</summary><p><b>To:</b> ${esc(b.email.to)}</p><p><b>Subject:</b> ${esc(b.email.subject)}</p><pre>${esc(b.email.body)}</pre></details>` : ''}<p class="action-note">${legacy ? 'Execute here checks for prior work before doing more, then returns the result to this chat.' : 'Execute runs this task and replies here.'}</p><div class="action-controls">${button('actionexecute',legacy ? 'Execute here' : 'Execute','action-execute')}${legacy ? '' : button('actionrevise','Revise')}</div>`;
-  } else if (a.stage === 'cancelled') content = `<h3>Cancelled</h3>${a.brief ? `<p><b>${esc(a.brief.goal)}</b></p>` : ''}<p>${esc(a.cancelled?.by || a.by)} cancelled this Action${a.cancelled?.at ? ` on ${prose(new Date(a.cancelled.at).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }))}` : ''}. Its instructions, answers and versions are kept.</p><div class="action-controls">${button('actionreopen','Prepare again')}</div>`;
-  else if (a.stage === 'waiting') content = `<h3>Waiting on a dependency</h3><ul>${(a.waiting || []).map((w) => `<li>${esc(w.detail)}</li>`).join('')}</ul><p class="action-note">Finish the prerequisite Actions first. This Action will still need preparation and review.</p><div class="action-controls">${button('actionretry','Check again')}</div>`;
-  else content = `<h3>Preparation stopped</h3><p>${esc(a.error || 'Try gathering information again.')}</p><div class="action-controls">${button('actionretry','Try again')}</div>`;
-  return `<section class="action-card" aria-label="Action box">${content}</section>`;
-}
-function plannedActionCard(n, plan){
-  const list = (title, items) => items?.length ? `<p><b>${title}</b></p><ul>${items.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : '';
-  const deps = (plan.dependsOn || []).map((id) => { const box=nodeById(id); return box && !locked(box) ? `${box.label}${actionExecuted(box.action) ? ' · Completed' : ''}` : 'A prerequisite that is not available'; });
-  const released = n.action?.stage === 'draft' && plan.readiness === 'waiting';
-  const readiness = released ? 'Prerequisites completed. Ready for preparation' : {ready:'Ready for preparation',needs_information:'Needs information',waiting:'Waiting on a dependency'}[plan.readiness] || 'Needs information';
-  const key = `action-plan:${n.id}`;
-  const notes = list('Planner notes', (plan.blockers || []).map((b) => `${b.detail} (${b.resolver})`));
-  return `<section class="action-card" aria-label="Planned Action"><h3>Planned Action</h3><p><b>${esc(plan.goal)}</b></p><p><b>Expected result:</b> ${esc(plan.result)}</p><p><b>Save to:</b> ${esc(plan.destination || 'Confirm during preparation')}</p><p class="action-note">${readiness}. Preparation checks the plan and available tools before you can review and Execute.</p>${released ? '' : notes}${list('Prerequisite Actions',deps)}<details data-open-key="${esc(key)}" ${openSecs.has(key) ? 'open' : ''}><summary>Task details</summary>${list('Inputs',plan.inputs)}${list('Steps',plan.steps)}${list('Completion evidence',plan.evidence)}${released ? notes : ''}</details></section>`;
-}
+// the Action box's screens (actionScreens in page-action.js), with what they need of the page right now
+const actionView = () => actionScreens({ me: ME, live: !READ_ONLY && !FILE && !PREVIEW, admin: S.people?.find((p) => p.id === ME)?.role === 'Admin', people: S.people || [],
+  esc, prose, md, claudes, yours, attached, sendIcon: SEND_ICON, opened: (key) => openSecs.has(key), box: (id) => { const b = nodeById(id); return b && !locked(b) ? b : null; }, cancellable: actionCancellable });
 async function runBoxAction(type, id, data = {}) {
   if (READ_ONLY || FILE || PREVIEW) return;
   if (type !== 'actioncancel'){ selected = sideFor = id; sideTab = 'chat'; keyboardSelection = false; }
