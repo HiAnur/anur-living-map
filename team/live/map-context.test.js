@@ -107,7 +107,7 @@ console.log(JSON.stringify({type:'result',result:'Reference: ['+selected.name+']
   const reserve=http.createServer();await new Promise(r=>reserve.listen(0,'127.0.0.1',/** @type {() => void} */ (r)));const port=/** @type {import('node:net').AddressInfo} */ (reserve.address()).port;await new Promise(r=>reserve.close(r));
   const base=`http://127.0.0.1:${port}`, env={...process.env,PATH:bin+path.delimiter+process.env.PATH,LIVING_MAP_USERS:path.join(root,'users.db'),LIVING_MAP_LOGIN_URL:''};
   let child;
-  const start=async()=>{child=spawn(process.execPath,[path.join(dir,'server.js'),String(port)],{cwd:dir,env,stdio:'ignore'});for(let i=0;i<80;i++){try{if((await fetch(base+'/api/version')).ok)return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Server did not start');};
+  const start=async()=>{child=spawn(process.execPath,[path.join(dir,'server.js'),String(port)],{cwd:dir,env,stdio:'ignore'});for(let i=0;i<300;i++){try{if((await fetch(base+'/api/version')).ok)return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Server did not start');};
   const stop=async()=>{if(child?.exitCode===null){const done=new Promise(r=>child.once('exit',r));child.kill();await done;}};
   try {
     await start();
