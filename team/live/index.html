@@ -72,6 +72,8 @@ button,input,textarea{font:inherit;color:inherit}
 /* a system map drawing from code: its progress over the map, until it is closed */
 #sysdraw{position:fixed;top:calc(var(--topbar) + 16px);left:50%;transform:translateX(-50%);width:min(520px,calc(100% - 32px));max-height:calc(100% - var(--topbar) - 120px);overflow:auto;padding:14px 16px;background:var(--card);border:1px solid var(--rule-2);border-radius:12px;box-shadow:0 6px 24px var(--rule);z-index:15}
 #sysdraw[hidden]{display:none}
+#lockwhy{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 32px));padding:10px 14px;background:var(--card);border:1px solid var(--rule-2);border-radius:10px;box-shadow:0 4px 16px var(--rule);font-size:13px;color:var(--text-2);z-index:14}
+#lockwhy[hidden]{display:none}#lockwhy b{color:var(--text);font-weight:600}#lockwhy code{font:600 13px var(--mono, monospace);color:var(--text)}#lockwhy .gb{margin-left:6px}
 .sd-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}.sd-h b{font-weight:600}.sd-h span{color:var(--text-2);font-size:13px}
 .sd-bar{height:6px;margin:10px 0 8px;border-radius:3px;background:var(--rule)}.sd-bar i{display:block;height:100%;border-radius:3px;background:var(--claude);transition:width .4s var(--ease)}
 .sd-r{list-style:none;font-size:13px}.sd-r li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--rule)}
@@ -1058,6 +1060,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
 <div id="sysdraw" role="status" aria-live="polite" hidden></div>
+<div id="lockwhy" role="status" aria-live="polite" hidden></div>
 <div class="panel" id="chat"></div>
 <div id="lightbox"></div>
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
@@ -4057,9 +4060,36 @@ let sdAsking = false;
 const mayRedraw = () => !READ_ONLY && !SHARED && (S?.drawing?.by === ME || S?.people?.some((p) => p.id === ME && (p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(p.role || ''))));
 const sdOpen = () => { try { localStorage.removeItem(`lm-sd-${SYS_MAP}`); } catch { /* storage blocked: it shows anyway until closed */ } };
 const sdClosed = () => { try { return localStorage.getItem(`lm-sd-${SYS_MAP}`) || ''; } catch { return ''; } }; // storage blocked: the panel just shows
+// A system map with repos locked for you says why, and how to see the ones you may read: connect GitHub here. Asked
+// once per page; after you link, the server shows your repos within half a minute.
+let lockWhy = { asked: false, linked: /** @type {string | null} */ (null), pending: /** @type {any} */ (null) };
+function lockedNote(){
+  const locked = allBoxesOf(S).filter((n) => n.hiddenRepo).length;
+  if (!locked || READ_ONLY || SHARED || !S.drawing) return '';
+  if (!lockWhy.asked){ lockWhy.asked = true; fetch('/api/systemmap/github').then((r) => r.ok ? r.json() : null).then((g) => { if (g){ lockWhy = { asked: true, linked: g.linked, pending: g.pending }; renderDrawing(); } }).catch(() => { /* not on this Mac: no way to link from here */ }); }
+  const p = lockWhy.pending;
+  return `<div class="lock-why"><b>${locked} ${locked === 1 ? 'box is' : 'boxes are'} locked: private on GitHub.</b> ${lockWhy.linked
+    ? `GitHub doesn't let ${esc(lockWhy.linked)} read ${locked === 1 ? 'that repo' : 'those repos'}. Ask its owner on GitHub for access.`
+    : p ? `Enter <code>${esc(p.code)}</code> on <a href="${esc(p.uri)}" target="_blank" rel="noopener">GitHub</a>. Your repos show here a moment after.`
+    : `Connect your GitHub account to see the ones you can read. <button class="gb" data-lock-link>Connect GitHub</button>`}</div>`;
+}
+document.addEventListener('click', async (e) => {
+  if (!(e.target instanceof Element) || !e.target.closest('[data-lock-link]')) return;
+  const r = await fetch('/api/systemmap/github/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' }).then((x) => x.json()).catch(() => ({ error: 'The map did not answer.' }));
+  if (r.error){ toast(r.error); return; }
+  lockWhy.pending = r; renderDrawing();
+  // look again until GitHub says you are linked
+  const look = setInterval(async () => {
+    const g = await fetch('/api/systemmap/github').then((x) => x.json()).catch(() => null);
+    if (g?.linked){ clearInterval(look); lockWhy = { asked: true, linked: g.linked, pending: null }; renderDrawing(); }
+    else if (!g?.pending){ clearInterval(look); lockWhy.pending = null; renderDrawing(); }
+  }, 3000);
+});
 function renderDrawing(){
   const el = $('sysdraw'), d = S?.drawing;
   if (!el) return;
+  const why = $('lockwhy'), note = S ? lockedNote() : '';
+  if (why){ why.hidden = !note; if (why.innerHTML !== note) why.innerHTML = note; }
   if (!d || PREVIEW || (d.status !== 'running' && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d) });

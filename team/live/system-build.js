@@ -10,7 +10,7 @@
 /** @typedef {{ repo: string, root: string, head: { commit: string, branch: string } | null, kinds: string[], facts: Fact[], github?: { owner: string, name: string } | null }} Reading */
 
 const COMPONENT = new Set(['function', 'outside_function', 'table', 'queue', 'topic', 'bucket', 'api', 'http_route', 'state_machine', 'schedule',
-  'user_pool', 'stream', 'secret', 'parameter', 'construct', 'screens', 'state_slice', 'amplify_resource']);
+  'user_pool', 'stream', 'secret', 'parameter', 'construct', 'screens', 'state_slice', 'amplify_resource', 'container', 'compose_service', 'api_spec']);
 const UNCONFIRMED = 'Unconfirmed: only descriptions show this. Confirm it or take it off.';
 const slug = (/** @type {string} */ s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'box';
 
@@ -90,6 +90,8 @@ function components(facts, reading, prefix) {
     if (f.kind === 'function') for (const m of f.may || []) for (const on of m.on || []) link(f, byLid.get(on), (m.services || []).join(', ').slice(0, 40));
     if (f.kind === 'schedule' || f.kind === 'user_pool') for (const t of f.targets || []) link(f, byLid.get(t), 'triggers');
   }
+  // a compose service that waits on another
+  for (const f of parts) if (f.kind === 'compose_service') for (const d of f.depends_on || []) link(f, parts.find((p) => p.kind === 'compose_service' && p.name === d && p.at.split(':')[0] === f.at.split(':')[0]), 'depends on');
   for (const f of facts) if (f.kind === 'event_source') for (const fn of f.functions || []) for (const src of f.from || []) link(/** @type {Fact} */ (byLid.get(src)), byLid.get(fn), 'triggers');
   const nodes = parts.map((f) => ({ f, id: idOf(f) }));
   const pos = layout(nodes, edges);
