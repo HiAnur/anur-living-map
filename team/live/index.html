@@ -37,6 +37,8 @@ button,input,textarea{font:inherit;color:inherit}
    the folder in grey, a slash, the name; the name renames in place */
 #crumbs .dir{font-weight:400;color:var(--text-2);cursor:default}
 #crumbs .slash{color:var(--text-3)}
+#crumbs .builds{flex-shrink:0;font-size:12px;color:var(--text-2);text-decoration:none;border:1px solid var(--rule-2);border-radius:999px;padding:1px 8px}
+#crumbs .builds:hover{color:var(--text)}
 #crumbs b.nm{padding:2px 6px;margin-left:-6px;border-radius:6px;cursor:text}
 #crumbs b.nm:hover{background:#f3f2ee}
 /* Switch map, at the top left, the way Linear keeps its workspace switcher there: it opens the list of maps */
@@ -2366,7 +2368,9 @@ function renderTop(){
   const inside = fb ? parentBoxOf(S, fb.id) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
   const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
-  const where = `<b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>`;
+  // a map that builds on a system map says which, and links to it
+  const base = S.buildsOn ? ` <a class="builds" href="/${encodeURIComponent(S.buildsOn.name)}/" title="This map builds on that system map; its chats read it as background">builds on ${esc(S.buildsOn.title)}</a>` : '';
+  const where = `<b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>${base}`;
   // while you type a new name, a redraw leaves the box alone
   const db = diagramBox();
   if (!$('renamei')) $('crumbs').innerHTML = db

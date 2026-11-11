@@ -23,8 +23,15 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       if (!who) return json(401, { error: 'Sign in first.' });
       let /** @type {any} */ a = await jsonBody(req, {});
       if (a.blank === true) {
+        // a map that builds on a system map: one the asker may open, drawn from code
+        let buildsOn;
+        if (a.buildsOn !== undefined) {
+          const base = everyMap().find(([n]) => n === String(a.buildsOn))?.[1];
+          if (!base || !base.allowed(who, req) || !base.summary().system) return json(400, { error: 'That system map is not one you can open.' });
+          buildsOn = { name: String(a.buildsOn), title: String(base.summary().title || a.buildsOn) };
+        }
         const name = freeName('Untitled map');
-        mapCalled(name).blank();
+        mapCalled(name).blank({ buildsOn });
         return json(200, { name, href: `/${name}/` });
       }
       const prompt = String(a.prompt || '').trim().slice(0, 4000);

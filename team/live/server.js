@@ -255,8 +255,13 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
-  function blank() {
+  /**
+   * A blank map; one that builds on a system map names it, and its chats read that map as background.
+   * @param {{ buildsOn?: { name: string, title: string } }} [o]
+   */
+  function blank({ buildsOn } = {}) {
     state.title = state.renamed = 'Untitled map';
+    if (buildsOn) { state.buildsOn = buildsOn; state.contextMapIds = [buildsOn.name]; }
     save();
   }
   // A new map from a prompt opens a new chat in the agent's app, in the map's folder, so it sits in Recents like
