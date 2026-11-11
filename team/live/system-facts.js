@@ -9,6 +9,7 @@ import path from 'node:path';
 
 import { amplifyFacts, appFacts } from './system-facts-app.js';
 import { cfnFacts } from './system-facts-cfn.js';
+import { tsCdkFacts } from './system-facts-ts.js';
 
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
 
@@ -67,7 +68,12 @@ export async function readRepo(root) {
   const py = files.some((f) => f.endsWith('.py')) ? await pythonFacts(root) : [];
   // a repo whose infrastructure came from cdk.out keeps its Python code facts, not its CDK constructs twice
   const pyKept = cfn.length ? py.filter((f) => !['construct', 'grant', 'policy', 'link'].includes(f.kind)) : py;
-  if (pyKept.length) { kinds.push(files.includes('cdk.json') && !cfn.length ? 'python-cdk' : 'python'); facts.push(...pyKept); }
+  const pyCdk = files.includes('cdk.json') && !cfn.length && /python/.test(fs.readFileSync(path.join(root, 'cdk.json'), 'utf8'));
+  if (pyKept.length) { kinds.push(pyCdk ? 'python-cdk' : 'python'); facts.push(...pyKept); }
+  // CDK in TypeScript with nothing compiled, as a repo from GitHub is: read from its source
+  const tsCdk = files.includes('cdk.json') && !cfn.length && !/python/.test(fs.readFileSync(path.join(root, 'cdk.json'), 'utf8'));
+  const ts = tsCdk ? tsCdkFacts(root, files) : [];
+  if (ts.length) { kinds.push('typescript-cdk'); facts.push(...ts); }
   const app = appFacts(root, files);
   if (app.length) { kinds.push('app'); facts.push(...app); }
   const amp = amplifyFacts(root);
@@ -75,9 +81,6 @@ export async function readRepo(root) {
   facts.forEach((f, i) => { f.id = `f${i + 1}`; });
   /** @type {string[]} */
   const unread = [];
-  // CDK in TypeScript is read only from what it compiles to, which git does not keep
-  if (files.includes('cdk.json') && !cfn.length && !/python/.test(fs.readFileSync(path.join(root, 'cdk.json'), 'utf8'))) {
-    unread.push('Its infrastructure is CDK in TypeScript with no cdk.out here: run `npx cdk synth` in it so the map can read its functions, tables and permissions.');
-  }
+  if (tsCdk && !ts.some((f) => f.kind === 'function')) unread.push('Its infrastructure is CDK in TypeScript, and no function could be read from its source.');
   return { repo: path.basename(root), root, head: repoHead(root), kinds, facts, unread };
 }
