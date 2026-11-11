@@ -1,6 +1,11 @@
 echo "Running lint-staged (ESLint fix + Prettier on staged files)..."
 npx lint-staged || { echo "❌ lint-staged failed. Commit aborted."; exit 1; }
 
+# Tests create temporary repositories; inherited hook paths must not redirect their git commands here.
+for git_context_var in $(git rev-parse --local-env-vars); do
+  unset "$git_context_var"
+done
+
 echo "Running full app checks in parallel (ESLint, TypeScript, Prettier, Vitest)..."
 # Each check writes its own exit code: a pipe's status is sed's, which passes.
 STATUS=$(mktemp -d)

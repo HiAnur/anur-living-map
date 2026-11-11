@@ -234,6 +234,7 @@ button,input,textarea{font:inherit;color:inherit}
 /* Names wrap in full, and HT reserves room for every line. */
 .node .nt{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
+#box-hint{position:fixed;z-index:60;width:max-content;max-width:min(300px,calc(100vw - 24px));padding:10px 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--card);color:var(--text-2);font:13px/1.5 var(--plex);white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 16px rgba(0,0,0,.12);pointer-events:none}
 .node .s{font:12px/1.3 var(--plex);color:var(--text-2);overflow-wrap:break-word;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
 .node.actor{width:110px;border-radius:999px;align-items:center}
 .node.ext{border-style:solid}
@@ -1071,6 +1072,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="toast"></div>
 <div id="sharebg"><div id="share" role="dialog" aria-label="Share this map"></div></div>
 
+<div id="box-hint" role="tooltip" hidden></div>
 <script type="module">
 import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
@@ -1289,21 +1291,15 @@ const nameLines = (n) => {
   return wraps.get(key);
 };
 document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
-// a second line too long for its box wraps, up to three lines, instead of being cut off with "…"
-const subLines = (n) => {
-  if (!n.sub) return 0;
-  const room = W(n) - 26, key = `s|${room}|${n.sub}`;
-  if (!wraps.has(key)){
-    ruler.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
-    let lines = 1, w = 0;
-    for (const word of String(n.sub).split(/\s+/)){ const ww = ruler.measureText(word).width, sp = w ? ruler.measureText(' ').width : 0;
-      if (w && w + sp + ww > room){ lines++; w = ww; } else w += sp + ww; }
-    wraps.set(key, Math.min(3, lines));
-  }
-  return wraps.get(key);
+// Only the title determines a box's size; supporting text appears on hover or in its details.
+const HT = (n) => (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + 40 + Math.max(0, nameLines(n) - 1) * 17;
+const boxSummary = (n) => {
+  if (locked(n)) return '';
+  const summary = String(n.sub || n.desc || '').trim();
+  const note = n.state === 'assumed-gone' && n.note !== summary ? String(n.note || '').trim() : '';
+  const text = [summary, note].filter(Boolean).join('\n\n');
+  return text.length > 600 ? text.slice(0, 600).trimEnd() + '…' : text;
 };
-// Boxes grow for every wrapped line in their name and subtitle.
-const HT = (n) => (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + (((n.sub && n.note && n.note !== n.sub && n.state === 'assumed-gone') ? 66 : 50) + Math.max(0, nameLines(n) - 1) * 17 + Math.max(0, subLines(n) - 1) * 16);
 const { fanPts, planTopicInsert } = layoutFor({ W, HT });
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
@@ -1319,6 +1315,38 @@ const guessGone = (n) => n.state === 'assumed-gone' && !(n.decided && !S.calls.s
 const boxDecision = (n) => S.calls.some((c) => c.node === n.id && c.status === 'open') ? 'ask'
   : S.calls.some((c) => c.node === n.id) || n.decided ? 'done' : '';
 const stage = $('stage'), canvas = $('canvas'), nodesEl = $('nodes'), edgesEl = $('edges');
+// A separate card keeps hover details readable at every zoom without moving the map or its pane.
+let boxHintTimer = null, boxHintTarget = null;
+function hideBoxHint(){
+  clearTimeout(boxHintTimer); boxHintTimer = null;
+  boxHintTarget?.removeAttribute('aria-describedby'); boxHintTarget = null;
+  $('box-hint').hidden = true;
+}
+nodesEl.addEventListener('pointerover', (e) => {
+  const target = e.target.closest('.node');
+  if (!target || target === boxHintTarget || e.buttons || e.pointerType === 'touch') return;
+  hideBoxHint();
+  if (!target.dataset.boxSummary || e.target.closest('button, .cd, .mk, .expand, .fold, .delq')) return;
+  boxHintTarget = target;
+  boxHintTimer = setTimeout(() => {
+    if (!target.isConnected || !target.matches(':hover')) return hideBoxHint();
+    const hint = $('box-hint'); hint.textContent = target.dataset.boxSummary; hint.hidden = false;
+    const r = target.getBoundingClientRect(), h = hint.getBoundingClientRect();
+    const x = r.right + 10 + h.width <= innerWidth - 12 ? r.right + 10 : r.left - h.width - 10;
+    hint.style.left = `${Math.max(12, Math.min(x, innerWidth - h.width - 12))}px`;
+    hint.style.top = `${Math.max(12, Math.min(r.top, innerHeight - h.height - 12))}px`;
+    target.setAttribute('aria-describedby', 'box-hint');
+  }, 250);
+});
+nodesEl.addEventListener('pointerout', (e) => {
+  if (boxHintTarget && !boxHintTarget.contains(e.relatedTarget)) hideBoxHint();
+});
+document.addEventListener('pointerdown', hideBoxHint, true);
+document.addEventListener('wheel', hideBoxHint, {capture:true, passive:true});
+document.addEventListener('keydown', hideBoxHint, true);
+window.addEventListener('resize', hideBoxHint);
+window.addEventListener('blur', hideBoxHint);
+
 
 const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
@@ -1959,6 +1987,7 @@ function startLook(n, mine){
   return (decisionMap() ? boxDecision(n) : n.state) || mine ? 'start-rim' : 'start';
 }
 function render(){
+  hideBoxHint();
   if (!S) return;
   renderMapSearch();
   if (selected && nodeById(selected)) lastTopics.set(view, selected);
@@ -2048,10 +2077,9 @@ function render(){
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
     const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
-    html += `<div class="${cls}" data-id="${n.id}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
+    html += `<div class="${cls}" data-id="${n.id}" data-box-summary="${esc(boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}"` : ''}>
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>${n.sub && !locked(n) ? `<div class="s">${esc(n.sub)}</div>` : ''}
-      ${n.note && n.note !== n.sub && n.state === 'assumed-gone' ? `<div class="s2">${n.note}</div>` : ''}
+      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
