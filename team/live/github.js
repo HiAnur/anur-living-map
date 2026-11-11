@@ -44,16 +44,32 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     ...(got.expires_in ? { expires: now() + got.expires_in * 1000 } : {}),
     ...(got.refresh_token_expires_in ? { refreshExpires: now() + got.refresh_token_expires_in * 1000 } : {}) });
 
-  /** A person's token, refreshed when it is about to run out; null when they must link again. @param {string} who */
+  /** each person's refresh under way: GitHub takes a refresh token once, so several asks at once share one refresh */
+  /** @type {Map<string, Promise<string | null>>} */
+  const refreshing = new Map();
+  /**
+   * A person's token, refreshed when it is about to run out; null when they must link again. Only GitHub refusing
+   * the very refresh token still saved ends the link: a failed request leaves it, to try again.
+   * @param {string} who
+   */
   async function token(who) {
     const t = saved(who);
     if (!t) return null;
     if (!t.expires || t.expires - 60_000 > now()) return t.access;
     if (!t.refresh || (t.refreshExpires && t.refreshExpires < now())) { unlink(who); return null; }
-    const got = await post(`${WEB}/login/oauth/access_token`, { client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: t.refresh });
-    if (!got.access_token) { unlink(who); return null; }
-    save(who, tokenOf(got, t.login));
-    return got.access_token;
+    const going = refreshing.get(who);
+    if (going) return going;
+    const refresh = t.refresh;
+    const once = (async () => {
+      try {
+        const got = await post(`${WEB}/login/oauth/access_token`, { client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: refresh });
+        if (got.access_token) { save(who, tokenOf(got, t.login)); return got.access_token; }
+        if (/bad_refresh_token|expired|revoked/.test(String(got.error || '')) && saved(who)?.refresh === refresh) { unlink(who); return null; }
+        throw Object.assign(new Error(`GitHub did not refresh your link${got.error ? ` (${got.error})` : ''}. It tries again shortly.`), { status: 502 });
+      } finally { refreshing.delete(who); }
+    })();
+    refreshing.set(who, once);
+    return once;
   }
   /** @param {string} who @param {string} route */
   async function api(who, route, accept = 'application/vnd.github+json') {
@@ -87,6 +103,8 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
         if (!t.access_token) continue;
         const me = await (await http(`${API}/user`, { headers: { accept: 'application/vnd.github+json', authorization: `Bearer ${t.access_token}` } })).json();
         save(who, tokenOf(t, String(me.login || '')));
+        // what they may read is asked again at once, so a map shows their repos as soon as they link
+        readable.delete(who);
         break;
       }
       if (pending.get(who)?.code === got.user_code) pending.delete(who);
@@ -153,12 +171,22 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
   /** each person's readable repos, kept a few minutes so a chat does not ask GitHub every time */
   /** @type {Map<string, { at: number, names: Set<string> }>} */
   const readable = new Map();
+  /** @type {Map<string, Promise<Set<string>>>} */
+  const listing = new Map();
   /** Whether a person may read a repo on GitHub, as their own link says; no link, no. @param {string} who @param {string} owner @param {string} name */
   async function canRead(who, owner, name) {
     let kept = readable.get(who);
     if (!kept || now() - kept.at > 5 * 60_000) {
-      try { kept = { at: now(), names: new Set((await repos(who)).repos.map((r) => `${r.owner}/${r.name}`.toLowerCase())) }; }
-      catch { kept = { at: now(), names: new Set() }; } // not linked, or GitHub would not say: nothing is readable
+      // one ask of GitHub for everyone waiting on this person's repos
+      let asking = listing.get(who);
+      if (!asking) {
+        asking = repos(who).then((got) => new Set(got.repos.map((r) => `${r.owner}/${r.name}`.toLowerCase())))
+          .finally(() => listing.delete(who));
+        listing.set(who, asking);
+      }
+      // not linked, or GitHub would not say: nothing is readable, and it asks again in a minute, not five
+      try { kept = { at: now(), names: await asking }; }
+      catch { kept = { at: now() - 4 * 60_000, names: new Set() }; }
       readable.set(who, kept);
     }
     return kept.names.has(`${owner}/${name}`.toLowerCase());
