@@ -102,16 +102,17 @@ export function recoverAction(n) {
  *   allNodes?: () => Box[],
  *   canUse: (n: Box, by?: string) => boolean,
  *   context: (n: Box, by: string) => string,
- *   ask: (job: { prompt: string, by: string, onText: (words: string) => void, onDone: (reply: string, access?: { tools?: string[], denied?: string[] }, value?: unknown) => void }) => Stop,
+ *   ask: (job: { prompt: string, by: string, box?: Box, onText: (words: string) => void, onDone: (reply: string, access?: { tools?: string[], denied?: string[] }, value?: unknown) => void }) => Stop,
  *   changed: () => void,
  *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
  *   executionCwd: string,
  *   checkPull?: (url: string) => Promise<boolean>,
  *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
  *   cannotRun?: (n: Box) => string | null,
+ *   cwdFor?: (n: Box, by: string) => Promise<{ cwd: string } | { error: string } | null>,
  * }} deps
  */
-export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -145,7 +146,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}${finishedBefore(current.plan)}`;
     jobs.set(id, null); changed();
     try {
-      const stop = ask({ prompt, by, onText() {}, onDone(reply, access, value) {
+      const stop = ask({ prompt, by, box: n, onText() {}, onDone(reply, access, value) {
         if (nodeOf(id)?.action === current) jobs.delete(id);
         // cancelled while Claude was looking: the Action keeps what it had, and the answer is dropped
         if (current.stage !== 'gathering') return;
@@ -296,7 +297,17 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
         },onDone:finish});
       } catch { finish({blocked:true,text:'Could not start Claude. Continue will try to reopen this same chat.'}); }
     };
-    if (!(kindOf(a.brief)?.branch && builds)) { launch(a.cwd); return true; }
+    // a run that is not a build runs where its box's work lives (on a system map, its repo), else where the map does
+    if (!(kindOf(a.brief)?.branch && builds)) {
+      if (!cwdFor) { launch(a.cwd); return true; }
+      Promise.resolve().then(() => cwdFor(/** @type {Box} */ (nodeOf(id)), by)).then((w) => {
+        if (!active()) return;
+        if (w && 'error' in w) return finish({blocked:true,text:w.error});
+        if (w) { a.cwd = w.cwd; changed(); }
+        launch(a.cwd);
+      }, () => { if (active()) finish({blocked:true,text:'Could not find where this Action runs.'}); });
+      return true;
+    }
     // a build runs in a worktree on its own branch, which code makes first (or opens again on Continue)
     a.progress = 'Making a branch for this build…'; changed();
     Promise.resolve().then(() => builds.open(a, nodeOf(id))).then((made) => {

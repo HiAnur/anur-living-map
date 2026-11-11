@@ -31,6 +31,7 @@ import { completionSchema, executionPrompt, readCompletion } from './action-comp
 import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { systemJob } from './system-job.js';
+import { repoOf } from './system-work.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { appendProposed } from './proposal-layout.js';
@@ -220,6 +221,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
+  /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */
+  const workOf = async (n, by, build) => (!project && state.drawing && n && repoOf(state, n) ? system.workFor(/** @type {string} */ (repoOf(state, n)), by, build) : null);
   /**
    * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
    * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
@@ -327,15 +330,21 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     allNodes,
     canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
-    ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by), ...request }),
+    ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by),
+      place: () => workOf(request.box, request.by, false), ...request }),
     changed: () => { save(); push(); },
     executionCwd: project || PROJECT || home,
-    // a system map holds many repos and none of them is this server's folder: an Action there has nowhere right to run yet
-    cannotRun: () => !project && state.drawing ? 'Actions on a system map can\'t run yet: this box\'s code lives in its own repo, not in this map\'s folder.' : null,
+    // on a system map an Action works in its box's repo; a box in no repo has nowhere to run
+    cannotRun: (n) => !project && state.drawing && !repoOf(state, n) ? 'This box is not inside one of the map\'s repos, so an Action here has nowhere to run.' : null,
+    cwdFor: (n, by) => workOf(n, by, false),
     checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
     // a build's worktree lives in the team map's data folder, never inside the project it changes
     builds: {
-      open: (a, n) => openBuild({ project: project || PROJECT || home, root: path.join(DATA, 'worktrees', name || mapName(project || PROJECT) || 'map'), action: /** @type {any} */ (a), box: n }),
+      open: async (a, n) => {
+        const w = await workOf(n, a.by, true);
+        if (w && 'error' in w) return w;
+        return openBuild({ project: w?.cwd || project || PROJECT || home, root: path.join(DATA, 'worktrees', name || mapName(project || PROJECT) || 'map'), action: /** @type {any} */ (a), box: n });
+      },
       close: (a, n) => closeBuild({ build: a.build, title: String(a.brief.goal).slice(0, 120),
         body: [`Opened by an Action on the team map, after ${a.by} pressed Execute.`, '', `**Box:** ${n?.label || ''}`, `**Goal:** ${a.brief.goal}`, `**Expected result:** ${a.brief.result}`, '', '**Steps**', ...a.brief.steps.map((/** @type {string} */ step, /** @type {number} */ i) => `${i + 1}. ${step}`)].join('\n') }),
     },
