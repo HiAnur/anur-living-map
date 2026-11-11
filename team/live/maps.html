@@ -190,7 +190,7 @@ const chosen = () => [...$('code-repos').querySelectorAll('input:checked')].map(
 const codeError = (text) => { $('code-err').textContent = text; $('code-err').hidden = !text; };
 function estimate(){
   const n = chosen().length;
-  $('code-est').textContent = n ? `${n} ${n === 1 ? 'repo' : 'repos'}: about ${Math.max(1, Math.round((Math.ceil(n / 3) * 60 + 25) / 60))} min and $${(n * 0.25 + 0.1).toFixed(2)} of your Claude Code. Claude is sent what code reads (names, routes, permissions, descriptions), not your files.` : 'Choose at least one repo.';
+  $('code-est').textContent = n ? `${n} ${n === 1 ? 'repo' : 'repos'}: about ${Math.max(1, Math.round((Math.ceil(n / 3) * 60 + 25) / 60))} min with your Claude Code. Claude is sent what code reads (names, routes, permissions, descriptions), not your files.` : 'Choose at least one repo.';
   $('code-go').disabled = !n;
 }
 async function lookIn(under){
