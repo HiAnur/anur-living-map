@@ -625,7 +625,7 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
-const systemMaps = systemRoutes({ maps, PROJECT });
+const systemMaps = systemRoutes({ maps });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');

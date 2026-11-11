@@ -106,7 +106,7 @@ describe('the system map routes', () => {
   /** @type {any} */
   const linkedAs = { who: '' };
   const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });
-  const routes = systemRoutes({ maps, PROJECT: '', home, github: () => gh });
+  const routes = systemRoutes({ maps, home, github: () => gh });
   /** @param {string} route @param {any} [data] @param {{ who?: string, local?: boolean }} [o] */
   const call = async (route, data, { who = 'Harshit', local = true } = {}) => {
     const headers = local ? { host: 'localhost:4323', origin: 'http://localhost:4323', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' } : { host: 'living-map.example.com', origin: 'https://evil.example' };
@@ -115,12 +115,10 @@ describe('the system map routes', () => {
     await routes(req, {}, new URL(`http://localhost${route}`), who, (/** @type {number} */ status, /** @type {any} */ body) => { result = { status, body }; return true; });
     return /** @type {any} */ (result);
   };
-  it('lists the repos in a folder, only to someone signed in on this Mac', async () => {
-    expect((await call('/api/systemmap/repos', undefined, { who: '' })).status).toBe(401);
-    expect((await call('/api/systemmap/repos', undefined, { local: false })).status).toBe(403);
-    expect((await call('/api/systemmap/repos?under=/etc')).status).toBe(400);
-    const r = await call('/api/systemmap/repos');
-    expect(r.body).toEqual({ under: work, repos: [{ name: 'api-service', folder: folders[1] }, { name: 'mobile-app', folder: folders[0] }] });
+  it('answers only someone signed in on a page this Mac serves', async () => {
+    expect((await call('/api/systemmap/github', undefined, { who: '' })).status).toBe(401);
+    expect((await call('/api/systemmap/github', undefined, { local: false })).status).toBe(403);
+    expect((await call('/api/systemmap/repos')).status).toBe(404);
   });
   it('says who you are on GitHub, and draws from GitHub only once you have linked it, with names GitHub could have', async () => {
     expect((await call('/api/systemmap/github')).body).toEqual({ linked: null, pending: null });

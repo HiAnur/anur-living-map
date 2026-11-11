@@ -1,8 +1,8 @@
-// A system map from code folders on this Mac, at the server's own /api/systemmap...: the repos in a folder to
-// choose from, your GitHub link and the repos it can read, a new map drawn from the chosen ones, and Cancel and
-// Retry while it draws. Only a person signed in
-// on a page this Mac serves may use them, since they read folders on this Mac. Each route answers with the
-// response, and true when it answered.
+// A system map from code, at the server's own /api/systemmap...: your GitHub link and the repos it can read, a
+// new map drawn from the chosen ones, and Cancel and Retry while it draws. A map may also be drawn from repos in
+// folders on this Mac, by their paths. Only a person signed in on a page this Mac serves may use them, since they
+// act with that person's GitHub link and read this Mac's folders. Each route answers with the response, and true
+// when it answered.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,32 +15,16 @@ const LOCAL = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const onThisMac = (req) => LOCAL.test(req.headers.host || '') && (req.method === 'GET'
   ? req.headers['sec-fetch-site'] === 'same-origin'
   : req.headers.origin === `http://${req.headers.host}` && String(req.headers['content-type'] || '').startsWith('application/json'));
-/** The repos directly in a folder: each folder in it holding `.git`. @param {string} under */
-export function reposIn(under) {
-  let names = /** @type {string[]} */ ([]);
-  try { names = fs.readdirSync(under).filter((n) => !n.startsWith('.')).sort((a, b) => a.localeCompare(b)); }
-  catch { return null; } // not a folder this Mac can read: the answer says so
-  return names.filter((n) => fs.existsSync(path.join(under, n, '.git'))).map((name) => ({ name, folder: path.join(under, name) }));
-}
 const GITHUB_NAME = /^[\w.-]+$/;
-/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, PROJECT: string, home?: string, github?: () => ReturnType<typeof import('./github.js').github> }} deps */
-export function systemRoutes({ maps, PROJECT, home = os.homedir(), github = sharedGithub }) {
+/** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, home?: string, github?: () => ReturnType<typeof import('./github.js').github> }} deps */
+export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub }) {
   /** Whether a folder may be drawn: a repo inside your home folder. @param {unknown} f */
   const drawable = (f) => typeof f === 'string' && path.isAbsolute(f) && path.resolve(f) === f && f.startsWith(home + path.sep) && fs.existsSync(path.join(f, '.git'));
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     if (!url.pathname.startsWith('/api/systemmap')) return false;
     if (!who) return json(401, { error: 'Sign in first.' });
-    if (!onThisMac(req)) return json(403, { error: 'Open Living Map on this Mac to draw a system map from its folders.' });
-    // the repos to choose from, in the folder asked for, or else the folder this server's own repo sits in
-    if (url.pathname === '/api/systemmap/repos' && req.method === 'GET') {
-      const fallback = PROJECT ? path.dirname(PROJECT) : fs.existsSync(path.join(home, 'workspace')) ? path.join(home, 'workspace') : home;
-      const asked = String(url.searchParams.get('under') || '').replace(/^~(?=$|\/)/, home);
-      const under = path.resolve(asked || fallback);
-      if (under !== home && !under.startsWith(home + path.sep)) return json(400, { error: 'Choose a folder inside your home folder.' });
-      const repos = reposIn(under);
-      return repos ? json(200, { under, repos }) : json(404, { error: 'That folder could not be read.' });
-    }
+    if (!onThisMac(req)) return json(403, { error: 'Open Living Map on this Mac to draw a system map.' });
     // your GitHub link: who you are there, or the code to type at github.com while linking; never the token
     if (url.pathname === '/api/systemmap/github' && req.method === 'GET') return json(200, github().status(who));
     if (url.pathname === '/api/systemmap/github/link' && req.method === 'POST') {

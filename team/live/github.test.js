@@ -76,13 +76,13 @@ describe('reading repos from GitHub', () => {
     fs.writeFileSync(path.join(dir, 'github', 'Harshit.json'), JSON.stringify({ access: 'tok', login: 'octo' }));
     const fake = fakeGitHub({
       'GET /user/installations?': () => ({ installations: [{ id: 1, account: { login: 'Shop' } }, { id: 2, account: { login: 'octo' } }] }),
-      'GET /user/installations/1/repositories': () => ({ repositories: [{ owner: { login: 'Shop' }, name: 'api', private: true, default_branch: 'main' }] }),
+      'GET /user/installations/1/repositories': () => ({ repositories: [{ owner: { login: 'Shop' }, name: 'api', private: true, default_branch: 'main' }, { owner: { login: 'Shop' }, name: 'old-api', private: true, archived: true, default_branch: 'main' }] }),
       'GET /user/installations/2/repositories': () => ({ repositories: [{ owner: { login: 'octo' }, name: 'site', private: false, default_branch: 'trunk' }] }),
       ...more,
     });
     return { dir, ...fake };
   }
-  it('lists the repos the person can read where the app is installed, asking as them', async () => {
+  it('lists the repos the person can read where the app is installed, but archived ones, asking as them', async () => {
     const { dir, http, calls } = linked();
     expect(await github({ dir, http }).repos('Harshit')).toEqual({ installed: ['Shop', 'octo'], repos: [
       { owner: 'Shop', name: 'api', private: true, branch: 'main' }, { owner: 'octo', name: 'site', private: false, branch: 'trunk' }] });

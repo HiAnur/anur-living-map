@@ -101,7 +101,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     return { linked: t ? t.login : null, pending: p && p.until > now() ? p : null };
   }
 
-  /** Every repo the person can read where the app is installed, by account. @param {string} who */
+  /** Every repo the person can read where the app is installed, by account, but archived ones. @param {string} who */
   async function repos(who) {
     const { installations } = await (await api(who, '/user/installations?per_page=100')).json();
     /** @type {{ owner: string, name: string, private: boolean, branch: string }[]} */
@@ -109,7 +109,8 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     for (const inst of installations || []) {
       for (let page = 1; page <= 10; page++) {
         const r = await (await api(who, `/user/installations/${inst.id}/repositories?per_page=100&page=${page}`)).json();
-        for (const x of r.repositories || []) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch });
+        // an archived repo is no longer part of the running system
+        for (const x of r.repositories || []) if (!x.archived && !x.disabled) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch });
         if ((r.repositories || []).length < 100) break;
       }
     }
