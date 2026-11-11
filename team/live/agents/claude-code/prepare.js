@@ -46,7 +46,9 @@ export function prepareAction({cwd,env,connected=false,servers,schema,prompt,onT
     }
     words = addWords(words, d, onText);
     if (d.type === 'result') {
-      for (const item of Array.isArray(d.permission_denials) ? d.permission_denials : []) denied.add(item?.tool_name || 'lookup');
+      // Claude Code's own tools are shown only so a build can be checked; refusing one here is preparation
+      // working as meant (it may only look things up), not missing access
+      for (const item of Array.isArray(d.permission_denials) ? d.permission_denials : []) if (!BUILT_IN.includes(item?.tool_name)) denied.add(item?.tool_name || 'lookup');
       result = d.is_error ? 'Claude stopped before preparation finished. Check your sign-in and tool access, then try again.' : String(d.result || words).slice(-32000);
       if (!d.is_error) value = d.structured_output;
     }

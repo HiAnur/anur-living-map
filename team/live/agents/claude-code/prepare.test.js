@@ -36,9 +36,10 @@ describe('Action preparation access',{timeout:30_000},()=>{
     const h=harness();h.event({type:'system',subtype:'init',tools:['Read','Write','ToolSearch']});
     h.event({type:'assistant',message:{content:[{type:'tool_use',id:'search',name:'ToolSearch'}]}});
     h.event({type:'user',message:{content:[{type:'tool_result',tool_use_id:'search',content:[{type:'tool_reference',tool_name:'mcp__mail__send'},{type:'text',text:'mcp__fake__send'}]}]}});
-    h.event({type:'result',result:'Ready with mcp__imaginary__send',permission_denials:[{tool_name:'Bash'}]},false);
+    // a refused lookup through a connector is missing access; a refused Bash is preparation keeping to lookups
+    h.event({type:'result',result:'Ready with mcp__imaginary__send',permission_denials:[{tool_name:'Bash'},{tool_name:'mcp__mail__search'}]},false);
     expect(h.results).toHaveLength(0);h.proc.emit('close',0);
-    expect(h.results[0].access).toEqual({tools:['Read','Write','ToolSearch','mcp__mail__send'],denied:['Bash']});
+    expect(h.results[0].access).toEqual({tools:['Read','Write','ToolSearch','mcp__mail__send'],denied:['mcp__mail__search']});
   });
   it('never returns a ready-looking partial answer after failure, cancellation or timeout',()=>{
     const h=harness();h.event({type:'stream_event',event:{type:'content_block_delta',delta:{text:'```action {"status":"ready"} ```'}}});h.proc.emit('close',1);expect(h.results[0].text).toContain('stopped');
