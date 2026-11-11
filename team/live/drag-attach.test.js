@@ -24,6 +24,37 @@ function page(/** @type {any} */ state = fixture()) {
   return {ctx,rubber,state,plan:()=>ctx.planTopicAttach(ctx.drag.source,'branch','new',1)};
 }
 describe('drag attachment preview',()=>{
+  it.each([-1,1])('previews and saves a sibling on the vertical side %s', direction=>{
+    const h=page(),before=editSnapshot(h.state);
+    h.ctx.moveTopicDrag(210,170+direction*35);
+    const plan=h.ctx.drag.attach;
+    expect(plan.parent).toBe('root');
+    const landing=plan.moves.find(m=>m.id==='branch');
+    const target=plan.moves.find(m=>m.id==='new')||h.ctx.nodeById('new');
+    expect(landing.x).toBe(target.x);
+    expect((landing.y-target.y)*direction).toBeGreaterThan(50);
+    expect(h.rubber.innerHTML).toContain('class="attach-box"');
+    expect(reparentTopic(h.state,plan)).toBe(true);
+    expect(h.ctx.nodeById('branch')).toMatchObject({x:landing.x,y:landing.y});
+    expect(h.state.edges).toContainEqual({from:'root',to:'branch'});
+    expect(h.state.edges).toContainEqual({from:'branch',to:'child'});
+    const history=editHistory();history.record('Duy',before,editSnapshot(h.state));
+    expect(history.apply('Duy','undo',h.state).ok).toBe(true);
+    expect(h.state.nodes).toEqual(before.nodes);expect(h.state.edges).toEqual(expect.arrayContaining(before.edges));expect(h.state.edges).toHaveLength(before.edges.length);
+  });
+  it('reorders siblings above and below without changing their parent',()=>{
+    for(const direction of [-1,1]){
+      const h=page(); h.ctx.drag.n=h.ctx.nodeById('lower');
+      h.ctx.moveTopicDrag(210,170+direction*35);
+      const plan=h.ctx.drag.attach;
+      expect(plan.parent).toBe('root');expect(reparentTopic(h.state,plan)).toBe(true);
+      expect((h.ctx.nodeById('lower').y-h.ctx.nodeById('new').y)*direction).toBeGreaterThan(0);
+    }
+  });
+  it('does not offer a sibling of a root or a box whose parent is protected',()=>{
+    const h=page(); h.ctx.previewTopicAttach(0,-35);expect(h.ctx.drag.attach).toBeNull();
+    h.ctx.nodeById('root').locked=true;h.ctx.previewTopicAttach(210,135);expect(h.ctx.drag.attach).toBeNull();
+  });
   it('shows one destination for several selected branches while moving them all on release',()=>{
     const h=page(),before=structuredClone(h.state);
     h.ctx.drag.many=['branch','child','lower'].map(id=>({n:h.ctx.nodeById(id)}));
