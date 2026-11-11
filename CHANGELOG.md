@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>A clearer list of repos to choose from</strong></dt>
+<dd>
+
+When you choose repos for a system map, forks and empty repos are left out, and each repo shows its language, its size and when it was last pushed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/390 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/400 --> <!-- merged-at: 2026-11-11T09:20:31Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Point a plan's box at your system</strong></dt>
 <dd>
 
@@ -72,15 +81,6 @@ In a system map box's details, each file and line the box was drawn from opens o
 <dd>
 
 Each repo appears on a new system map as soon as it is drawn, so you can start reading before the rest are done. <!-- source: https://github.com/HiAnur/anur-living-map/pull/392 --> <!-- merged-at: 2026-11-11T08:47:56Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>A clearer list of repos to choose from</strong></dt>
-<dd>
-
-When you choose repos for a system map, forks and empty repos are left out, and each repo shows its language and when it was last pushed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/390 --> <!-- merged-at: 2026-11-11T08:44:21Z -->
 
 </dd>
 </dl>
