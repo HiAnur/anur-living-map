@@ -111,7 +111,9 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
         const r = await (await api(who, `/user/installations/${inst.id}/repositories?per_page=100&page=${page}`)).json();
         // an archived repo is no longer part of the running system, a fork is someone else's code, an empty one holds none
         for (const x of r.repositories || []) if (!x.archived && !x.disabled && !x.fork && x.size !== 0) out.push({ owner: x.owner.login, name: x.name, private: !!x.private, branch: x.default_branch,
-          ...(x.language ? { language: String(x.language) } : {}), ...(x.pushed_at ? { pushed: Date.parse(x.pushed_at) } : {}) });
+          ...(x.language ? { language: String(x.language) } : {}), ...(x.pushed_at ? { pushed: Date.parse(x.pushed_at) } : {}),
+          // its size on GitHub, in kilobytes: how long it takes to download and read
+          ...(Number.isFinite(x.size) ? { size: Number(x.size) } : {}) });
         if ((r.repositories || []).length < 100) break;
       }
     }
