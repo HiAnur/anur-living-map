@@ -3,6 +3,71 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🚀 [Major feature] Trace a request through your system</strong></dt>
+<dd>
+
+**Trace a request** on a system map box's card follows that box through your code, across repos: the route it calls in another repo, the function that serves it, the tables and queues it reads and writes, and what those set off. The steps open as a sequence on the box; a step into a repo you can't read shows only that it went somewhere private. An existing system map needs one **Redraw** first. <!-- source: https://github.com/HiAnur/anur-living-map/pull/418 --> <!-- merged-at: 2026-11-11T21:58:21Z -->
+
+<img src="docs/shipping/2026-11-11/trace-a-request.jpg" alt="A sample system map open on the Shop app box's trace: a sequence from app to GetOrder by GET /orders, then GetOrder to orders-table by dynamodb GetItem." width="560">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Review a redraw before it changes the map</strong></dt>
+<dd>
+
+Drawing a system map again no longer changes it at once: the panel lists what code would add, take away or rename, and an Engineer presses **Apply the changes** or **Keep the map as it is**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/411 --> <!-- merged-at: 2026-11-11T21:43:03Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Only Engineers and Admins draw a system map</strong></dt>
+<dd>
+
+Drawing a new system map is for an Engineer or Admin; anyone else sees whom to ask, with a request to copy, and can still connect GitHub to see the private repos they can read. <!-- source: https://github.com/HiAnur/anur-living-map/pull/409 --> <!-- merged-at: 2026-11-11T21:38:54Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>A system map notices new commits by itself</strong></dt>
+<dd>
+
+Every 30 minutes the map checks its repos for new commits, even when nobody has it open, and **Redraw** and the list of maps show how many repos changed since it was drawn. <!-- source: https://github.com/HiAnur/anur-living-map/pull/412 --> <!-- merged-at: 2026-11-11T21:33:39Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Locked boxes say why</strong></dt>
+<dd>
+
+On a system map, boxes locked because a repo is private say so, with a **Connect GitHub** button to see the ones you can read, and the drawing panel no longer names repos you can't read. <!-- source: https://github.com/HiAnur/anur-living-map/pull/415 --> <!-- merged-at: 2026-11-11T21:26:04Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Your GitHub link stays connected</strong></dt>
+<dd>
+
+Your GitHub link on the team map no longer drops itself when it renews, which could leave every private repo locked. <!-- source: https://github.com/HiAnur/anur-living-map/pull/414 --> <!-- merged-at: 2026-11-11T21:25:41Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] System maps read manifests</strong></dt>
+<dd>
+
+A system map now reads packages, Dockerfiles, compose services and OpenAPI specs, and links an app's calls to the routes a spec says another repo serves. <!-- source: https://github.com/HiAnur/anur-living-map/pull/410 --> <!-- merged-at: 2026-11-11T21:25:01Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Claude never reads your home folder</strong></dt>
 <dd>
 
