@@ -38,6 +38,17 @@ describe('action boxes',()=>{
     h.ready();expect(h.api.execute('form','Other',id)).toBe(false);expect(h.api.execute('form','Duy','stale')).toBe(false);expect(h.launches).toHaveLength(0);
     h.revoke();expect(h.api.execute('form','Duy',id)).toBe(false);
   });
+  it('runs where its box\'s work lives when the map says so, and says why when it cannot',async ()=>{
+    const h=harness({cwdFor:async()=>({cwd:'/clones/shop-api'})});h.start();
+    expect(h.requests[0].box).toMatchObject({id:'form'});
+    h.requests[0].onDone('',undefined,reply({status:'ready',brief:{...brief,kind:'other'}}));
+    expect(h.api.execute('form','Duy',h.node.action.id)).toBe(true);
+    await new Promise((r)=>setTimeout(r));
+    expect(h.launches[0].cwd).toBe('/clones/shop-api');expect(h.node.action.cwd).toBe('/clones/shop-api');
+    const g=harness({cwdFor:async()=>({error:'GitHub does not let you read Shop/api.'})});g.start();g.requests[0].onDone('',undefined,reply({status:'ready',brief:{...brief,kind:'other'}}));
+    g.api.execute('form','Duy',g.node.action.id);await new Promise((r)=>setTimeout(r));
+    expect(g.launches).toHaveLength(0);expect(g.node.action.stage).toBe('blocked');
+  });
   it('says why, and runs nothing, where the map has no right place for the work to run',()=>{
     const h=harness({cannotRun:()=>'Actions on a system map can\'t run yet.'});h.start();h.ready();
     expect(h.api.execute('form','Duy',h.node.action.id)).toBe(false);expect(h.node.action).toMatchObject({stage:'error',error:'Actions on a system map can\'t run yet.'});expect(h.launches).toHaveLength(0);

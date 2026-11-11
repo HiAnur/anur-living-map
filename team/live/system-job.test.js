@@ -21,9 +21,9 @@ const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-sysjob-'
 const until = async (/** @type {() => boolean} */ ok) => { for (let i = 0; i < 200 && !ok(); i++) await new Promise((r) => setTimeout(r, 10)); expect(ok()).toBe(true); };
 
 /** A map's state and a job on it, with a scripted drawing. @param {any} draw */
-function jobOn(draw, initial = /** @type {any} */ ({ nodes: [], edges: [] }), /** @type {any} */ gh = undefined) {
+function jobOn(draw, initial = /** @type {any} */ ({ nodes: [], edges: [] }), /** @type {any} */ gh = undefined, /** @type {any} */ work = undefined) {
   const home = tmp(), state = initial, pushes = /** @type {any[]} */ ([]);
-  const job = systemJob({ home, getState: () => state, save: () => {}, push: () => pushes.push(structuredClone(state.drawing)), agent: { answer: async () => ({ ms: 0 }) }, draw, ...(gh ? { github: () => gh } : {}) });
+  const job = systemJob({ home, getState: () => state, save: () => {}, push: () => pushes.push(structuredClone(state.drawing)), agent: { answer: async () => ({ ms: 0 }) }, draw, ...(gh ? { github: () => gh } : {}), ...(work ? { work: () => work } : {}) });
   return { home, state, pushes, job };
 }
 const built = { nodes: [{ id: 'system-api', label: 'api' }], edges: [], start: 'system-api' };
@@ -102,6 +102,23 @@ describe('a system map drawing in the background', () => {
     expect(await job.codeFor('Harshit')).toEqual([{ repo: 'local-svc', folder: local }]);
     expect(await job.codeFor('Sam')).toEqual([{ repo: 'api', folder: api }]);
     expect(await job.codeFor('Guest')).toEqual([]);
+  });
+  it('works on a repo in a clone on this Mac, for whoever may read it, and on the drawn code when there is no clone and no build', async () => {
+    const folder = (/** @type {string} */ n) => { const d = path.join(tmp(), n); fs.mkdirSync(d); return d; };
+    const local = folder('local-svc'), api = folder('api'), web = folder('web');
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: r.name === 'api' ? api : web, commit: 'c1', branch: 'main' }),
+      canRead: async (/** @type {string} */ who) => who === 'Sam' };
+    const work = { workIn: async (/** @type {string} */ _owner, /** @type {string} */ name, /** @type {boolean} */ build) => name === 'api' ? { cwd: '/clones/api' } : build ? { cwd: '/fresh/web' } : { error: '' } };
+    const { state, job } = jobOn(async () => ({ state: built, report: { ...report([]), repos: [{ repo: 'local-svc', root: local, unread: [] }, { repo: 'api', root: api, unread: [] }, { repo: 'web', root: web, unread: [] }] }, cancelled: false }), undefined, gh, work);
+    job.start({ folders: [local], repos: [{ owner: 'Shop', name: 'api' }, { owner: 'Shop', name: 'web' }], by: 'Harshit' });
+    await until(() => state.drawing.status !== 'running');
+    expect(await job.workFor('api', 'Sam', true)).toEqual({ cwd: '/clones/api' });
+    expect(await job.workFor('web', 'Sam', false)).toEqual({ cwd: web });
+    expect(await job.workFor('web', 'Sam', true)).toEqual({ cwd: '/fresh/web' });
+    expect(await job.workFor('api', 'Guest', false)).toEqual({ error: expect.stringContaining('GitHub does not let you read Shop/api') });
+    expect(await job.workFor('local-svc', 'Harshit', true)).toEqual({ cwd: local });
+    expect(await job.workFor('local-svc', 'Sam', true)).toEqual({ error: expect.stringContaining("only Harshit can run Actions in it") });
+    expect(await job.workFor('nowhere', 'Sam', true)).toEqual({ error: 'nowhere is not one of this map\'s repos.' });
   });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });

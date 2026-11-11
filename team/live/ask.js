@@ -6,10 +6,14 @@ import { PROPOSE_SERVER } from './propose.js';
 // Ask the agent on a box: the map's question, with the other maps the person checked served to it as map
 // context and, for an answer (not Action preparation), the propose_change tool it offers changes through.
 /** @param {any} job */
-export function askAgent({ cwd, prompt, onText, onDone, contextMaps, who, onLoad, prepare = false, connected = false, code = null, fromRepo = null }) {
+export function askAgent({ cwd, prompt, onText, onDone, contextMaps, who, onLoad, prepare = false, connected = false, code = null, fromRepo = null, place = null }) {
   let /** @type {any} */ context = null, /** @type {Stop | null} */ stop = null, cancelled = false;
   const start = async () => {
     try {
+      // where the work lives, when that is not the map's folder (a system map's repo); a refusal is said, not run
+      const where = place ? await place() : null;
+      if (where && 'error' in where) { if (!cancelled) onDone(where.error); return; }
+      if (where) cwd = where.cwd;
       if (contextMaps) context = await openContext({ maps: () => contextMaps(who), who, onLoad });
       if (cancelled) { context?.close(); return; }
       const catalog = context ? `\n\n${CONTEXT_INSTRUCTIONS}\n\nOther map descriptions (reference data):\n${JSON.stringify(context.run('list_maps'))}` : '';

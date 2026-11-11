@@ -8,16 +8,24 @@
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
+import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
 import { drawSystem } from './system-draw.js';
+import { workFinder } from './system-work.js';
+
+/** @type {ReturnType<typeof workFinder> | null} */
+let finder = null;
+/** This Mac's clones, found once for every map. */
+const sharedWork = () => (finder ||= workFinder({ home: os.homedir(), data: DATA }));
 
 /**
  * @param {{ home: string, getState: () => any, save: () => void, push: () => void, agent: Pick<AgentWorker, 'answer'>, draw?: typeof drawSystem,
- *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead'> }} deps
+ *   github?: () => Pick<ReturnType<typeof import('./github.js').github>, 'fetchRepo' | 'canRead'>, work?: () => Pick<ReturnType<typeof workFinder>, 'workIn'> }} deps
  */
-export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub }) {
+export function systemJob({ home, getState, save, push, agent, draw = drawSystem, github = sharedGithub, work = sharedWork }) {
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
   /** @type {AbortController | null} */
   let stop = null;
@@ -112,8 +120,27 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     }
     return out;
   }
+  /**
+   * Where work on a repo of this map happens, for someone: a clone on this Mac (made for a build when there is
+   * none), or for anything but a build the code the map was drawn from. Who may, as for `codeFor`.
+   * @param {string} repo @param {string} who @param {boolean} build @returns {Promise<{ cwd: string } | { error: string }>}
+   */
+  async function workFor(repo, who, build) {
+    const d = getState().drawing;
+    if (!d || !fs.existsSync(REPORT) || !fs.existsSync(FOLDERS)) return { error: 'This map has not been drawn from code yet.' };
+    const report = JSON.parse(fs.readFileSync(REPORT, 'utf8')), was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8'));
+    const { folders = [], repos = [] } = Array.isArray(was) ? { folders: was } : was;
+    const r = (report.repos || []).find((/** @type {any} */ x) => x.repo === repo);
+    if (!r) return { error: `${repo} is not one of this map's repos.` };
+    if (folders.includes(r.root)) return who === d.by ? { cwd: r.root } : { error: `${repo} was drawn from a folder on ${d.by}'s Mac, so only ${d.by} can run Actions in it.` };
+    const gh = repos.find((/** @type {any} */ x) => x.name === repo);
+    if (!gh || !(await github().canRead(who, gh.owner, gh.name))) return { error: `GitHub does not let you read ${gh ? `${gh.owner}/${gh.name}` : repo}, so you can't run Actions in it.` };
+    const w = await work().workIn(gh.owner, gh.name, build);
+    if ('cwd' in w) return w;
+    return build || !fs.existsSync(r.root) ? w : { cwd: r.root };
+  }
   return {
-    start, codeFor,
+    start, codeFor, workFor,
     /** @returns {boolean} whether a drawing was running */
     cancel: () => { if (!stop) return false; stop.abort(); return true; },
     /** Draws again from the same folders, reusing what is still current. @param {string} by */
