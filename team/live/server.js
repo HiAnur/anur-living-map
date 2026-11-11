@@ -310,6 +310,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   function answerCall(a) {
     const c = state.calls.find((/** @type {any} */ x) => x.id === a.id);
     if (!c || c.status !== 'open') return false;
+    // a question on a box outside the one area someone sees is not theirs to answer: the page never shows it to them
+    const on = nodeOf(c.node), sees = seesOf(a.by);
+    if (on && sees !== 'all' && on.area !== sees) return false;
     let fx;
     if (c.options?.length) {
       const o = c.options.find((/** @type {any} */ x) => x.id === a.option), own = String(a.other || '').trim().slice(0, 400);

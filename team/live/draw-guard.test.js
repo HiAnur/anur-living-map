@@ -100,9 +100,10 @@ describe('a drawing\'s questions', () => {
     expect(call('open').ask).toBe('Ship the api?');
     expect(call('webq').ask).toBe('Ship the site this week?');
   });
-  it('are still answered through the call action, by anyone who may', async () => {
-    const { call } = await act('Sam', { type: 'call', id: 'open', answer: 'confirm' });
-    expect(call('open')).toMatchObject({ status: 'confirmed', by: 'Sam' });
+  it('are still answered through the call action, by anyone who may change their box', async () => {
+    expect((await act('Sam', { type: 'call', id: 'webq', answer: 'confirm' })).call('webq')).toMatchObject({ status: 'confirmed', by: 'Sam' });
+    expect((await act('Sam', { type: 'call', id: 'open', answer: 'confirm' })).call('open')).toMatchObject({ status: 'open' });
+    expect((await act('Duy', { type: 'call', id: 'open', answer: 'confirm' })).call('open')).toMatchObject({ status: 'confirmed', by: 'Duy' });
   });
 });
 
