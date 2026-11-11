@@ -438,6 +438,61 @@ test("an Admin hands an Action to another member", async ({
   );
 });
 
+test("a comment thread opens from the Comments panel and takes a reply", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    comments: [
+      {
+        id: 1,
+        x: 300,
+        y: -160,
+        view: "system",
+        node: "pricing",
+        resolved: false,
+        msgs: [{ who: "Ana", text: "Is @Duy on <annual> pricing?", at: 1 }],
+      },
+    ],
+  });
+  await page.locator('#rail [data-rail="comments"]').click();
+  const item = page.locator('#cpanel [data-goto="1"]');
+  await expect(item).toContainText("#1 · Pricing");
+  await item.click();
+  // the thread opens beside its pin, the mention marked and the words kept as written
+  await expect(page.locator("#thread .th-body")).toContainText(
+    "Is Duy on <annual> pricing?",
+  );
+  await expect(page.locator("#thread .at")).toHaveText("Duy");
+  await page.locator("#thread .th-reply input").fill("Yes, both plans");
+  await page.locator("#thread .th-reply input").press("Enter");
+  await expect(page.locator("#thread .th-msg")).toHaveCount(2);
+  await expect(item).toContainText("1 reply");
+});
+
+test("History shows an earlier version over the map, and goes back to now", async ({
+  page,
+}) => {
+  await openSample(page);
+  await box(page, "Pricing").click();
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("Annual plan");
+  await page.keyboard.press("Enter");
+  await expect(box(page, "Annual plan")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.locator('#rail [data-rail="history"]').click();
+  const versions = page.locator("#hist [data-hver]");
+  await expect(versions).toHaveCount(2);
+  await expect(versions.first()).toContainText("Now");
+  await versions.last().click();
+  // the earlier version shows over the live map, without the box added since
+  await expect(page.locator("#histbar")).toContainText("Restore this version");
+  await expect(box(page, "Annual plan")).toHaveCount(0);
+  await page.getByRole("button", { name: "Back to now" }).click();
+  await expect(page.locator("#histbar")).not.toBeVisible();
+  await expect(box(page, "Annual plan")).toBeVisible();
+});
+
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();
