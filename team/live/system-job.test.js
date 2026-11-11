@@ -217,7 +217,8 @@ describe('the system map routes', () => {
   /** @type {any} */
   const linkedAs = { who: '' };
   const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });
-  const routes = systemRoutes({ maps, home, github: () => gh });
+  // Harshit is the team's Engineer; Sam is a member
+  const routes = systemRoutes({ maps, home, github: () => gh, team: () => [{ id: 'Harshit', role: 'Engineer' }, { id: 'Sam', role: 'Designer' }] });
   /** @param {string} route @param {any} [data] @param {{ who?: string, local?: boolean }} [o] */
   const call = async (route, data, { who = 'Harshit', local = true } = {}) => {
     const headers = local ? { host: 'localhost:4323', origin: 'http://localhost:4323', 'content-type': 'application/json', 'sec-fetch-site': 'same-origin' } : { host: 'living-map.example.com', origin: 'https://evil.example' };
@@ -238,6 +239,13 @@ describe('the system map routes', () => {
     linkedAs.who = 'Harshit';
     expect((await call('/api/systemmap/github')).body).toEqual({ linked: 'octo', pending: null });
     expect((await call('/api/systemmap', { repos: [{ owner: 'Shop', name: '../etc' }] })).status).toBe(400);
+  });
+  it('lets only an Engineer or Admin draw a system map, and tells anyone else whom to ask', async () => {
+    expect((await call('/api/systemmap/can', undefined, { who: 'Sam' })).body).toEqual({ may: false, engineers: ['Harshit'] });
+    expect((await call('/api/systemmap/can')).body).toEqual({ may: true, engineers: [] });
+    const refused = await call('/api/systemmap', { title: 'Shop system', folders }, { who: 'Sam' });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error).toContain('Ask Harshit');
   });
   it('draws a new map from the repos chosen, and lets whoever started it stop or retry it', async () => {
     vi.spyOn(agent, 'answer').mockImplementation(async () => ({ value: { boxes: [], lines: [] }, cost: { value: 0.01, unit: 'usd' }, ms: 1 }));
