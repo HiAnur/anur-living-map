@@ -61,7 +61,7 @@ describe('the drawing panel', () => {
     const d = { status: 'done', at: now - 9_000, ms: 9_000, repos: 1, progress: [{ repo: 'api', stage: 'done', boxes: 3 }] };
     const redraw = { count: 2, changes: [{ what: 'changed', kind: 'box', label: 'Order service', was: 'Orders' }, { what: 'gone', kind: 'line', label: 'web → api' }] };
     const html = drawingPanel(d, { esc, now, mine: true, redraw });
-    expect(text(html)).toContain('2 changes to review Not on the map until applied');
+    expect(text(html)).toContain('Code no longer finds 2 things They stay on the map until applied');
     expect(text(html)).toContain('Changes Orders → Order service');
     expect(text(html)).toContain('Takes away the line web → api');
     expect(html).toContain('data-sd-apply'); expect(html).toContain('data-sd-dismiss');

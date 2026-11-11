@@ -71,16 +71,16 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
   };
 
   /**
-   * @param {{ folders?: string[], repos?: { owner: string, name: string }[], by: string, again?: boolean }} job folders on this Mac, repos on GitHub, or both
+   * @param {{ folders?: string[], repos?: { owner: string, name: string }[], by: string, again?: boolean, auto?: boolean }} job folders on this Mac, repos on GitHub, or both
    * @returns {boolean} whether it started
    */
-  function start({ folders = [], repos = [], by, again = false }) {
+  function start({ folders = [], repos = [], by, again = false, auto = false }) {
     if (stop) return false;
     const controller = new AbortController();
     stop = controller;
     const store = again ? kept() : {};
     if (!again) { fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(KEPT, '{}'); fs.writeFileSync(FOLDERS, JSON.stringify({ folders, repos })); }
-    const drawing = { by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]) };
+    const drawing = /** @type {any} */ ({ by, at: Date.now(), repos: folders.length + repos.length, status: 'running', progress: /** @type {any[]} */ ([]), ...(auto ? { auto: true } : {}) });
     // a new map shows each repo as soon as it is drawn, so it can be read before the rest are done; a map drawn
     // again keeps what it has until the whole drawing is ready
     const fresh = !(getState().nodes || []).length;
@@ -98,7 +98,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     save(); push();
     /** @param {any} p */
     const tell = (p) => {
-      const i = drawing.progress.findIndex((x) => x.repo === p.repo);
+      const i = drawing.progress.findIndex((/** @type {any} */ x) => x.repo === p.repo);
       if (i < 0) drawing.progress.push({ ...p }); else drawing.progress[i] = { ...p };
       save(); push();
     };
@@ -138,9 +138,17 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       // code would change waits for an Engineer to apply it
       if (state && fresh) { Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start }); keepFacts(FACTS, facts); }
       else if (state) {
+        // drawn again: what code added or renamed lands now, keeping what people did; what code no longer finds stays
+        // on the map until an Engineer takes it off (Apply) or keeps it (system-merge.js)
         const changes = redrawChanges(getState(), keepHandEdits(getState(), structuredClone(state)));
-        if (!changes.length) { applyDrawn(state); keepFacts(FACTS, facts); }
-        else { fs.writeFileSync(PENDING, JSON.stringify(state)); keepFacts(FACTS_PENDING, facts); getState().redraw = { at: Date.now(), by: drawing.by, count: changes.length, changes: changes.slice(0, 300) }; }
+        const gone = changes.filter((c) => c.what === 'gone');
+        const keep = { boxes: new Set(gone.filter((c) => c.kind === 'box').map((c) => c.id)), lines: new Set(gone.filter((c) => c.kind === 'line').map((c) => c.id)) };
+        const now = keepHandEdits(getState(), structuredClone(state), keep);
+        Object.assign(getState(), { nodes: now.nodes, edges: now.edges, start: now.start });
+        keepFacts(FACTS, facts);
+        drawing.updated = changes.length - gone.length;
+        if (gone.length) { fs.writeFileSync(PENDING, JSON.stringify(state)); getState().redraw = { at: Date.now(), by: drawing.by, count: gone.length, changes: gone.slice(0, 300) }; }
+        else { delete getState().redraw; fs.rmSync(PENDING, { force: true }); }
       }
     }).catch((/** @type {any} */ e) => {
       console.error('[map] system drawing', e);
@@ -302,6 +310,11 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       const list = await changed(d.by).catch((/** @type {any} */ e) => { console.error('[map] system commits', e); return null; });
       if (!list || getState().drawing !== d || String(list) === String(d.newCommits || [])) return;
       d.newCommits = list; save(); push();
+      // new commits: the map draws them by itself, as whoever drew it, redrawing only the repos that moved
+      if (list.length && !stop && fs.existsSync(FOLDERS)) {
+        const was = JSON.parse(fs.readFileSync(FOLDERS, 'utf8'));
+        start({ ...(Array.isArray(was) ? { folders: was } : was), by: d.by, again: true, auto: true });
+      }
     };
     const first = setTimeout(look, Math.min(every, 60_000)), timer = setInterval(look, every);
     first.unref?.(); timer.unref?.();

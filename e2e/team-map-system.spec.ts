@@ -114,7 +114,7 @@ test("a private repo you may not read is locked, says why, and is never named", 
   ).toBeVisible();
 });
 
-/** A system map whose redraw waits for review: it would add the jobs repo. */
+/** A system map drawn again where code no longer finds the web repo: web stays until an Engineer settles it. */
 const waiting = () =>
   openState(
     systemMap({
@@ -122,40 +122,70 @@ const waiting = () =>
         at: Date.now(),
         by: "Duy",
         count: 1,
-        changes: [{ what: "added", kind: "box", label: "jobs", repo: "jobs" }],
+        changes: [
+          {
+            what: "gone",
+            kind: "box",
+            id: "system-web",
+            label: "web",
+            repo: "web",
+          },
+        ],
       },
     }),
     {
       "system-pending.json": {
-        nodes: [repoBox("api", 0), repoBox("web", 300), repoBox("jobs", 600)],
+        nodes: [repoBox("api", 0)],
         edges: [],
         start: "system-api",
       },
     },
   );
 
-test("a redraw's changes wait for review, and Apply puts them on the map", async ({
+test("what code no longer finds waits for review, and Apply takes it off", async ({
   page,
 }) => {
   const name = waiting();
   await page.goto(`${server.origin}/${name}/`);
   const panel = page.locator("#sysdraw");
-  await expect(panel).toContainText("1 change to review");
-  await expect(panel).toContainText("Adds jobs");
-  await expect(box(page, "jobs")).toHaveCount(0);
+  await expect(panel).toContainText("Code no longer finds 1 thing");
+  await expect(panel).toContainText("Takes away web");
+  await expect(box(page, "web")).toBeVisible();
   await panel.getByRole("button", { name: "Apply the changes" }).click();
-  await expect(box(page, "jobs")).toBeVisible();
-  await expect(panel).not.toContainText("to review");
+  await expect(box(page, "web")).toHaveCount(0);
+  await expect(panel).not.toContainText("no longer finds");
 });
 
-test("Keep the map as it is drops a redraw's changes", async ({ page }) => {
+test("Keep the map as it is keeps what code no longer finds", async ({
+  page,
+}) => {
   const name = waiting();
   await page.goto(`${server.origin}/${name}/`);
   const panel = page.locator("#sysdraw");
   await panel.getByRole("button", { name: "Keep the map as it is" }).click();
-  await expect(panel).not.toContainText("to review");
-  await expect(box(page, "jobs")).toHaveCount(0);
+  await expect(panel).not.toContainText("no longer finds");
+  await expect(box(page, "web")).toBeVisible();
   await expect(box(page, "api")).toBeVisible();
+});
+
+test("the map updating itself from new commits does not pop the panel up", async ({
+  page,
+}) => {
+  const name = openState(
+    systemMap({
+      drawing: {
+        status: "running",
+        at: Date.now(),
+        by: "Duy",
+        repos: 2,
+        auto: true,
+        progress: [{ repo: "api", stage: "drawing" }],
+      },
+    }),
+  );
+  await page.goto(`${server.origin}/${name}/`);
+  await expect(box(page, "api")).toBeVisible();
+  await expect(page.locator("#sysdraw")).toBeHidden();
 });
 
 test("a default map builds on a system map, and its box points at a system box", async ({
