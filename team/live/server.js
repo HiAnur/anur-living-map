@@ -45,6 +45,7 @@ import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
 import { readRoutes } from './read-routes.js';
+import { workFolder } from './wide-folder.js';
 import { selfUpdate } from './self-update.js';
 import { jsonBody } from './request.js';
 import { shareRoutes } from './share-routes.js';
@@ -358,10 +359,10 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     allNodes,
     canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
-    ask: (request) => askAgent({ cwd:project || PROJECT || home, contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by),
+    ask: (request) => askAgent({ cwd:workFolder(project || PROJECT, home), contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by),
       place: () => workOf(request.box, request.by, false), ...request }),
     changed: () => { save(); push(); },
-    executionCwd: project || PROJECT || home,
+    executionCwd: workFolder(project || PROJECT, home),
     // on a system map an Action works in its box's repo; a box in no repo has nowhere to run
     cannotRun: (n) => !project && state.drawing && !repoOf(state, n) ? 'This box is not inside one of the map\'s repos, so an Action here has nowhere to run.' : null,
     cwdFor: (n, by) => workOf(n, by, false),

@@ -17,6 +17,7 @@
 // sides/stream.ts; what it proposes, in sides/proposal.ts.
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import type {
@@ -58,6 +59,22 @@ export const SIDE_IDLE_MS = 10 * 60_000;
 const STREAM_MS = 120; // how often a reply under way is pushed to the page
 
 const isId = (id: string) => /^[\w-]{1,80}$/.test(id);
+
+// The folder a side chat reads: the chat's own, unless that is the home
+// folder or a folder holding it (/home, /), which is too wide to hand over.
+// Then, as when the chat's folder is gone, only the rendered files in `dir`.
+export function sideFolder(
+  cwd: string | undefined,
+  dir: string,
+  home = os.homedir(),
+): string {
+  if (!cwd || !fs.existsSync(cwd)) return dir;
+  const mine = fs.existsSync(home) ? fs.realpathSync(home) : path.resolve(home);
+  const rel = path.relative(fs.realpathSync(cwd), mine);
+  const holdsHome =
+    rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+  return holdsHome ? dir : cwd;
+}
 
 type Live = {
   chat: Chat;
@@ -308,7 +325,7 @@ export function createSides(deps: SideDeps) {
       if (replies.get(id) !== reply) return;
       let l = procs.get(id);
       if (!l || !l.chat.alive) {
-        const cwd = s.conv.cwd && fs.existsSync(s.conv.cwd) ? s.conv.cwd : dir;
+        const cwd = sideFolder(s.conv.cwd, dir);
         l = launch(row, cwd, dir);
         procs.set(id, l);
         message = firstMessage(
