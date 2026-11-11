@@ -128,5 +128,7 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   const linkMap = new Map([...links.map((l) => /** @type {[string, Fact]} */ ([l.id, l])), ...repoNames.map((n) => /** @type {[string, Fact]} */ ([`repo:${n}`, { id: `repo:${n}`, kind: 'repo', at: 'repo', fromRepo: n, toRepo: n }]))]);
   platform = checkDrawing(value, linkMap);
   tell({ repo: 'platform', stage: p.value ? 'done' : 'failed', ...(p.error ? { error: p.error } : {}), boxes: platform.boxes.length });
-  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false };
+  // the facts and links behind the map, kept beside it for tracing a request (system-trace.js)
+  const store = { readings: readings.map((r) => ({ repo: r.repo, facts: r.facts })), links };
+  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false, store };
 }

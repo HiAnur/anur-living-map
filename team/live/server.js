@@ -31,6 +31,8 @@ import { completionSchema, executionPrompt, readCompletion } from './action-comp
 import { checkCommand } from './commands.js';
 import { agent, chats } from './agent.js';
 import { systemJob } from './system-job.js';
+import { traceDiagram } from './system-trace.js';
+import { diagramOf } from './diagram.js';
 import { onGitHub, repoOf } from './system-work.js';
 import { sharedGithub } from './github.js';
 import { askAgent } from './ask.js';
@@ -575,6 +577,21 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       return true;
     }
     // a system map's repos with commits newer than the drawing, among those the asker may read
+    // "Trace a request" on a system map box: code follows the facts behind it hop by hop and the steps become the box's
+    // sequence (system-trace.js), as the asker may read the repos it crosses; a member may trace a box in their area
+    if (p === '/api/system-trace' && req.method === 'POST') {
+      const /** @type {any} */ a = await jsonBody(req, {});
+      const n = nodeOf(a?.id), sees = who && !guest ? seesOf(who) : null;
+      const reply = (/** @type {number} */ code, /** @type {any} */ body) => { res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(body)); return true; };
+      if (!who || guest || !state.people?.some((/** @type {any} */ x) => x.id === who) || removedFrom(state, who)) return reply(403, { error: 'Only someone on this map can trace a request.' });
+      if (!n || (sees !== 'all' && n.area !== sees)) return reply(404, { error: 'That box is not on the map, or not in your area.' });
+      const got = system.trace(n.id, who);
+      if (!got) return reply(409, { error: 'This map keeps no facts for that box yet. Draw it again, then trace.' });
+      if (!got.steps.length) return reply(409, { error: 'Code shows no request leaving this box.' });
+      n.diagram = diagramOf(traceDiagram(n.label, got.steps)); n.traceRepos = got.repos;
+      tell(`${who} traced a request from ${n.label}`); save(); push();
+      return reply(200, { steps: got.steps.length });
+    }
     if (p === '/api/system-changed' && req.method === 'GET') {
       const repos = who && !guest ? await system.changed(who).catch((/** @type {any} */ e) => { console.error('[map] system changes', e); return []; }) : [];
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }).end(JSON.stringify({ repos })); return true;

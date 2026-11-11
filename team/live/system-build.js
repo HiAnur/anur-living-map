@@ -100,7 +100,7 @@ function components(facts, reading, prefix) {
       id, label: String(evidence(f).replace(/^- [^:]+: /, '').replace(/ \(.*\)$/, '')).slice(0, 60),
       sub: (f.routes?.length ? f.routes.slice(0, 3).join(', ') : f.kind.replace(/_/g, ' ')).slice(0, 80),
       ...pos.get(id), desc: evidence(f, reading), origin: 'code',
-      source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), path: f.at },
+      source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), path: f.at, facts: [f.id] },
       ...(f.kind === 'table' ? { icon: 'db' } : {}), ...(f.kind === 'outside_function' ? { kind: 'ext' } : {}),
     })),
     edges: edges.filter((e) => e.from !== e.to && nodes.some((n) => n.id === e.from)),
@@ -121,7 +121,8 @@ export function repoMap(drawn, reading) {
     return {
       id: `${prefix}-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), ...pos.get(b.id), origin: 'code',
       desc: `${b.description}\n\nShown by:\n${cited.slice(0, 20).map((f) => evidence(f, reading)).join('\n')}`.slice(0, 3000),
-      source: { kind: 'code', repo: reading.repo, ...(reading.head || {}) },
+      // the facts it stands for, by id in its repo's reading, so a trace starts from them (system-trace.js)
+      source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), facts: cited.map((f) => f.id) },
       ...(b.kind === 'person' ? { kind: 'actor' } : b.kind === 'external' ? { kind: 'ext' } : {}), ...(b.kind === 'store' ? { icon: 'db' } : {}),
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}), ...(inside ? { inside } : {}),
     };
