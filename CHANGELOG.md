@@ -3,6 +3,96 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Redraw says what changed in your code</strong></dt>
+<dd>
+
+On a finished system map, **Redraw** at the top shows how many repos have new commits since the map was drawn, and the drawing panel names them; it counts only repos you can read. Redraw reads the newest code, redraws only the repos that changed or could not be drawn, and the panel says why a repo was not drawn. <!-- source: https://github.com/HiAnur/anur-living-map/pull/395 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/379 --> <!-- merged-at: 2026-11-11T09:02:30Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Engineers redraw a system map</strong></dt>
+<dd>
+
+Redrawing a system map, or stopping its drawing, is for the map's Engineers and whoever drew it; an Admin marks someone an Engineer with **Make Engineer** in **Share**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/391 --> <!-- merged-at: 2026-11-11T08:55:56Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] A box's evidence links to its code on GitHub</strong></dt>
+<dd>
+
+In a system map box's details, each file and line the box was drawn from opens on GitHub, at the commit the map was drawn from. <!-- source: https://github.com/HiAnur/anur-living-map/pull/393 --> <!-- merged-at: 2026-11-11T08:50:09Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>A new system map fills in as it draws</strong></dt>
+<dd>
+
+Each repo appears on a new system map as soon as it is drawn, so you can start reading before the rest are done. <!-- source: https://github.com/HiAnur/anur-living-map/pull/392 --> <!-- merged-at: 2026-11-11T08:47:56Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>A clearer list of repos to choose from</strong></dt>
+<dd>
+
+When you choose repos for a system map, forks and empty repos are left out, and each repo shows its language and when it was last pushed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/390 --> <!-- merged-at: 2026-11-11T08:44:21Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Each person sees only the repos they can read</strong></dt>
+<dd>
+
+On a system map, a private repo you can't read on GitHub shows as a locked **A private repo** box with nothing inside, in the map, its History, a downloaded copy and what Claude reads for you; someone not signed in sees only public repos, and a map holding private repos can't be put online. <!-- source: https://github.com/HiAnur/anur-living-map/pull/389 --> <!-- merged-at: 2026-11-11T08:42:30Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Build from a system map, with your GitHub access</strong></dt>
+<dd>
+
+Anyone on the map can prepare an Action that builds code, and it runs only for someone GitHub lets push to that repo; the run can use `gh` as in your own terminal and opens its pull request even when a step asks for something it may not do. <!-- source: https://github.com/HiAnur/anur-living-map/pull/384 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/385 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/386 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/387 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/388 --> <!-- merged-at: 2026-11-11T07:38:11Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Changes land on the right level, and long line labels wrap</strong></dt>
+<dd>
+
+A change Claude proposes inside a box now lands inside that box, not on the level above it, and a long label on a line wraps instead of running across the map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/382 --> <!-- merged-at: 2026-11-11T05:30:25Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Your view and your words stay put</strong></dt>
+<dd>
+
+Going into a box or back out keeps the zoom you are at and returns you to the box you came from, and text you typed in a chat but did not send is still there when you come back. <!-- source: https://github.com/HiAnur/anur-living-map/pull/378 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/381 --> <!-- merged-at: 2026-11-11T05:22:53Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Updates wait for Claude to finish</strong></dt>
+<dd>
+
+An update never restarts the map while Claude is answering, running an Action or drawing a map; it waits until all is quiet. <!-- source: https://github.com/HiAnur/anur-living-map/pull/380 --> <!-- merged-at: 2026-11-11T05:17:21Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Actions on a system map work in their repo</strong></dt>
 <dd>
 
