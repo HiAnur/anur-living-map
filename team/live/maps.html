@@ -241,7 +241,7 @@ async function showGitHub(){
   const r = await ghApi('');
   if (!r.ok){ codeError(r.b.error); return; }
   const { linked, pending } = r.b;
-  $('code-pick').hidden = true;
+  if (pending || !linked) $('code-pick').hidden = true;
   if (pending){
     $('gh-state').innerHTML = `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-btn" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a> <span class="none">&nbsp;Waiting for GitHub…</span>`;
     $('gh-repos').innerHTML = '';
@@ -253,18 +253,22 @@ async function showGitHub(){
     $('gh-repos').innerHTML = '';
     return;
   }
-  $('gh-state').innerHTML = `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`;
-  $('gh-repos').innerHTML = '<span class="none">Finding your repos…</span>';
+  // a look again (back from GitHub) keeps what is on show, and the repos you unticked, until the answer comes
+  const shown = [...$('gh-repos').querySelectorAll('input')], off = new Set(shown.filter((x) => !x.checked).map((x) => x.value));
+  const who = `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`;
+  const set = (el, html) => { if ($(el).innerHTML !== html) $(el).innerHTML = html; };
+  if (!shown.length){ set('gh-state', who); set('gh-repos', '<span class="none">Finding your repos…</span>'); }
   const got = await ghApi('/repos');
-  if (!got.ok){ $('gh-repos').innerHTML = ''; codeError(got.b.error); return; }
+  if (!got.ok){ codeError(got.b.error); return; }
   if (!got.b.repos.length){
-    $('gh-state').insertAdjacentHTML('beforeend', `<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
-    $('gh-repos').innerHTML = '';
+    set('gh-state', `${who}<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
+    set('gh-repos', ''); $('code-pick').hidden = true;
     return;
   }
   const owners = [...new Set(got.b.repos.map((x) => x.owner))];
-  $('gh-repos').innerHTML = owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => `<label><input type="checkbox" value="${esc(`${x.owner}/${x.name}`)}" checked>${esc(x.name)}${x.private ? ' <small>private</small>' : ''}</label>`).join('')}`).join('')
-    + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`;
+  set('gh-state', who);
+  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}>${esc(x.name)}${x.private ? ' <small>private</small>' : ''}</label>`; }).join('')}`).join('')
+    + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`);
   if (!$('code-title').value) $('code-title').placeholder = `${owners[0]} system`;
   $('code-pick').hidden = false;
   estimate();
