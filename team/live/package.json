@@ -6,7 +6,7 @@
   "bin": { "anur-living-map": "bin.js" },
   "scripts": { "start": "node server.js" },
   "engines": { "node": ">=22" },
-  "files": ["*.js", "agents/**/*.js", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "login.html", "maps.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
+  "files": ["*.js", "system_facts.py", "agents/**/*.js", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "login.html", "maps.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
   "repository": { "type": "git", "url": "git+https://github.com/HiAnur/anur-living-map.git", "directory": "team/live" },
   "homepage": "https://hianur.com",
   "license": "MIT",
