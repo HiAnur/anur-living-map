@@ -17,17 +17,21 @@ U="http://localhost:4323/$M/"
 D="$HOME/.anur-living-map"; [ ! -d "$D" ] && [ -d "$HOME/.living-map-2" ] && D="$HOME/.living-map-2"
 REV="$D/server.rev"   # the commit the running server was started from
 
-# 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, pulled from GitHub when it is
-#    on main with no changes of its own (a few seconds at most; offline it gives up after a moment and says so),
-#    and the skill's copy under ~/.claude/skills follows, for the next time it is read.
+# 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, moved to the newest release (the
+#    v* tag CI puts on a push to main that passed its checks, never main itself) when it is on main with no changes
+#    of its own (a few seconds at most; offline it gives up after a moment and says so), and the skill's copy under
+#    ~/.claude/skills follows, for the next time it is read. ANUR_LIVING_MAP_NO_UPDATE=1 leaves the clone as it is.
 if [ ! -e "$H/.git" ]; then
   git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
 fi
 [ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
 was=$(git -C "$H" rev-parse HEAD); br=$(git -C "$H" branch --show-current)
-if [ "$br" != main ]; then echo "update: skipped, $H is on $br"
+if [ "${ANUR_LIVING_MAP_NO_UPDATE:-}" = 1 ]; then echo "update: skipped, ANUR_LIVING_MAP_NO_UPDATE is set"
+elif [ "$br" != main ]; then echo "update: skipped, $H is on $br"
 elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
-elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 pull -q --ff-only origin main 2>/dev/null; then
+elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin main 2>/dev/null \
+  && rel=$(git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main 2>/dev/null) \
+  && git -C "$H" merge -q --ff-only "$rel" 2>/dev/null; then
   now=$(git -C "$H" rev-parse HEAD)
   if [ "$now" = "$was" ]; then echo "update: already the latest"
   else
