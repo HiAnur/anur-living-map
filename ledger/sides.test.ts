@@ -6,6 +6,7 @@
 // chat as quoted data.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 
@@ -18,6 +19,7 @@ import type { SideChat } from "../shared/ledger.ts";
 import { itemsPage, turnsPage } from "./sides/brief.ts";
 import { checkProposal, PROPOSE_TOOL } from "./sides/proposal.ts";
 import { ev, reply, setup, until } from "./sides.harness.ts";
+import { sideFolder } from "./sides.ts";
 test("a side chat runs read-only, confined, offline, on the rendered files", async () => {
   // the arguments themselves
   const args = chatArgs({ dir: "/h/sides/c", emptyMcp: "/h/empty-mcp.json" });
@@ -443,4 +445,18 @@ test("what you set yourself stays yours; quotes are checked; ignored proposals s
   // closed: off the chips
   await t.sides.act(t.root, { type: "side-close", side: side!.id });
   assert.deepEqual(t.ledger.view(t.root)!.sides, []);
+});
+
+test("a side chat never reads the home folder or a folder holding it", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "lm-home-"));
+  const project = path.join(home, "work", "app");
+  fs.mkdirSync(project, { recursive: true });
+  const dir = path.join(home, ".living-map", "sides", "c");
+  assert.equal(sideFolder(project, dir, home), project, "a project is read");
+  assert.equal(sideFolder(home, dir, home), dir, "not the home folder");
+  assert.equal(sideFolder(path.dirname(home), dir, home), dir, "nor above it");
+  assert.equal(sideFolder(path.parse(home).root, dir, home), dir, "nor /");
+  assert.equal(sideFolder(path.join(home, "gone"), dir, home), dir);
+  assert.equal(sideFolder(undefined, dir, home), dir);
+  fs.rmSync(home, { recursive: true, force: true });
 });
