@@ -12,8 +12,8 @@ describe('wrapping a line\'s words', () => {
     expect(wrapWords('calls user, strategizer, portfolio/trade', 20)).toEqual(['calls user,', 'strategizer,', 'portfolio/trade']);
   });
   it('breaks a long name where its parts begin, keeping the parts that fit together', () => {
-    expect(wrapWords('invokes DiscordInteractionsLambda', 20)).toEqual(['invokes Discord', 'InteractionsLambda']);
-    expect(wrapWords('invokes DiscordInteractionsLambda', 12)).toEqual(['invokes', 'Discord', 'Interactions', 'Lambda']);
+    expect(wrapWords('invokes OrderPlacementHandler', 20)).toEqual(['invokes Order', 'PlacementHandler']);
+    expect(wrapWords('invokes OrderPlacementHandler', 12)).toEqual(['invokes', 'Order', 'Placement', 'Handler']);
   });
   it('cuts only a part still too long for a line', () => {
     expect(wrapWords('aaaaaaaaaaaaaaaaaaaaaaaaa', 10)).toEqual(['aaaaaaaaaa', 'aaaaaaaaaa', 'aaaaa']);

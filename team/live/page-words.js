@@ -1,6 +1,6 @@
 // A line's words in lines of at most `fit` characters, so a long label wraps instead of covering its own line.
-// Breaks between words; a word too long for a line breaks where its parts begin (DiscordInteractionsLambda →
-// Discord, Interactions, Lambda), and only a part still too long is cut. A page module (see page-modules.js).
+// Breaks between words; a word too long for a line breaks where its parts begin (OrderPlacementHandler →
+// Order, Placement, Handler), and only a part still too long is cut. A page module (see page-modules.js).
 
 /** @param {string} text @param {number} fit the most characters a line holds @returns {string[]} */
 export function wrapWords(text, fit) {
