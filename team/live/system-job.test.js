@@ -201,6 +201,21 @@ describe('a system map drawing in the background', () => {
     expect(job.boxOf(local)).toBe('system-svc');
     expect(job.boxOf(other)).toBeNull();
   });
+  it('notices new commits by itself, as whoever drew the map, and keeps them in the drawing', async () => {
+    const heads = /** @type {Record<string, string>} */ ({ api: 'c2', site: 'c1' });
+    const gh = { fetchRepo: async (/** @type {string} */ _who, /** @type {any} */ r) => ({ folder: `/cache/${r.name}`, commit: 'c1', branch: 'main', private: false }),
+      canRead: async () => true, status: () => ({ linked: 'sam' }), headOf: async (/** @type {string} */ _who, /** @type {string} */ _owner, /** @type {string} */ name) => heads[name] };
+    const repos = ['api', 'site'].map((repo) => ({ repo, root: `/cache/${repo}`, head: { commit: 'c1', branch: 'main' }, unread: [] }));
+    const { state, job, pushes } = jobOn(async () => ({ state: built, report: { ...report([]), repos }, cancelled: false }), undefined, gh);
+    job.start({ repos: ['api', 'site'].map((name) => ({ owner: 'Shop', name })), by: 'Sam' });
+    await until(() => state.drawing.status === 'done');
+    const told = pushes.length;
+    const stop = job.watch(20);
+    await until(() => (state.drawing.newCommits || []).length === 1);
+    stop();
+    expect(state.drawing.newCommits).toEqual(['api']);
+    expect(pushes.length).toBeGreaterThan(told);
+  });
   it('shows a drawing the server stopped in the middle of as stopped, ready to draw again', () => {
     const { state } = jobOn(async () => ({}), { nodes: [], edges: [], drawing: { status: 'running', progress: [{ repo: 'api', stage: 'drawing' }, { repo: 'bot', stage: 'done' }] } });
     expect(state.drawing).toMatchObject({ status: 'stopped', progress: [{ stage: 'cancelled' }, { stage: 'done' }] });
