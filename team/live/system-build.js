@@ -117,7 +117,7 @@ export function repoMap(drawn, reading) {
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}), ...(inside ? { inside } : {}),
     };
   });
-  const edges = drawn.lines.map((l) => ({ from: `${prefix}-${slug(l.from)}`, to: `${prefix}-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 40) }));
+  const edges = drawn.lines.map((l) => ({ from: `${prefix}-${slug(l.from)}`, to: `${prefix}-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80) }));
   return { nodes, edges };
 }
 
@@ -140,6 +140,6 @@ export function systemState(platform, links, repos) {
       ...(b.unconfirmed ? { warn: UNCONFIRMED } : {}),
     };
   });
-  const edges = platform.lines.map((l) => ({ from: `system-${slug(l.from)}`, to: `system-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 40) }));
+  const edges = platform.lines.map((l) => ({ from: `system-${slug(l.from)}`, to: `system-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80) }));
   return { nodes, edges, start: nodes.find((n) => n.inside)?.id || nodes[0]?.id };
 }

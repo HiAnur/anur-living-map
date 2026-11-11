@@ -103,7 +103,7 @@ export function checkDrawing(drawing, facts) {
       if (!shown.length) { rejected.push({ item: name, why: 'its facts do not show both of its ends' }); continue; }
       ids = [...new Set([...ids, ...shown])];
     }
-    lines.push({ from: l.from, to: l.to, label: String(l.label || '').slice(0, 60), facts: ids, ...(wordsOnly(ids) ? { unconfirmed: true } : {}) });
+    lines.push({ from: l.from, to: l.to, label: String(l.label || '').slice(0, 80), facts: ids, ...(wordsOnly(ids) ? { unconfirmed: true } : {}) });
   }
   const covered = new Set([...boxes.values()].flatMap((b) => b.facts));
   const leftOut = [...facts.values()].filter((f) => STRUCTURAL.has(f.kind) && !covered.has(f.id)).map((f) => f.id);
