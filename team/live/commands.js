@@ -66,6 +66,7 @@ export const COMMANDS = /** @type {const} */ ({
   tidy: { only: 'array?', sizes: 'array?', view: 'string?' },
   renamebox: { id: 'id', label: 'text?', proposed: 'any?' },
   describebox: { id: 'id', sub: 'string', proposed: 'any?' },
+  pointbox: { id: 'id', box: 'text?' },
   // questions on the map, and Claude's chats and changes
   call: { id: 'id', option: 'any?', other: 'text?', answer: 'text?' },
   ask: { about: 'id?', node: 'id?', text: 'text?', side: 'any?', autoPlan: 'any?' },

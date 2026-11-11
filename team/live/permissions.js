@@ -28,6 +28,7 @@ export const WHO = {
   resize: { standing: 'link', then: 'the box is in their area' },
   renamebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
   describebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },
+  pointbox: { standing: 'member', then: 'the box is in their area, and the map builds on a system map' },
   rename: { standing: 'link', then: 'nothing: the map\'s title, also for a one-area member' },
   undo: { standing: 'link', then: 'only their own steps, and only on boxes in their area' },
   redo: { standing: 'link', then: 'only their own steps, and only on boxes in their area' },
