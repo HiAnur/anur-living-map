@@ -64,6 +64,8 @@ export function withoutRepos(state, hidden) {
     const changes = (state.redraw.changes || []).filter((/** @type {any} */ c) => !hidden.has(c.repo) && !hidden.has(c.toRepo));
     state = { ...state, redraw: { ...state.redraw, changes, count: changes.length } };
   }
+  // the repos with new commits since the drawing, by name: only those they may read
+  if (state.drawing?.newCommits?.length) state = { ...state, drawing: { ...state.drawing, newCommits: state.drawing.newCommits.filter((/** @type {string} */ r) => !hidden.has(r)) } };
   // the drawing panel names each repo it read: one they may not read is only "A private repo", with no reason given
   if (state.drawing) state = { ...state, drawing: { ...state.drawing,
     progress: (state.drawing.progress || []).map((/** @type {any} */ p) => hidden.has(p.repo) ? { repo: PRIVATE_REPO, stage: p.stage, ...(p.boxes != null ? { boxes: p.boxes } : {}) } : p),

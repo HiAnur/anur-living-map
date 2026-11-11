@@ -223,6 +223,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
+  // a system map notices new commits in its repos while nobody has it open
+  const stopWatching = system.watch();
   /** The repos someone may not read on GitHub, cut from everything they receive of this map; no one is a guest. @param {string | null} who */
   const hiddenFor = (who) => system.hiddenFor(who, push);
   /** Whether an action names a box in a repo someone may not read: by its id, its node, its ends or the box asked about. @param {any} a @param {string | null} who */
@@ -626,7 +628,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud,
       // a system map says how many repos it was drawn from and when, so the list shows how current it is
       ...(state.drawing ? { system: state.drawing.status, repos: state.drawing.repos || 0,
-        ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}) } : {}) };
+        ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}), ...(state.drawing.newCommits?.length ? { newCommits: state.drawing.newCommits.length } : {}) } : {}) };
   };
 
   // a deleted map stops following its chat, stops any drawing it runs, and lets go of the pages watching it
@@ -638,7 +640,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.(); queued.length = 0;
-    system.cancel();
+    system.cancel(); stopWatching();
     for (const r of clients) r.end();
   }
 
