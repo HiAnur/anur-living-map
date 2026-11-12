@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>A new map opens without reloading</strong></dt>
+<dd>
+
+A map you open for the first time no longer reloads itself a moment later, which could drop what you had started typing. <!-- source: https://github.com/HiAnur/anur-living-map/pull/428 --> <!-- merged-at: 2026-11-12T01:20:49Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Moving a box leaves no gap behind</strong></dt>
 <dd>
 
