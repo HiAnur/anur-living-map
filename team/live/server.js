@@ -565,13 +565,16 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       res.writeHead(200, { 'content-type': im.type, 'cache-control': 'private, max-age=86400' }).end(im.buf); return true;
     }
     if (p === '/api/events') {
-      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', sharedState(state, role === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
-      if (role === 'owner' && cloud) send(res, 'cloud', cloud.status());
-      if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
-      clients.add(res); clientAccess.set(res, { req, who, role, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
-      // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any
+      // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any. They
+      // join before this window is followed, so it starts with the role it keeps: joining as an Admin makes them an
+      // owner, and a window that saw that change would reload as if its access had changed.
       if (who && !guest && !state.people?.some((/** @type {any} */ p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
+      const mine = access(who, req);
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
+      send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
+      if (mine === 'owner' && cloud) send(res, 'cloud', cloud.status());
+      if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
+      clients.add(res); clientAccess.set(res, { req, who, role: mine, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
       if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
