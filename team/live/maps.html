@@ -20,9 +20,21 @@ body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#f8f6f1;transform:rotate(45deg)}
 #top .brand > span{color:var(--text-2);font-weight:400}
 .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,32%);min-height:calc(100vh - 44px)}
-#account{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+/* you, at the top right, as on a map: the button opens who you are, your recovery email and Sign out */
+#account{position:relative;margin-left:auto;font-size:13px}
 #account[hidden]{display:none}
-#account-avatar{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600}
+#account-button{display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 4px;border:0;border-radius:999px;background:none;font:500 13px var(--plex);color:var(--text);cursor:pointer}
+#account-button:hover,#account-button[aria-expanded="true"]{background:#f0efea}
+#account-button .chev{width:16px;height:16px;fill:none;stroke:var(--text-2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+#account-avatar,.am-face{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600}
+#account-menu{position:absolute;right:0;top:42px;width:250px;padding:6px;background:#fff;border:1px solid var(--rule);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.10);font-weight:400;z-index:30}
+.am-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px;border:0;border-radius:8px;background:none;font:13.5px var(--plex);color:inherit;text-align:left;text-decoration:none}
+.am-face{width:30px;height:30px;font-size:12px}
+.am-who{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.am-who b{font-weight:500;font-size:13.5px}.am-who i{font-style:normal;font-weight:400;color:var(--text-3)}
+.am-who > span{font-size:12px;color:var(--text-2)}
+.am-out{margin-top:4px;border-top:1px solid var(--rule);border-radius:0 0 8px 8px;color:var(--text-2);cursor:pointer}
+.am-out:hover,.am-out:focus-visible{background:#f3f2ee;color:var(--text);outline:none}
 :root{--profile:#0E7490}
 main{width:100%;max-width:640px;margin:48px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
@@ -53,7 +65,8 @@ a.map:hover{border-color:var(--text)}
 .load label{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font-size:13px;color:var(--text);cursor:pointer}
 .load label:hover{border-color:var(--text)}
 #lerr{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
-/* the list sorts by time (last changed first) or by name; this browser remembers the choice */
+/* the list sorts by time (last changed first) or by name; this browser remembers the choice. Maps you pinned
+   stay first either way */
 .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .head h1{margin:0}
 #new-map{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
@@ -98,10 +111,15 @@ a.map:hover{border-color:var(--text)}
 /* Trash keeps maps recoverable, with the same neutral action on every owned map. */
 .row{position:relative;margin-bottom:10px}
 .row a.map{margin-bottom:0;align-items:center}
-.row.can a.map{padding-right:48px}
-.del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
-.del:hover{background:#f0eee8;color:var(--text)}
-.del svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+/* A pin keeps a map at the top of your own list: every map has one, left of Trash, filled while the map is pinned. */
+.row a.map{padding-right:48px}
+.row.can a.map{padding-right:80px}
+.del,.pin{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
+.row.can .pin{right:42px}
+.del:hover,.pin:hover{background:#f0eee8;color:var(--text)}
+.del svg,.pin svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.pin.on{color:var(--text)}
+.pin.on svg{fill:currentColor}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
 #brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
@@ -124,7 +142,7 @@ a.map:hover{border-color:var(--text)}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
 [hidden]{display:none!important}
 .trash-button{font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
-.trash-button:disabled,.del:disabled{opacity:.5;cursor:wait}
+.trash-button:disabled,.del:disabled,.pin:disabled{opacity:.5;cursor:wait}
 #trash-open{margin-top:6px;background:none}
 #trash-panel>p{color:var(--text-2);font-size:13px;margin:10px 0 18px}
 .trash-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin:10px 0;background:#fff;border:1px solid var(--rule-2);border-radius:10px}
@@ -134,7 +152,8 @@ a.map:hover{border-color:var(--text)}
 </style>
 </head>
 <body>
-<div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span></div></div>
+<div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><button id="account-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu"><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span><svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></button>
+  <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/login?recovery=email">Recovery email</a><button type="button" class="am-row am-out" id="account-out">Sign out</button></div></div></div>
 <div class="home">
 <main>
   <div class="head"><h1>Start a new map</h1><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div>
@@ -175,10 +194,17 @@ const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 if (SIGNED_IN){
   $('account').hidden = false;
-  $('account').title = `Signed in as ${SIGNED_IN}`;
-  $('account').setAttribute('aria-label', `Signed in as ${SIGNED_IN}`);
-  $('account-name').textContent = SIGNED_IN;
-  $('account-avatar').textContent = Array.from(SIGNED_IN.trim())[0]?.toUpperCase() || '';
+  $('account-button').title = `Signed in as ${SIGNED_IN}`;
+  $('account-name').textContent = $('account-me').textContent = SIGNED_IN;
+  $('account-avatar').textContent = document.querySelector('.am-face').textContent = Array.from(SIGNED_IN.trim())[0]?.toUpperCase() || '';
+  // the role as a map's own menu writes it: the first part, before any comma
+  const role = (document.querySelector('meta[name="lm-role"]')?.content || '').split(',')[0];
+  $('account-role').textContent = role; $('account-role').hidden = !role;
+  const openAccount = (open) => { $('account-menu').hidden = !open; $('account-button').setAttribute('aria-expanded', String(open)); };
+  $('account-button').addEventListener('click', () => openAccount($('account-menu').hidden));
+  document.addEventListener('click', (e) => { if (!e.target.closest('#account')) openAccount(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('account-menu').hidden){ openAccount(false); $('account-button').focus(); } });
+  $('account-out').addEventListener('click', () => { fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); });
   const color = {Harshit:'#1E7A5A', Priyanka:'#7C3AED', Duy:'#0E7490', You:'#1E7A5A', Sam:'#B45309'}[SIGNED_IN];
   if (color) $('account').style.setProperty('--profile', color);
 }
@@ -400,19 +426,39 @@ function mapIndicators(m){
   if (!m.shared && !m.cloud) return '';
   return `<span class="map-status">${m.shared ? '<span class="map-shared" role="img" aria-label="Shared by link" title="Shared by link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2"/></svg></span>' : ''}${m.cloud ? '<span class="map-cloud" role="img" aria-label="Online copy stored in the cloud" title="Online copy stored in the cloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 0-10 6 6 0 0 1 11.5 1.5A4.3 4.3 0 0 1 18 18Z"/></svg></span>' : ''}</span>`;
 }
+const pinIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3h4v5l2.5 3.5h-9L8 8zM10 11.5V17"/></svg>';
+function ordered(maps, sortBy){
+  return [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
+    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
+    // system maps stay at the top, whichever way the list is sorted
+    .sort((a, b) => Number(!!b.system) - Number(!!a.system))
+    // and the maps you pinned stay above those
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+}
 function list(){
   const el = document.getElementById('list');
   document.querySelectorAll('.sort button').forEach((b) => b.classList.toggle('on', b.dataset.sort === sortBy));
   if (!maps) return;
   if (!maps.length) { el.textContent = 'No maps yet.'; return; }
   el.className = '';
-  const sorted = [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
-    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
-    // system maps stay at the top, whichever way the list is sorted
-    .sort((a, b) => Number(!!b.system) - Number(!!a.system));
-  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
+  const sorted = ordered(maps, sortBy);
+  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a><button type="button" class="pin${m.pinned ? ' on' : ''}" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}" title="${m.pinned ? 'Unpin' : 'Pin to the top'}" aria-label="${m.pinned ? `Unpin ${esc(titleOf(m))}` : `Pin ${esc(titleOf(m))} to the top`}">${pinIcon}</button>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
 }
-$('list').addEventListener('click', (e) => { const button = e.target.closest('[data-trash]'); if (button) moveToTrash(button.dataset.trash, button); });
+// a pin is saved for you on the server, so it is there in any browser you sign in from
+async function togglePin(name, button){
+  const map = maps.find((m) => m.name === name); if (!map) return;
+  button.disabled = true;
+  try {
+    map.pinned = (await trashRequest('/api/maps/pin', { name, pinned: !map.pinned })).pinned;
+    list(); $('trash-status').hidden = true;
+    // the list is drawn again, so the keyboard stays on the pin that was pressed
+    [...document.querySelectorAll('[data-pin]')].find((b) => b.dataset.pin === name)?.focus();
+  } catch (e){ button.disabled = false; trashNotice(e.message); }
+}
+$('list').addEventListener('click', (e) => {
+  const button = e.target.closest('[data-trash]'); if (button) return moveToTrash(button.dataset.trash, button);
+  const pin = e.target.closest('[data-pin]'); if (pin) togglePin(pin.dataset.pin, pin);
+});
 document.querySelector('.sort').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sort]'); if (!b) return;
   sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}

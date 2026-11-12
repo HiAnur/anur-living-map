@@ -102,7 +102,6 @@ button,input,textarea{font:inherit;color:inherit}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
 .face.me{box-shadow:0 0 0 2px var(--claude)}
-.face.cl{background:var(--claude)}
 /* people, Figma style: one button with everyone's initial; it opens who they are and their role */
 .faces{position:relative}
 .pp{display:flex;align-items:center;height:32px;padding:0 6px 0 12px;border:0;border-radius:999px;background:none;cursor:pointer}
@@ -720,7 +719,7 @@ body.resizing{cursor:col-resize;user-select:none}
 /* Claude's own mark, as claude.ai draws it, in its colour; white where it sits on Claude's colour */
 .claude-mark{display:inline-block;width:1em;height:1em;vertical-align:-.14em;color:#D97757}
 .claude-mark path{fill:currentColor}
-.xbtn .claude-mark,.face.cl .claude-mark{color:#fff}
+.xbtn .claude-mark{color:#fff}
 /* a button lays its words out without the space before them, so the mark keeps its own */
 .gb .claude-mark,.tbtn .claude-mark{margin-right:.35em}
 /* Claude's mark blinks while Claude works even with Reduce motion on, as in the Claude app: it is how you tell Claude is at work */
@@ -2429,7 +2428,6 @@ function renderTop(){
   const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
-      <div class="pm-row"><span class="face cl">${CLAUDE_MARK}</span><span class="pm-who"><b>Claude Code</b><span>AI agent, draws the plans</span></span></div>
       ${SIGNED_IN ? `<a class="pm-row pm-out" href="/login?recovery=email">Recovery email</a><div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
 
