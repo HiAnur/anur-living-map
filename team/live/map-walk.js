@@ -11,6 +11,35 @@ export const allBoxesOf = (state) => graphsOf(state).flatMap((g) => g.nodes || [
 /** Every line at any depth. @param {any} state @returns {Line[]} */
 export const allLinesOf = (state) => graphsOf(state).flatMap((g) => g.edges || []);
 
+/**
+ * The lines that keep a level whole when boxes leave it. A box that hung under a leaving box (the first line into
+ * it came from that box), and that the change draws no line into, would be left hanging under nothing: it moves
+ * up under the nearest box above that stays, with the words its line had. Nothing moves when the leaving box hung
+ * under nothing.
+ * @param {{ edges?: Line[] }} level @param {Set<string>} going the ids leaving it @param {{ from: string, to: string }[]} drawn the lines the change adds
+ * @returns {{ from: string, to: string, label?: string }[]}
+ */
+export function movedUp(level, going, drawn = []) {
+  const edges = level.edges || [];
+  /** the nearest box above that stays @param {string} id @returns {string | null} */
+  const above = (id) => {
+    const seen = new Set();
+    for (let at = /** @type {string | undefined} */ (id); at && !seen.has(at); at = edges.find((e) => e.to === at && e.from !== at)?.from) { if (!going.has(at)) return at; seen.add(at); }
+    return null;
+  };
+  /** @type {{ from: string, to: string, label?: string }[]} */
+  const out = [];
+  for (const e of edges) {
+    // only the box it hung under counts: the first line into it. A side line from a leaving box just goes
+    if (!going.has(e.from) || going.has(e.to) || e.from === e.to || edges.find((x) => x.to === e.to && x.from !== x.to) !== e) continue;
+    if (drawn.some((d) => d.to === e.to && !going.has(d.from)) || out.some((o) => o.to === e.to)) continue;
+    const up = above(e.from);
+    if (!up || up === e.to || edges.some((x) => x.from === up && x.to === e.to)) continue;
+    out.push({ from: up, to: e.to, ...(e.label ? { label: e.label } : {}) });
+  }
+  return out;
+}
+
 /** A box by id, at any depth. @param {any} state @param {unknown} id @returns {Box | undefined} */
 export const boxIn = (state, id) => allBoxesOf(state).find((n) => n.id === id);
 

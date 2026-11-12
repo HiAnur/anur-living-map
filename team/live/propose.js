@@ -38,7 +38,7 @@ export const PROPOSE_SCHEMA = {
   properties: {
     nodes: { type: 'array', items: box, description: 'Boxes to add, or to change by their existing id.' },
     edges: { type: 'array', items: line, description: 'Lines to add.' },
-    remove: { type: 'array', items: { type: 'string' }, description: 'Ids of boxes to take off the map with their lines.' },
+    remove: { type: 'array', items: { type: 'string' }, description: 'Ids of boxes to take off the map with their lines. Draw a line into each box that hung under one of them, from the box it hangs under now; a box given none moves up under the removed box\'s own parent.' },
     unlink: { type: 'array', items: { type: 'object', required: ['from', 'to'], properties: { from: id, to: id } }, description: 'Lines to take off, leaving both boxes.' },
     start: { type: 'string', description: 'The id of the box the map starts from, when reorganizing.' },
     tidy: { type: 'boolean', description: 'True when reorganizing: on Apply the map places every box itself.' },

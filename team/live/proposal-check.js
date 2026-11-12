@@ -3,7 +3,7 @@
 import { readPlannedTask } from './action-plan.js';
 import { autoPlanAdditions } from './auto-plan.js';
 import { diagramOf, diagramSaid } from './diagram.js';
-import { allLinesOf } from './map-walk.js';
+import { allLinesOf, graphOfBox, movedUp } from './map-walk.js';
 
 // a person's chats with Claude: their own (`@Duy`), the ones they kept (`@Duy#…`) and their side chats (`@Duy>box`)
 /** @param {string} key @param {any} by */
@@ -85,6 +85,13 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       if (!had || !mayTouch(had)) { dropped.push({ text: `remove ${id}`, why: had ? 'outside your access' : 'no such box' }); continue; }
       if (had.action) { dropped.push({ text: `remove ${had.label}`, why: 'it holds an Action: only its author or an Admin takes it off the map, by hand' }); continue; }
       plan.remove.push(id); ops.push(`Remove ${had.label}`);
+    }
+    // what hung under a box that goes, and the change draws no line into, moves up under the box above it: the line
+    // is part of the change, so it shows on the map as proposed and in what Apply says it will do
+    const going = new Set(plan.remove);
+    for (const level of new Set(plan.remove.map((/** @type {any} */ id) => graphOfBox(getState(), id)))) for (const e of movedUp(level, going, plan.edges)) {
+      plan.edges.push({ ...e, state: 'new' });
+      ops.push(`Move ${name(e.to)} up under ${name(e.from)}`);
     }
     const lineOn = (/** @type {any} */ from, /** @type {any} */ to) => [{ edges: allLinesOf(getState()) }].some((s) => (s.edges || []).some((/** @type {any} */ e) => e.from === from && e.to === to));
     for (const e of (p.unlink || []).slice(0, 12)) {

@@ -11,6 +11,12 @@ describe('a stored map, made whole to serve', () => {
     expect(withDefaults(structuredClone(map))).toEqual(map);
     expect(withDefaults({ calls: null, log: {}, threads: [], answers: 'x' })).toMatchObject({ calls: [], log: [], threads: {}, answers: {} });
   });
+  it('drops a line whose box is no longer on its level, at any depth, and keeps every other line', () => {
+    const inside = { nodes: [{ id: 'x' }, { id: 'y' }], edges: [{ from: 'x', to: 'y' }, { from: 'gone', to: 'y' }] };
+    const map = withDefaults({ nodes: [{ id: 'a' }, { id: 'b', inside }], edges: [{ from: 'a', to: 'b', label: 'Feeds' }, { from: 'a', to: 'sell' }, { from: 'sell', to: 'b' }, { from: 'x', to: 'y' }] });
+    expect(map.edges).toEqual([{ from: 'a', to: 'b', label: 'Feeds' }]);
+    expect(map.nodes[1].inside?.edges).toEqual([{ from: 'x', to: 'y' }]);
+  });
   it('turns something that is not a map at all into an empty one', () => {
     for (const bad of [null, undefined, 7, 'map', []]) expect(withDefaults(bad).nodes).toEqual([]);
   });

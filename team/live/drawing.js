@@ -2,7 +2,7 @@
 // draw-guard.js has cut them to what the sender may draw. The map passes in its state and the helpers it needs.
 import { diagramOf } from './diagram.js';
 import { guardDrawing } from './draw-guard.js';
-import { boxIn, graphOfBox } from './map-walk.js';
+import { boxIn, graphOfBox, movedUp } from './map-walk.js';
 import { placeNew } from './project.js';
 
 /** @param {{ getState: () => MapState, nodeOf: (id: any) => any, seesOf: (by: any) => string, unlinkEdge: (from: any, to: any) => boolean }} deps */
@@ -60,7 +60,13 @@ export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
     for (const level of levels) if (level !== state) placeNew(level.nodes, level.edges || []);
     for (const c of p.calls || []) { const had = state.calls.find((/** @type {any} */ x) => x.id === c.id); if (had) Object.assign(had, c); else state.calls.push(c); }
     // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing
-    for (const id of p.remove || []) if (!nodeOf(id)?.action) { const level = graphOfBox(state, id); level.nodes = level.nodes.filter((/** @type {any} */ n) => n.id !== id); }
+    // and a box that leaves takes its lines with it; what hung under it and is drawn no new line moves up (movedUp)
+    const going = new Set((p.remove || []).filter((/** @type {any} */ id) => nodeOf(id) && !nodeOf(id).action));
+    for (const level of new Set([...going].map((id) => graphOfBox(state, id)))) {
+      const kept = movedUp(level, going, p.edges || []);
+      level.nodes = level.nodes.filter((/** @type {any} */ n) => !going.has(n.id));
+      level.edges = [...(level.edges || []).filter((/** @type {any} */ e) => !going.has(e.from) && !going.has(e.to)), ...kept];
+    }
     for (const e of p.unlink || []) unlinkEdge(e.from, e.to);
   };
 }
