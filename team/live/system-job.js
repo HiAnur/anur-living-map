@@ -53,6 +53,13 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
   /** puts a drawing on the map, keeping what people did to it @param {any} drawn */
   const applyDrawn = (drawn) => { const merged = keepHandEdits(getState(), drawn); Object.assign(getState(), { nodes: merged.nodes, edges: merged.edges, start: merged.start }); };
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
+  /** The drawn boxes on the map's top level, under the ids the agent gave them: a repo once, by its first box. @returns {import('./system-ids.js').Known[]} */
+  const platformBoxes = () => {
+    const repos = new Set();
+    return (getState().nodes || []).filter((/** @type {any} */ n) => n.origin === 'code' && String(n.id).startsWith('system-'))
+      .filter((/** @type {any} */ n) => !n.source?.repo || (!repos.has(n.source.repo) && !!repos.add(n.source.repo)))
+      .map((/** @type {any} */ n) => ({ id: String(n.id).slice(7), name: String(n.label || ''), ...(n.source?.repo ? { repo: n.source.repo } : {}) }));
+  };
   /** @type {AbortController | null} */
   let stop = null;
   // a drawing the server was in the middle of when it stopped is shown as stopped, ready to draw again
@@ -123,6 +130,9 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     download().then((all) => draw({
       folders: all, agent, signal: controller.signal,
       reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
+      // what each drawing replaces: a repo's last checked drawing, and for the platform the drawn boxes on the map's
+      // top level under the ids the agent gave them, so a box drawn again is the same box and never a second one
+      before: (repo) => repo === null ? platformBoxes() : store[repo]?.drawn?.boxes || null,
       onDrawn: (r, d) => { store[r.repo] = { commit: basis(r), drawn: d }; fs.writeFileSync(KEPT, JSON.stringify(store)); showSoFar(r, d); },
       onProgress: tell,
     })).then(({ state, report, cancelled, store: facts }) => {
