@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Moving a box leaves no gap behind</strong></dt>
+<dd>
+
+When you drag a box somewhere else, the boxes below its old spot move up to fill it, and its old parent re-centres on what is left. <!-- source: https://github.com/HiAnur/anur-living-map/pull/427 --> <!-- merged-at: 2026-11-12T01:16:15Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Drag a box above or below another to reorder</strong></dt>
 <dd>
 
