@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Expanding a box on a system map shows its parts in rows</strong></dt>
+<dd>
+
+On a system map, **Expand** now shows a box's parts in rows, what calls above what is called, and **Tidy up** puts them back that way after boxes are moved. <!-- source: https://github.com/HiAnur/anur-living-map/pull/448 --> <!-- merged-at: 2026-11-12T03:04:10Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] A box with no line no longer stops Tidy up</strong></dt>
 <dd>
 
