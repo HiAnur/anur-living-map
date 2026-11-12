@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Reset zoom shows the map at a size you can read</strong></dt>
+<dd>
+
+The frame button beside − and + now sets the map to 85% around what you are looking at, instead of shrinking the whole map until it fits the screen. <!-- source: https://github.com/HiAnur/anur-living-map/pull/423 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/437 --> <!-- merged-at: 2026-11-12T01:44:01Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Moving a box leaves no gap behind</strong></dt>
 <dd>
 
@@ -39,15 +48,6 @@ A map you open for the first time no longer reloads itself a moment later, which
 Drag a box just above or below another box to place it there at the same level; a green dotted box and line from the parent show where it will land. Dropping on the middle of a box still makes it a child. <!-- source: https://github.com/HiAnur/anur-living-map/pull/413 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/424 --> <!-- merged-at: 2026-11-12T00:55:56Z -->
 
 <img src="docs/shipping/2026-11-11/drag-above-below.png" alt="A sample team map: Asendia AI is being dragged above its sibling Appear, and a green dotted line runs from the parent Warm teams to a green dotted box above Appear." width="560">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>Reset zoom shows the map at a size you can read</strong></dt>
-<dd>
-
-The frame button beside − and + now sets the map to 70% around what you are looking at, instead of shrinking the whole map until it fits the screen. <!-- source: https://github.com/HiAnur/anur-living-map/pull/423 --> <!-- merged-at: 2026-11-12T00:49:32Z -->
 
 </dd>
 </dl>
