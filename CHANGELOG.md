@@ -14,6 +14,15 @@ Drag a box just above or below another box to place it there at the same level; 
 </dl>
 
 <dl>
+<dt><strong>Reset zoom shows the map at a size you can read</strong></dt>
+<dd>
+
+The frame button beside − and + now sets the map to 70% around what you are looking at, instead of shrinking the whole map until it fits the screen. <!-- source: https://github.com/HiAnur/anur-living-map/pull/423 --> <!-- merged-at: 2026-11-12T00:49:32Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] Trace a request through your system</strong></dt>
 <dd>
 
