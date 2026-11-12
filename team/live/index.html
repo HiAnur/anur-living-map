@@ -1945,18 +1945,42 @@ function portsFor(list, nodes, spreadOut = true){
 
 // A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
 // has a line to it, as Tidy up lays it out. Its other lines are cross-links, drawn faint, dashed and curved the
-// way XMind draws its relationships, so they read as "related to" and never as part of the tree.
+// way XMind draws its relationships, so they read as "related to" and never as part of the tree. The tree is the
+// largest group of boxes that lines join; boxes no line joins to it are loose and never stop it being one, and a
+// group of them that is a tree of its own is drawn as one.
 function crossLinks(){
   const ids = new Set(S.nodes.map((n) => n.id)), es = S.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
-  // the box the map starts from, when one was chosen: lines into it are cross-links
-  const start = S.nodes.find((n) => n.id === S.start);
-  const into = new Set(es.filter((e) => e.to !== start?.id).map((e) => e.to)), roots = start ? [start] : S.nodes.filter((n) => !into.has(n.id));
-  if (roots.length !== 1) return null;
+  // the groups of boxes that lines join, a box with no line a group of its own
+  const near = new Map(S.nodes.map((n) => [n.id, []])), groupOf = new Map(), groups = [];
+  for (const e of es){ near.get(e.from).push(e.to); near.get(e.to).push(e.from); }
+  for (const n of S.nodes){
+    if (groupOf.has(n.id)) continue;
+    const g = [], q = [n.id]; groups.push(g); groupOf.set(n.id, g);
+    while (q.length) for (const t of near.get(q.shift())) if (!groupOf.has(t)){ groupOf.set(t, g); q.push(t); }
+  }
+  for (const n of S.nodes) groupOf.get(n.id).push(n);
   const out = new Map(); for (const e of es){ if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e); }
-  const seen = new Set([roots[0].id]), tree = new Set(), q = [roots[0].id];
-  while (q.length) for (const e of out.get(q.shift()) || []) if (!seen.has(e.to)){ seen.add(e.to); tree.add(e); q.push(e.to); }
-  if (seen.size !== S.nodes.length) return null;
-  return { root: roots[0], links: new Set(es.filter((e) => !tree.has(e)).map((e) => `${e.from}>${e.to}`)) };
+  // one group's tree, from the box given or else its one box no line comes into: lines into the box given are cross-links
+  const treeIn = (group, first) => {
+    const into = new Set(es.filter((e) => e.to !== first?.id).map((e) => e.to)), roots = first ? [first] : group.filter((n) => !into.has(n.id));
+    if (roots.length !== 1) return null;
+    const seen = new Set([roots[0].id]), tree = new Set(), q = [roots[0].id];
+    while (q.length) for (const e of out.get(q.shift()) || []) if (!seen.has(e.to)){ seen.add(e.to); tree.add(e); q.push(e.to); }
+    return seen.size === group.length ? { root: roots[0], tree } : null;
+  };
+  // the map's tree is the largest group, the first drawn on a tie; the start box, when one was chosen, heads its own group
+  const start = S.nodes.find((n) => n.id === S.start), heads = (g) => (g.includes(start) ? start : undefined);
+  const main = groups.reduce((b, g) => (g.length > b.length ? g : b), []);
+  const first = treeIn(main, heads(main));
+  if (!first) return null;
+  const links = new Set(), rootOf = new Map();
+  for (const g of groups){
+    const t = g === main ? first : treeIn(g, heads(g));
+    if (!t) continue;
+    for (const n of g) rootOf.set(n.id, t.root);
+    for (const e of es) if (groupOf.get(e.from) === g && !t.tree.has(e)) links.add(`${e.from}>${e.to}`);
+  }
+  return { root: first.root, links, rootOf };
 }
 // a cross-link's curve: out of the side facing the other box and into its facing side; two boxes in one column
 // join on their outer side (away from the first box), the curve bowing out past them
@@ -2064,7 +2088,7 @@ function render(){
     const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
     // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
     if (cross?.links.has(`${e.from}>${e.to}`)){
-      const c = curve(a, b, cross.root.x), kc = !e.proposed && !e.state ? 'cross' : k;
+      const c = curve(a, b, (cross.rootOf.get(a.id) || cross.root).x), kc = !e.proposed && !e.state ? 'cross' : k;
       const pk = pickedLine === `${e.from}>${e.to}`;
       svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
       if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }

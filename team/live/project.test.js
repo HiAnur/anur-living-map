@@ -24,6 +24,67 @@ const get = (nodes, id) => nodes.find((n) => n.id === id);
 const column = (nodes, side) => nodes.filter((n) => ['who', 'where', 'seller', 'offer', 'price', 'spread', 'today', 'rivals', 'open', 'test', 'extra'].includes(n.id))
   .filter((n) => Math.sign(n.x - 70) === side).sort((a, b) => a.y - b.y).map((n) => n.id);
 
+// a map shaped like a system map: two boxes nothing leads to, a loop, and a box with no line
+const system = () => {
+  const box = (id, x, y) => ({ id, label: id, x, y });
+  const nodes = [box('app', 90, 150), box('jobs', 90, 350), box('api', 430, 150), box('auth', 430, 350), box('bot', 90, 550), box('db', 770, 950), box('alone', 430, 550)];
+  const edges = [['app', 'api'], ['jobs', 'api'], ['api', 'auth'], ['auth', 'bot'], ['bot', 'api'], ['api', 'db'], ['jobs', 'db']].map(([from, to]) => ({ from, to }));
+  return { nodes, edges };
+};
+
+describe('a map that is not one tree', () => {
+  it('is not taken for a tree because a small group of its boxes is one', () => {
+    const { nodes, edges } = system();
+    nodes.push({ id: 'site', label: 'site', x: 90, y: 750 }, { id: 'cdn', label: 'cdn', x: 430, y: 750 });
+    edges.push({ from: 'site', to: 'cdn' });
+    expect(tidyTree(nodes, edges, null, () => false, 'site')).toBe(false);
+  });
+});
+
+describe('a box no line joins to the tree', () => {
+  it('keeps its place while the tree is tidied around its first box', () => {
+    const { nodes, edges } = gtm(), alone = gtm();
+    nodes.push({ id: 'loose', label: 'loose', x: 2000, y: 900, w: 180 });
+    expect(tidyTree(nodes, edges)).toBe(true);
+    tidyTree(alone.nodes, alone.edges);
+    expect(at(nodes)).toEqual({ ...at(alone.nodes), loose: [2000, 900] });
+  });
+
+  it('moves clear of the tree when it was left on top of it, and stays there on the next press', () => {
+    const { nodes, edges } = gtm();
+    tidyTree(nodes, edges);
+    const who = get(nodes, 'who');
+    nodes.push({ id: 'loose', label: 'loose', x: who.x + 20, y: who.y + 10, w: 180 });
+    expect(tidyTree(nodes, edges)).toBe(true);
+    const loose = get(nodes, 'loose');
+    expect(loose.x).toBe(who.x + 20);
+    for (const n of nodes.filter((o) => o !== loose && Math.abs(o.x - loose.x) < 196)) expect(Math.abs(n.y - loose.y)).toBeGreaterThanOrEqual(66);
+    const once = at(nodes); tidyTree(nodes, edges); expect(at(nodes)).toEqual(once);
+  });
+
+  it('is laid out with the boxes under it, as a tree of its own', () => {
+    const { nodes, edges } = gtm();
+    nodes.push({ id: 'second', label: 'second', x: 3000, y: 0, w: 180 }, { id: 'k1', label: 'k1', x: 3010, y: 400, w: 180 }, { id: 'k2', label: 'k2', x: 3500, y: -300, w: 180 });
+    edges.push({ from: 'second', to: 'k1' }, { from: 'second', to: 'k2' });
+    expect(tidyTree(nodes, edges)).toBe(true);
+    expect([get(nodes, 'second').x, get(nodes, 'second').y]).toEqual([3000, 0]);
+    expect(get(nodes, 'k1').x).toBe(get(nodes, 'k2').x);
+    expect(Math.abs(get(nodes, 'k1').y - get(nodes, 'k2').y)).toBe(85);
+    expect(Math.abs(get(nodes, 'k1').y + get(nodes, 'k2').y)).toBeLessThanOrEqual(1);
+  });
+
+  it('never keeps a new box on the tree from taking its place in it', () => {
+    const { nodes, edges } = gtm(), alone = gtm();
+    for (const m of [{ nodes, edges }, alone]) { tidyTree(m.nodes, m.edges); m.nodes.push(/** @type {any} */ ({ id: 'extra', label: 'extra', w: 180 })); m.edges.push({ from: 'who', to: 'extra' }); }
+    nodes.push({ id: 'loose', label: 'loose', x: 2000, y: 900, w: 180 }, /** @type {any} */ ({ id: 'fresh', label: 'fresh', w: 180 }));
+    placeNew(nodes, edges); placeNew(alone.nodes, alone.edges);
+    expect([get(nodes, 'extra').x, get(nodes, 'extra').y]).toEqual([get(alone.nodes, 'extra').x, get(alone.nodes, 'extra').y]);
+    expect(get(nodes, 'extra').x).toBe(get(nodes, 'founder').x);
+    expect(Number.isFinite(get(nodes, 'fresh').x) && Number.isFinite(get(nodes, 'fresh').y)).toBe(true);
+    expect([get(nodes, 'loose').x, get(nodes, 'loose').y]).toEqual([2000, 900]);
+  });
+});
+
 describe('tidyTree', () => {
   it('shortens plain connections and packs sibling branches with room between boxes', () => {
     const nodes = [{id:'root',x:0,y:0}, {id:'a',x:340,y:-150}, {id:'b',x:340,y:0}, {id:'c',x:340,y:150}, {id:'leaf',x:680,y:0}];
@@ -170,8 +231,8 @@ describe('tidyTree', () => {
   it('lays out under a new start box that holds two boxes nothing led to', () => {
     const { nodes, edges } = gtm();
     nodes.push({ id: 'side', label: 'side', x: 900, y: 900, w: 180 }, { id: 'top', label: 'top', x: 70, y: 155, w: 140 });
-    expect(tidyTree(nodes, edges, null, () => false, 'gtm')).toBe(false);
     edges.push({ from: 'top', to: 'gtm' }, { from: 'top', to: 'side' });
+    expect(tidyTree(nodes, edges, null, () => false, 'side')).toBe(false);
     expect(tidyTree(nodes, edges, null, () => false, 'top')).toBe(true);
     expect(Math.abs(get(nodes, 'gtm').x - 70)).toBeGreaterThan(0);
     expect(Math.sign(get(nodes, 'who').x - 70)).toBe(Math.sign(get(nodes, 'gtm').x - 70));
