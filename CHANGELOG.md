@@ -12,6 +12,15 @@ The frame button beside − and + now sets the map to 85% around what you are lo
 </dl>
 
 <dl>
+<dt><strong>Moving a box leaves no gap behind</strong></dt>
+<dd>
+
+When you drag a box somewhere else, the boxes below its old spot move up to fill it, and its old parent re-centres on what is left. While you drag, the green box shows its new place among the boxes as they are now. <!-- source: https://github.com/HiAnur/anur-living-map/pull/427 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/433 --> <!-- merged-at: 2026-11-12T01:32:13Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Pin a map to the top of your list</strong></dt>
 <dd>
 
@@ -28,15 +37,6 @@ On the home page, the pin beside a map keeps it at the top of your own list, how
 <dd>
 
 A map you open for the first time no longer reloads itself a moment later, which could drop what you had started typing. <!-- source: https://github.com/HiAnur/anur-living-map/pull/428 --> <!-- merged-at: 2026-11-12T01:20:49Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>Moving a box leaves no gap behind</strong></dt>
-<dd>
-
-When you drag a box somewhere else, the boxes below its old spot move up to fill it, and its old parent re-centres on what is left. <!-- source: https://github.com/HiAnur/anur-living-map/pull/427 --> <!-- merged-at: 2026-11-12T01:16:15Z -->
 
 </dd>
 </dl>
