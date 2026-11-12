@@ -27,6 +27,9 @@ const db = new DatabaseSync(FILE);
 fs.chmodSync(FILE, 0o600);
 db.exec(`CREATE TABLE IF NOT EXISTS users (name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL, set_at TEXT NOT NULL DEFAULT (datetime('now')));
   CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL);`);
+// A session through Google also keeps the address Google gave, so Settings can show the email you signed in with.
+// A file made before sessions kept one gets the column here.
+if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'email')) db.exec('ALTER TABLE sessions ADD COLUMN email TEXT');
 
 /** @param {unknown} password @param {string} salt */
 const scramble = (password, salt) => crypto.scryptSync(String(password), salt, 64).toString('hex');
@@ -66,11 +69,18 @@ export const users = {
     if (!row) return null;
     return crypto.timingSafeEqual(Buffer.from(scramble(password, row.salt), 'hex'), Buffer.from(row.hash, 'hex')) ? who : null;
   },
-  /** @param {string} name */
-  start(name) {
+  /** @param {string} name @param {string | null} [email] the address Google gave, for a sign-in through Google */
+  start(name, email = null) {
     const token = crypto.randomBytes(32).toString('hex');
-    db.prepare('INSERT INTO sessions (token_hash, name, at) VALUES (?, ?, ?)').run(sha(token), name, Date.now());
+    db.prepare('INSERT INTO sessions (token_hash, name, at, email) VALUES (?, ?, ?, ?)').run(sha(token), name, Date.now(), email);
     return token;
+  },
+  // the email this browser signed in with through Google, or '' for any other sign-in
+  /** @param {unknown} token @returns {string} */
+  emailOf(token) {
+    if (!token) return '';
+    const row = /** @type {any} */ (db.prepare('SELECT email, at FROM sessions WHERE token_hash = ?').get(sha(token)));
+    return row && Date.now() - row.at < DAYS * 86_400_000 ? row.email || '' : '';
   },
   // who a browser's cookie belongs to, or null once it is unknown or older than 30 days
   /** @param {unknown} token */

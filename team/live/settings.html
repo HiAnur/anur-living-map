@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living Map · Settings</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231f1b14'/%3E%3Crect x='19' y='19' width='26' height='26' rx='4' fill='%23f8f6f1' transform='rotate(45 32 32)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --profile:#141413; }
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
+#top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
+#top .brand{display:inline-flex;align-items:center;gap:8px;font-weight:500;color:var(--text);text-decoration:none}
+#top .brand i{width:22px;height:22px;border-radius:6px;background:#1f1b14;display:grid;place-items:center}
+#top .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#f8f6f1;transform:rotate(45deg)}
+#top .brand > span{color:var(--text-2);font-weight:400}
+main{width:100%;max-width:520px;margin:40px auto;padding:0 16px}
+#back{border:0;background:none;padding:0;margin-bottom:14px;font:13px var(--plex);color:var(--text-2);cursor:pointer}
+#back:hover{color:var(--text)}
+h1{font-size:18px;font-weight:500;margin-bottom:16px}
+.card{background:#fff;border:1px solid var(--rule-2);border-radius:12px}
+.who{display:flex;align-items:center;gap:14px;padding:20px}
+.face{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600;font-size:18px}
+.who b{display:block;font-size:16px;font-weight:500;overflow-wrap:anywhere}
+#role{color:var(--text-2);font-size:13px}
+/* one fact a line: what it is on the left, the fact in the middle, the one thing you can do about it on the right */
+.line{display:flex;align-items:baseline;gap:12px;padding:14px 20px;border-top:1px solid var(--rule)}
+.line dt{flex:none;width:84px;color:var(--text-2);font-size:13px}
+.line dd{flex:1;min-width:0;overflow-wrap:anywhere}
+.line dd small{display:block;color:var(--text-2);font-size:12.5px}
+.line a{flex:none;font-size:13px;padding:5px 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;color:var(--text);text-decoration:none}
+.line a:hover{border-color:var(--text)}
+#err{color:#B42318;font-size:13px}
+[hidden]{display:none!important}
+@media(max-width:480px){.line{flex-wrap:wrap}.line dt{width:100%}}
+</style>
+</head>
+<body>
+<div id="top"><a class="brand" href="/"><i aria-hidden="true"></i>Anur <span>Living Map</span></a></div>
+<main>
+  <button id="back" type="button">‹ Back</button>
+  <h1>Settings</h1>
+  <div id="err" role="alert" hidden></div>
+  <div class="card" id="card" hidden>
+    <div class="who"><span class="face" id="face" aria-hidden="true"></span><div><b id="name"></b><span id="role"></span></div></div>
+    <dl>
+      <div class="line"><dt>Email</dt><dd><span id="email"></span><small id="email-note"></small></dd><a id="email-do" href="/login?recovery=email" hidden></a></div>
+      <div class="line" id="signin-line"><dt>Sign-in</dt><dd id="signin"></dd></div>
+    </dl>
+  </div>
+</main>
+<script>
+// who you are on this Mac: your name, your role on the team, the email the map has for you and how you sign in
+const $ = (id) => document.getElementById(id);
+// back to where you came from; opened on its own, to the first page
+$('back').addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = '/'; });
+// what the page writes for the answer from /api/me: the email and its note, the one thing to do about it, the sign-in
+function words(me){
+  const google = me.emailFrom === 'google', saved = me.emailFrom === 'recovery', password = me.signIn === 'password';
+  return {
+    role: (me.role || '').split(',')[0],
+    email: me.email || 'No email yet',
+    note: google ? 'The Google account you signed in with.' : saved ? 'Your recovery email: a link to reset your password is sent here.' : password ? 'Add one to reset your password if you forget it.' : '',
+    action: google || !password ? '' : saved ? 'Change' : 'Add an email',
+    signIn: google ? 'Google' : password ? 'A password kept on this Mac' : '',
+  };
+}
+fetch('/api/me').then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Your settings could not be loaded.'); return d; }).then((me) => {
+  const w = words(me);
+  $('name').textContent = me.name; $('role').textContent = w.role;
+  $('face').textContent = Array.from(me.name.trim())[0]?.toUpperCase() || '';
+  const color = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' }[me.name];
+  if (color) $('face').style.setProperty('--profile', color);
+  $('email').textContent = w.email; $('email-note').textContent = w.note; $('email-note').hidden = !w.note;
+  $('email-do').textContent = w.action; $('email-do').hidden = !w.action;
+  $('signin').textContent = w.signIn; $('signin-line').hidden = !w.signIn;
+  $('card').hidden = false;
+}).catch((e) => { $('err').textContent = e.message; $('err').hidden = false; });
+</script>
+</body>
+</html>

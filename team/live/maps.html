@@ -125,14 +125,16 @@ a.map:hover{border-color:var(--text)}
 /* Trash keeps maps recoverable, with the same neutral action on every owned map. */
 .row{position:relative;margin-bottom:10px}
 .row a.map{margin-bottom:0;align-items:center}
-/* A pin keeps a map at the top of your own list: every map has one, left of Trash, filled while the map is pinned. */
-.row a.map{padding-right:48px}
-.row.can a.map{padding-right:80px}
-.del,.pin{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
-.row.can .pin{right:42px}
-.del:hover,.pin:hover{background:#f0eee8;color:var(--text)}
-.del svg,.pin svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-.pin.on{color:var(--text)}
+.row.can a.map{padding-right:48px}
+.del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
+.del:hover{background:#f0eee8;color:var(--text)}
+.del svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+/* A pin keeps a map at the top of your own list. It sits on the card's top right corner, half over the edge, like
+   a pin stuck in a note, and is filled while the map is pinned. */
+.pin{position:absolute;top:-9px;right:-9px;width:22px;height:22px;padding:0;display:grid;place-items:center;border:1px solid var(--rule-2);border-radius:50%;background:#fff;color:var(--text-2);cursor:pointer}
+.pin:hover,.pin:focus-visible{border-color:var(--text);color:var(--text);outline:none}
+.pin svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:rotate(40deg)}
+.pin.on{background:var(--text);border-color:var(--text);color:#fff}
 .pin.on svg{fill:currentColor}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
@@ -167,7 +169,7 @@ a.map:hover{border-color:var(--text)}
 </head>
 <body>
 <div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><button id="account-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu"><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span><svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></button>
-  <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/login?recovery=email">Recovery email</a><button type="button" class="am-row am-out" id="account-out">Sign out</button></div></div></div>
+  <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/settings">Settings</a><a class="am-row am-out" href="/login?recovery=email">Recovery email</a><button type="button" class="am-row am-out" id="account-out">Sign out</button></div></div></div>
 <div class="home">
 <main>
   <div class="head"><h1>Start a new map</h1><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div>

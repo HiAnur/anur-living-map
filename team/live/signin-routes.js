@@ -1,13 +1,15 @@
 // Signing in at the server's own addresses: the sign-in page, Google through Living Map login, a password kept
-// on this Mac or at Living Map login, the first password someone chooses, and signing out. Each route answers
-// with the response, and true when it answered.
+// on this Mac or at Living Map login, the first password someone chooses, signing out, and Settings, which shows
+// the signed-in person who they are here. Each route answers with the response, and true when it answered.
+import { validEmail } from './recovery.js';
 import { jsonBody } from './request.js';
 
 /**
  * @param {{ users: any, MIN: number, googleFinish: Function, googleOn: () => any, googleStart: Function,
- *   passwordCheck: Function, page: Function, cookieOf: Function, PORT: number }} deps
+ *   passwordCheck: Function, page: Function, cookieOf: Function, PORT: number, recovery: any,
+ *   roleOf: (who: string) => string }} deps
  */
-export function signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT }) {
+export function signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf }) {
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any, cookie?: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     const signIn = (/** @type {any} */ name) => json(200, { name }, `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}`);
@@ -25,7 +27,16 @@ export function signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, 
       // one of this map's people only when the login's list says so (an address, not a name, proves who someone is);
       // anyone else is a guest under their Google name, never seated as a person who happens to share it
       const name = got.listed ? users.person(got.name) || got.name : users.person(got.name) ? `${got.name} (guest)` : got.name;
-      return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
+      return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name, validEmail(got.email) ? got.email : null)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
+    }
+    // Settings: your name, your role on the team, the email the map has for you and how you sign in. The email is
+    // the one Google gave for this browser's sign-in, else the recovery email verified for a password kept here.
+    if (url.pathname === '/settings' && req.method === 'GET') return who ? page(res, 'settings.html', who) : res.writeHead(302, { location: '/login?next=%2Fsettings' }).end();
+    if (url.pathname === '/api/me' && req.method === 'GET') {
+      if (!who) return json(401, { error: 'Sign in first.' });
+      const google = users.emailOf(cookieOf(req, 'lm_session')), password = users.has(who), saved = (password && recovery.email(who)) || '';
+      return res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+        .end(JSON.stringify({ name: who, role: roleOf(who), email: google || saved, emailFrom: google ? 'google' : saved ? 'recovery' : '', signIn: google ? 'google' : password ? 'password' : '' }));
     }
     if (url.pathname === '/api/login' && req.method === 'POST') {
       let /** @type {any} */ a = await jsonBody(req, {});
