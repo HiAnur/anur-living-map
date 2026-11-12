@@ -66,5 +66,44 @@ export function layoutFor({ W, HT }) {
     }
     return { x: node.x, y: Math.round(node.y), moves: nodes.filter((n) => Math.round(by.get(n.id).y) !== n.y).map((n) => ({ id: n.id, fromY: n.y, y: Math.round(by.get(n.id).y) })) };
   }
-  return { fanPts, planTopicInsert };
+  // When a branch moves away, the sibling branch below it slides into its place and the rest follow as whole units.
+  // Higher up, later branches come up by the space that freed, never closer than the usual gap, and each parent
+  // re-centres on what it still holds, so no hole is left behind.
+  /** @param {any[]} nodes @param {any[]} edges @param {Set<any>} gone */
+  function planTopicRemove(nodes, edges, gone){
+    const by = new Map(nodes.map((n) => [n.id, { ...n }])), parents = new Map(), kids = new Map();
+    for (const e of edges){
+      if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || parents.has(e.to)) continue;
+      let up = e.from; while (parents.has(up) && up !== e.to) up = parents.get(up);
+      if (up !== e.to) parents.set(e.to, e.from);
+    }
+    for (const [id, parent] of parents){ if (!kids.has(parent)) kids.set(parent, []); kids.get(parent).push(id); }
+    for (const list of kids.values()) list.sort((/** @type {any} */ a, /** @type {any} */ b) => by.get(a).y - by.get(b).y);
+    const root = [...gone].find((id) => by.has(id) && parents.has(id) && !gone.has(parents.get(id)));
+    if (root === undefined) return [];
+    const side = (/** @type {any} */ id, /** @type {any} */ p) => by.get(id).x < p.x ? -1 : 1;
+    const subtree = (/** @type {any} */ id) => { const out = [id]; for (let i = 0; i < out.length; i++) out.push(...(kids.get(out[i]) || [])); return out; };
+    const top = (/** @type {any} */ id) => Math.min(...subtree(id).map((k) => by.get(k).y - HT(by.get(k)) / 2));
+    const bottom = (/** @type {any} */ id) => Math.max(...subtree(id).map((k) => by.get(k).y + HT(by.get(k)) / 2));
+    const center = (/** @type {any} */ id) => {
+      if (!parents.has(id)) return;
+      const list = kids.get(id) || []; if (!list.length) return;
+      by.get(id).y = (by.get(list[0]).y + by.get(list.at(-1)).y) / 2;
+    };
+    let active = root, up = parents.get(root), freed = 0, floor = 0, first = true;
+    while (up !== undefined){
+      const p = by.get(up), was = p.y, before = bottom(up), same = (kids.get(up) || []).filter((/** @type {any} */ id) => side(id, p) === side(active, p));
+      const at = same.indexOf(active), later = same.slice(at + 1);
+      const shift = !later.length ? 0 : first ? Math.max(0, top(later[0]) - top(root)) : Math.min(freed, Math.max(0, top(later[0]) - floor - 35));
+      for (const id of later) for (const k of subtree(id)) by.get(k).y -= shift;
+      if (first) kids.set(up, (kids.get(up) || []).filter((/** @type {any} */ id) => id !== root));
+      center(up);
+      const after = bottom(up);
+      freed = Math.max(0, before - after); floor = after; first = false;
+      if (!freed && p.y === was) break;
+      active = up; up = parents.get(up);
+    }
+    return nodes.filter((n) => !gone.has(n.id) && Math.round(by.get(n.id).y) !== n.y).map((n) => ({ id: n.id, fromY: n.y, y: Math.round(by.get(n.id).y) }));
+  }
+  return { fanPts, planTopicInsert, planTopicRemove };
 }

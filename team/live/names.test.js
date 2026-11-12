@@ -31,7 +31,7 @@ describe('topic width',()=>{
 describe('compact box details', () => {
   it('keeps descriptions out of box sizing and hides restricted summaries', () => {
     const ctx = vm.createContext({ nameLines: () => 1, locked: n => !!n.locked });
-    vm.runInContext(html.slice(html.indexOf('const HT ='), html.indexOf('const { fanPts, planTopicInsert }')) + '\nthis.height=HT;this.summary=boxSummary;', ctx);
+    vm.runInContext(html.slice(html.indexOf('const HT ='), html.indexOf('const { fanPts, planTopicInsert')) + '\nthis.height=HT;this.summary=boxSummary;', ctx);
     expect(ctx.height({ label: 'Sign in', sub: 'Long description '.repeat(40) })).toBe(ctx.height({ label: 'Sign in' }));
     expect(ctx.summary({ sub: 'A keeper makes an account' })).toBe('A keeper makes an account');
     expect(ctx.summary({ desc: 'Full details' })).toBe('Full details');

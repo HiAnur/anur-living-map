@@ -35,6 +35,22 @@ describe('keyboard branch insertion',()=>{
   });
 });
 
+describe('closing the space a moved branch leaves',()=>{
+  it('brings later siblings and the next branch up by the space it freed',()=>{
+    const s=fixture(),n=placed(s,{moves:ctx.planTopicRemove(s.nodes,s.edges,new Set(['one-2']))});
+    expect([0,1,3,4].map(i=>n.get(`one-${i}`).y)).toEqual([0,85,170,255]);
+    expect(n.get('one').y).toBe(128);expect(n.get('root').y).toBe(220);
+    expect([n.get('two').y,n.get('a').y,n.get('b').y]).toEqual([383,340,425]);
+  });
+  it('keeps space the branch did not free and re-centres a parent on the children it keeps',()=>{
+    const s=fixture();for(const id of ['two','a','b'])s.nodes.find(n=>n.id===id).y+=200;
+    const n=placed(s,{moves:ctx.planTopicRemove(s.nodes,s.edges,new Set(['one-4']))});
+    expect(n.get('one').y).toBe(128);expect(n.get('two').y).toBe(583);
+    const t=fixture(),m=placed(t,{moves:ctx.planTopicRemove(t.nodes,t.edges,new Set(['b']))});
+    expect(m.get('two').y).toBe(425);expect(m.get('one-4').y).toBe(340);
+  });
+});
+
 function actions(state, sees='all'){
   return boxActs({getState:()=>state,nodeOf:id=>state.nodes.find(n=>n.id===id),seesOf:()=>sees,sideOf:()=>false,tell(){},pendingProposals:()=>[],unlinkEdge:()=>false,placeProposed(){}});
 }
