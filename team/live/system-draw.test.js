@@ -130,6 +130,29 @@ describe('stopping and drawing again', () => {
     expect(report.progress.find((p) => p.repo === 'api-service')).toMatchObject({ stage: 'done', reused: true });
     expect(state?.nodes.find((n) => n.label === 'api-service')?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
   });
+  it('keeps every box the box it was when the agent draws it again under other ids', async () => {
+    /** @type {Map<string, any>} */
+    const kept = new Map();
+    const first = await drawSystem({ folders: [app(), api()], agent, onDrawn: (r, d) => kept.set(r.repo, d) });
+    // the same drawings, every id changed: a repo's box by another word, a box's id with its punctuation gone or a new word
+    const other = (/** @type {string} */ id) => ({ 'mobile-app': 'app', 'api-service': 'repo', users: 'usersapi', store: 'table', home: 'home-screen' })[id] || id;
+    /** @type {string[]} */
+    const prompts = [];
+    const renaming = { answer: async (/** @type {{ prompt: string }} */ job) => {
+      prompts.push(job.prompt);
+      const a = await agent.answer(job);
+      return { ...a, value: { boxes: a.value.boxes.map((/** @type {any} */ b) => ({ ...b, id: other(b.id) })), lines: a.value.lines.map((/** @type {any} */ l) => ({ ...l, from: other(l.from), to: other(l.to) })) } };
+    } };
+    const platform = (first.state?.nodes || []).map((n) => ({ id: n.id.slice(7), name: n.label, repo: /** @type {any} */ (n).source?.repo }));
+    const again = await drawSystem({ folders: [app(), api()], agent: renaming, before: (repo) => repo === null ? platform : kept.get(repo)?.boxes || null });
+    const ids = (/** @type {any} */ state) => allBoxesOf(state).map((/** @type {any} */ n) => n.id);
+    expect(ids(again.state)).toEqual(ids(first.state));
+    expect(again.state?.edges).toEqual(first.state?.edges);
+    expect(again.state?.nodes.find((n) => n.label === 'api-service')?.inside?.edges).toEqual(first.state?.nodes.find((n) => n.label === 'api-service')?.inside?.edges);
+    // the agent is told what was drawn before, for the repo it draws and for the platform
+    expect(prompts.find((p) => p.includes('The repo is api-service'))).toContain('users (Users API); store (Users table)');
+    expect(prompts.find((p) => p.includes('platform map'))).toContain('mobile-app (mobile-app); api-service (api-service)');
+  });
 });
 
 describe('a repo with nothing to read', () => {

@@ -201,6 +201,26 @@ describe('a system map drawing in the background', () => {
     expect(job.boxOf(local)).toBe('system-svc');
     expect(job.boxOf(other)).toBeNull();
   });
+  it('tells a drawing made again which boxes it replaces: the map\'s own drawn boxes, a repo once, and each repo\'s last drawing', async () => {
+    const code = (/** @type {string} */ id, /** @type {string} */ label, /** @type {string} */ repo = '') => ({ id, label, origin: 'code', ...(repo ? { source: { repo } } : {}) });
+    // one repo drawn three times under three ids, as a map was left before a box kept its id
+    const was = { nodes: [code('system-api', 'api', 'api'), code('system-github', 'GitHub'), code('system-repo', 'api', 'api'), { id: 'mine', label: 'My note' }, code('system-svc', 'api', 'api')], edges: [], start: 'system-api' };
+    /** @type {any[]} */
+    const asked = [];
+    const drawn = { boxes: [{ id: 'fn', name: 'Fn', kind: 'function', description: 'Does it', facts: ['f1'] }], lines: [], rejected: [], leftOut: [] };
+    const { state, job } = jobOn(async (/** @type {any} */ o) => {
+      asked.push([o.before(null), o.before('api')]);
+      o.onDrawn({ repo: 'api', head: { commit: 'c1' }, kinds: [], facts: [] }, drawn);
+      return { state: structuredClone(was), report: report([]), cancelled: false };
+    }, structuredClone(was));
+    job.start({ folders: ['/x/api'], by: 'Sam' });
+    await until(() => state.drawing.status === 'done');
+    expect(job.retry('Sam')).toBe(true);
+    await until(() => asked.length === 2 && state.drawing.status === 'done');
+    const top = [{ id: 'api', name: 'api', repo: 'api' }, { id: 'github', name: 'GitHub' }];
+    expect(asked).toEqual([[top, null], [top, drawn.boxes]]);
+  });
+
   it('drawn again, lands what code added or renamed, and holds what it no longer finds for review', async () => {
     const box = (/** @type {string} */ repo, /** @type {string} */ label) => ({ id: `system-${repo}`, label, origin: 'code', source: { repo } });
     const was = { nodes: [box('api', 'api'), box('old', 'old')], edges: [], start: 'system-api' };
