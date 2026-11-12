@@ -15,7 +15,7 @@ A map you open for the first time no longer reloads itself a moment later, which
 <dt><strong>Moving a box leaves no gap behind</strong></dt>
 <dd>
 
-When you drag a box somewhere else, the boxes below its old spot move up to fill it, and its old parent re-centres on what is left. <!-- source: https://github.com/HiAnur/anur-living-map/pull/427 --> <!-- merged-at: 2026-11-12T01:16:15Z -->
+When you drag a box somewhere else, the boxes below its old spot move up to fill it, and its old parent re-centres on what is left. While you drag, the green box shows its new place among the boxes as they are now. <!-- source: https://github.com/HiAnur/anur-living-map/pull/427 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/433 --> <!-- merged-at: 2026-11-12T01:32:13Z -->
 
 </dd>
 </dl>
