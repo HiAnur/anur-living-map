@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>A system map shows each repo once after it draws itself again</strong></dt>
+<dd>
+
+When a system map redraws itself after new commits, each repo, outside system and part keeps its one box instead of a second copy appearing beside it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/450 --> <!-- merged-at: 2026-11-12T03:14:11Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] Expanding a box on a system map shows its parts in rows</strong></dt>
 <dd>
 
