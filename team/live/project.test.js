@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { placeNew, tidy, tidyTree } from './project.js';
+import { boxActs } from './box-acts.js';
+import { layerPlaces, placeNew, tidy, tidyLayers, tidyTree } from './project.js';
 
 // a topic map shaped like the GTM map: one start box, ten boxes off it, two of them with boxes under them,
 // laid out the way it was before (sides and order picked by where boxes happened to land)
@@ -38,6 +39,69 @@ describe('a map that is not one tree', () => {
     nodes.push({ id: 'site', label: 'site', x: 90, y: 750 }, { id: 'cdn', label: 'cdn', x: 430, y: 750 });
     edges.push({ from: 'site', to: 'cdn' });
     expect(tidyTree(nodes, edges, null, () => false, 'site')).toBe(false);
+  });
+
+  it('tidies into rows, each box below the boxes that lead to it, a loop closing back', () => {
+    const { nodes, edges } = system();
+    expect(tidyLayers(nodes, edges)).toBe(true);
+    const y = (id) => get(nodes, id).y;
+    expect(y('app')).toBe(y('jobs'));
+    expect(y('api')).toBeGreaterThan(y('app'));
+    expect(y('auth')).toBeGreaterThan(y('api'));
+    expect(y('db')).toBe(y('auth'));
+    expect(y('bot')).toBeGreaterThan(y('auth'));
+    expect(y('alone')).toBeGreaterThan(y('bot'));
+    for (const a of nodes) for (const b of nodes) if (a !== b) expect(Math.abs(a.x - b.x) >= 140 || Math.abs(a.y - b.y) >= 50).toBe(true);
+  });
+
+  it('keeps its top left corner and moves nothing on the next press, whatever the boxes measure', () => {
+    for (const sizes of [new Map(), new Map(system().nodes.map((n, i) => [n.id, { w: 141 + i * 7.5, h: 51 + i }]))]) {
+      const { nodes, edges } = system();
+      const size = (n) => sizes.get(n.id) || { w: 140, h: 50 };
+      const corner = () => [Math.min(...nodes.map((n) => n.x - size(n).w / 2)), Math.min(...nodes.map((n) => n.y - size(n).h / 2))];
+      const was = corner();
+      tidyLayers(nodes, edges, null, sizes);
+      expect(Math.abs(corner()[0] - was[0])).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(corner()[1] - was[1])).toBeLessThanOrEqual(0.5);
+      const once = at(nodes); tidyLayers(nodes, edges, null, sizes); expect(at(nodes)).toEqual(once);
+    }
+  });
+
+  it('moves only the boxes showing, and nothing on a map with no line', () => {
+    const { nodes, edges } = system(), before = at(nodes);
+    tidyLayers(nodes, edges, new Set(['app', 'api', 'auth']));
+    for (const id of ['jobs', 'bot', 'db', 'alone']) expect(at(nodes)[id]).toEqual(before[id]);
+    expect(get(nodes, 'auth').y).toBeGreaterThan(get(nodes, 'api').y);
+    expect(tidyLayers(system().nodes, [])).toBe(false);
+  });
+
+  it('wraps a row longer than eight boxes, and gives the same places whatever order the boxes sat in', () => {
+    const list = [{ id: 'top' }, ...Array.from({ length: 11 }, (_, i) => ({ id: `k${i}` }))];
+    const edges = list.slice(1).map((n) => ({ from: 'top', to: n.id }));
+    const places = layerPlaces(list, edges, () => 140, () => 50);
+    const place = (n) => /** @type {{ x: number, y: number }} */ (places.get(n.id));
+    const rows = [...new Set(list.map((n) => place(n).y))].sort((a, b) => a - b);
+    expect(rows.map((y) => list.filter((n) => place(n).y === y).length)).toEqual([1, 8, 3]);
+    expect(Math.min(...list.map((n) => place(n).x - 70))).toBe(0);
+    expect(layerPlaces(list, edges, () => 140, () => 50)).toEqual(places);
+  });
+});
+
+describe('Tidy up on a map drawn from code', () => {
+  const acts = (state) => boxActs({ getState: () => state, nodeOf: (id) => state.nodes.find((n) => n.id === id), seesOf: () => 'all', sideOf: () => false, tell() {}, pendingProposals: () => [], unlinkEdge: () => false, placeProposed() {} });
+  const holding = (drawing) => { const inside = system(); return { state: { nodes: [{ id: 'repo', label: 'repo', x: 90, y: 150, inside }], edges: [], ...(drawing ? { drawing: { status: 'done' } } : {}) }, inside }; };
+
+  it('puts what a box opens into in rows', () => {
+    const { state, inside } = holding(true);
+    acts(state).tidy({ type: 'tidy', view: 'repo', by: 'Duy' });
+    expect(get(inside.nodes, 'api').y).toBeGreaterThan(get(inside.nodes, 'app').y);
+    expect(get(inside.nodes, 'app').y).toBe(get(inside.nodes, 'jobs').y);
+  });
+
+  it('leaves a map made by hand on its grid', () => {
+    const { state, inside } = holding(false), before = at(inside.nodes);
+    acts(state).tidy({ type: 'tidy', view: 'repo', by: 'Duy' });
+    expect(at(inside.nodes)).toEqual(before);
   });
 });
 

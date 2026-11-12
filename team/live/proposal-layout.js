@@ -1,6 +1,7 @@
 // Preview additions in branch order. Existing positions are copied, never changed until Apply.
+// A box's width and height as the page draws it, worked out from its words where no measured size is at hand.
 /** @param {Box} n */
-const width = (n) => Math.min(220, Math.max(n.kind === 'actor' ? 110 : 140, String(n.label || '').length * 7.4 + 28));
+export const width = (n) => Math.min(220, Math.max(n.kind === 'actor' ? 110 : 140, String(n.label || '').length * 7.4 + 28));
 /** @param {unknown} text @param {number} room @param {number} char */
 const lines = (text, room, char) => {
   let count = 1, used = 0;
@@ -12,7 +13,7 @@ const lines = (text, room, char) => {
   return count;
 };
 /** @param {Box} n */
-const height = (n) => Math.max(n.h || 0, (n.action || n.boxType === 'action' ? 18 : 0) + 50 + (lines(n.label, width(n) - 26, 7.4) - 1) * 17 + (Math.min(3, lines(n.sub, width(n) - 26, 6.7)) - 1) * 16);
+export const height = (n) => Math.max(n.h || 0, (n.action || n.boxType === 'action' ? 18 : 0) + 50 + (lines(n.label, width(n) - 26, 7.4) - 1) * 17 + (Math.min(3, lines(n.sub, width(n) - 26, 6.7)) - 1) * 16);
 /** @param {Record<string, any>} n */
 const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 
