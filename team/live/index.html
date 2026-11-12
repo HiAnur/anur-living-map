@@ -1717,12 +1717,12 @@ function fit(keep){
   place();
 }
 
-/** Shows the view at the reading size, around what is in the middle of the screen now: 70%, where a box's words
- * still read and about twice as much of the map shows as at 100%. Where the map is smaller than the screen it is
+/** Shows the view at the reading size, around what is in the middle of the screen now: 85%, a little more of the
+ * map than at 100% with every box's words easy to read. Where the map is smaller than the screen it is
  * centred; where it is larger, it fills the screen to its edge rather than leaving the room past it empty. */
 function readingSize(){
   const f = frame(); if (!f) return;
-  const z = .7;
+  const z = .85;
   const along = (at, min, max, start, room) => {
     if ((max - min) * z <= room) return start + (room - (max - min) * z) / 2 - min * z;
     const mid = (start + room / 2 - at) / cam.z;
