@@ -27,6 +27,7 @@ export function signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, 
       // one of this map's people only when the login's list says so (an address, not a name, proves who someone is);
       // anyone else is a guest under their Google name, never seated as a person who happens to share it
       const name = got.listed ? users.person(got.name) || got.name : users.person(got.name) ? `${got.name} (guest)` : got.name;
+      users.setPicture(name, got.picture);
       return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name, validEmail(got.email) ? got.email : null)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
     }
     // Settings: your name, your role on the team, the email the map has for you and how you sign in. The email is

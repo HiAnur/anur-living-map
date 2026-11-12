@@ -537,7 +537,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
   const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
   /** @param {any} req @param {any} res @param {any} p */
-  async function handle(req, res, p, who = null) {
+  async function handle(req, res, p, who = null, pictureOf = (/** @type {string} */ _name) => '') {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }
     const role = access(who, req), guest = !!linkRole(state, req) && role !== 'owner';
     const deny = () => { res.writeHead(403, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This link does not allow that change.' })); return true; };
@@ -569,6 +569,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // join before this window is followed, so it starts with the role it keeps: joining as an Admin makes them an
       // owner, and a window that saw that change would reload as if its access had changed.
       if (who && !guest && !state.people?.some((/** @type {any} */ p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
+      // their Google picture, kept on them as one of the map's people so everyone here sees it on their face
+      const one = /** @type {any} */ (who && !guest ? state.people?.find((/** @type {any} */ p) => p.id === who) : null), face = one ? pictureOf(String(who)) : '';
+      if (one && (one.picture || '') !== face) { if (face) one.picture = face; else delete one.picture; save(); push(); }
       const mine = access(who, req);
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
@@ -706,7 +709,7 @@ const { deletedMaps, projects, mapCalled } = maps;
 // map to ask, is also told that person's role on the team
 const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
-    role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
+    role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 // a person's role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string} */ who) => String(demo().people?.find((/** @type {any} */ p) => p.id === who)?.role || '');
@@ -761,7 +764,7 @@ const server = http.createServer(async (req, res) => {
   // may see this map: a share link's key rides only on the page's own requests, never on the browser's imports
   if (PAGE_FILES.includes(p) && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(fs.readFileSync(path.join(DIR, p.slice(1))));
   if (!map) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
-  if (await map.handle(req, res, p, who)) return;
+  if (await map.handle(req, res, p, who, users.pictureOf)) return;
   if (p === '/' || p === '/index.html') return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
   // Private map files and server sources are never browser assets.
   if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');

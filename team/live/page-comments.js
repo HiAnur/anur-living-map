@@ -2,17 +2,18 @@
 // panel. A page module (see page-modules.js): the page hands in what it needs of it, as `view`:
 //   me     who is looking          esc    how the page writes text into HTML
 //   pcol   a person's colour       label  a box's or a view's name by id, if there is one
+//   facePic  a person's Google picture as HTML, to draw over their initial; '' with none
 
-/** @param {{ me: string, esc: (t: unknown) => string, pcol: (who: string) => string, label: (id: string) => string | undefined }} view */
+/** @param {{ me: string, esc: (t: unknown) => string, pcol: (who: string) => string, facePic: (who: string) => string, label: (id: string) => string | undefined }} view */
 export function commentScreens(view){
-  const { esc, pcol } = view;
+  const { esc, pcol, facePic } = view;
   const ago = (/** @type {any} */ t) => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`; const h = Math.round(m / 60); return `${h} hour${h === 1 ? '' : 's'} ago`; };
-  const av = (/** @type {any} */ who) => `<span class="av" style="background:${pcol(who)}">${esc(who[0] || "")}</span>`;
+  const av = (/** @type {any} */ who) => `<span class="av" style="background:${pcol(who)}">${esc(who[0] || "")}${facePic(who)}</span>`;
   const mention = (/** @type {any} */ t) => esc(t).replace(/@(\w+)/g, '<span class="at">$1</span>');
   /** a thread's pin @param {any} c @param {boolean} open */
-  const pin = (c, open) => `<div class="pinc ${open ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${esc(c.msgs[0].who[0] || "")}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`;
+  const pin = (c, open) => `<div class="pinc ${open ? 'on' : ''} ${c.resolved ? 'done' : ''}" data-pin="${c.id}" style="left:${c.x}px;top:${c.y}px">${`<i style="background:${pcol(c.msgs[0].who)}">${esc(c.msgs[0].who[0] || "")}${facePic(c.msgs[0].who)}</i>`}${c.msgs.length > 1 ? `<span class="cnt">${c.msgs.length}</span>` : ''}</div>`;
   /** the pin of a comment being written @param {{ x: number, y: number }} d */
-  const draftPin = (d) => `<div class="pinc on" style="left:${d.x}px;top:${d.y}px"><i style="background:${pcol(view.me)}">${view.me[0]}</i></div>`;
+  const draftPin = (d) => `<div class="pinc on" style="left:${d.x}px;top:${d.y}px"><i style="background:${pcol(view.me)}">${view.me[0]}${facePic(view.me)}</i></div>`;
   /** an open thread, or with none the one row for a new comment @param {any} c */
   const thread = (c) => c ? `<div class="th-head">Comment<span class="sp"></span><span class="ib ${c.resolved ? 'done' : ''}" data-resolve="${c.id}" title="${c.resolved ? 'Reopen' : 'Resolve'}">✓</span><span class="ib" data-close-th title="Close">✕</span></div>
         <div class="th-body">${c.msgs.map((/** @type {any} */ m) => `<div class="th-msg">${av(m.who)}<div><span class="who">${esc(m.who)}</span><span class="ago">${ago(m.at)}</span><div class="tx">${mention(m.text)}</div></div></div>`).join('')}</div>

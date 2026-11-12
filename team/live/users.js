@@ -30,6 +30,9 @@ db.exec(`CREATE TABLE IF NOT EXISTS users (name TEXT PRIMARY KEY, salt TEXT NOT 
 // A session through Google also keeps the address Google gave, so Settings can show the email you signed in with.
 // A file made before sessions kept one gets the column here.
 if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'email')) db.exec('ALTER TABLE sessions ADD COLUMN email TEXT');
+// The picture Google has for a person, as its address, from their latest sign-in through Google: every map draws
+// it on their face, for them and for the people they share a map with.
+db.exec('CREATE TABLE IF NOT EXISTS pictures (name TEXT PRIMARY KEY, url TEXT NOT NULL)');
 
 /** @param {unknown} password @param {string} salt */
 const scramble = (password, salt) => crypto.scryptSync(String(password), salt, 64).toString('hex');
@@ -82,6 +85,14 @@ export const users = {
     const row = /** @type {any} */ (db.prepare('SELECT email, at FROM sessions WHERE token_hash = ?').get(sha(token)));
     return row && Date.now() - row.at < DAYS * 86_400_000 ? row.email || '' : '';
   },
+  // a sign-in through Google that brought no picture takes the old one away
+  /** @param {string} name @param {string} url */
+  setPicture(name, url) {
+    if (url) db.prepare('INSERT INTO pictures (name, url) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET url = excluded.url').run(name, url);
+    else db.prepare('DELETE FROM pictures WHERE name = ?').run(name);
+  },
+  /** @param {string} name @returns {string} the address of their Google picture, or '' */
+  pictureOf: (name) => /** @type {any} */ (db.prepare('SELECT url FROM pictures WHERE name = ?').get(name))?.url || '',
   // who a browser's cookie belongs to, or null once it is unknown or older than 30 days
   /** @param {unknown} token */
   whoIs(token) {
@@ -102,7 +113,7 @@ if (import.meta.main) {
     console.log(rows.length ? rows.map((r) => `${r.name}  (set ${r.set_at} UTC)`).join('\n') : 'No one has a password yet. Each person chooses one the first time they sign in.');
   } else if (cmd === 'remove' && who) {
     db.prepare('DELETE FROM users WHERE name = ?').run(who); db.prepare('DELETE FROM sessions WHERE name = ?').run(who);
-    recovery.clear(who); db.prepare('DELETE FROM recovery_emails WHERE name = ?').run(who);
+    recovery.clear(who); db.prepare('DELETE FROM recovery_emails WHERE name = ?').run(who); db.prepare('DELETE FROM pictures WHERE name = ?').run(who);
     console.log(`${who} has no password now and is signed out.`);
   } else if (cmd === 'set' && who) {
     const [one, two] = await askTwice(`New password for ${who}: `, 'Again: ');
