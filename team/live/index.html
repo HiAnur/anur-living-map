@@ -1312,7 +1312,7 @@ const boxSummary = (n) => {
   const text = [summary, note].filter(Boolean).join('\n\n');
   return text.length > 600 ? text.slice(0, 600).trimEnd() + '…' : text;
 };
-const { fanPts, planTopicInsert } = layoutFor({ W, HT });
+const { fanPts, planTopicInsert, planTopicRemove } = layoutFor({ W, HT });
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
 // before any plan is drawn nothing fades: the whole system is the picture
@@ -3544,12 +3544,17 @@ function planTopicAttach(graph, id, parentId, side, afterId = null){
   const edges = graph.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to));
   const top = Math.min(...branch.map((n) => n.y - HT(n) / 2)), bottom = Math.max(...branch.map((n) => n.y + HT(n) / 2));
   const x = afterId ? graph.nodes.find((n) => n.id === afterId).x : target.x + side * (W(target) / 2 + 70 + W(root) / 2);
-  const plan = planTopicInsert(rest, edges, parentId, afterId, x, root.label, bottom - top);
+  // Close the hole the branch leaves first, so the insert below lays out the map as it will look after the move.
+  let closed = graph.edges.filter((e) => e.to === id).length === 1 ? planTopicRemove(graph.nodes, graph.edges, ids) : [];
+  if (closed.some((m) => locked(nodeById(m.id) || {}))) closed = [];
+  const settled = rest.map((n) => ({...n,y:closed.find((m) => m.id === n.id)?.y ?? n.y}));
+  const plan = planTopicInsert(settled, edges, parentId, afterId, x, root.label, bottom - top);
   if (!plan) return null;
   const dx = Math.round(x - root.x), dy = Math.round(plan.y - (top + bottom) / 2);
   const child = graph.edges.filter((e) => e.from === id).map((e) => graph.nodes.find((n) => n.id === e.to)).find((n) => n && n.x !== root.x);
   const mirror = child ? side * Math.sign(child.x-root.x) : 1;
-  const moves = [...branch.map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:root.x+dx+(n.x-root.x)*mirror,y:n.y+dy})), ...plan.moves.map((m) => ({...m,fromX:graph.nodes.find((n) => n.id === m.id).x,x:graph.nodes.find((n) => n.id === m.id).x}))];
+  const shifted = rest.flatMap((n) => { const y = plan.moves.find((m) => m.id === n.id)?.y ?? closed.find((m) => m.id === n.id)?.y ?? n.y; return y === n.y ? [] : [{id:n.id,fromX:n.x,fromY:n.y,x:n.x,y}]; });
+  const moves = [...branch.map((n) => ({id:n.id,fromX:n.x,fromY:n.y,x:root.x+dx+(n.x-root.x)*mirror,y:n.y+dy})), ...shifted];
   const placed = {nodes:graph.nodes.map((n) => ({...n,...moves.find((m) => m.id === n.id)}))};
   const cleared = clearTopicLanding(placed,moves.filter((m) => ids.has(m.id)));
   return {parent:parentId,parents:graph.edges.filter((e) => e.to === id).map((e) => e.from),moves:[...cleared,...moves.filter((m) => !ids.has(m.id))]};
@@ -3610,7 +3615,7 @@ function planTopicSibling(graph, roots, target, above){
   const reflected = {...graph,nodes:graph.nodes.map((n) => ({...n,y:n.y*sign}))};
   const plan = planGroupAttach(reflected, above ? [...roots].reverse() : roots, parent.id, target.x < parent.x ? -1 : 1, target.id);
   if (!plan) return null;
-  return {...plan,moves:plan.moves.map((m) => ({...m,fromY:m.fromY*sign,y:m.y*sign}))};
+  return {...plan,moves:plan.moves.map((m) => ({...m,fromY:m.fromY*sign+0,y:m.y*sign+0}))};
 }
 function previewTopicAttach(sx, sy){
   if (!drag?.source || PREVIEW || FILE || READ_ONLY) return;

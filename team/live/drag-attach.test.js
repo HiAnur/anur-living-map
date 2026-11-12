@@ -18,7 +18,7 @@ function page(/** @type {any} */ state = fixture()) {
     esc:s=>s,S:state,PREVIEW:null,READ_ONLY:false,FILE:false,cam:{z:1},$ :()=>rubber,scope:()=>state,nodeById:id=>state.nodes.find(n=>n.id===id),locked:n=>!!n.locked,
     fanPts:()=>null,routePts:(a,b)=>[[a.x+70,a.y],[b.x-70,b.y]],render(){},canvas:{addEventListener(){}},document:{addEventListener(){}}
   });
-  ctx.planTopicInsert = layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }).planTopicInsert;
+  Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(html.slice(html.indexOf('function planTopicAttach('),html.indexOf('// drag on empty map draws')),ctx);
   ctx.drag={dx:0,dy:0,n:state.nodes.find(n=>n.id==='branch'),source:structuredClone(state)};
   return {ctx,rubber,state,plan:()=>ctx.planTopicAttach(ctx.drag.source,'branch','new',1)};
@@ -117,8 +117,19 @@ describe('drag attachment preview',()=>{
   it('reserves the whole moved branch and shifts the following branch together',()=>{
     const h=page();h.ctx.drag.source.nodes.find(n=>n.id==='child').y=85;
     const p=h.plan(),at=id=>p.moves.find(m=>m.id===id)||h.ctx.nodeById(id);
-    expect(at('branch').y).toBe(256);expect(at('child').y).toBe(341);
-    expect(at('lower').y).toBe(425);expect(at('lower-child').y).toBe(425);expect(at('existing').y).toBe(170);
+    // The old parent's branch shrinks by 85 once the branch leaves, so the new parent comes up by that much first.
+    expect(at('existing').y).toBe(85);expect(at('branch').y).toBe(171);expect(at('child').y).toBe(256);
+    expect(at('lower').y).toBe(340);expect(at('lower-child').y).toBe(340);
+  });
+  it('leaves no hole where a box was when it moves above or below a sibling',()=>{
+    const state={nodes:[{id:'p',label:'P',x:0,y:128},...['a','b','c','d'].map((id,i)=>({id,label:id,x:210,y:i*85}))],edges:['a','b','c','d'].map(to=>({from:'p',to}))};
+    for (const {moving,target,above,order} of [{moving:'b',target:'d',above:false,order:['a','c','d','b']},{moving:'c',target:'a',above:true,order:['c','a','b','d']}]){
+      const h=page(structuredClone(state));
+      const plan=h.ctx.planTopicSibling(h.ctx.drag.source,[moving],h.ctx.nodeById(target),above);
+      expect(reparentTopic(h.state,plan)).toBe(true);
+      expect(order.map(id=>h.ctx.nodeById(id).y)).toEqual([0,85,170,255]);
+      expect(h.ctx.nodeById('p').y).toBe(128);
+    }
   });
   it('turns descendants outward when attaching on the left',()=>{
     const h=page(),p=h.ctx.planTopicAttach(h.ctx.drag.source,'branch','new',-1);
