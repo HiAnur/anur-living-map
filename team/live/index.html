@@ -3647,8 +3647,21 @@ function previewTopicAttach(sx, sy){
   // closes only once it is dropped.
   const hint = make(false) || plan, parent = drag.source.nodes.find((n) => n.id === plan.parent);
   const placed = drag.source.nodes.map((n) => n === parent ? n : ({...n,...hint.moves.find((m) => m.id === n.id)}));
+  // Between two boxes there is no room for a full box until the drop pushes them apart, so a thin bar marks the
+  // gap between them; at either end of the column the full box fits as it is.
+  let slot = null;
+  if (vertical){
+    const row = drag.source.nodes.filter((n) => !ids.has(n.id) && drag.source.edges.some((e) => e.from === parent.id && e.to === n.id) && Math.sign(n.x - parent.x) === Math.sign(target.x - parent.x)).sort((a, b) => a.y - b.y);
+    const at = row.findIndex((n) => n.id === target.id), next = at < 0 ? null : row[at + (sy < target.y ? -1 : 1)];
+    if (next){ const [hi, lo] = sy < target.y ? [next, target] : [target, next]; slot = Math.round((hi.y + HT(hi) / 2 + lo.y - HT(lo) / 2) / 2); }
+  }
   // One landing hint represents the whole selection; the saved plan still carries every branch.
-  const landings = roots.slice(0, 1).map((id) => { const ghost = placed.find((n) => n.id === id), points = fanPts(parent, ghost, placed) || routePts(parent, ghost, null, placed); return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-HT(ghost)/2}" width="${W(ghost)}" height="${HT(ghost)}" rx="6"/>`; }).join('');
+  const landings = roots.slice(0, 1).map((id) => {
+    const landing = placed.find((n) => n.id === id), ghost = slot === null ? landing : {...landing, y:slot};
+    const around = slot === null ? placed : drag.source.nodes.map((n) => n.id === id ? ghost : n);
+    const points = fanPts(parent, ghost, around) || routePts(parent, ghost, null, around), h = slot === null ? HT(ghost) : 10;
+    return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-h/2}" width="${W(ghost)}" height="${h}" rx="${slot === null ? 6 : 5}"/>`;
+  }).join('');
   $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/>${landings}`;
 }
 function cancelTopicDrag(){
