@@ -12,6 +12,15 @@ New features and improvements to help you plan, work and share with Living Map. 
 </dl>
 
 <dl>
+<dt><strong>A dropped box grows away from its parent</strong></dt>
+<dd>
+
+When you drop a box onto another box, it lands on the side facing away from that box's parent, whichever half of the box you drop on. <!-- source: https://github.com/HiAnur/anur-living-map/pull/439 --> <!-- merged-at: 2026-11-12T01:52:18Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Reset zoom shows the map at a size you can read</strong></dt>
 <dd>
 
