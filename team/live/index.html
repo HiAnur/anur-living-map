@@ -4227,14 +4227,25 @@ function cloudEvents(){
   setTimeout(poll, 0); return es;
 }
 /* follow the server */
+// A browser keeps six connections to one site, and a map's live line holds one for as long as it is open: with six
+// maps open in six tabs a seventh never loads, and none of the six can save. So a tab nobody is looking at gives
+// its line back once it has the map, and takes it again, with the map as it is by then, when it is looked at.
+let line = null, lineHasMap = false, firstState = true;
+const dropLine = () => { line?.close(); line = null; };
+document.addEventListener('visibilitychange', () => {
+  if (FILE || CLOUD) return;
+  if (!document.hidden){ if (!line) listen(); }
+  else if (lineHasMap) dropLine();
+});
 function listen(){
   if (FILE){ LIVE = S = FILE_DATA; renderHistBar(); render(); fit(); return; }
-  const es = CLOUD ? cloudEvents() : new EventSource(mapURL('api/events'));
+  if (line) return;
+  const es = line = CLOUD ? cloudEvents() : new EventSource(mapURL('api/events'));
+  lineHasMap = false;
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
   es.addEventListener('access-changed', () => { es.close(); location.reload(); });
   es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
-  let first = true;
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
     const arrived = new Set(allBoxesOf(next).map((n) => n.id));
@@ -4258,7 +4269,9 @@ function listen(){
     render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
-    if (first){ first = false; fit(); openBrainBox(); openNewMap(); }
+    if (firstState){ firstState = false; fit(); openBrainBox(); openNewMap(); }
+    lineHasMap = true;
+    if (document.hidden && !CLOUD) dropLine();
   });
   es.addEventListener('cloud', (m) => { CLOUD_STATUS = JSON.parse(m.data); if (shareOpen) renderShare(); });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
@@ -4268,7 +4281,7 @@ function listen(){
     redrawChat();
   });
   es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S) renderTop(); });
-  es.onerror = () => { es.close(); setTimeout(listen, 1500); };
+  es.onerror = () => { es.close(); if (line !== es) return; line = null; setTimeout(listen, 1500); };
 }
 // a resize can come before the map has loaded
 window.addEventListener('resize', () => { if (S) fit(); });
