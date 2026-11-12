@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Settings shows who you are and your email</strong></dt>
+<dd>
+
+**Settings**, in the menu under your name, shows your name, your role, the email Living Map has for you and how you sign in; you can add or change your recovery email from there. <!-- source: https://github.com/HiAnur/anur-living-map/pull/440 --> <!-- merged-at: 2026-11-12T01:52:29Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>A dropped box grows away from its parent</strong></dt>
 <dd>
 
@@ -33,9 +42,9 @@ When you drag a box somewhere else, the boxes below its old spot move up to fill
 <dt><strong>✨ [New feature] Pin a map to the top of your list</strong></dt>
 <dd>
 
-On the home page, the pin beside a map keeps it at the top of your own list, however the list is sorted. <!-- source: https://github.com/HiAnur/anur-living-map/pull/432 --> <!-- merged-at: 2026-11-12T01:29:06Z -->
+On the home page, the pin on the corner of a map's card keeps it at the top of your own list, however the list is sorted. <!-- source: https://github.com/HiAnur/anur-living-map/pull/432 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/440 --> <!-- merged-at: 2026-11-12T01:29:06Z -->
 
-- Your name at the top right of the home page opens your account menu, with Recovery email and Sign out.
+- Your name at the top right of the home page opens your account menu, with Settings, Recovery email and Sign out.
 - The people menu on a map lists only people; Claude Code is no longer shown in it.
 
 </dd>
