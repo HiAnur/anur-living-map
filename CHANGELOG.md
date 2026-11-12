@@ -12,6 +12,18 @@ When you drag a box somewhere else, the boxes below its old spot move up to fill
 </dl>
 
 <dl>
+<dt><strong>✨ [New feature] Pin a map to the top of your list</strong></dt>
+<dd>
+
+On the home page, the pin beside a map keeps it at the top of your own list, however the list is sorted. <!-- source: https://github.com/HiAnur/anur-living-map/pull/432 --> <!-- merged-at: 2026-11-12T01:29:06Z -->
+
+- Your name at the top right of the home page opens your account menu, with Recovery email and Sign out.
+- The people menu on a map lists only people; Claude Code is no longer shown in it.
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>A new map opens without reloading</strong></dt>
 <dd>
 

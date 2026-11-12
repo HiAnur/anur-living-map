@@ -92,15 +92,29 @@ a.map:hover{border-color:var(--text)}
 .nm-btn:disabled{opacity:.5;cursor:default}
 .nm-quiet{border:0;background:none;padding:0;font:13px var(--plex);color:var(--text-2);text-decoration:underline;cursor:pointer}
 .nm-who{display:flex;justify-content:space-between;gap:10px;margin:0 0 10px;font-size:13px;color:var(--text-2)}
-#gh-repos{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin:0 0 12px;max-height:260px;overflow:auto}
-#gh-repos label{display:flex;gap:6px;align-items:center;font-size:13px;overflow-wrap:anywhere}
-#gh-repos h3{grid-column:1/-1;margin:6px 0 0;font-size:12px;font-weight:500;color:var(--text-2)}
-#gh-repos small{display:block;color:var(--text-3);font-size:11.5px}
-#gh-repos label{align-items:flex-start}#gh-repos input{margin-top:3px}
-#code .line{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-#code .line label{flex:none;font-size:13px;color:var(--text-2);width:56px}
-#code input[type=text]{flex:1;min-width:0;height:32px;padding:0 10px;border:1px solid var(--rule-2);border-radius:7px;font:13px var(--plex)}
-#code .go{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* the system map step: Back with the GitHub account on one quiet line, then the repos to draw (the choice that
+   matters), the name, and the button */
+.nm-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
+.nm-top .nm-back{margin:0}
+#gh-who{font-size:12.5px;color:var(--text-2);text-align:right}
+#gh-who .nm-quiet{font-size:12.5px}
+.gh-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 8px;font-size:13px}
+.gh-head b{font-weight:600}
+.gh-head span,.gh-owner{color:var(--text-2);font-size:12.5px}
+.gh-owner{margin:12px 0 6px}
+.gh-list{border:1px solid var(--rule-2);border-radius:10px;max-height:232px;overflow:auto}
+.gh-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-top:1px solid var(--rule);font-size:13.5px;cursor:pointer}
+.gh-row:first-child{border-top:0}
+.gh-row:hover{background:var(--canvas)}
+.gh-row input{flex:none;margin:0;accent-color:var(--text)}
+.gh-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.gh-meta{flex:none;max-width:62%;margin-left:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2);font-size:12px}
+.gh-more{margin:8px 0 0;color:var(--text-2);font-size:12.5px}
+.gh-more a{color:var(--text-2)}
+#code-pick{margin-top:18px}
+.nm-label{display:block;margin:0 0 6px;font-size:13px;font-weight:600}
+#code input[type=text]{display:block;width:100%;box-sizing:border-box;height:36px;padding:0 10px;border:1px solid var(--rule-2);border-radius:8px;font:13.5px var(--plex)}
+#code .go{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px}
 #code-est{color:var(--text-2);font-size:13px}
 #code-err{margin-top:10px;color:#B42318;font-size:13px}
 .tag-sys{font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--rule-2);color:var(--text-2)}
@@ -177,10 +191,10 @@ a.map:hover{border-color:var(--text)}
     <button type="button" class="nm-pick" data-nm="blank"><b>Default map</b><span>A blank canvas you fill in yourself or with Claude.</span></button>
   </div>
   <form id="code" hidden aria-label="System map">
-    <button type="button" class="nm-back" data-nm-back>‹ Back</button>
+    <div class="nm-top"><button type="button" class="nm-back" data-nm-back>‹ Back</button><div id="gh-who"></div></div>
     <div id="code-gh"><div id="gh-state" class="nm-step" aria-live="polite"></div><div id="gh-repos"></div></div>
     <div id="code-pick" hidden>
-      <div class="line"><label for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off"></div>
+      <label class="nm-label" for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off">
       <div class="go"><span id="code-est"></span><button type="submit" class="nm-btn" id="code-go" disabled>Draw the map</button></div>
     </div>
     <div id="code-err" role="alert" hidden></div>
@@ -267,6 +281,7 @@ const ghApi = (route, post) => fetch(`/api/systemmap/github${route}`, post ? { m
   .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
 async function showGitHub(){
   clearTimeout(ghWatch);
+  const account = (html) => { if ($('gh-who').innerHTML !== html) $('gh-who').innerHTML = html; };
   const r = await ghApi('');
   if (!r.ok){ codeError(r.b.error); return; }
   const { linked, pending } = r.b;
@@ -279,11 +294,11 @@ async function showGitHub(){
       + (pending ? `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-quiet" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a>`
         : linked ? `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}, so system maps show you the private repos you can read</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`
         : '<p>Connect your GitHub account so system maps show you the private repos you can read.</p><button type="button" class="nm-quiet" data-gh-link>Connect GitHub</button>');
-    $('gh-repos').innerHTML = ''; $('code-pick').hidden = true;
+    $('gh-repos').innerHTML = ''; $('code-pick').hidden = true; account('');
     if (pending) ghWatch = setTimeout(showGitHub, 3000);
     return;
   }
-  if (pending || !linked) $('code-pick').hidden = true;
+  if (pending || !linked){ $('code-pick').hidden = true; account(''); }
   if (pending){
     $('gh-state').innerHTML = `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-btn" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a> <span class="none">&nbsp;Waiting for GitHub…</span>`;
     $('gh-repos').innerHTML = '';
@@ -297,26 +312,33 @@ async function showGitHub(){
   }
   // a look again (back from GitHub) keeps what is on show, and the repos you unticked, until the answer comes
   const shown = [...$('gh-repos').querySelectorAll('input')], off = new Set(shown.filter((x) => !x.checked).map((x) => x.value));
-  const who = `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`;
+  account(`${esc(linked)} on GitHub · <button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button>`);
   const set = (el, html) => { if ($(el).innerHTML !== html) $(el).innerHTML = html; };
-  if (!shown.length){ set('gh-state', who); set('gh-repos', '<span class="none">Finding your repos…</span>'); }
+  if (!shown.length){ set('gh-state', ''); set('gh-repos', '<span class="none">Finding your repos…</span>'); }
   const got = await ghApi('/repos');
   if (!got.ok){ codeError(got.b.error); return; }
   if (!got.b.repos.length){
-    set('gh-state', `${who}<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
+    set('gh-state', `<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
     set('gh-repos', ''); $('code-pick').hidden = true;
     return;
   }
   const owners = [...new Set(got.b.repos.map((x) => x.owner))];
-  set('gh-state', who);
-  set('gh-repos', owners.map((o) => `<h3>${esc(o)}</h3>${got.b.repos.filter((x) => x.owner === o).map((x) => { const v = `${x.owner}/${x.name}`; return `<label><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span>${esc(x.name)}<small>${[x.private ? 'private' : '', x.language || '', x.size ? sizeOf(x.size) : '', x.pushed ? `pushed ${ago(x.pushed)}` : ''].filter(Boolean).map(esc).join(' · ')}</small></span></label>`; }).join('')}`).join('')
-    + `<span class="none" style="grid-column:1/-1;font-size:12.5px">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a>.</span>`);
+  const row = (/** @type {any} */ x) => {
+    const v = `${x.owner}/${x.name}`, meta = [x.private ? 'private' : '', x.language || '', x.size ? sizeOf(x.size) : '', x.pushed ? `pushed ${ago(x.pushed)}` : ''].filter(Boolean).join(' · ');
+    return `<label class="gh-row"><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span class="gh-name">${esc(x.name)}</span><span class="gh-meta">${esc(meta)}</span></label>`;
+  };
+  const list = (/** @type {string} */ o) => `<div class="gh-list">${got.b.repos.filter((x) => x.owner === o).map(row).join('')}</div>`;
+  set('gh-state', '');
+  // one organization names itself beside the heading; several each get their own list
+  set('gh-repos', `<div class="gh-head"><b>Repos to draw</b>${owners.length === 1 ? `<span>${esc(owners[0])}</span>` : ''}</div>`
+    + (owners.length === 1 ? list(owners[0]) : owners.map((o) => `<div class="gh-owner">${esc(o)}</div>${list(o)}`).join(''))
+    + `<p class="gh-more">Code in another organization? <a href="${INSTALL}" target="_blank" rel="noopener">Install the app there</a></p>`);
   if (!$('code-title').value) $('code-title').placeholder = `${owners[0]} system`;
   $('code-pick').hidden = false;
   estimate();
 }
 $('gh-repos').addEventListener('change', estimate);
-$('gh-state').addEventListener('click', async (e) => {
+code.addEventListener('click', async (e) => {
   if (e.target.closest('[data-gh-link]')){ const r = await ghApi('/link', true); if (!r.ok) codeError(r.b.error); showGitHub(); }
   if (e.target.closest('[data-gh-unlink]')){ await ghApi('/unlink', true); showGitHub(); }
   const ask = e.target.closest('[data-ask-engineer]');
