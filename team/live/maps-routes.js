@@ -1,5 +1,5 @@
 // The list of maps, at the server's own /api/...: a new map from a prompt, a map file loaded, Trash (move, list,
-// restore), background from other maps, the maps a person may open, and a code folder added from a chat. Each
+// restore), a pin, background from other maps, the maps a person may open, and a code folder added from a chat. Each
 // route answers with the response, and true when it answered.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ import { localTool } from './sharing.js';
  *   mapName: (folder: any) => string }} deps
  */
 export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
-  const { deletedMaps, saveDeleted, connectedMap, projects, folders, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
+  const { deletedMaps, saveDeleted, isPinned, setPinned, connectedMap, projects, folders, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any, cookie?: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
@@ -109,6 +109,16 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       } else mapCalled(name);
       return json(200, { name, title: record.title, href: `/${name}/` });
     }
+    // Pin a map to the top of your own list, or take the pin off. Only a map you may open can be pinned.
+    if (url.pathname === '/api/maps/pin' && req.method === 'POST') {
+      if (!who) return json(401, { error: 'Sign in first.' });
+      if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to pin a map.' });
+      let /** @type {any} */ a = await jsonBody(req, {});
+      const name = String(a.name || ''), on = a.pinned === true, map = everyMap().find(([n]) => n === name)?.[1];
+      if (!map || !map.allowed(who, req)) return json(404, { error: 'That map is no longer in your list.' });
+      try { setPinned(who, name, on); } catch { return json(500, { error: on ? 'Could not pin the map. Try again.' : 'Could not unpin the map. Try again.' }); }
+      return json(200, { name, pinned: on });
+    }
     if (url.pathname === '/api/map-context' && req.method === 'GET') {
       if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
       const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: () => map.snapshotFor ? map.snapshotFor(who || null) : map.snapshot() })) });
@@ -129,7 +139,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       return json(200, {});
     }
     if (url.pathname === '/api/maps') {
-      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), ...m.summary() }));
+      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), pinned: isPinned(who, name), ...m.summary() }));
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
     }
     // a chat opening the map from another code folder adds that folder to the list, and it stays there

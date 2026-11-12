@@ -702,10 +702,11 @@ const { handleRecovery } = await import('./recovery.js');
 const maps = mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo });
 const { deletedMaps, projects, mapCalled } = maps;
 
-// a page, with the signed-in person written into it for the page's own script
-const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false) => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
+// a page, with the signed-in person written into it for the page's own script; the list of maps, which has no
+// map to ask, is also told that person's role on the team
+const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
-    googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
+    role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
@@ -727,7 +728,7 @@ const server = http.createServer(async (req, res) => {
   const rootLinkAPI = !PROJECT && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && maps.main.access(who, req);
   if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(401, { error: 'Sign in first.' });
   // with a project, / lists every map to choose from: the project's own, then each named one
-  if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who);
+  if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who, 'edit', false, String(demo().people?.find((/** @type {any} */ p) => p.id === who)?.role || ''));
   if (await mapRoutes(req, res, url, who, json)) return;
   if (await systemMaps(req, res, url, who, json)) return;
   // which code this server runs: the package version, the build (commits in the clone), and whether main holds

@@ -1,5 +1,6 @@
 // The maps this server keeps: each code folder's own (projects.json remembers the ones added), the maps named
-// by address under maps/, and the ones moved to Trash, which old addresses and restarts must not bring back.
+// by address under maps/, the ones moved to Trash, which old addresses and restarts must not bring back, and the
+// ones each person pinned to the top of their own list.
 // `main` is the map at the server's own address: the first code folder's, or the demo without one.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -14,6 +15,18 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo }) {
   const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
   const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
   const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
+  // The maps each person pinned, by name: a pin is that person's own, so it reorders nobody else's list.
+  const PINNED = path.join(DIR, 'maps', '.pinned.json');
+  /** @type {Map<string, string[]>} */
+  const pinned = new Map((() => { try { return Object.entries(JSON.parse(fs.readFileSync(PINNED, 'utf8'))).filter(([, names]) => Array.isArray(names)); } catch { return []; } })());
+  /** @param {any} who @param {string} name */
+  const isPinned = (who, name) => !!pinned.get(who)?.includes(name);
+  /** @param {string} who @param {string} name @param {boolean} on */
+  const setPinned = (who, name, on) => {
+    const rest = (pinned.get(who) || []).filter((n) => n !== name);
+    if (on) pinned.set(who, [...rest, name]); else if (rest.length) pinned.set(who, rest); else pinned.delete(who);
+    fs.mkdirSync(path.dirname(PINNED), { recursive: true }); fs.writeFileSync(`${PINNED}.tmp`, JSON.stringify(Object.fromEntries(pinned))); fs.renameSync(`${PINNED}.tmp`, PINNED);
+  };
   /** @param {any} options */
   function connectedMap(options) {
     let /** @type {any} */ map;
@@ -78,5 +91,5 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo }) {
     const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d) && !projects.has(d) && !deletedMaps.has(d)).sort() : [];
     return [...projects, ...names.map((d) => [d, mapCalled(d)])];
   };
-  return Object.assign(maps, { deletedMaps, saveDeleted, connectedMap, projects, folders, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap });
+  return Object.assign(maps, { deletedMaps, saveDeleted, isPinned, setPinned, connectedMap, projects, folders, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap });
 }
