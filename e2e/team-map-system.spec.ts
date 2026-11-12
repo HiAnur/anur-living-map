@@ -188,27 +188,27 @@ test("the map updating itself from new commits does not pop the panel up", async
   await expect(page.locator("#sysdraw")).toBeHidden();
 });
 
-test("a default map builds on a system map, and its box points at a system box", async ({
+test("a default map opens empty at once, even with a system map there", async ({
+  page,
+}) => {
+  openState(systemMap({ title: "Builds-on base" }), {}, "builds-on-base");
+  await page.goto(`${server.origin}/maps.html`);
+  await expect(
+    page.locator(".row", { hasText: "Builds-on base" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "New map" }).click();
+  await page.getByRole("button", { name: /Default map/ }).click();
+  await expect(page).toHaveURL(/\?new=1$/);
+  await expect(page.locator("#crumbs .builds")).toHaveCount(0);
+});
+
+test("a map that builds on a system map points a box at a system box", async ({
   page,
 }) => {
   const base = openState(
     systemMap({ title: "Builds-on base" }),
     {},
     "builds-on-base",
-  );
-  await page.goto(`${server.origin}/maps.html`);
-  // the dialog offers a base only once the list of maps has come
-  await expect(
-    page.locator(".row", { hasText: "Builds-on base" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "New map" }).click();
-  await page.getByRole("button", { name: /Default map/ }).click();
-  await page
-    .locator("#nm-bases")
-    .getByRole("button", { name: /Builds-on base/ })
-    .click();
-  await expect(page.locator("#crumbs .builds")).toHaveText(
-    "builds on Builds-on base",
   );
 
   // a plan on that system: one of its boxes points at the box it changes
