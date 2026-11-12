@@ -64,9 +64,10 @@ a.map:hover{border-color:var(--text)}
 #new svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 #err{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
 /* a map someone shared as a file comes back here exactly, as a map of its own */
-.load{display:flex;align-items:center;gap:12px;margin:-12px 0 28px;color:var(--text-2);font-size:13px}
-.load label{border:1px solid var(--rule-2);background:#fff;border-radius:7px;padding:5px 12px;font-size:13px;color:var(--text);cursor:pointer}
-.load label:hover{border-color:var(--text)}
+/* Both ways to start sit together at the right of the heading. */
+.head-actions{display:flex;align-items:center;gap:8px;flex:none}
+#load-map{display:inline-flex;align-items:center;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
+#load-map:hover,#load-map:focus-within{border-color:var(--text)}
 #lerr{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
 /* the list sorts by time (last changed first) or by name; this browser remembers the choice. Maps you pinned
    stay first either way */
@@ -175,11 +176,10 @@ a.map:hover{border-color:var(--text)}
   <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/settings">Settings</a><a class="am-row am-out" href="/login?recovery=email">Recovery email</a><button type="button" class="am-row am-out" id="account-out">Sign out</button></div></div></div>
 <div class="home">
 <main>
-  <div class="head"><h1>Start a new map</h1><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div>
+  <div class="head"><h1>Start a new map</h1><div class="head-actions"><label id="load-map" title="Open a map someone sent you as a file"><input type="file" accept=".html,text/html" hidden>Load a map file</label><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
   <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" role="alert" hidden></div>
-  <div class="load"><span>Have a map someone sent you as a file?</span><label><input type="file" accept=".html,text/html" hidden>Load a map file</label></div>
   <div id="lerr" hidden></div>
   <div class="head"><h1>Or pick a map you have</h1>
     <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
@@ -363,7 +363,7 @@ code.addEventListener('submit', async (e) => {
   location.href = `${r.b.href}${location.search}`;
 });
 // a map file (Share as a file) carries the map's data inside its page: that data becomes a map here, and it opens
-const pick = document.querySelector('.load input'), lerr = document.getElementById('lerr');
+const pick = document.querySelector('#load-map input'), lerr = document.getElementById('lerr');
 pick.addEventListener('change', () => {
   const f = pick.files[0]; if (!f) return; lerr.hidden = true;
   f.text().then((t) => {
