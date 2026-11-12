@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Removing a box in a change keeps what hung under it on the map's tree</strong></dt>
+<dd>
+
+When a change Claude offers removes a box, its lines go with it, and any box under it that the change gives no new place moves up one level; **Apply** lists each one as "Move … up under …". <!-- source: https://github.com/HiAnur/anur-living-map/pull/454 --> <!-- merged-at: 2026-11-12T03:33:42Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>A system map shows each repo once after it draws itself again</strong></dt>
 <dd>
 
