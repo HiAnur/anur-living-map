@@ -1059,7 +1059,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 </div>
 <div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <button class="tbtn" id="tidyb" aria-keyshortcuts="Meta+Shift+L Control+Shift+L" title="Tidy up (⌘⇧L / Ctrl+Shift+L)">Tidy up<kbd>⌘⇧L</kbd></button>
-<div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Fit the whole map in view" aria-label="Fit the whole map in view"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
+<div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Reset zoom" aria-label="Reset zoom"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
 <div id="sysdraw" role="status" aria-live="polite" hidden></div>
 <div id="lockwhy" role="status" aria-live="polite" hidden></div>
@@ -1710,8 +1710,35 @@ function drawDiagram(db){
 /** Frames the view: the whole of it at the zoom that fits, or at the zoom `keep` gives, centred where it fits and
  * from its top left where it does not. @param {number} [keep] */
 function fit(keep){
+  const f = frame(); if (!f) return;
+  const wide = f.maxX - f.minX, tall = f.maxY - f.minY;
+  const z = Math.max(.1, Math.min(1.6, keep || Math.min(f.w / wide, f.h / tall)));
+  const roomX = f.w - wide * z, roomY = f.h - tall * z;
+  cam.z = z; cam.x = f.left + (keep && roomX < 0 ? 0 : roomX / 2) - f.minX * z; cam.y = f.top + (keep && roomY < 0 ? 0 : roomY / 2) - f.minY * z;
+  place();
+}
+
+/** Shows the view at the reading size, around what is in the middle of the screen now: 70%, where a box's words
+ * still read and about twice as much of the map shows as at 100%. Where the map is smaller than the screen it is
+ * centred; where it is larger, it fills the screen to its edge rather than leaving the room past it empty. */
+function readingSize(){
+  const f = frame(); if (!f) return;
+  const z = .7;
+  const along = (at, min, max, start, room) => {
+    if ((max - min) * z <= room) return start + (room - (max - min) * z) / 2 - min * z;
+    const mid = (start + room / 2 - at) / cam.z;
+    return Math.min(start - min * z, Math.max(start + room - max * z, start + room / 2 - mid * z));
+  };
+  const x = along(cam.x, f.minX, f.maxX, f.left, f.w), y = along(cam.y, f.minY, f.maxY, f.top, f.h);
+  cam.z = z; cam.x = x; cam.y = y;
+  place();
+}
+
+/** What the view draws, edge to edge, and the room the screen has for it (`left`, `top`, `w`, `h`); null when the
+ * view is empty. */
+function frame(){
   const fb = flowBox(), db = diagramBox();
-  const { nodes } = scope(); if (!fb && !db && !nodes.length) return;
+  const { nodes } = scope(); if (!fb && !db && !nodes.length) return null;
   const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y);
   let minX = Math.min(...xs) - 120, maxX = Math.max(...xs) + 120, minY = Math.min(...ys) - 80, maxY = Math.max(...ys) + 100;
   if (fb){ minX = 20; maxX = LANE_X(fb.flow.lanes.length - 1) + 180; minY = 10; maxY = STEP_Y0 + (fb.flow.steps.length + 2) * STEP_DY + 40; }
@@ -1720,12 +1747,8 @@ function fit(keep){
   else try { const b = edgesEl.getBBox(); if (b.width){ minX = Math.min(minX, b.x - 24); maxX = Math.max(maxX, b.x + b.width + 24); minY = Math.min(minY, b.y - 24); maxY = Math.max(maxY, b.y + b.height + 24); } } catch {}
   const r = canvas.getBoundingClientRect();
   // Docked panes already reduce the canvas width. Only the floating pull-request card needs extra room.
-  const right = prsOpen ? Math.min(440, r.width / 2) : 24, bottom = 160;
-  const fitIn = (left, top) => Math.max(.1, Math.min(1.6, (r.width - left - right) / (maxX - minX), (r.height - top - bottom) / (maxY - minY)));
-  const [left, top] = [40, 30], z = keep ? Math.max(.1, Math.min(1.6, keep)) : fitIn(left, top);
-  const roomX = (r.width - left - right) - (maxX - minX) * z, roomY = (r.height - top - bottom) - (maxY - minY) * z;
-  cam.z = z; cam.x = left + (keep && roomX < 0 ? 0 : roomX / 2) - minX * z; cam.y = top + (keep && roomY < 0 ? 0 : roomY / 2) - minY * z;
-  place();
+  const right = prsOpen ? Math.min(440, r.width / 2) : 24, bottom = 160, left = 40, top = 30;
+  return { minX, maxX, minY, maxY, left, top, w: r.width - left - right, h: r.height - top - bottom };
 }
 
 // a database is drawn as the usual cylinder before its name
@@ -3963,7 +3986,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-tool]')){ const b = t.closest('[data-tool]'); setTool(tool === b.dataset.tool && b.dataset.tool !== 'select' ? 'select' : b.dataset.tool); }
   // Tidy up lays out what you can see: boxes folded away take no room
   else if (t.closest('#tidyb')) tidyMap();
-  else if (t.id === 'fitb'){ fit(); }
+  else if (t.id === 'fitb'){ readingSize(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
