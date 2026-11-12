@@ -282,12 +282,21 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     save(); push();
     const q = `/anur-living-map map:${name} ${prompt}`;
     chats.openNew({ prompt: q, folder: home });
-    const since = state.starting.at - 2000; let tries = 0;
-    const look = setInterval(() => {
-      const file = chats.findNewChat({ folder: home, since, holding: `map:${name}` });
-      if (file && state.starting) { ACTS.link({ session: path.basename(file, '.jsonl'), file, by }); save(); push(); }
-      if (file || !state.starting || ++tries > 240) clearInterval(look);
-    }, 500);
+    watchNewChat();
+  }
+  // Looks for the chat a click opened, for two minutes from the click. The click is saved with the map, so a
+  // server that restarts before the chat appears picks the search up again on start, and a chat that appeared
+  // while it was down is found on the first look; otherwise the pane would say it is opening a chat that is open.
+  function watchNewChat() {
+    if (!state.starting) return;
+    const { at, by } = state.starting, since = at - 2000;
+    const look = () => {
+      const file = state.starting && chats.findNewChat({ folder: home, since, holding: `map:${name}` });
+      if (file) { ACTS.link({ session: path.basename(file, '.jsonl'), file, by }); save(); push(); }
+      return !!file || !state.starting || Date.now() - at > 120e3;
+    };
+    if (look()) return;
+    const timer = setInterval(() => { if (closed || look()) clearInterval(timer); }, 500);
   }
   // pictures attached from the map's chat, kept in the map's folder as <hash>.png (or .jpg, .gif, .webp);
   // a picture from the chat itself is read from its transcript; both go by the same kind of id
@@ -536,6 +545,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
   const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
   const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
+  // after ACTS, which linking the chat needs
+  if (!memory) watchNewChat();
+
   /** @param {any} req @param {any} res @param {any} p */
   async function handle(req, res, p, who = null, pictureOf = (/** @type {string} */ _name) => '') {
     if (!allowed(who, req)) { res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('You no longer have access to this project.'); return true; }

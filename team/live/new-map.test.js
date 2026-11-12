@@ -61,3 +61,21 @@ it('creates distinct blank maps without Claude, keeps them after reopening, and 
     launch.mockRestore(); fs.rmSync(home, {recursive:true,force:true});
   }
 });
+
+it('links the chat a click opened even when the server restarted before the chat appeared', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-opened-'));
+  const transcript = path.join(home, 'chat-1234abcd.jsonl');
+  fs.writeFileSync(transcript, '{}\n');
+  const find = vi.spyOn(chats, 'findNewChat').mockImplementation(() => transcript);
+  const isChat = vi.spyOn(chats, 'isChat').mockImplementation(() => true);
+  const follow = vi.spyOn(chats, 'follow').mockImplementation(() => /** @type {any} */ ({ stop() {}, msgs: () => [], model: () => '', status: () => '' }));
+  const at = Date.now() - 20 * 60e3;
+  const map = openMap({ name: 'sprint', home, initialState: { title: 'Sprint', nodes: [], edges: [], threads: {}, starting: { prompt: 'build it', by: 'Duy', at } } });
+  try {
+    expect(find).toHaveBeenCalledWith(expect.objectContaining({ since: at - 2000, holding: 'map:sprint' }));
+    expect(map.snapshot().starting).toBeUndefined();
+    expect(map.snapshot().linked[0]).toMatchObject({ session: 'chat-1234abcd', owner: 'Duy' });
+  } finally {
+    map.close(); find.mockRestore(); isChat.mockRestore(); follow.mockRestore(); fs.rmSync(home, { recursive: true, force: true });
+  }
+});
