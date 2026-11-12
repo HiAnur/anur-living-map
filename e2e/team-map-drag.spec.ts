@@ -31,6 +31,8 @@ for (const direction of [-1, 1]) {
     const y = Number(await hint.getAttribute("y"));
     const width = Number(await hint.getAttribute("width"));
     const height = Number(await hint.getAttribute("height"));
+    // Above Audience is between it and Pricing: a thin bar marks the gap instead of a full box over them.
+    if (direction < 0) expect(height).toBe(10);
     await page.screenshot({
       path: test.info().outputPath("vertical-drop.png"),
     });
@@ -44,12 +46,17 @@ for (const direction of [-1, 1]) {
         const moved = state.nodes.find((n: { id: string }) => n.id === "trial");
         return {
           x: moved.x,
-          y: moved.y,
+          // Between Pricing (-90) and Audience (90) the box lands in that gap; below Audience it lands on the box.
+          y: direction < 0 ? moved.y > -90 && moved.y < 90 : moved.y,
           parent: state.edges.find((e: { to: string }) => e.to === "trial")
             .from,
         };
       })
-      .toEqual({ x: x + width / 2, y: y + height / 2, parent: "launch" });
+      .toEqual({
+        x: x + width / 2,
+        y: direction < 0 ? true : y + height / 2,
+        parent: "launch",
+      });
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect
       .poll(async () => {

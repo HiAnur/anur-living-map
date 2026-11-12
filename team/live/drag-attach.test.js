@@ -127,6 +127,12 @@ describe('drag attachment preview',()=>{
     expect(h.rubber.innerHTML).toContain('class="attach-box" x="140" y="315"');
     expect(h.ctx.drag.attach.moves.find(m=>m.id==='b').y).toBe(255);
   });
+  it('marks a drop between two boxes with a thin bar in the gap, not a full box over them',()=>{
+    const h=page({nodes:[{id:'p',label:'P',x:0,y:128},...['a','b','c','d'].map((id,i)=>({id,label:id,x:210,y:i*85}))],edges:['a','b','c','d'].map(to=>({from:'p',to}))});
+    h.ctx.drag.n=h.ctx.nodeById('c');h.ctx.moveTopicDrag(210,35);
+    expect(h.rubber.innerHTML).toContain('class="attach-box" x="140" y="38" width="140" height="10"');
+    expect(h.ctx.drag.attach.moves.find(m=>m.id==='c').y).toBe(85);
+  });
   it('leaves no hole where a box was when it moves above or below a sibling',()=>{
     const state={nodes:[{id:'p',label:'P',x:0,y:128},...['a','b','c','d'].map((id,i)=>({id,label:id,x:210,y:i*85}))],edges:['a','b','c','d'].map(to=>({from:'p',to}))};
     for (const {moving,target,above,order} of [{moving:'b',target:'d',above:false,order:['a','c','d','b']},{moving:'c',target:'a',above:true,order:['c','a','b','d']}]){
