@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Drag a box above or below another to reorder</strong></dt>
+<dd>
+
+Drag a box just above or below another box to place it there at the same level; a green dotted box and line from the parent show where it will land. Dropping on the middle of a box still makes it a child. <!-- source: https://github.com/HiAnur/anur-living-map/pull/413 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/424 --> <!-- merged-at: 2026-11-12T00:55:56Z -->
+
+<img src="docs/shipping/2026-11-11/drag-above-below.png" alt="A sample team map: Asendia AI is being dragged above its sibling Appear, and a green dotted line runs from the parent Warm teams to a green dotted box above Appear." width="560">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Reset zoom shows the map at a size you can read</strong></dt>
 <dd>
 
