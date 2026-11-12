@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] A box with no line no longer stops Tidy up</strong></dt>
+<dd>
+
+**Tidy up** now arranges a map even when some boxes have no line to the rest: those boxes keep their places while everything else is tidied around the box the map starts from. <!-- source: https://github.com/HiAnur/anur-living-map/pull/445 --> <!-- merged-at: 2026-11-12T02:21:41Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Drag a box above or below another to reorder</strong></dt>
 <dd>
 
