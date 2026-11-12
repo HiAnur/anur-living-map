@@ -28,12 +28,14 @@ export function selfUpdate(server, busy = () => false, test = {}) {
   // the skill's copy is replaced file by file through a rename, never written in place: bash reads a running script
   // by offset, so writing over open-map.sh while /anur-living-map runs would tear it mid-line
   function refreshSkill() {
-    const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), dst = chats.skillDir('anur-living-map');
-    for (const f of /** @type {string[]} */ (fs.readdirSync(src, { recursive: true }))) {
-      const s = path.join(src, f), d = path.join(dst, f);
-      if (fs.statSync(s).isDirectory()) continue;
-      fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, `${d}.new`); fs.renameSync(`${d}.new`, d);
-    }
+    // the map's own agent always has a copy; another agent's copy is kept current once it has one
+    const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), main = chats.skillDir('anur-living-map');
+    for (const dst of new Set([main, ...(chats.skillDirs?.('anur-living-map') || []).filter((d) => fs.existsSync(d))]))
+      for (const f of /** @type {string[]} */ (fs.readdirSync(src, { recursive: true }))) {
+        const s = path.join(src, f), d = path.join(dst, f);
+        if (fs.statSync(s).isDirectory()) continue;
+        fs.mkdirSync(path.dirname(d), { recursive: true }); fs.copyFileSync(s, `${d}.new`); fs.renameSync(`${d}.new`, d);
+      }
   }
   // the newest release: the last v* tag on origin's main, which CI tags only once a push passed its checks
   /** @type {string | null} */
