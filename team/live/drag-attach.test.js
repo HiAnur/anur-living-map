@@ -42,6 +42,14 @@ describe('drag attachment preview',()=>{
     expect(history.apply('Duy','undo',h.state).ok).toBe(true);
     expect(h.state.nodes).toEqual(before.nodes);expect(h.state.edges).toEqual(expect.arrayContaining(before.edges));expect(h.state.edges).toHaveLength(before.edges.length);
   });
+  it('starts the green line at the parent where it is drawn, though the drop will re-centre it',()=>{
+    const h=page();
+    h.ctx.moveTopicDrag(420,205);
+    const plan=h.ctx.drag.attach;
+    expect(plan.parent).toBe('new');
+    expect(plan.moves.find(m=>m.id==='new').y).toBeGreaterThan(170);
+    expect(h.rubber.innerHTML).toContain('class="attach-line" d="M280 170L');
+  });
   it('reorders siblings above and below without changing their parent',()=>{
     for(const direction of [-1,1]){
       const h=page(); h.ctx.drag.n=h.ctx.nodeById('lower');
