@@ -3636,7 +3636,9 @@ function previewTopicAttach(sx, sy){
   if (!target) return;
   const vertical = Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
   if (!vertical && parents.has(target.id)) return;
-  const side = sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, target, sy < target.y, close)
+  // A child grows away from its parent, as on any mind map; only a box with no parent to its side takes the pointer's side.
+  const from = drag.source.nodes.find((n) => drag.source.edges.some((e) => e.from === n.id && e.to === target.id) && n.x !== target.x);
+  const side = from ? Math.sign(target.x - from.x) : sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, target, sy < target.y, close)
     : roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, side, null, close) : planTopicAttach(drag.source, roots[0], target.id, side, null, close);
   const plan = make(true);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
