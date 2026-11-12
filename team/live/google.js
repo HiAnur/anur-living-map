@@ -5,6 +5,8 @@ import crypto from 'node:crypto';
 
 const LOGIN = (process.env.LIVING_MAP_LOGIN_URL ?? 'https://living-map-login-572969880390.us-west1.run.app').replace(/\/$/, '');
 const TTL = 10 * 60_000;
+// a Google picture is kept and drawn only as an address on Google's own picture host
+export const PICTURE = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\/[\w\-./=~%]{1,300}$/;
 const pending = new Map(); // state → { verifier, origin, next, at }
 /** @param {number} n */
 const token = (n) => crypto.randomBytes(n).toString('base64url');
@@ -22,7 +24,8 @@ export function googleStart(origin, next) {
 }
 
 // what came back on /auth/done: the person (listed: named by the login's list, so one of the map's people may be
-// seated; else only Google's name for them) and the page to go back to, or an Error in plain words
+// seated; else only Google's name for them), their Google picture's address if the login gave one, and the page
+// to go back to, or an Error in plain words
 /** @param {URLSearchParams} params */
 export async function googleFinish(params) {
   const s = pending.get(params.get('state') || '');
@@ -34,7 +37,7 @@ export async function googleFinish(params) {
   const d = r ? await r.json().catch(() => ({})) : {};
   if (!r?.ok || !d.name) throw new Error(d.error || 'The sign-in service did not answer. Try again.');
   const name = String(d.name).replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) || String(d.email || '').split('@')[0] || 'Someone';
-  return { email: d.email, name, listed: d.listed === true, next: s.next };
+  return { email: d.email, name, listed: d.listed === true, picture: PICTURE.test(d.picture) ? String(d.picture) : '', next: s.next };
 }
 
 // a name and password kept at Living Map login, for someone with no Google account: the name to sign in as, or null

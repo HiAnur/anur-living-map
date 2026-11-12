@@ -6,7 +6,7 @@
 //
 //   GET  /start?return=http://localhost:4322/auth/done&state=S&challenge=C    → Google
 //   GET  /auth/google/callback                                              → <return>?code=…&state=S
-//   POST /exchange {code, verifier}                                          → {email, name, listed}
+//   POST /exchange {code, verifier}                                          → {email, name, listed, picture}
 //   POST /password {name, password}                                          → {name}, a sign-in with no Google account
 //
 // The list, from any Mac signed in to gcloud with access to the project:
@@ -133,7 +133,9 @@ async function google(code, verifier) {
   if (c.aud !== ID || !['accounts.google.com', 'https://accounts.google.com'].includes(c.iss) || c.exp * 1000 < Date.now())
     throw new Error('Google did not confirm the sign-in.');
   if (!(c.email_verified === true || c.email_verified === 'true')) throw new Error('Google has not verified that address.');
-  return { email: String(c.email).toLowerCase(), name: String(c.name || '').replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) };
+  // the person's Google picture, only as an address on Google's own picture host, so a map can draw it as it is
+  const picture = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\/[\w\-./=~%]{1,300}$/.test(c.picture) ? String(c.picture) : '';
+  return { email: String(c.email).toLowerCase(), name: String(c.name || '').replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40), picture };
 }
 
 http.createServer(async (req, res) => {
@@ -153,11 +155,11 @@ http.createServer(async (req, res) => {
     if (!f) return text(res, 400, 'That sign-in took too long. Go back to the map and sign in again.');
     if (q.get('error')) return back(res, f, { error: q.get('error') === 'access_denied' ? 'Google sign-in was cancelled.' : `Google said: ${q.get('error')}.` });
     // the name the list gives this address, else the name Google has for the person, else the address's first part
-    let email, name;
+    let email, name, picture;
     let listed = false;
-    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (/** @type {any} */ e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
+    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; picture = g.picture; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (/** @type {any} */ e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
     console.log(`signed in ${email} as ${name}`);
-    return back(res, f, { code: seal('code', { email, name, listed, challenge: f.challenge }) });
+    return back(res, f, { code: seal('code', { email, name, listed, picture, challenge: f.challenge }) });
   }
   if (url.pathname === '/exchange' && req.method === 'POST') {
     /** @type {any} what the map's server sent */
@@ -165,7 +167,7 @@ http.createServer(async (req, res) => {
     const c = KEY && unseal('code', a.code, CODE_TTL);
     if (!c || sha(a.verifier || '') !== c.challenge) return json(res, 400, { error: 'That sign-in code is not good. Sign in again.' });
     // listed: the name is the list's, so the map may seat them as that person; otherwise it is only Google's
-    return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed });
+    return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed, picture: c.picture || '' });
   }
   if (url.pathname === '/password' && req.method === 'POST') {
     /** @type {any} what the map's server sent */

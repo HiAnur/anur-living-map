@@ -25,7 +25,9 @@ main{width:100%;max-width:520px;margin:40px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
 .card{background:#fff;border:1px solid var(--rule-2);border-radius:12px}
 .who{display:flex;align-items:center;gap:14px;padding:20px}
-.face{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600;font-size:18px}
+.face{position:relative;display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:50%;color:#fff;background:var(--profile);font-weight:600;font-size:18px}
+/* your Google picture covers your initial, which stays underneath for a picture that will not load */
+.face img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover}
 .who b{display:block;font-size:16px;font-weight:500;overflow-wrap:anywhere}
 #role{color:var(--text-2);font-size:13px}
 /* one fact a line: what it is on the left, the fact in the middle, the one thing you can do about it on the right */
@@ -74,6 +76,8 @@ fetch('/api/me').then(async (r) => { const d = await r.json(); if (!r.ok) throw 
   const w = words(me);
   $('name').textContent = me.name; $('role').textContent = w.role;
   $('face').textContent = Array.from(me.name.trim())[0]?.toUpperCase() || '';
+  const picture = document.querySelector('meta[name="lm-picture"]')?.content;
+  if (picture){ const im = new Image(); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = picture; $('face').append(im); }
   const color = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' }[me.name];
   if (color) $('face').style.setProperty('--profile', color);
   $('email').textContent = w.email; $('email-note').textContent = w.note; $('email-note').hidden = !w.note;

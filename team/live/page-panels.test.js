@@ -6,7 +6,7 @@ import { historyScreens } from './page-history.js';
 // The comments' and History's HTML, called as the page calls them, with its helpers stood in for.
 
 const esc = (/** @type {unknown} */ s) => String(s ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-const comments = commentScreens({ me: 'Duy', esc, pcol: () => '#123456', label: (id) => ({ web: 'Web' })[/** @type {'web'} */ (id)] });
+const comments = commentScreens({ me: 'Duy', esc, pcol: () => '#123456', facePic: (who) => who === 'Duy' ? '<img data-face>' : '', label: (id) => ({ web: 'Web' })[/** @type {'web'} */ (id)] });
 const thread = { id: 7, x: 10, y: 20, view: 'system', node: 'web', resolved: false,
   msgs: [{ who: 'Ana', text: 'Ask @Duy <now>', at: Date.now() - 120_000 }, { who: 'Duy', text: 'Done', at: Date.now() }] };
 
@@ -16,7 +16,9 @@ describe('the comments', () => {
     expect(pin).toContain('class="pinc on ');
     expect(pin).toContain('data-pin="7"');
     expect(pin).toContain('<span class="cnt">2</span>');
-    expect(comments.draftPin({ x: 1, y: 2 })).toContain('>D</i>');
+    expect(pin).toContain('>A</i>');
+    // someone with a Google picture has it over their initial
+    expect(comments.draftPin({ x: 1, y: 2 })).toContain('>D<img data-face></i>');
   });
   it('show a thread\'s messages safely, with mentions, and the box for a new one', () => {
     const open = comments.thread(thread);

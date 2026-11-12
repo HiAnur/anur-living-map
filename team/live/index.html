@@ -102,6 +102,9 @@ button,input,textarea{font:inherit;color:inherit}
 .faces{display:flex;align-items:center;gap:8px}
 .face{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:500 11px/1 var(--plex);color:#fff;background:#141413;border:2px solid var(--canvas);margin-left:-6px;position:relative}
 .face.me{box-shadow:0 0 0 2px var(--claude)}
+/* a person's Google picture covers their initial, which stays underneath for a picture that will not load */
+.face img,.av img,.wav img,.pinc i img{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.av,.pinc i{position:relative}
 /* people, Figma style: one button with everyone's initial; it opens who they are and their role */
 .faces{position:relative}
 .pp{display:flex;align-items:center;height:32px;padding:0 6px 0 12px;border:0;border-radius:999px;background:none;cursor:pointer}
@@ -1177,6 +1180,11 @@ const me = () => (S && S.people.find((p) => p.id === ME)) || { id: ME, sees: 'al
 // a box drawn from a repo you may not read on GitHub comes from the server as only "A private repo": locked
 const canSee = (n) => !n.hiddenRepo && (!me().sees || me().sees === 'all' || n.area === me().sees);
 const pcol = (who) => PCOL[who] || '#141413';
+// a person's Google picture, to draw over their initial: only an address on Google's own picture host is drawn
+const facePic = (who) => { const u = S?.people?.find((p) => p.id === who)?.picture;
+  return /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\/[\w\-./=~%]{1,300}$/.test(u) ? `<img data-face src="${u}" alt="" referrerpolicy="no-referrer">` : ''; };
+// a picture that will not load leaves the initial under it
+document.addEventListener('error', (e) => { if (e.target.matches?.('img[data-face]')) e.target.remove(); }, true);
 // words as the page shows them: escaped, with Claude's **bold**, `code` and line breaks kept
 const prose = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
   .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\n/g, '<br>');
@@ -2450,8 +2458,8 @@ function renderTop(){
   const roleOf = (p) => [p.role?.split(',')[0], p.sees && p.sees !== 'all' ? `${p.sees} only` : ''].filter(Boolean).join(' · ');
   const isHere = (p) => p.id === ME || hereNow.includes(p.id);
   const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
-  $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
-    ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
+  $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}${facePic(p.id)}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
+    ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}${facePic(p.id)}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
       ${SIGNED_IN ? `<a class="pm-row pm-out" href="/settings">Settings</a><a class="pm-row pm-out" href="/login?recovery=email">Recovery email</a><div class="pm-row pm-out" data-signout>Sign out</div>` : ''}</div>` : ''}`;
 }
 
@@ -2470,7 +2478,7 @@ document.addEventListener('focusout', (e) => { if (e.target.id === 'renamei') en
 // What someone answered: Yes or No, or the option they picked ("Own answer" when they wrote their own)
 // "Wait on (P)": the question waits on someone else, not you; each person's initial in their colour, their name on hover
 const waitPill = (calls, cls) => { const who = [...new Set(calls.map((c) => c.for))];
-  return `<span class="${cls} wait">Wait on ${who.map((w) => `<i class="wav" style="background:${pcol(w)}" data-name="${w}" aria-label="${w}">${w[0]}</i>`).join('')}</span>`; };
+  return `<span class="${cls} wait">Wait on ${who.map((w) => `<i class="wav" style="background:${pcol(w)}" data-name="${w}" aria-label="${w}">${w[0]}${facePic(w)}</i>`).join('')}</span>`; };
 const ans = (c) => c.status === 'answered' ? (c.pickedId === 'other' ? 'Own answer' : c.picked) : c.status === 'confirmed' ? 'Yes' : 'No';
 // the box card's tab ('box' for Information, 'history' or 'chat') and the box it was chosen on
 let sideTab = 'box', sideFor = null, sideSeen = '';
@@ -3223,7 +3231,7 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); keyboardSelection = true; if (!e.repeat) deleteBox(n.id);
 }, true);
 // the comments' HTML (commentScreens in page-comments.js), with what it needs of the page
-const commentView = () => commentScreens({ me: ME, esc, pcol, label: (id) => nodeById(id)?.label });
+const commentView = () => commentScreens({ me: ME, esc, pcol, facePic, label: (id) => nodeById(id)?.label });
 // a resolved comment leaves the map, as in Figma; the panel keeps it behind "Show resolved"
 const visibleComments = () => (S.comments || []).filter((c) => c.view === view && (!c.resolved || showResolved) && (!c.node || (!locked(nodeById(c.node) || {}) && !foldedAway(c.node))));
 function renderComments(){
