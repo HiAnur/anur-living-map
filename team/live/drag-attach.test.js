@@ -121,6 +121,12 @@ describe('drag attachment preview',()=>{
     expect(at('existing').y).toBe(85);expect(at('branch').y).toBe(171);expect(at('child').y).toBe(256);
     expect(at('lower').y).toBe(340);expect(at('lower-child').y).toBe(340);
   });
+  it('draws the green box below the last box as it is drawn now, and closes the hole on drop',()=>{
+    const h=page({nodes:[{id:'p',label:'P',x:0,y:128},...['a','b','c','d'].map((id,i)=>({id,label:id,x:210,y:i*85}))],edges:['a','b','c','d'].map(to=>({from:'p',to}))});
+    h.ctx.drag.n=h.ctx.nodeById('b');h.ctx.moveTopicDrag(210,255+35);
+    expect(h.rubber.innerHTML).toContain('class="attach-box" x="140" y="315"');
+    expect(h.ctx.drag.attach.moves.find(m=>m.id==='b').y).toBe(255);
+  });
   it('leaves no hole where a box was when it moves above or below a sibling',()=>{
     const state={nodes:[{id:'p',label:'P',x:0,y:128},...['a','b','c','d'].map((id,i)=>({id,label:id,x:210,y:i*85}))],edges:['a','b','c','d'].map(to=>({from:'p',to}))};
     for (const {moving,target,above,order} of [{moving:'b',target:'d',above:false,order:['a','c','d','b']},{moving:'c',target:'a',above:true,order:['c','a','b','d']}]){

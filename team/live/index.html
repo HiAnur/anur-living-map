@@ -3534,7 +3534,7 @@ document.addEventListener('keydown', (e) => {
 let drag = null, panning = null, moved = false;
 // The green landing box uses the same placement as the saved move. Reserve the
 // whole branch's height so children cannot overlap the next sibling branch.
-function planTopicAttach(graph, id, parentId, side, afterId = null){
+function planTopicAttach(graph, id, parentId, side, afterId = null, close = true){
   const root = graph.nodes.find((n) => n.id === id), target = graph.nodes.find((n) => n.id === parentId);
   if (!root || !target) return null;
   const ids = branchIds(graph, [id]); if (ids.has(parentId)) return null;
@@ -3543,7 +3543,7 @@ function planTopicAttach(graph, id, parentId, side, afterId = null){
   const top = Math.min(...branch.map((n) => n.y - HT(n) / 2)), bottom = Math.max(...branch.map((n) => n.y + HT(n) / 2));
   const x = afterId ? graph.nodes.find((n) => n.id === afterId).x : target.x + side * (W(target) / 2 + 70 + W(root) / 2);
   // Close the hole the branch leaves first, so the insert below lays out the map as it will look after the move.
-  let closed = graph.edges.filter((e) => e.to === id).length === 1 ? planTopicRemove(graph.nodes, graph.edges, ids) : [];
+  let closed = close && graph.edges.filter((e) => e.to === id).length === 1 ? planTopicRemove(graph.nodes, graph.edges, ids) : [];
   if (closed.some((m) => locked(nodeById(m.id) || {}))) closed = [];
   const settled = rest.map((n) => ({...n,y:closed.find((m) => m.id === n.id)?.y ?? n.y}));
   const plan = planTopicInsert(settled, edges, parentId, afterId, x, root.label, bottom - top);
@@ -3590,10 +3590,10 @@ function topicDragRoots(d){
   const roots = picked.filter((id) => !picked.some((other) => other !== id && branchIds(d.source,[other]).has(id)));
   return (roots.length ? roots : [picked[0]]).sort((a,b) => d.source.nodes.find((n) => n.id === a).y-d.source.nodes.find((n) => n.id === b).y);
 }
-function planGroupAttach(graph, roots, parent, side, afterId = null){
+function planGroupAttach(graph, roots, parent, side, afterId = null, close = true){
   const work = {nodes:graph.nodes.map((n) => ({...n})),edges:graph.edges.map((e) => ({...e}))};
   for (const id of roots){
-    const plan = planTopicAttach(work,id,parent,side,afterId); if (!plan) return null;
+    const plan = planTopicAttach(work,id,parent,side,afterId,close); if (!plan) return null;
     for (const m of plan.moves) Object.assign(work.nodes.find((n) => n.id === m.id),{x:m.x,y:m.y});
     work.edges = [...work.edges.filter((e) => e.to !== id),{from:parent,to:id}];
     if (afterId) afterId = id;
@@ -3604,14 +3604,14 @@ function planGroupAttach(graph, roots, parent, side, afterId = null){
 }
 // Reflect upward insertions so both directions reserve the entire branch and use
 // the same sibling spacing, collision checks and saved positions.
-function planTopicSibling(graph, roots, target, above){
+function planTopicSibling(graph, roots, target, above, close = true){
   const incoming = graph.edges.filter((e) => e.to === target.id);
   if (incoming.length !== 1) return null;
   const parent = graph.nodes.find((n) => n.id === incoming[0].from);
   if (!parent || locked(nodeById(parent.id) || parent) || roots.some((id) => branchIds(graph,[id]).has(parent.id))) return null;
   const sign = above ? -1 : 1;
   const reflected = {...graph,nodes:graph.nodes.map((n) => ({...n,y:n.y*sign}))};
-  const plan = planGroupAttach(reflected, above ? [...roots].reverse() : roots, parent.id, target.x < parent.x ? -1 : 1, target.id);
+  const plan = planGroupAttach(reflected, above ? [...roots].reverse() : roots, parent.id, target.x < parent.x ? -1 : 1, target.id, close);
   if (!plan) return null;
   return {...plan,moves:plan.moves.map((m) => ({...m,fromY:m.fromY*sign+0,y:m.y*sign+0}))};
 }
@@ -3636,13 +3636,15 @@ function previewTopicAttach(sx, sy){
   if (!target) return;
   const vertical = Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
   if (!vertical && parents.has(target.id)) return;
-  const plan = vertical ? planTopicSibling(drag.source, roots, target, sy < target.y)
-    : roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, sx < target.x ? -1 : 1) : planTopicAttach(drag.source, roots[0], target.id, sx < target.x ? -1 : 1);
+  const side = sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, target, sy < target.y, close)
+    : roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, side, null, close) : planTopicAttach(drag.source, roots[0], target.id, side, null, close);
+  const plan = make(true);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
   drag.attach = plan;
-  // The parent re-centres on its children only once the drop is saved, so the hint leaves it where it is drawn.
-  const parent = drag.source.nodes.find((n) => n.id === plan.parent);
-  const placed = drag.source.nodes.map((n) => n === parent ? n : ({...n,...plan.moves.find((m) => m.id === n.id)}));
+  // The hint sits among the boxes as they are drawn now: the parent re-centres and the space the branch leaves
+  // closes only once it is dropped.
+  const hint = make(false) || plan, parent = drag.source.nodes.find((n) => n.id === plan.parent);
+  const placed = drag.source.nodes.map((n) => n === parent ? n : ({...n,...hint.moves.find((m) => m.id === n.id)}));
   // One landing hint represents the whole selection; the saved plan still carries every branch.
   const landings = roots.slice(0, 1).map((id) => { const ghost = placed.find((n) => n.id === id), points = fanPts(parent, ghost, placed) || routePts(parent, ghost, null, placed); return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-HT(ghost)/2}" width="${W(ghost)}" height="${HT(ghost)}" rx="6"/>`; }).join('');
   $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/>${landings}`;
