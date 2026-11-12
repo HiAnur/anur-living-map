@@ -1,9 +1,11 @@
 ---
 name: anur-living-map
-description: Opens the team's Living Map of this repo's system (boxes and lines read from its folders, imports and settings) beside the chat, starting its server for this repo if needed. Use when the user says /anur-living-map, "open the system map", or asks what is on the team map. Not /living-map, which maps the chat.
+description: Opens the team's Living Map of this repo's system (boxes and lines read from its folders, imports and settings) beside the chat, starting its server for this repo if needed. Use when the user says /anur-living-map (/skill:anur-living-map in Pi), "open the system map", or asks what is on the team map. Not /living-map, which maps the chat.
 ---
 
 # Anur Living Map: the system map of this repo
+
+This skill runs the same in a Claude Code chat and a Pi chat. Where they differ (the chat's id, how the listener runs), each step says both.
 
 The map is drawn from the repo's own files by the server in `$ANUR_LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `ANUR_LIVING_MAP_HOME`, or the older `LIVING_MAP_HOME`, says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off.
 
@@ -19,8 +21,8 @@ When the arguments begin with `map:<name>` (`/anur-living-map map:hiring-plan ma
 
 **Send these together in one message, never one after another**, and skip any this chat has already done:
 
-- **The script** (Bash): `~/.claude/skills/anur-living-map/scripts/open-map.sh`. It starts the server only when it is not answering, puts this repo on the list of maps, brings the map up in Chrome (the tab already on it comes to the front, otherwise a new tab) and links this chat to the map. Each line it prints says what it did; `already` means nothing needed doing. Another map: `open-map.sh gtm`.
-- **The listener** (step 3), in the background.
+- **The script** (Bash): `scripts/open-map.sh` in this skill's folder (`~/.claude/skills/anur-living-map/` in Claude Code, `~/.agents/skills/anur-living-map/` in Pi). It starts the server only when it is not answering, puts this repo on the list of maps, brings the map up in Chrome (the tab already on it comes to the front, otherwise a new tab) and links this chat to the map. Each line it prints says what it did; `already` means nothing needed doing. Another map: `open-map.sh gtm`.
+- **The listener** (step 3): in the background in Claude Code, the `living_map_listen` tool in Pi.
 - **The browser pane** on the map (step 2).
 
 **Then go straight on.** Do not check again that the map opened, and do not read the map, the code or the database to see what is there: the script's lines say it. The test: one round of tool calls between the user's message and the work they asked for. 
@@ -39,7 +41,11 @@ The map asks who you are: a browser that has not signed in lands on `localhost:4
 
 ## 3. Listen to the map
 
-People answer the map's questions, press Apply on changes Claude proposed in the map's chat, and comment on boxes. What belongs to this chat should reach it without anyone typing here. Start the listener in the background (`run_in_background`, never in the foreground), unless one already runs in this conversation for that map:
+People answer the map's questions, press Apply on changes Claude proposed in the map's chat, and comment on boxes. What belongs to this chat should reach it without anyone typing here.
+
+**In Pi**, call the `living_map_listen` tool once per map with the map's name (this repo's folder name for its own map, `gtm` for `localhost:4323/gtm/`). It keeps listening until the chat ends, so it never needs starting again, and what the map has for this chat arrives as a message starting `FROM YOUR LIVING MAP`. If the tool is missing, `open-map.sh` printed `pi: added ...`: tell the user to type `/reload` once, then call it. The chat's id is `$PI_SESSION_ID` wherever the rules below say `$CLAUDE_CODE_SESSION_ID`.
+
+**In Claude Code**, start the listener in the background (`run_in_background`, never in the foreground), unless one already runs in this conversation for that map:
 
 ```bash
 node "${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}/team/live/wait.js" 4323 "$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")" "$CLAUDE_CODE_SESSION_ID"
@@ -49,7 +55,7 @@ The second argument is the map: this repo's folder name for its own map (the lis
 
 The script links this chat to the map, so the map's Claude pane shows this conversation, live, and what is typed there comes here. It links as the person who uses this Mac (the first word of the account's full name, or `LIVING_MAP_ME`): only their signed-in browser is shown this chat. The chat linked last is the one the pane follows.
 
-It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. When the rules for answering are new to this chat, they come under it after `HOW TO ANSWER IT`, from the server itself (otherwise one line says they are unchanged since you last got them): how to say it back, how to propose a change so it waits for Apply, how to reorganize the map, what Build the plan means, how a plan is drawn. Follow them; they are always as current as the map, and they win over anything read earlier. `open-map.sh` prints the same rules when it opens the map (after `RULES FROM THE MAP`), so plans this chat draws follow them too. Then start the listener again right away, the same way.
+It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. When the rules for answering are new to this chat, they come under it after `HOW TO ANSWER IT`, from the server itself (otherwise one line says they are unchanged since you last got them): how to say it back, how to propose a change so it waits for Apply, how to reorganize the map, what Build the plan means, how a plan is drawn. Follow them; they are always as current as the map, and they win over anything read earlier. `open-map.sh` prints the same rules when it opens the map (after `RULES FROM THE MAP`), so plans this chat draws follow them too. Then, in Claude Code, start the listener again right away, the same way (Pi's keeps listening).
 
 ## 4. Reply
 

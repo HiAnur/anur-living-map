@@ -14,6 +14,7 @@ export function claudeCodeChats({ home = os.homedir(), run = execFileSync, open 
   /** @type {AgentConversation} */
   const chats = {
     follow,
+    owns: (file) => file.includes('/.claude/projects/'),
     findChat(session) {
       const dir = fs.existsSync(projects) && fs.readdirSync(projects).find((d) => fs.existsSync(path.join(projects, d, `${session}.jsonl`)));
       return dir ? path.join(projects, dir, `${session}.jsonl`) : null;

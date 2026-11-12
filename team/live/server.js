@@ -292,7 +292,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const { at, by } = state.starting, since = at - 2000;
     const look = () => {
       const file = state.starting && chats.findNewChat({ folder: home, since, holding: `map:${name}` });
-      if (file) { ACTS.link({ session: path.basename(file, '.jsonl'), file, by }); save(); push(); }
+      if (file) { ACTS.link({ session: chats.sessionOf?.(file) ?? path.basename(file, '.jsonl'), file, by }); save(); push(); }
       return !!file || !state.starting || Date.now() - at > 120e3;
     };
     if (look()) return;

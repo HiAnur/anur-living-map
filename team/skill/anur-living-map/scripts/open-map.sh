@@ -8,7 +8,10 @@
 #
 # ANUR_LIVING_MAP_PORT serves on another port, and ANUR_LIVING_MAP_NO_BROWSER=1 leaves Chrome alone (a test runs this
 # script against a stand-in server with both).
+#
+# It runs the same from a Claude Code chat or a Pi chat: each says which chat it is in its own variable.
 set -u
+SID="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"
 P="${ANUR_LIVING_MAP_PORT:-4323}"
 R="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 # a map's address is its folder's name in lowercase letters, digits and dashes, as the server names it (PiTrade -> pitrade)
@@ -23,8 +26,8 @@ REV="$D/server.rev"   # the commit the running server was started from
 
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, moved to the newest release (the
 #    v* tag CI puts on a push to main that passed its checks, never main itself) when it is on main with no changes
-#    of its own (a few seconds at most; offline it gives up after a moment and says so), and the skill's copy under
-#    ~/.claude/skills follows, for the next time it is read. ANUR_LIVING_MAP_NO_UPDATE=1 leaves the clone as it is.
+#    of its own (a few seconds at most; offline it gives up after a moment and says so), and the skill's copy this
+#    script runs from (~/.claude/skills, ~/.agents/skills) follows, for the next time it is read. ANUR_LIVING_MAP_NO_UPDATE=1 leaves the clone as it is.
 if [ ! -e "$H/.git" ]; then
   git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
 fi
@@ -42,11 +45,11 @@ elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --ta
     echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled: $(git -C "$H" log -1 --format=%s)"
   fi
 else echo "update: could not reach GitHub, staying with what is here"; fi
-# the skill's copy under ~/.claude/skills always matches the clone, however the clone got its latest (this pull,
+# the skill's copy this script runs from always matches the clone, however the clone got its latest (this pull,
 # the server's own, a pull by hand). Each file is replaced through a rename, never written in place: bash reads
 # this very script by offset while it runs, so writing over it would tear it mid-line.
-SK="$H/team/skill/anur-living-map"; SD="$HOME/.claude/skills/anur-living-map"
-if ! diff -rq "$SK" "$SD" >/dev/null 2>&1; then
+SK="$H/team/skill/anur-living-map"; SD="$(cd "$(dirname "$0")/.." && pwd)"
+if [ "$(cd "$SK" && pwd)" != "$SD" ] && ! diff -rq "$SK" "$SD" >/dev/null 2>&1; then
   (cd "$SK" && find . -type f) | while read -r f; do mkdir -p "$(dirname "$SD/$f")"; cp "$SK/$f" "$SD/$f.new" && mv -f "$SD/$f.new" "$SD/$f"; done
   echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
 fi
@@ -117,13 +120,33 @@ if [ "$how" = skipped ]; then echo "chrome: skipped, would open $OPEN"
 elif [ "$how" = front ]; then echo "chrome: already open on the map, brought to the front"
 else open -a "Google Chrome" "$OPEN" && echo "chrome: opened $OPEN"; fi
 
-# 4. this chat linked to the map, so the map's Claude pane shows it and what is typed there comes here
-if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
-  F=$(ls ~/.claude/projects/*/"$CLAUDE_CODE_SESSION_ID".jsonl 2>/dev/null | head -1)
+# 4. this chat linked to the map, so the map's Claude pane shows it and what is typed there comes here. A Pi chat
+#    names its own transcript; a Claude Code chat's is found by its id.
+if [ -n "$SID" ]; then
+  if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then F=$(ls ~/.claude/projects/*/"$SID".jsonl 2>/dev/null | head -1); else F="${PI_SESSION_FILE:-}"; fi
   curl -s -X POST "${U}api/act" -H 'content-type: application/json' \
-    --data "{\"type\":\"link\",\"by\":\"${LIVING_MAP_ME:-$(id -F 2>/dev/null | cut -d' ' -f1)}\",\"session\":\"$CLAUDE_CODE_SESSION_ID\",\"file\":\"$F\"}" >/dev/null
+    --data "{\"type\":\"link\",\"by\":\"${LIVING_MAP_ME:-$(id -F 2>/dev/null | cut -d' ' -f1)}\",\"session\":\"$SID\",\"file\":\"$F\"}" >/dev/null
   echo "chat: linked to the map"
 else echo "chat: not linked (no session id)"; fi
 
+# 4b. a Pi chat reaches the map through its MCP server and hears it through the listener extension; each is added
+#     once, pointing at the clone so it follows its updates. Pi reads both when a chat starts or after /reload.
+if [ -n "${PI_SESSION_ID:-}" ] && [ -z "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+  PA="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"; added=""
+  if ! grep -qE '"(anur-)?living-map"' "$PA/mcp.json" 2>/dev/null; then
+    # its tools are declared to the model like built-in ones, so the chat calls living_map_change directly
+    pi mcp add anur-living-map -- node "$H/team/live/mcp.js" >/dev/null 2>&1 && node -e '
+      const f = process.argv[1], c = JSON.parse(require("fs").readFileSync(f, "utf8"));
+      c.mcpServers["anur-living-map"].exposure = "direct"; require("fs").writeFileSync(f, JSON.stringify(c, null, 2) + "\n");' "$PA/mcp.json" \
+      && added="the map's tools" || echo "pi: could not add the map's tools (pi mcp add anur-living-map -- node $H/team/live/mcp.js)"
+  fi
+  X="$PA/extensions/anur-living-map.js"; line="export { default } from \"$H/team/live/agents/pi/listener.js\";"
+  if [ "$(cat "$X" 2>/dev/null)" != "$line" ]; then
+    mkdir -p "$PA/extensions" && printf '%s\n' "$line" > "$X" && added="${added:+$added and }the listener"
+  fi
+  if [ -n "$added" ]; then echo "pi: added $added; type /reload once so this chat has them"
+  else echo "pi: map tools and listener already set up"; fi
+fi
+
 # 5. the rules this chat follows on this map, from the server itself, so they match what it can do
-echo "RULES FROM THE MAP:"; curl -s "${U}api/rules?session=${CLAUDE_CODE_SESSION_ID:-}"
+echo "RULES FROM THE MAP:"; curl -s "${U}api/rules?session=$SID"

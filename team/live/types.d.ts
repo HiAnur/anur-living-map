@@ -154,9 +154,38 @@ interface AgentConversation {
   findChat(session: string): string | null; // a chat's transcript by its id, once it exists
   findNewChat(o: { folder: string; since: number; holding: string }): string | null; // a chat started in `folder` since then, whose words hold `holding`
   isChat(file: string, session: string): boolean; // whether `file` is that chat's transcript
+  owns?(file: string): boolean; // whether `file` is in this agent's transcripts at all, so it is the one to follow it
+  sessionOf?(file: string): string; // a chat's id from its transcript's path (the file's name when absent)
   openNew(o: { prompt: string; folder: string }): void; // a new chat in the agent's app, starting with `prompt`
   skillDir(name: string): string; // where the agent keeps an installed skill
+  skillDirs?(name: string): string[]; // where every agent the map knows keeps it (agent.js allChats)
   connectTools(): string; // register the map's MCP server with the agent; what to tell you, or '' when it already was
+}
+// What a Pi process the map starts is handed through the file LIVING_MAP_PI_JOB names (agents/pi/extension.js).
+interface PiJob {
+  servers?: McpServers;
+  /** held to this, the answer comes back as the last call to submit_answer */
+  schema?: object;
+  /** every tool not named here is refused, with `allowReason` */
+  allow?: string[];
+  allowReason?: string;
+  /** shell commands matching one of these regular expressions are refused, with `blockReason` */
+  block?: string[];
+  blockReason?: string;
+}
+// What one Pi run left: its words as they streamed, its last reply's words, its tool calls, the tools it was
+// given, the answer it submitted, and why it ended without one.
+interface PiRun {
+  words: string;
+  text: string;
+  calls: ToolCall[];
+  tools: string[];
+  value?: unknown;
+  error: string | null;
+  cost: number;
+  stopped: boolean;
+  timedOut: boolean;
+  notFound: boolean;
 }
 interface AskJob {
   cwd: string;
