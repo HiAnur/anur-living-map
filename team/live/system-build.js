@@ -4,6 +4,9 @@
 // (`source: { kind: 'code', repo, commit, … }`), keeps its evidence in its notes, and is `origin: 'code'`; what rests
 // only on descriptions carries a warning saying so.
 
+import { layerPlaces } from './project.js';
+import { width } from './proposal-layout.js';
+
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
 /** @typedef {{ id: string, name: string, kind: string, description: string, facts: string[], repo?: string, unconfirmed?: boolean }} CheckedBox */
 /** @typedef {{ from: string, to: string, label: string, facts: string[], unconfirmed?: boolean }} CheckedLine */
@@ -27,46 +30,17 @@ export function evidence(f, reading = null) {
   return `- ${f.kind.replace(/_/g, ' ')}: ${what}${where ? ` (${linked})` : ''}`;
 }
 
-const COL = 340, ROW = 130, TALL = 8;
 /**
- * Columns by how far a box is from where calls start; within a column, each box near the boxes that lead to it, so
- * lines cross less. A column taller than TALL wraps into more columns, and boxes with no lines sit in a grid after
- * the rest, so a repo with many loose parts still reads on one screen.
- * @param {{ id: string }[]} boxes @param {{ from: string, to: string }[]} lines
+ * Rows, what calls above what is called: each box one row below the lowest box that leads to it, near the boxes it
+ * joins so lines cross less; a long row wraps, and boxes with no lines sit in rows under the rest (layerPlaces, the
+ * arrangement Tidy up gives a map drawn from code). A box's room goes by its name, the widest a box grows without one.
+ * @param {{ id: string, name?: string }[]} boxes @param {{ from: string, to: string }[]} lines
  */
 export function layout(boxes, lines) {
-  const ids = new Set(boxes.map((b) => b.id));
-  const joined = lines.filter((l) => ids.has(l.from) && ids.has(l.to) && l.from !== l.to);
-  const linked = new Set(joined.flatMap((l) => [l.from, l.to]));
-  /** @type {Map<string, number>} */
-  const depth = new Map(boxes.map((b) => [b.id, 0]));
-  for (let i = 0; i < Math.min(boxes.length, 6); i++) for (const l of joined) depth.set(l.to, Math.min(5, Math.max(depth.get(l.to) || 0, (depth.get(l.from) || 0) + 1)));
-  /** @type {string[][]} */
-  const cols = [];
-  for (const b of boxes) if (linked.has(b.id)) (cols[depth.get(b.id) || 0] ||= []).push(b.id);
-  /** @type {Map<string, number>} */
-  const row = new Map();
-  const place = () => cols.forEach((c) => c?.forEach((id, r) => row.set(id, r)));
-  place();
-  for (let pass = 0; pass < 2; pass++) {
-    for (const c of cols) {
-      if (!c) continue;
-      const near = (/** @type {string} */ id) => { const up = joined.filter((l) => l.to === id || l.from === id).map((l) => row.get(l.to === id ? l.from : l.to) ?? 0); return up.length ? up.reduce((a, b) => a + b, 0) / up.length : row.get(id) || 0; };
-      c.sort((a, b) => near(a) - near(b));
-    }
-    place();
-  }
+  const places = layerPlaces(boxes, lines, (b) => (b.name ? width({ id: b.id, label: b.name }) : 220), () => 60);
   /** @type {Map<string, { x: number, y: number }>} */
   const pos = new Map();
-  let x = 0;
-  for (const c of cols) {
-    if (!c) continue;
-    c.forEach((id, i) => pos.set(id, { x: 90 + (x + Math.floor(i / TALL)) * COL, y: 120 + (i % TALL) * ROW }));
-    x += Math.ceil(c.length / TALL);
-  }
-  const loose = boxes.filter((b) => !linked.has(b.id));
-  const across = Math.max(2, Math.ceil(Math.sqrt(loose.length)));
-  loose.forEach((b, i) => pos.set(b.id, { x: 90 + (x + (i % across)) * COL, y: 120 + Math.floor(i / across) * ROW }));
+  for (const [id, p] of places) pos.set(id, { x: Math.round(20 + p.x), y: Math.round(95 + p.y) });
   return pos;
 }
 

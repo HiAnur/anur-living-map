@@ -58,7 +58,7 @@ import { actionActs } from './action-acts.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
-import { placeNew, readProject, tidy, tidyTree } from './project.js';
+import { placeNew, readProject, tidy, tidyLayers, tidyTree } from './project.js';
 import { isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
@@ -422,7 +422,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
   // read as one tree; the boxes are Claude's to place again until someone drags one
   function relayout() {
-    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start)) tidy(state.nodes, state.edges);
+    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start) && !(state.drawing && tidyLayers(state.nodes, state.edges))) tidy(state.nodes, state.edges);
     for (const n of state.nodes) delete n.moved;
     for (const p of pendingProposals()) placeProposed(p.plan);
   }
