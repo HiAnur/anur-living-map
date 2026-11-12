@@ -190,7 +190,9 @@ const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 // spot where its lines cross the fewest boxes and are shortest.
 /** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} [start] */
 export function placeNew(nodes, edges, start = null) {
-  if (!nodes.some((n) => !placed(n)) || placeInTree(nodes, edges, start)) return;
+  if (!nodes.some((n) => !placed(n))) return;
+  // the tree's new boxes take their places in it; a new box no line joins to the tree takes a free grid spot
+  placeInTree(nodes, edges, start);
   for (const n of nodes) {
     if (placed(n)) continue;
     const others = nodes.filter((o) => o !== n && placed(o));
@@ -225,12 +227,12 @@ function placeInTree(nodes, edges, start) {
   if (!placed(root) && nodes.some(placed)) return false;
   const twin = new Map(nodes.map((n) => [n.id, { ...n, ...(placed(root) ? {} : n === root ? { x: 90, y: 150 } : {}) }]));
   tidyTree([...twin.values()], edges, null, placed, start);
-  const sat = nodes.filter((n) => n !== root && placed(n));
+  const sat = nodes.filter((n) => n !== root && ring.has(n.id) && placed(n));
   if (sat.filter((n) => n.x === twin.get(n.id).x).length * 2 < sat.length) return false;
   if (!placed(root)) { root.x = 90; root.y = 150; }
   /** @param {LayoutBox} n @param {number} y */
   const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (BW(o) + BW(n)) / 2 + 20 && Math.abs(o.y - y) < BH + ROW_GAP);
-  const fresh = nodes.filter((n) => !placed(n)).sort((a, b) => ring.get(a.id) - ring.get(b.id) || twin.get(a.id).y - twin.get(b.id).y);
+  const fresh = nodes.filter((n) => ring.has(n.id) && !placed(n)).sort((a, b) => ring.get(a.id) - ring.get(b.id) || twin.get(a.id).y - twin.get(b.id).y);
   for (const n of fresh) {
     const t = twin.get(n.id), sibs = kids.get(parent.get(n.id)).filter((/** @type {any} */ s) => s !== n && placed(s) && Math.sign(twin.get(s.id).x - root.x) === Math.sign(t.x - root.x));
     const prev = sibs.filter((/** @type {any} */ s) => twin.get(s.id).y < t.y).sort((/** @type {any} */ a, /** @type {any} */ b) => twin.get(b.id).y - twin.get(a.id).y)[0];
@@ -316,19 +318,42 @@ export function tidy(nodes, edges = [], /** @type {any} */ shown = null) {
   }
 }
 
+// The groups of boxes that lines join, a box with no line a group of its own: the group drawn first comes first,
+// and each keeps its boxes in the order they were drawn.
+/** @param {LayoutBox[]} nodes @param {Line[]} edges @returns {LayoutBox[][]} */
+function joined(nodes, edges) {
+  const near = new Map(nodes.map((n) => [n.id, /** @type {string[]} */ ([])])), group = new Map();
+  for (const e of edges) if (near.has(e.from) && near.has(e.to) && e.from !== e.to) { near.get(e.from)?.push(e.to); near.get(e.to)?.push(e.from); }
+  /** @type {LayoutBox[][]} */
+  const groups = [];
+  for (const n of nodes) {
+    if (group.has(n.id)) continue;
+    const g = groups.length, q = [n.id];
+    group.set(n.id, g); groups.push([]);
+    while (q.length) for (const t of near.get(/** @type {string} */ (q.shift())) || []) if (!group.has(t)) { group.set(t, g); q.push(t); }
+  }
+  for (const n of nodes) groups[group.get(n.id)].push(n);
+  return groups;
+}
+
 // The tree under the one box no line comes into, ring by ring: the first line to reach a box makes it that box's
 // child, and a box's children keep the order their lines were drawn in. Given the box the map starts from
-// (`start`), the tree hangs under it and lines into it are cross-links. Null when there is no single such box
-// or it does not reach every box.
+// (`start`), the tree hangs under it and lines into it are cross-links. The tree is looked for in the largest
+// group of boxes that lines join (the first drawn on a tie), so a map of several groups that is mostly not a tree
+// is never taken for one; the boxes no line joins to that group are `loose`, and never stop it being a tree.
+// Null when there is no single such box or it does not reach every box joined to it.
 /** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} [start] */
 export function treeOf(nodes, edges, start = null) {
-  const by = new Map(nodes.map((n) => [n.id, n])), out = new Map(), into = new Set();
+  const groups = joined(nodes, edges);
+  if (!groups.length) return null;
+  const main = groups.reduce((b, g) => (g.length > b.length ? g : b));
+  const by = new Map(main.map((n) => [n.id, n])), out = new Map(), into = new Set();
   for (const e of edges) {
     if (!by.has(e.from) || !by.has(e.to) || e.from === e.to || e.to === start) continue;
     if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e.to); into.add(e.to);
   }
-  const roots = by.has(start) ? [by.get(start)] : nodes.filter((n) => !into.has(n.id));
-  if (nodes.length < 2 || roots.length !== 1) return null;
+  const roots = by.has(start) ? [by.get(start)] : main.filter((n) => !into.has(n.id));
+  if (main.length < 2 || roots.length !== 1) return null;
   const root = roots[0], kids = new Map(), parent = new Map(), seen = new Set([root.id]), q = [root.id], ring = /** @type {Map<any, any>} */ (new Map([[root.id, 0]]));
   while (q.length) {
     const id = q.shift();
@@ -337,7 +362,7 @@ export function treeOf(nodes, edges, start = null) {
       if (!kids.has(id)) kids.set(id, []); kids.get(id).push(by.get(t));
     }
   }
-  return seen.size === nodes.length ? { root, by, out, kids, parent, ring } : null;
+  return seen.size === main.length ? { root, by, out, kids, parent, ring, loose: nodes.filter((n) => !by.has(n.id)) } : null;
 }
 
 // Siblings that belong together, from what the map already says: the same area, a line to the same box, or
@@ -381,7 +406,9 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // boxes at the ends. A box with lines from two boxes hangs under the one nearer the first box; its other line is
 // a cross-link, drawn but left out of the layout, the way XMind and MindNode treat theirs. Only the boxes in
 // `shown` (all, without it) take room; what is folded away under a showing box lines up beside it, ready for
-// when it unfolds. False, and nothing moves, when no single box reaches them all.
+// when it unfolds. Boxes no line joins to the tree are loose: they keep their places, each group of them that is a
+// tree of its own laid out the same way around its own first box. False, and nothing moves, when the largest
+// group of joined boxes has no single box that reaches all of it.
 // Room: 35px clear between branches; a taller box reserves more room for its whole branch. The page supplies
 // its measured box sizes when tidying. Across, 70px between a column's widest box and the next, or more when the
 // words on the lines into that column need it. The shared stem sits 14px outside the column, so reserve one
@@ -389,17 +416,17 @@ function arrange(list, group, drawn, up, chosen = placed) {
 // `chosen` says which boxes sit where someone put them (all placed boxes, by default); the server passes the boxes
 // a person dragged or drew, so every box Claude placed is regrouped and rebalanced on each press. `start` is the
 // box the map starts from, when one was chosen.
-const ROW_GAP = 35, SLOT = BH + ROW_GAP, GAP = 70, CHAR = 6.8;
+const ROW_GAP = 35, SLOT = BH + ROW_GAP, GAP = 70, CHAR = 6.8, CLEAR = 16;
 /** @param {LayoutBox[]} nodes @param {Line[]} edges */
 export function tidyTree(nodes, edges, /** @type {any} */ shown = null, chosen = placed, /** @type {any} */ start = null, sizes = new Map()) {
   const tree = treeOf(nodes, edges, start);
   if (!tree || (shown && !shown.has(tree.root.id))) return false;
-  const { root, kids, ring, out } = tree;
+  const { root, kids, ring, out, loose } = tree;
   if (!placed(root)) return false;
   // how far out each ring's column sits from the first box
   /** @type {number[]} */
   const wide = [], /** @type {number[]} */ words = [];
-  for (const n of nodes) { const r = ring.get(n.id); wide[r] = Math.max(wide[r] || 0, sizes.get(n.id)?.w || BW(n)); }
+  for (const n of nodes) { const r = ring.get(n.id); if (r !== undefined) wide[r] = Math.max(wide[r] || 0, sizes.get(n.id)?.w || BW(n)); }
   for (const e of edges) {
     const r = ring.get(e.to);
     if (e.label && r && ring.get(e.from) === r - 1) words[r] = Math.max(words[r] || 0, String(e.label).length * CHAR);
@@ -460,6 +487,30 @@ export function tidyTree(nodes, edges, /** @type {any} */ shown = null, chosen =
   units.forEach((u, i) => u.list.forEach((/** @type {any} */ c) => side.set(c.id, i < k ? 1 : -1)));
   stack(root, arrange(first.filter((/** @type {any} */ c) => side.get(c.id) === -1), group, drawn, true, chosen), -1, every);
   stack(root, arrange(first.filter((/** @type {any} */ c) => side.get(c.id) === 1), group, drawn, false, chosen), 1, every);
+  // A loose box stays where it was put. A group of loose boxes that is a tree of its own is laid out around its
+  // own first box, any other group keeps its boxes where they are; a group left on top of boxes already
+  // settled moves, whole, straight up or down to the nearest clear place, the way a box dropped onto another lands.
+  /** @param {LayoutBox} n */
+  const w = (n) => sizes.get(n.id)?.w || BW(n), /** @param {LayoutBox} n */ h = (n) => sizes.get(n.id)?.h || BH;
+  const settled = nodes.filter((n) => ring.has(n.id) && placed(n) && vis(n));
+  for (const set of joined(loose, edges)) {
+    if (set.length > 1) tidyTree(set, edges, shown, chosen, start, sizes);
+    const mine = set.filter((n) => placed(n) && vis(n)), /** @type {number[][]} */ spans = [];
+    for (const n of mine) for (const o of settled) {
+      if (Math.abs(n.x - o.x) >= (w(n) + w(o)) / 2 + CLEAR) continue;
+      const room = (h(n) + h(o)) / 2 + CLEAR;
+      spans.push([o.y - n.y - room, o.y - n.y + room]);
+    }
+    /** @type {number[][]} */
+    const blocks = [];
+    for (const span of spans.sort((a, b) => a[0] - b[0])) {
+      const last = blocks.at(-1);
+      if (last && span[0] < last[1]) last[1] = Math.max(last[1], span[1]); else blocks.push([...span]);
+    }
+    const block = blocks.find(([lo, hi]) => lo < 0 && hi > 0);
+    if (block) { const dy = -block[0] < block[1] ? Math.floor(block[0]) : Math.ceil(block[1]); for (const n of set.filter(placed)) n.y += dy; }
+    settled.push(...mine);
+  }
   return true;
 }
 

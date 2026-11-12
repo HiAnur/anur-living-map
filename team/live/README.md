@@ -40,7 +40,7 @@ Keyboard brainstorming: Cmd+R opens an unconnected Topic as a selected draft. A 
 
 Small pointer movements within four screen pixels remain a click, at every zoom level; dragging begins only beyond that distance. Clicking a box updates its highlight and details without rebuilding the boxes or lines, including on the first click. Switching between boxes keeps an open details pane in place, so the canvas does not widen and shrink during the double-click delay. Double-click still edits the name, and Tab can immediately add a child to the selected box.
 
-Tidy up uses compact topic spacing: 70px between columns and 35px between short boxes. Taller names reserve more vertical room, and words on connections can widen their gap. Branch order and sides stay the same; repeating Tidy up keeps the layout stable.
+Tidy up uses compact topic spacing: 70px between columns and 35px between short boxes. Taller names reserve more vertical room, and words on connections can widen their gap. Branch order and sides stay the same; repeating Tidy up keeps the layout stable. A box with no line to the rest keeps its place and never stops Tidy up: it moves only when it sits on top of the tidied boxes, straight up or down to the nearest clear spot, and loose boxes joined to each other as a small tree are tidied as a map of their own.
 
 Trackpad pinch zoom follows the gesture distance, calibrated to a 4% zoom-in change per pixel of wheel delta, with smaller fractional movements and a cap on large jumps. Zoom stays anchored under the pointer. Two-finger scrolling pans the map.
 
