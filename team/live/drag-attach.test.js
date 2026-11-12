@@ -137,6 +137,15 @@ describe('drag attachment preview',()=>{
       expect(h.ctx.nodeById('p').y).toBe(128);
     }
   });
+  it('puts a dropped child on the side away from the parent of the box it lands on, whichever half the pointer is over',()=>{
+    for (const sx of [190,230]){
+      const h=page();h.ctx.moveTopicDrag(sx,170);
+      expect(h.ctx.drag.attach.parent).toBe('new');
+      expect(h.ctx.drag.attach.moves.find(m=>m.id==='branch').x).toBe(420);
+    }
+    const h=page();h.ctx.moveTopicDrag(-20,0);
+    expect(h.ctx.drag.attach.moves.find(m=>m.id==='branch').x).toBeLessThan(0);
+  });
   it('turns descendants outward when attaching on the left',()=>{
     const h=page(),p=h.ctx.planTopicAttach(h.ctx.drag.source,'branch','new',-1);
     expect(p.moves.find(m=>m.id==='branch').x).toBe(0);expect(p.moves.find(m=>m.id==='child').x).toBe(-210);
