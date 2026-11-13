@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 
@@ -92,5 +94,73 @@ describe('the tools a run may use',{timeout:30_000},()=>{
     for(const command of ['gh pr create --fill','git push -u origin x','cd app && gh pr create --base main'])expect(bash(command)).toBe('deny');
     const out=execFileSync('/bin/sh',['-c',runSettings([]).hooks.PreToolUse[0].hooks[0].command],{input:JSON.stringify({tool_name:'Bash'}),encoding:'utf8'});
     expect(JSON.parse(out).hookSpecificOutput.permissionDecisionReason).toContain('not in the reviewed brief');
+  });
+});
+
+// the reviewed email, checked in each send's input by the real hook, which counts the run's one send in a file
+describe('what a run may send',{timeout:30_000},()=>{
+  const GMAIL='mcp__claude_ai_Gmail__send_message',message={to:'sam@example.com',subject:'Launch notes',body:'Hi Sam, the notes.'};
+  const exact={to:['sam@example.com'],subject:'Launch notes',body:'Hi Sam,  the notes.\n'};
+  /** @param {any} settings @param {string} tool_name @param {unknown} tool_input @param {string} [tool_use_id] */
+  const decide=(settings,tool_name,tool_input,tool_use_id='t1')=>{const out=execFileSync('/bin/sh',['-c',settings.hooks.PreToolUse[0].hooks[0].command],{input:JSON.stringify({tool_name,tool_input,tool_use_id}),encoding:'utf8'});return out?JSON.parse(out).hookSpecificOutput:{permissionDecision:'asks as usual'};};
+  /** @param {SendGuard} guard */
+  function started(guard){
+    /** @type {any} */ const proc=new EventEmitter();proc.stdin=new PassThrough();proc.stdout=new PassThrough();proc.stderr=new PassThrough();proc.kill=()=>{};
+    /** @type {any[]} */ const calls=[],results=[];
+    runAction({cwd:'/sample/project',env:{},session:'s',prompt:'Send it',tools:[GMAIL],guard,schema:completionSchema,system:executionPrompt,read:readCompletion,onText:()=>{},onDone:(r)=>results.push(r),spawnProcess:/** @type {any} */ ((/** @type {any[]} */ ...args)=>{calls.push(args);return proc;})});
+    const settings=JSON.parse(calls[0][1][calls[0][1].indexOf('--settings')+1]);
+    const once=JSON.parse(settings.hooks.PreToolUse[0].hooks[0].command.match(/'(\{.*\})'$/)[1]).once;
+    const event=(/** @type {any} */ data)=>proc.stdout.write(JSON.stringify(data)+'\n');
+    return {proc,settings,once,results,event};
+  }
+  it('lets exactly one send of the reviewed message through, and refuses a second',()=>{
+    const r=started({message,left:1});
+    expect(fs.existsSync(r.once)).toBe(false);
+    expect(decide(r.settings,GMAIL,exact,'t1').permissionDecision).toBe('asks as usual');
+    expect(fs.readFileSync(r.once,'utf8')).toBe('t1');
+    const again=decide(r.settings,GMAIL,exact,'t2');
+    expect(again.permissionDecision).toBe('deny');expect(again.permissionDecisionReason).toContain('already sent');
+    r.event({type:'result',result:'Sent',is_error:false,permission_denials:[{tool_name:GMAIL,tool_input:exact}]});r.proc.emit('close',0);
+    expect(r.results[0].text).toContain('already sent its one reviewed message');
+    expect(fs.existsSync(path.dirname(r.once))).toBe(false);
+  });
+  it('refuses a send that is not the reviewed message before it goes, and says why',()=>{
+    const r=started({message,left:1});
+    for(const [input,why] of /** @type {[unknown, string][]} */ ([[{...exact,cc:['alex@example.com']},'copies alex@example.com'],[{...exact,to:['alex@example.com']},'goes to alex@example.com'],[{...exact,body:'Hi Sam, other words.'},'message is not'],[{draftId:'d1'},'carries draftId']])){
+      const d=decide(r.settings,GMAIL,input);expect(d.permissionDecision).toBe('deny');expect(d.permissionDecisionReason).toContain(why);
+    }
+    expect(fs.existsSync(r.once)).toBe(false);
+    r.event({type:'result',result:'Could not send',is_error:false,permission_denials:[{tool_name:GMAIL,tool_input:{...exact,cc:['alex@example.com']}}]});r.proc.emit('close',0);
+    expect(r.results[0].blocked).toBe(true);
+    expect(r.results[0].text).toContain('The map stopped this run');expect(r.results[0].text).toContain('copies alex@example.com');
+    expect(r.results[0].text).not.toContain('need permission');
+  });
+  it('lets a send that failed be tried once more, but not after one the hook refused',()=>{
+    const r=started({message,left:1});
+    decide(r.settings,GMAIL,exact,'t1');
+    r.event({type:'assistant',message:{content:[{type:'tool_use',id:'t2',name:GMAIL,input:exact}]}});
+    r.event({type:'user',message:{content:[{type:'tool_result',tool_use_id:'t2',content:'already sent',is_error:true}]}});
+    expect(fs.existsSync(r.once)).toBe(true);
+    r.event({type:'assistant',message:{content:[{type:'tool_use',id:'t1',name:GMAIL,input:exact}]}});
+    r.event({type:'user',message:{content:[{type:'tool_result',tool_use_id:'t1',content:'Gmail is down',is_error:true}]}});
+    expect(fs.existsSync(r.once)).toBe(false);
+    expect(decide(r.settings,GMAIL,exact,'t3').permissionDecision).toBe('asks as usual');
+    r.proc.emit('close',0);
+  });
+  it('sends nothing once the Action has sent, and no mail at all with no reviewed email',()=>{
+    const r=started({message,left:0});
+    expect(decide(r.settings,GMAIL,exact).permissionDecisionReason).toContain('already sent');r.proc.emit('close',0);
+    expect(decide(runSettings([GMAIL],{left:1}),GMAIL,exact).permissionDecisionReason).toContain('no reviewed email');
+    // the reviewed words reach the hook whole through the shell, quotes and all
+    const quoted={...message,body:'It\'s "ready" $HOME `now`'};
+    expect(decide(runSettings([GMAIL],{message:quoted,left:1}),GMAIL,{...exact,body:quoted.body}).permissionDecision).toBe('asks as usual');
+  });
+  it('refuses writes to GitHub and the web from the shell only in a run nobody started',()=>{
+    const alone=runSettings(['Bash'],{left:1,unattended:true}),clicked=runSettings(['Bash'],{left:1});
+    for(const command of ['gh pr comment 7 --body ok','gh issue comment 3 -b hi','gh pr merge 7','gh api -X POST repos/a/b/issues/3/comments','curl -X POST https://example.com']){
+      expect(decide(alone,'Bash',{command}).permissionDecision,command).toBe('deny');
+      expect(decide(clicked,'Bash',{command}).permissionDecision,command).toBe('asks as usual');
+    }
+    expect(decide(alone,'Bash',{command:'gh pr view 7 --comments'}).permissionDecision).toBe('asks as usual');
   });
 });

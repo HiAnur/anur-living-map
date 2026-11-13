@@ -20,7 +20,7 @@ function harness(){
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},

@@ -94,6 +94,16 @@ interface Brief {
   email?: { to: string; subject: string; body: string };
 }
 
+/** What an Action run may send and run, checked in each tool call's input before it runs (action-sends.js). */
+interface SendGuard {
+  /** the reviewed email: every send must be exactly this, and with none, no mail may go */
+  message?: { to: string; subject: string; body: string };
+  /** how many sends the run may still make: 1, or 0 once the Action has sent */
+  left: number;
+  /** nobody clicked Execute: the shell may not write to GitHub or the web */
+  unattended?: boolean;
+}
+
 /** What a run of an Action came back with. */
 interface RunResult {
   text: string;
@@ -178,6 +188,8 @@ interface PiJob {
   /** shell commands matching one of these regular expressions are refused, with `blockReason` */
   block?: string[];
   blockReason?: string;
+  /** an Action run's sends and shell writes, checked by action-sends.js */
+  guard?: SendGuard;
 }
 // What one Pi run left: its words as they streamed, its last reply's words, its tool calls, the tools it was
 // given, the answer it submitted, and why it ended without one.
@@ -218,6 +230,8 @@ interface RunJob {
   resume?: boolean;
   prompt: string;
   tools?: string[];
+  /** what code checks in each call before it runs, beyond the tool's name (action-sends.js) */
+  guard?: SendGuard;
   schema: object;
   system: string;
   read: (value: unknown) => any;

@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import { readCompletion } from './action-completion.js';
 import { judgeRun } from './action-evidence.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
-import { KINDS, kindOf, kindsInWords } from './action-kinds.js';
+import { KINDS, kindFromTools, kindOf, kindsInWords } from './action-kinds.js';
+import { sendsTool } from './action-sends.js';
 import { actionCancellable, can, handedOff } from './action-stages.js';
 
 export const actionPrompt = `Prepare an Action box: a concrete task to carry out, not more planning boxes.
@@ -55,7 +56,11 @@ export function readAction(value) {
     if (!Array.isArray(b.tools) || b.tools.length > 20 || b.tools.some((/** @type {unknown} */ t) => typeof t !== 'string' || !/^[\w-]{1,200}$/.test(t))) return null;
     brief.tools = [...new Set(b.tools)];
   }
-  if (kindOf(b)?.email) {
+  // the kind follows the tools, so a step that sends mail has its message reviewed whatever preparation called it
+  const kind = kindFromTools(b.kind, brief.tools || []);
+  if (kind === null) return { stage:'clarify', question:'This step both changes code and sends an email. Should the email be its own Action, after the change?', choices:[] };
+  brief.kind = kind;
+  if (kindOf(brief)?.email) {
     const to = text(b.email?.to, 320), subject = text(b.email?.subject, 200), body = text(b.email?.body, 6000);
     if (!to || !/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/.test(to) || !subject || !body) return { stage:'clarify', question:'What exact recipient address, subject and message should this email use?', choices:[] };
     brief.email = { to, subject, body };
@@ -105,7 +110,7 @@ export function recoverAction(n) {
  *   context: (n: Box, by: string) => string,
  *   ask: (job: { prompt: string, by: string, box?: Box, onText: (words: string) => void, onDone: (reply: string, access?: { tools?: string[], denied?: string[] }, value?: unknown) => void }) => Stop,
  *   changed: () => void,
- *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
+ *   run: (job: { cwd: string, session: string, resume: boolean, prompt: string, tools: string[], guard?: SendGuard, onText: (words: string) => void, onDone: (result: RunResult) => void }) => Stop,
  *   executionCwd: string,
  *   checkPull?: (url: string) => Promise<boolean>,
  *   builds?: { open: (a: BoxAction, n: Box) => Promise<any>, close: (a: BoxAction, n: Box) => Promise<{ commits: number, pull: string | null, note: string }> },
@@ -236,15 +241,21 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     if (waiting.length) { Object.assign(a,{stage:'waiting',waiting}); note(a, 'waiting', by); changed(); return false; }
     if (a.stage === 'ready' && a.source !== source(n)) { Object.assign(a, {stage:'error', error:'This box changed. Gather information again before executing.'}); note(a, 'failed', 'Map'); changed(); return false; }
     const checked = readAction({status:'ready',brief:a.brief});
+    // a brief prepared before code read its kind from its tools may now need a reviewed message
+    if (checked?.stage === 'clarify') { Object.assign(a, { stage:'error', error:'This step sends an email without a reviewed recipient, subject and message. Prepare it again.' }); note(a, 'failed', 'Map'); changed(); return false; }
     if (checked?.stage !== 'ready') return false;
     const recovery = handedOff(a.stage);
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
     note(a, 'executed', startedBy, { tools:[...(a.brief.tools || [])] });
     // a build runs in the worktree code made for it, and leaves committing, pushing and the pull request to code
-    const work = kindOf(a.brief)?.branch && builds ? '\n\nThis is a build. The map has made a fresh worktree on a new branch for it and runs you there. Make the change and run the project\'s checks in it. Do not push or open a pull request: when you finish, the map commits what you changed, pushes the branch and opens the pull request (or adds to the one already open). You may use gh for the rest, such as reading the pull request\'s comments and replying to them.' : '';
-    const pressed = startedBy === by ? 'The person pressed Execute.' : 'The person set this Action to run on its own once ready, and nothing in its brief reaches another person, so the map started it.';
+    const unattended = startedBy !== by;
+    // only a run someone started may write to GitHub (a reply to a comment); one that started on its own is refused it
+    const gh = unattended ? 'You may use gh to read, such as the pull request\'s comments. Nobody pressed Execute for this run, so it may not comment, review, merge or otherwise write to GitHub; say in your reply what you would post.'
+      : 'You may use gh for the rest, such as reading the pull request\'s comments and replying to them.';
+    const work = kindOf(a.brief)?.branch && builds ? `\n\nThis is a build. The map has made a fresh worktree on a new branch for it and runs you there. Make the change and run the project's checks in it. Do not push or open a pull request: when you finish, the map commits what you changed, pushes the branch and opens the pull request (or adds to the one already open). ${gh}` : '';
+    const pressed = unattended ? 'The person set this Action to run on its own once ready, and nothing in its brief reaches another person, so the map started it.' : 'The person pressed Execute.';
     const prompt = `${pressed} ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}${work}`;
-    return runTurn(id, by, a, prompt, false);
+    return runTurn(id, by, a, prompt, false, unattended);
   }
   /** @param {string} id @param {string} by @param {unknown} revision @param {any} [answer] */
   function continueAction(id, by, revision, answer = '') {
@@ -257,8 +268,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     note(a, 'continued', by);
     return runTurn(id, by, a, message, true);
   }
-  /** @param {string} id @param {string} by @param {BoxAction} a @param {string} prompt @param {boolean} resume */
-  function runTurn(id, by, a, prompt, resume) {
+  /** @param {string} id @param {string} by @param {BoxAction} a @param {string} prompt @param {boolean} resume @param {boolean} [unattended] nobody pressed Execute */
+  function runTurn(id, by, a, prompt, resume, unattended = false) {
     const started = Date.now();
     Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:started,progress:''});
     delete a.completion; delete a.held;
@@ -272,6 +283,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
       if (!active()) { reconcile(); return; }
       const claimed = readCompletion(result.completion), seen = judgeRun(a.brief || {kind:'other',goal:'',target:'',result:'',steps:[]}, result.calls);
       a.did = [...new Set([...(a.did || []), ...seen.did])].slice(-30);
+      if (seen.sends) a.sent = (a.sent || 0) + seen.sends;
       /** @param {string[]} pulls the pull requests GitHub confirmed @param {string} [mapNote] what code has to say of the build */
       const settle = (pulls, mapNote = '') => {
         if (!active()) { reconcile(); return; }
@@ -306,7 +318,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const launch = (cwd) => {
       if (job.stopped) return finish({blocked:true,text:'Stopped before the run started.'});
       try {
-        job.stop = run({cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],onText(words) {
+        job.stop = run({cwd,session:a.session,resume,prompt,tools:a.brief?.tools || [],guard:guardFor(a, unattended),onText(words) {
           if (!active()) { reconcile(); return; }
           a.progress = String(words).slice(-32000); changed();
         },onDone:finish});
@@ -333,6 +345,13 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     }, () => { if (active()) finish({blocked:true,text:'Could not make a branch for this build.'}); });
     return true;
   }
+  // What code checks in each call of a run before it goes (action-sends.js): any send must be the reviewed email,
+  // once in the Action's life, and a run nobody started may not write to GitHub or the web from the shell
+  /** @param {BoxAction} a @param {boolean} unattended @returns {SendGuard} */
+  function guardFor(a, unattended) {
+    const m = a.brief?.email;
+    return { ...(m ? { message:{ to:m.to, subject:m.subject, body:m.body } } : {}), left:a.sent ? 0 : 1, ...(unattended ? { unattended:true } : {}) };
+  }
   // Why a ready brief still waits for its author's Execute, or '' when it may run on its own: what it does reaches
   // no other person. Reading and changing files here do not; a build's shell runs in its own worktree and what it
   // makes waits in a pull request for a reviewed merge; a send, a post or any other connector call may.
@@ -341,7 +360,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const kind = kindOf(brief);
     if (!brief || !kind) return 'Its brief could not be read, so it waits for your go.';
     if (!kind.alone) return `${kind.does} It reaches another person, so it waits for your go.`;
-    const outward = (brief.tools || []).filter((tool) => { const r = reach(tool); return !(r === 'reads' || r === 'files' || (r === 'shell' && kind.branch)); });
+    // a tool named as a send waits whatever the agent says of its reach
+    const outward = (brief.tools || []).filter((tool) => { const r = reach(tool); return sendsTool(tool) || !(r === 'reads' || r === 'files' || (r === 'shell' && kind.branch)); });
     return outward.length ? `It needs ${outward.join(', ')}, which can reach other people, so it waits for your go.` : '';
   }
   // What the map saw a run that reached no one do: only look things up, or change these files

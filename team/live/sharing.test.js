@@ -40,7 +40,7 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let child, reader;
   const start = async () => {
-    child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env, stdio: 'ignore' });
+    child = spawn(process.execPath, ['server.js', String(port), '--demo'], { cwd: root, env, stdio: 'ignore' });
     for (let i = 0; i < 60; i++) { try { if ((await fetch(origin + '/api/version')).ok) return; } catch {} await new Promise((r) => setTimeout(r, 50)); }
     throw new Error('Test server did not start');
   };

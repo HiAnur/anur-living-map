@@ -10,7 +10,7 @@ The team's shared map of acme-app is the demo server in the folder above this on
 ## 1. Make sure the server runs
 
 ```bash
-curl -sf localhost:4322/api/state >/dev/null && echo running || (cd .. && nohup node server.js 4322 >/dev/null 2>&1 & sleep 1 && echo started)
+curl -sf localhost:4322/api/state >/dev/null && echo running || (cd .. && nohup node server.js 4322 --demo >/dev/null 2>&1 & sleep 1 && echo started)
 ```
 
 ## 2. Open it

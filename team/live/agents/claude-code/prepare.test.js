@@ -26,7 +26,7 @@ describe('Action preparation access',{timeout:30_000},()=>{
   });
   it('enforces the lookup boundary even for tools allowed by existing settings',()=>{
     const command=preparationSettings().hooks.PreToolUse[0].hooks[0].command;
-    for(const tool_name of ['Write','Edit','Bash','Agent','mcp__claude_ai_Gmail__send_email',undefined]){
+    for(const tool_name of ['Write','Edit','Bash','Agent','WebFetch','mcp__claude_ai_Gmail__send_email',undefined]){
       const output=execFileSync('/bin/sh',['-c',command],{input:JSON.stringify({tool_name}),encoding:'utf8'});
       expect(JSON.parse(output).hookSpecificOutput.permissionDecision).toBe('deny');
     }

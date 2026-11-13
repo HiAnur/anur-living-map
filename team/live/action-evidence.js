@@ -4,13 +4,19 @@
 import { execFile } from 'node:child_process';
 
 import { kindOf } from './action-kinds.js';
+import { addresses, sendsTool } from './action-sends.js';
 
 const PULL = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g;
 
 /** @param {ToolCall} call */
 const succeeded = (call) => call.ok === true;
-/** @param {ToolCall} call */
-const said = (call) => JSON.stringify(call.input ?? '').toLowerCase();
+/** The fields of a call's input. @param {ToolCall} call @returns {Record<string, unknown>} */
+const fields = (call) => (call.input && typeof call.input === 'object' ? /** @type {any} */ (call.input) : {});
+/** Whether a send went to exactly this one address, read from its to-field, with no one copied. @param {ToolCall} call @param {string} address */
+const sentTo = (call, address) => {
+  const to = addresses(fields(call).to);
+  return to.length === 1 && to[0] === address.trim().toLowerCase() && !addresses(fields(call).cc).length && !addresses(fields(call).bcc).length;
+};
 
 /**
  * What code can show a run did. `pulls` are pull request links a successful call returned, which the caller
@@ -25,12 +31,14 @@ export function judgeRun(brief, calls = []) {
   const evidence = [];
   const proof = kindOf(brief)?.proof;
   if (proof === 'sent' && brief.email) {
-    const to = brief.email.to.toLowerCase();
-    const sent = ok.find((c) => /send/i.test(c.tool) && said(c).includes(to));
+    const to = brief.email.to;
+    const sent = ok.find((c) => sendsTool(c.tool) && sentTo(c, to));
     if (sent) evidence.push(`Sent to ${brief.email.to} (${sent.tool})`);
   }
   const pulls = proof === 'pull' ? [...new Set(ok.flatMap((c) => String(c.output || '').match(PULL) || []))] : [];
-  return { evidence, pulls, did: [...new Set(did)].slice(0, 30) };
+  // how many sends went out, so a later run of the same Action sends no more
+  const sends = ok.filter((c) => sendsTool(c.tool)).length;
+  return { evidence, pulls, sends, did: [...new Set(did)].slice(0, 30) };
 }
 
 /**

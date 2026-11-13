@@ -57,7 +57,7 @@ it('creates distinct blank maps without Claude, keeps them after reopening, and 
     const work = await request({ blank: true, buildsOn: 'shop-system' });
     expect(maps.mapCalled(work.body.name).snapshot()).toMatchObject({ buildsOn: { name: 'shop-system', title: 'Shop system' }, contextMapIds: ['shop-system'] });
   } finally {
-    maps.main.close(); for (const map of maps.named.values()) map.close();
+    maps.main?.close(); for (const map of maps.named.values()) map.close();
     launch.mockRestore(); fs.rmSync(home, {recursive:true,force:true});
   }
 });

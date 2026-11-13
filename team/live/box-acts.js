@@ -2,7 +2,7 @@
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
-import { tidy, tidyLayers, tidyTree } from './project.js';
+import { hubSizes, tidy, tidyLayers, tidyTree } from './project.js';
 
 
 /**
@@ -141,9 +141,11 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : getState().nodes;
       if (!list?.length) return false;
       const edges = inside ? inside.edges || [] : getState().edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      const sizes = new Map((Array.isArray(a.sizes) ? a.sizes : []).filter((/** @type {any} */ s) => s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000).map((/** @type {any} */ s) => [s.id, {w:s.w, h:s.h}]));
-      // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
+      // the top level's start box is the page's small circle, unless the page measured it as a box
       const code = !!getState().drawing;
+      const sizes = inside ? new Map() : hubSizes(list, edges, getState().start, code);
+      for (const s of Array.isArray(a.sizes) ? a.sizes : []) if (s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000) sizes.set(s.id, {w:s.w, h:s.h});
+      // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
       const done = inside && code ? tidyLayers(list, edges, only, sizes)
         : tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : getState().start, sizes) || (code && tidyLayers(list, edges, only, sizes));
       if (!done) tidy(list, edges, only);

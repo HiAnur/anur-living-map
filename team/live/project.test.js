@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { boxActs } from './box-acts.js';
-import { layerPlaces, placeNew, tidy, tidyLayers, tidyTree } from './project.js';
+import { HUB_SIZE } from './page-hub.js';
+import { hubSizes, layerPlaces, placeNew, tidy, tidyLayers, tidyTree } from './project.js';
 
 // a topic map shaped like the GTM map: one start box, ten boxes off it, two of them with boxes under them,
 // laid out the way it was before (sides and order picked by where boxes happened to land)
@@ -335,5 +336,59 @@ describe('tidy (grid map)', () => {
     tidy(nodes, edges, new Set(['a', 'c', 'd']));
     expect(get(nodes, 'b')).toMatchObject({ x: 430, y: 150 });
     expect(at(nodes).d).not.toEqual([430, 150]);
+  });
+});
+
+// the page draws a topic map's start box as a small circle (page-hub.js), so its top level is laid out with it
+describe('the centre circle', () => {
+  const sample = () => ({
+    nodes: [{ id: 'launch', label: 'Launch plan', x: 0, y: 0 }, { id: 'pricing', label: 'Pricing', x: 300, y: -90 }, { id: 'audience', label: 'Audience', x: 300, y: 90 }, { id: 'trial', label: 'Free trial', x: 600, y: -90 }],
+    edges: [{ from: 'launch', to: 'pricing' }, { from: 'launch', to: 'audience' }, { from: 'pricing', to: 'trial' }],
+  });
+
+  it('is the start box of a topic map, and nothing on a map drawn from code', () => {
+    const { nodes, edges } = sample();
+    expect([...hubSizes(nodes, edges, null, false)]).toEqual([['launch', { w: HUB_SIZE, h: HUB_SIZE }]]);
+    expect([...hubSizes(nodes, edges, 'launch', true)]).toEqual([]);
+    nodes[0] = { ...nodes[0], inside: { nodes: [], edges: [] } };
+    expect([...hubSizes(nodes, edges, null, false)]).toEqual([]);
+  });
+
+  it('brings the main topics in close to the circle, the next ring keeping its gap from them', () => {
+    const box = sample(), hub = sample();
+    tidyTree(box.nodes, box.edges, null, () => false, 'launch');
+    tidyTree(hub.nodes, hub.edges, null, () => false, 'launch', hubSizes(hub.nodes, hub.edges, 'launch', false));
+    const near = (nodes) => Math.abs(get(nodes, 'pricing').x - get(nodes, 'launch').x);
+    expect(near(box.nodes) - near(hub.nodes)).toBe((140 - HUB_SIZE) / 2);
+    // the circle's edge to its topics' edge is the gap any two rings keep
+    const gap = (nodes, a, b, wa) => Math.abs(get(nodes, b).x - get(nodes, a).x) - wa / 2 - 70;
+    expect(gap(hub.nodes, 'launch', 'pricing', HUB_SIZE)).toBe(gap(hub.nodes, 'pricing', 'trial', 140));
+  });
+
+  it('places a new topic in the main topics\' column, as Tidy up would, without moving a box already there', () => {
+    const { nodes, edges } = sample(), sizes = () => hubSizes(nodes, edges, 'launch', false);
+    tidyTree(nodes, edges, null, () => false, 'launch', sizes());
+    const before = at(nodes);
+    /** @type {any[]} */ (nodes).push({ id: 'channels', label: 'Channels' });
+    edges.push({ from: 'launch', to: 'channels' });
+    placeNew(nodes, edges, 'launch', sizes());
+    for (const [id, p] of Object.entries(before)) expect(at(nodes)[id]).toEqual(p);
+    expect(Math.abs(get(nodes, 'channels').x - get(nodes, 'launch').x)).toBe(Math.abs(get(nodes, 'pricing').x - get(nodes, 'launch').x));
+    // without the circle's size the tree's columns no longer match, and the new box would fall back to the grid
+    const grid = sample();
+    tidyTree(grid.nodes, grid.edges, null, () => false, 'launch', hubSizes(grid.nodes, grid.edges, 'launch', false));
+    /** @type {any[]} */ (grid.nodes).push({ id: 'channels', label: 'Channels' });
+    grid.edges.push({ from: 'launch', to: 'channels' });
+    placeNew(grid.nodes, grid.edges, 'launch');
+    expect(get(grid.nodes, 'channels').x).not.toBe(get(nodes, 'channels').x);
+  });
+
+  it('is the size Tidy up uses for the start box, unless the page measured it as a box', () => {
+    const state = { ...sample(), start: 'launch' };
+    const acts = boxActs({ getState: () => state, nodeOf: (id) => state.nodes.find((n) => n.id === id), seesOf: () => 'all', sideOf: () => false, tell() {}, pendingProposals: () => [], unlinkEdge: () => false, placeProposed() {} });
+    acts.tidy({ type: 'tidy', by: 'Duy' });
+    expect(Math.abs(get(state.nodes, 'pricing').x - get(state.nodes, 'launch').x)).toBe(HUB_SIZE / 2 + 70 + 70);
+    acts.tidy({ type: 'tidy', by: 'Duy', sizes: [{ id: 'launch', w: 140, h: 50 }] });
+    expect(Math.abs(get(state.nodes, 'pricing').x - get(state.nodes, 'launch').x)).toBe(70 + 70 + 70);
   });
 });

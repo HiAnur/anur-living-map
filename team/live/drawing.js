@@ -3,7 +3,7 @@
 import { diagramOf } from './diagram.js';
 import { guardDrawing } from './draw-guard.js';
 import { boxIn, graphOfBox, movedUp } from './map-walk.js';
-import { placeNew } from './project.js';
+import { hubSizes, placeNew } from './project.js';
 
 /** @param {{ getState: () => MapState, nodeOf: (id: any) => any, seesOf: (by: any) => string, unlinkEdge: (from: any, to: any) => boolean }} deps */
 export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
@@ -56,7 +56,7 @@ export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
       levels.add(level);
     }
     // a new box with no place goes where its lines cross nothing
-    placeNew(state.nodes, state.edges, state.start);
+    placeNew(state.nodes, state.edges, state.start, hubSizes(state.nodes, state.edges, state.start, !!state.drawing));
     for (const level of levels) if (level !== state) placeNew(level.nodes, level.edges || []);
     for (const c of p.calls || []) { const had = state.calls.find((/** @type {any} */ x) => x.id === c.id); if (had) Object.assign(had, c); else state.calls.push(c); }
     // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing
