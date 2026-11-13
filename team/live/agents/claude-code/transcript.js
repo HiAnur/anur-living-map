@@ -110,5 +110,6 @@ export function follow(file, onChange, { anyUser = false } = {}) {
   }
   const timer = setInterval(read, 1000);
   setImmediate(read);
-  return { stop: () => clearInterval(timer), msgs: () => msgs, img: (/** @type {string} */ id) => imgs.get(id), model: () => model, status: () => state };
+  // readNow: what the transcript gained since the last read, read at once rather than on the next tick
+  return { stop: () => clearInterval(timer), msgs: () => msgs, readNow: () => { read(); return msgs; }, img: (/** @type {string} */ id) => imgs.get(id), model: () => model, status: () => state };
 }

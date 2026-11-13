@@ -194,7 +194,7 @@ interface AgentWorker {
 interface AgentConversation {
   // follow a chat's transcript as it grows: your words, its replies, what it is doing now
   follow(file: string, onChange: (msgs: any[]) => void, options?: { anyUser?: boolean }): {
-    stop(): void; msgs(): any[]; img(id: string): { type: string; data: string } | undefined;
+    stop(): void; msgs(): any[]; readNow(): any[]; img(id: string): { type: string; data: string } | undefined;
     model(): { id: string; effort: string | null } | null; status(): { working: boolean; doing: string; at: number; since?: number };
   };
   findChat(session: string): string | null; // a chat's transcript by its id, once it exists

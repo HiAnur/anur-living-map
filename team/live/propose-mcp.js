@@ -4,7 +4,7 @@ import readline from 'node:readline';
 
 import { PROPOSE_SCHEMA } from './propose.js';
 
-const tools = [{ name: 'propose_change', description: 'Offer one change to the map. The page shows it to the person with an Apply button; nothing changes until they press it. Call it at most once per reply, with the whole change: a later call replaces an earlier one.', inputSchema: PROPOSE_SCHEMA }];
+const tools = [{ name: 'propose_change', description: 'Offer one change to the map. The page shows it to the person with an Apply button; nothing changes until they press it, except its actionItems, which the map makes the person\'s Action drafts at once when their own words hold them. Call it at most once per reply, with the whole change: a later call replaces an earlier one.', inputSchema: PROPOSE_SCHEMA }];
 /** @param {unknown} id @param {unknown} result */
 const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\n');
 for await (const raw of readline.createInterface({ input: process.stdin })) {

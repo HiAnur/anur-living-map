@@ -126,3 +126,30 @@ test("an item for you offers Take it on, which makes it your Action", async ({
     box(page, "Audience").getByLabel("Action status: Couldn't prepare"),
   ).toBeVisible();
 });
+
+test("Ask Claude says which drafts it made from what you said, and Undo makes them Info boxes", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...withDraft(),
+    threads: {
+      "@Duy": [
+        { who: "Duy", text: from.quote, at: "10:00" },
+        {
+          who: "Claude",
+          text: "Made it your Action draft.",
+          at: "10:00",
+          drafts: [{ title: "Write the trial page", made: "trial" }],
+        },
+      ],
+    },
+  });
+  await page.locator("#bot").click();
+  const notice = page.locator("#chat .drafted");
+  await expect(notice).toContainText("Made an Action draft from what you said");
+  await expect(notice.locator("li")).toHaveText("Write the trial page");
+  await notice.getByText("Undo", { exact: true }).click();
+  await expect(box(page, "Free trial").locator(".action-tag")).toHaveCount(0);
+  await expect(notice).toContainText("Undone, or under way.");
+  await expect(notice.getByText("Undo", { exact: true })).toHaveCount(0);
+});
