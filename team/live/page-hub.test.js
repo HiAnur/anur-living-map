@@ -41,11 +41,18 @@ describe('a click on the circle', () => {
   it('keeps the main topics when the map has nothing under them', () => {
     expect(hubLevel(1, 1)).toBe(1);
   });
+  it('on a system map, where every repo hangs right off the circle, folds the map to the circle alone and back', () => {
+    expect(hubLevel(1, 1, true)).toBe(0);
+    expect(hubLevel(2, 2, true)).toBe(0);
+    expect(hubLevel(0, 2, true)).toBe(2);
+    expect(hubLevel(0, 0, true)).toBe(0);
+  });
 });
 
 describe('what the circle says on hover', () => {
   it('names the start box, then its description, then what a click does', () => {
     expect(hubHint('Launch plan', 'What we ship in spring', false)).toBe('Launch plan\nWhat we ship in spring\n\nClick to show only the main topics');
     expect(hubHint('Launch plan', '', true)).toBe('Launch plan\n\nClick to show every box');
+    expect(hubHint('Shop system', '', false, true)).toBe('Shop system\n\nClick to fold the map to this circle');
   });
 });
