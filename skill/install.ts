@@ -3,10 +3,8 @@
 // installs it in ~/.claude/skills; a server that starts with it installed
 // writes it again, so an update reaches it too. `npm run skill -- --hook`
 // also adds the hook that tells a conversation what its map did (side
-// chats, ticks) each time you write there.
-//
-// `npm run skill` also installs the team map's skill, anur-living-map,
-// copied as it is from team/skill: one command sets up both.
+// chats, ticks) each time you write there. The team map's skill has its own
+// installer, team/skill/install.js, which `npm run skill` runs first.
 
 import fs from "node:fs";
 import os from "node:os";
@@ -25,11 +23,6 @@ const claudeDir = () =>
 
 export const skillFile = () =>
   path.join(claudeDir(), "skills", "living-map", "SKILL.md");
-
-// the team map's skill: its SKILL.md and the script it runs
-const TEAM_SKILL = path.join(APP_DIR, "team", "skill", "anur-living-map");
-export const teamSkillDir = () =>
-  path.join(claudeDir(), "skills", "anur-living-map");
 
 export const settingsFile = () => path.join(claudeDir(), "settings.json");
 
@@ -109,37 +102,6 @@ export function installSkill(
   return old === null ? "installed" : "updated";
 }
 
-// The team map's skill, file for file. Each file is written beside its place
-// and moved over it: the skill's script copies itself the same way, since a
-// shell reading a script written in place would tear it mid-line.
-export function installTeamSkill({
-  dir = teamSkillDir(),
-  from = TEAM_SKILL,
-} = {}): "installed" | "updated" | "unchanged" {
-  const had = fs.existsSync(dir);
-  let changed = false;
-  for (const d of fs.readdirSync(from, {
-    recursive: true,
-    withFileTypes: true,
-  })) {
-    if (!d.isFile()) continue;
-    const src = path.join(d.parentPath, d.name);
-    const dst = path.join(dir, path.relative(from, src));
-    let same = false;
-    try {
-      same = fs.readFileSync(dst).equals(fs.readFileSync(src));
-    } catch {
-      // not there yet
-    }
-    if (same) continue;
-    fs.mkdirSync(path.dirname(dst), { recursive: true });
-    fs.copyFileSync(src, `${dst}.new`);
-    fs.renameSync(`${dst}.new`, dst);
-    changed = true;
-  }
-  return !changed ? "unchanged" : had ? "updated" : "installed";
-}
-
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = process.env.PORT ?? 4317;
   const said = (r: string) =>
@@ -151,9 +113,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const r = installSkill(port, { force: true });
   console.log(
     `${said(r)}: ${skillFile()}\nIn any Claude Code conversation, say "/living-map" (or "map this") to open a map of it.`,
-  );
-  console.log(
-    `${said(installTeamSkill())}: ${teamSkillDir()}\nIn a Claude Code chat inside any repo, say "/anur-living-map" to open the team's map of it.`,
   );
   if (process.argv.includes("--hook")) {
     const h = installHook(port);

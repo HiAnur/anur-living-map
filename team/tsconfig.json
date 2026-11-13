@@ -18,5 +18,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["live/**/*.js", "live/**/*.d.ts", "login/**/*.js", "cloud/**/*.js"]
+  "include": ["live/**/*.js", "live/**/*.d.ts", "login/**/*.js", "cloud/**/*.js", "skill/**/*.js"]
 }
