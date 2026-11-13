@@ -17,11 +17,15 @@ export function readPlannedTask(value) {
   const evidence = strings(value.evidence, 12, 1000), dependsOn = strings(value.dependsOn, 20, 40);
   if (!goal || !result || !inputs || !steps?.length || !evidence?.length || !dependsOn || dependsOn.some((id) => !/^[a-z0-9-]{1,40}$/.test(/** @type {string} */ (id)))) return null;
   const destination = value.destination === undefined || value.destination === '' ? '' : text(value.destination, 1000);
-  const readiness = value.readiness ?? 'needs_information';
-  if (destination === null || !['ready','needs_information','waiting'].includes(readiness)) return null;
+  const said = value.readiness ?? 'needs_information';
+  if (destination === null || !['ready','needs_information','waiting'].includes(said)) return null;
   if (value.blockers !== undefined && (!Array.isArray(value.blockers) || value.blockers.length > 20)) return null;
   const blockers = (value.blockers || []).map((/** @type {any} */ b) => ({ detail:text(b?.detail, 1000), resolver:text(b?.resolver, 300) }));
   if (blockers.some((/** @type {{ detail: string | null, resolver: string | null }} */ b) => !b.detail || !b.resolver)) return null;
+  // A planner cannot know the executing session's access, so its "ready" is never taken: only preparation, which
+  // checks the tools for real, makes an Action ready. Said ready, it waits on its prerequisites when it has some,
+  // else it needs information until preparation has looked.
+  const readiness = dependsOn.length && said !== 'needs_information' ? 'waiting' : 'needs_information';
   return {goal,result,destination,inputs,steps,evidence,dependsOn,readiness,blockers};
 }
 

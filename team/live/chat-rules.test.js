@@ -90,6 +90,19 @@ describe('a change drawn while answering the pane', () => {
       again.hangUp();
     } finally { close(); }
   });
+  it('holds a change to a person\'s box in that one proposal, never in a second', async () => {
+    const { map, close } = openTestMap({ ...initial(), nodes: [...initial().nodes, { id: 'notes', label: 'Notes', by: 'Ana', x: 300, y: 0 }] });
+    try {
+      await send(map, 'Ana', { type: 'say', text: 'Tidy the notes' });
+      const handed = await listen(map);
+      const asked = await send(map, 'tool', { type: 'edit', session: 's1', nodes: [{ id: 'notes', sub: 'Rewritten' }], propose: [{ id: 'root', sub: 'Marked' }] });
+      expect(asked.status).toBe(200);
+      const proposals = map.snapshot().proposals;
+      expect(proposals).toHaveLength(1);
+      expect(proposals[0].plan.nodes).toEqual([{ id: 'notes', sub: 'Rewritten' }, { id: 'root', sub: 'Marked' }]);
+      handed.hangUp();
+    } finally { close(); }
+  });
   it('says why when nothing in it could be proposed', async () => {
     const { map, close } = openTestMap(initial());
     try {
