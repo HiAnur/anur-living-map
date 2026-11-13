@@ -18,18 +18,21 @@ export function isHub(n, { start, top }) {
 }
 
 /**
- * The level a click on the circle shows: only the main topics, or, when only they show already, every box again.
- * @param {number} shown the level showing now @param {number} deepest the deepest level the map has
+ * The level a click on the circle folds the map to: the main topics (level 1), or on a system map, where every repo
+ * already hangs right off the circle, the circle alone (level 0). When the map shows that much already, every box again.
+ * @param {number} shown the level showing now @param {number} deepest the deepest level the map has @param {boolean} [code] whether the map is drawn from code
  */
-export function hubLevel(shown, deepest) {
-  return shown === 1 && deepest > 1 ? deepest : 1;
+export function hubLevel(shown, deepest, code = false) {
+  const to = code ? 0 : 1;
+  return shown === to && deepest > to ? deepest : to;
 }
 
 /**
  * What the circle says on hover, where a box would show its name: the map's start box's name, its description, and
  * what a click does.
- * @param {string} name @param {string} summary @param {boolean} topicsOnly whether only the main topics show now
+ * @param {string} name @param {string} summary @param {boolean} folded whether the map is folded to what a click shows
+ * @param {boolean} [code] whether the map is drawn from code, where a click folds it to the circle
  */
-export function hubHint(name, summary, topicsOnly) {
-  return [[name, summary].filter(Boolean).join('\n'), topicsOnly ? 'Click to show every box' : 'Click to show only the main topics'].join('\n\n');
+export function hubHint(name, summary, folded, code = false) {
+  return [[name, summary].filter(Boolean).join('\n'), folded ? 'Click to show every box' : code ? 'Click to fold the map to this circle' : 'Click to show only the main topics'].join('\n\n');
 }

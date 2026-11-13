@@ -174,29 +174,59 @@ test("a system map starts at a circle for the whole system, every repo hanging o
   page,
 }) => {
   const map = systemMap();
-  // a box someone drew under a repo, one level further out
+  // a person who uses the system, and a box someone drew under a repo, one level further out
   const name = openState({
     ...map,
-    nodes: [...map.nodes, { id: "mine", label: "My note", x: 300, y: 200 }],
-    edges: [...map.edges, { from: "system-web", to: "mine" }],
+    nodes: [
+      ...map.nodes,
+      {
+        id: "system-customer",
+        label: "Customer",
+        kind: "actor",
+        x: -300,
+        y: 0,
+        origin: "code",
+      },
+      { id: "mine", label: "My note", x: 300, y: 200 },
+    ],
+    edges: [
+      ...map.edges,
+      {
+        from: "system-customer",
+        to: "system-web",
+        label: "uses",
+        origin: "code",
+      },
+      { from: "system-web", to: "mine" },
+    ],
   });
   await page.goto(`${server.origin}/${name}/`);
   const circle = hub(page);
   await expect(circle).toHaveAttribute("aria-label", "Shop system");
   await expect(circle).toHaveText("");
-  // the repos are ordinary boxes, each with a straight line from the circle
+  // the drawing's panel sits in a corner, clear of the circle
+  const panel = await page.locator("#sysdraw").boundingBox();
+  const ring = await circle.boundingBox();
+  expect(
+    panel!.x + panel!.width <= ring!.x ||
+      panel!.y + panel!.height <= ring!.y ||
+      panel!.y >= ring!.y + ring!.height,
+  ).toBe(true);
+  // the repos are ordinary boxes, each with a straight line from the circle; the person gets none
   for (const repo of ["api", "web"])
     await expect(box(page, repo)).not.toHaveClass(/\bstart\b/);
   await expect(page.locator("#edges path.spoke")).toHaveCount(2);
   // the calls between them stay plain lines, never curved cross-links
   await expect(page.locator("#edges path.cross")).toHaveCount(0);
-  // a click shows only the repos; another, every box again (the drawing's panel, over the top, closed first)
-  await page.locator("#sysdraw").getByRole("button", { name: "Close" }).click();
+  // a click folds the map to the circle (a person, who no line leads to, stays); another shows every box again
   await circle.click();
-  await expect(box(page, "My note")).toHaveCount(0);
-  await expect(box(page, "web")).toBeVisible();
+  await expect(page.locator("#levels")).toContainText("Level 0");
+  for (const gone of ["api", "web", "My note"])
+    await expect(box(page, gone)).toHaveCount(0);
+  await expect(box(page, "Customer")).toBeVisible();
   await circle.click();
-  await expect(box(page, "My note")).toBeVisible();
+  for (const back of ["api", "web", "My note"])
+    await expect(box(page, back)).toBeVisible();
   // a repo still opens into its own map, whose first box keeps its name
   await page.locator('[data-expand="system-api"]').click();
   await expect(box(page, "Payments")).toBeVisible();
