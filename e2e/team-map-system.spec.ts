@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   SAMPLE,
   box,
+  makeOwner,
   server,
   signIn,
   useTeamServer,
@@ -238,6 +239,8 @@ test("someone who may not draw a system map is told whom to ask", async ({
   context,
   page,
 }) => {
+  // the install's owner is whom to ask
+  makeOwner("Duy");
   await context.clearCookies();
   await context.addCookies([
     {

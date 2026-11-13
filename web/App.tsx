@@ -15,6 +15,17 @@ const MapScreen = lazy(() => import("./map/MapScreen.tsx"));
 // ?fixture=1 draws the fixture map; a dev build lets it past the sign-in, so
 // the page can be worked on with no server behind it.
 export default function App() {
+  return (
+    <div className="flex h-full flex-col">
+      <Retired />
+      <div className="min-h-0 flex-1">
+        <Screen />
+      </div>
+    </div>
+  );
+}
+
+function Screen() {
   const signedIn = useSignedIn();
   const [fixture] = useState(wantsFixture);
   const [conv] = useState(wantedConv);
@@ -23,6 +34,21 @@ export default function App() {
   if (!open) return <div className="h-full bg-canvas" />;
   if (!conv && !fixture) return <Chats />;
   return <Chooser conv={conv} fixture={fixture} />;
+}
+
+// Shown on every screen, signed in or not: this map is retired, what
+// replaces it, and how to take it off this Mac.
+function Retired() {
+  return (
+    <div
+      data-retired
+      className="shrink-0 border-b border-warning-line bg-warning-soft px-4 py-2 text-center text-sm text-warning-strong"
+    >
+      Living Map (chat) is retired. Use Anur Living Map:{" "}
+      <code>/anur-living-map</code>. To remove this one:{" "}
+      <code>node skill/uninstall.ts</code>
+    </div>
+  );
 }
 
 function SignIn() {

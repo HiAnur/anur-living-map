@@ -22,6 +22,7 @@ const PREPARE_ONLY = 'Action preparation can only look up information. Review th
 const HANDS_OFF = ['\\bgit\\s+push\\b', '(^|[;&|(]\\s*)gh\\s+pr\\s+create\\b'];
 const MAP_DOES_IT = 'The map pushes the branch and opens the pull request when you finish. Leave your changes in the worktree, uncommitted or committed, and finish the task.';
 const NOT_INSTALLED = 'Pi is not installed here, so the map cannot answer.';
+const ONLY_THE_MAP = 'This chat can only read and change its own map, with the tools of that map.';
 
 // MCP servers: only the job's own, or with --no-mcp none at all, never the person's mcp.json behind its back.
 // A --tools list that names an mcp__ tool keeps only those MCP tools.
@@ -94,10 +95,11 @@ export function run({ cwd, session, prompt, tools, schema, system, read: readRes
 }
 
 /** @param {ConverseJob & { spawnProcess?: typeof spawn }} job */
-export function converse({ cwd, session, first, title, system, prompt, onClose, spawnProcess }) {
-  // the person's own MCP servers stay on: the map's chat draws with living_map_change from their mcp.json
-  const { stop, done } = startPi({ cwd, prompt, spawnProcess, timeoutMs: 20 * 60_000,
-    args: ['--session-id', session, ...(first ? ['--name', title] : []), '--append-system-prompt', system] });
+export function converse({ cwd, session, first, title, system, prompt, servers, onClose, spawnProcess }) {
+  // only the map's own tools: none of the person's MCP servers or context files, and the extension refuses the rest
+  const tools = mcpTools(servers);
+  const { stop, done } = startPi({ cwd, prompt, spawnProcess, timeoutMs: 20 * 60_000, job: { servers, allow: tools, allowReason: ONLY_THE_MAP },
+    args: ['--session-id', session, ...(first ? ['--name', title] : []), '--no-context-files', '--no-approve', '--append-system-prompt', system, ...toolArgs(tools)] });
   done.then(() => onClose());
   return stop;
 }

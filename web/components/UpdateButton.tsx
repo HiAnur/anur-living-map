@@ -8,7 +8,7 @@ import { api } from "../lib/session.ts";
 
 type Update = ReturnType<typeof useUpdate>;
 
-// "New version available" when a newer release is out. One click pulls it,
+// "New version available" when a newer release is out. One click moves to it,
 // installs, builds and restarts; the page then reloads into the new version.
 // In the header by default; `inMenu`, a row inside Maps ▾ that opens its
 // details in place: a red-dotted button on every screen read to a newcomer

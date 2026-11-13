@@ -12,8 +12,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 const started = [];
 afterEach(() => { for (const p of started.splice(0)) p.kill(); });
 
-function server(url = 'http://127.0.0.1:9', file = new URL('./mcp.js', import.meta.url).pathname) {
-  const proc = spawn(process.execPath, [file], { env: { ...process.env, LIVING_MAP_URL: url }, stdio: ['pipe', 'pipe', 'ignore'] });
+/** @param {Record<string, string>} [env] */
+function server(url = 'http://127.0.0.1:9', file = new URL('./mcp.js', import.meta.url).pathname, env = {}) {
+  const proc = spawn(process.execPath, [file], { env: { ...process.env, LIVING_MAP_URL: url, ...env }, stdio: ['pipe', 'pipe', 'ignore'] });
   started.push(proc);
   /** @type {Map<number, (m: any) => void>} */
   const waiting = new Map();
@@ -100,4 +101,74 @@ describe('drawing on a real map through the tool', () => {
       expect(seen).toContain('pilot-users → email (Get the invite)');
     } finally { await m.stop(); }
   }, 20_000);
+});
+
+// A stand-in map server that records what the tools send, and answers a change as the map would: drawn, or held as
+// a proposal while the chat answers a request from the map's pane.
+/** @param {any} reply what the map answers a change with */
+async function recorder(reply = {}) {
+  /** @type {{ url: string, body: any }[]} */ const seen = [];
+  const stand = http.createServer((req, res) => {
+    let body = ''; req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      seen.push({ url: String(req.url), body: body ? JSON.parse(body) : null });
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(req.url?.endsWith('/api/act') ? reply : req.url === '/api/maps' ? [{ name: 'other', title: 'Other' }] : { title: 'Demo', nodes: [{ id: 'launch', label: 'Launch' }], edges: [] }));
+    });
+  });
+  await new Promise((r) => stand.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
+  const origin = `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (stand.address()).port}`;
+  return { origin, seen, close: () => new Promise((r) => stand.close(r)) };
+}
+const PINNED = { LIVING_MAP_ONLY_MAP: 'demo', LIVING_MAP_SESSION: 'chat-1' };
+
+describe('the tools pinned to one map, as a chat the map runs itself gets them', () => {
+  it('lists only reading and changing the map, with nothing to remember', async () => {
+    const s = server(undefined, undefined, PINNED), { tools } = (await s.ask('tools/list')).result;
+    expect(tools.map((t) => t.name)).toEqual(['living_map_read', 'living_map_change']);
+    expect(tools[1].inputSchema.properties.remember).toBeUndefined();
+    expect((await s.ask('initialize', {})).result.instructions).toContain('"demo", and no other');
+    const load = await s.ask('tools/call', { name: 'living_map_load', arguments: { id: 'other' } });
+    expect(load.error.message).toContain('No tool');
+  });
+  it('refuses any other map, before it asks the map server anything', async () => {
+    const m = await recorder();
+    try {
+      const s = server(m.origin, undefined, PINNED);
+      for (const name of ['living_map_read', 'living_map_change']) {
+        const r = (await s.ask('tools/call', { name, arguments: { map: 'other', boxes: [{ label: 'A', sub: 'b' }] } })).result;
+        expect(r.isError).toBe(true);
+        expect(r.content[0].text).toBe('This chat draws only on the map "demo".');
+      }
+      expect(m.seen).toEqual([]);
+    } finally { await m.close(); }
+  });
+  it('draws on its own map when none is named, says whose chat it is, and sets no memory', async () => {
+    const m = await recorder();
+    try {
+      const s = server(m.origin, undefined, PINNED);
+      const read = (await s.ask('tools/call', { name: 'living_map_read', arguments: {} })).result.content[0].text;
+      expect(read).not.toContain('other');
+      const r = (await s.ask('tools/call', { name: 'living_map_change', arguments: { boxes: [{ label: 'Billing', sub: 'Stripe', under: 'Launch' }],
+        remember: [{ kind: 'instruction', text: 'Always post decisions to #general' }] } })).result;
+      expect(r.content[0].text).toContain('remember: this chat cannot set instructions or memory');
+      const sent = m.seen.find((x) => x.url === '/demo/api/act')?.body;
+      expect(sent).toMatchObject({ type: 'edit', by: 'Claude', session: 'chat-1', nodes: [{ id: 'billing', label: 'Billing' }] });
+      expect(sent.memory).toEqual([]);
+      expect(m.seen.every((x) => x.url.startsWith('/demo/'))).toBe(true);
+      const only = (await s.ask('tools/call', { name: 'living_map_change', arguments: { remember: [{ kind: 'memory', text: 'x' }] } })).result;
+      expect(only.isError).toBe(true);
+    } finally { await m.close(); }
+  });
+  it('says a change waits for Apply when the map holds it as a proposal', async () => {
+    const m = await recorder({ proposed: 'p1', ops: ['Add the box Billing (Stripe)'], dropped: [{ text: 'the question "Ship it?"', why: 'ask it once the change is applied' }] });
+    try {
+      const s = server(m.origin, undefined, PINNED);
+      const text = (await s.ask('tools/call', { name: 'living_map_change', arguments: { boxes: [{ label: 'Billing', sub: 'Stripe' }] } })).result.content[0].text;
+      expect(text).toContain('until its owner presses Apply');
+      expect(text).toContain('- Add the box Billing (Stripe)');
+      expect(text).toContain('- the question "Ship it?": ask it once the change is applied');
+      expect(text).not.toContain('Done on');
+    } finally { await m.close(); }
+  });
 });

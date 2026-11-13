@@ -22,6 +22,8 @@ interface Person {
 interface Members {
   people?: Person[];
   removedPeople?: string[];
+  /** Who owns the map: whoever made it. Unset on a map kept from before maps recorded it. */
+  admins?: string[];
 }
 
 interface LinkSharing {
@@ -245,6 +247,8 @@ interface ConverseJob {
   title: string;
   system: string;
   prompt: string;
+  // the map's own tool servers, the only tools the chat may use
+  servers: McpServers;
   onClose: () => void;
 }
 

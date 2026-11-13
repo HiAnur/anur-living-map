@@ -18,10 +18,10 @@ const onThisMac = (req) => LOCAL.test(req.headers.host || '') && (req.method ===
   : req.headers.origin === `http://${req.headers.host}` && String(req.headers['content-type'] || '').startsWith('application/json'));
 const GITHUB_NAME = /^[\w.-]+$/;
 /** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, home?: string, github?: () => ReturnType<typeof import('./github.js').github>,
- *   team?: () => any[] }} deps `team`: the team's people as seed.json lists them */
+ *   team?: () => any[] }} deps `team`: who may draw before any map makes them an Admin (the install's owner) */
 export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub, team = () => /** @type {any[]} */ ([]) }) {
   /**
-   * Who may draw a system map, before any map of it exists: an Admin or Engineer of the team (seed.json), or of any
+   * Who may draw a system map, before any map of it exists: an Admin or Engineer of the team (`team`), or of any
    * map on this Mac, as `isEngineer` reads roles. Everyone else asks one of them.
    */
   const engineer = (/** @type {any} */ p) => p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(String(p.role || ''));

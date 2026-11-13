@@ -37,7 +37,18 @@ h1{font-size:18px;font-weight:500;margin-bottom:16px}
 .line dd small{display:block;color:var(--text-2);font-size:12.5px}
 .line a{flex:none;font-size:13px;padding:5px 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;color:var(--text);text-decoration:none}
 .line a:hover{border-color:var(--text)}
-#err{color:#B42318;font-size:13px}
+#err,#invite-err{color:#B42318;font-size:13px}
+/* the owner's invite: a name, the button that makes the link, and the link to copy */
+#invite{margin-top:24px;padding:20px}
+#invite h2{font-size:15px;font-weight:500;margin-bottom:4px}
+#invite p{color:var(--text-2);font-size:13px;margin-bottom:12px}
+#invite form{display:flex;gap:8px}
+#invite input{flex:1;min-width:0;height:34px;border:1px solid var(--rule-2);border-radius:7px;padding:0 10px;font:inherit;color:inherit;background:#fff}
+#invite button{flex:none;height:34px;padding:0 14px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;font:13px var(--plex);color:var(--text);cursor:pointer}
+#invite button:hover{border-color:var(--text)}
+#invite-link{margin-top:12px}
+#invite-link input{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace}
+#invite-err{margin-top:8px}
 [hidden]{display:none!important}
 @media(max-width:480px){.line{flex-wrap:wrap}.line dt{width:100%}}
 </style>
@@ -55,20 +66,28 @@ h1{font-size:18px;font-weight:500;margin-bottom:16px}
       <div class="line" id="signin-line"><dt>Sign-in</dt><dd id="signin"></dd></div>
     </dl>
   </div>
+  <section class="card" id="invite" hidden aria-labelledby="invite-h">
+    <h2 id="invite-h">Invite someone</h2>
+    <p>Their name, as they will sign in. The link works once, for 7 days, on this Mac.</p>
+    <form id="invite-form"><input id="invite-name" maxlength="40" autocomplete="off" aria-label="Their name" placeholder="Their name" required><button type="submit">Make invite link</button></form>
+    <form id="invite-link" hidden><input id="invite-url" readonly aria-label="Invite link"><button type="button" id="invite-copy">Copy</button></form>
+    <div id="invite-err" role="alert"></div>
+  </section>
 </main>
 <script>
 // who you are on this Mac: your name, your role on the team, the email the map has for you and how you sign in
 const $ = (id) => document.getElementById(id);
 // back to where you came from; opened on its own, to the first page
 $('back').addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = '/'; });
-// what the page writes for the answer from /api/me: the email and its note, the one thing to do about it, the sign-in
+// what the page writes for the answer from /api/me: the email and its note, the one thing to do about it, the sign-in.
+// A recovery email is offered only where this Mac can send email (me.mail).
 function words(me){
   const google = me.emailFrom === 'google', saved = me.emailFrom === 'recovery', password = me.signIn === 'password';
   return {
     role: (me.role || '').split(',')[0],
     email: me.email || 'No email yet',
-    note: google ? 'The Google account you signed in with.' : saved ? 'Your recovery email: a link to reset your password is sent here.' : password ? 'Add one to reset your password if you forget it.' : '',
-    action: google || !password ? '' : saved ? 'Change' : 'Add an email',
+    note: google ? 'The Google account you signed in with.' : saved ? 'Your recovery email: a link to reset your password is sent here.' : password && me.mail ? 'Add one to reset your password if you forget it.' : '',
+    action: google || !password || !me.mail ? '' : saved ? 'Change' : 'Add an email',
     signIn: google ? 'Google' : password ? 'A password kept on this Mac' : '',
   };
 }
@@ -84,7 +103,20 @@ fetch('/api/me').then(async (r) => { const d = await r.json(); if (!r.ok) throw 
   $('email-do').textContent = w.action; $('email-do').hidden = !w.action;
   $('signin').textContent = w.signIn; $('signin-line').hidden = !w.signIn;
   $('card').hidden = false;
+  $('invite').hidden = !me.owner;
 }).catch((e) => { $('err').textContent = e.message; $('err').hidden = false; });
+// the owner invites someone: a one-use link to the sign-in page, where that person chooses their password
+$('invite-form').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('invite-err').textContent = '';
+  const r = await fetch('/api/invite', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('invite-name').value }) }).catch(() => null);
+  const d = r ? await r.json().catch(() => ({})) : null;
+  if (!r?.ok) { $('invite-err').textContent = d?.error || 'The map server is not answering.'; return; }
+  $('invite-url').value = d.link; $('invite-link').hidden = false; $('invite-copy').textContent = 'Copy'; $('invite-url').select();
+});
+$('invite-copy').addEventListener('click', () => {
+  $('invite-url').select();
+  navigator.clipboard?.writeText($('invite-url').value).then(() => { $('invite-copy').textContent = 'Copied'; }, () => { /* the link stays selected to copy by hand */ });
+});
 </script>
 </body>
 </html>

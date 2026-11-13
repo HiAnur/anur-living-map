@@ -60,6 +60,18 @@ export const signIn = (who: string) =>
     { cwd: app, env, encoding: "utf8" },
   ).trim();
 
+// Makes someone the owner of this copy, as the first account on it is; it does nothing once there is one.
+export const makeOwner = (who: string) =>
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import {users} from './users.js';users.create(${JSON.stringify(who)},'a long password')`,
+    ],
+    { cwd: app, env },
+  );
+
 // One server per worker, from its own copy, so maps and sign-ins stay apart.
 
 // Each test opens a map of its own, named after it, holding the sample.

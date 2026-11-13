@@ -31,7 +31,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
           buildsOn = { name: String(a.buildsOn), title: String(base.summary().title || a.buildsOn) };
         }
         const name = freeName('Untitled map');
-        mapCalled(name).blank({ buildsOn });
+        mapCalled(name).blank({ buildsOn, by: who });
         return json(200, { name, href: `/${name}/` });
       }
       const prompt = String(a.prompt || '').trim().slice(0, 4000);
@@ -46,7 +46,8 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       if (!who) return json(401, { error: 'Sign in first.' });
       let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch { /* not a map file: s stays null and the answer says so */ }
       if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
-      delete s.linkSharing;
+      // the map belongs to whoever loads it, whoever the file says made it
+      delete s.linkSharing; s.admins = [who];
       const name = freeName(String(s.title || 'map'));
       const dir = path.join(DIR, 'maps', name);
       fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));

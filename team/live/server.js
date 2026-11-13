@@ -38,6 +38,7 @@ import { sharedGithub } from './github.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { appendProposed } from './proposal-layout.js';
+import { drawServer } from './draw.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
@@ -59,7 +60,7 @@ import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { hubSizes, placeNew, readProject, tidy, tidyLayers, tidyTree } from './project.js';
-import { isEngineer, managesAccess, removedFrom } from './access.js';
+import { adminsOf, isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
 import { linkRole, localTool, permission, sharedState, withoutRepos } from './sharing.js';
@@ -88,17 +89,23 @@ const chatRules = (/** @type {any} */ base) => { try { return fs.readFileSync(pa
 const PAGE_FILES = PAGE_MODULES.map((f) => `/${f}`);
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
-/** @param {any} options */
-export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null }) {
+/**
+ * `installOwner`: who owns this install (users.js), and so every repo's own map. `before`: the Admins a map kept
+ * from before maps recorded who made them goes on having, besides the ones it was stored with.
+ * @param {any} options
+ */
+export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null,
+  installOwner = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]) }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   let closed = false;
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
   const SAVES = path.join(home, 'saves');
   // a team map's people are whoever has signed in on it, from the moment they open it; nobody is listed who
-  // never came. The story's seed is only the role book: the role a seated name carries when they join. Everyone
-  // sees the whole map; only the story keeps its cast and their areas.
-  const roleOf = (/** @type {any} */ id) => demo().people.find((/** @type {any} */ p) => p.id === id)?.role;
+  // never came. Its Admins are whoever made it, and on a repo's own map the owner of this install (adminsOf).
+  // Everyone sees the whole map; only the story keeps its cast, their roles and their areas.
+  const roleOf = (/** @type {any} */ id) => !project && !name ? demo().people.find((/** @type {any} */ p) => p.id === id)?.role
+    : adminsOf(state, { project: !!project, owner: installOwner() }).includes(id) ? 'Admin' : undefined;
   const seed = () => {
     if (!project && !name) return demo();
     const drawn = project ? readProject(project) : { title: name, desc: '', nodes: [], edges: [] };
@@ -132,12 +139,20 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     s.threads = { ...Object.fromEntries(kept), ...Object.fromEntries(Object.entries(into).map(([k, l]) => [k, l.sort((/** @type {any} */ a, /** @type {any} */ b) => a.t - b.t).map((/** @type {any} */ x) => x.m)])) };
   }
   // a chat that is this person's: the one open now, one in their history, or one on a box
+  const existed = !!initialState || fs.existsSync(STATE);
   let state = withDefaults(initialState ? structuredClone(initialState) : fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh());
+  // A map from before maps recorded who made them keeps its Admins, written down once so a name someone takes
+  // later never becomes one. A new map starts with none: whoever makes it, or else first opens it, is its Admin.
+  if ((project || name) && !Array.isArray(state.admins)) {
+    state.admins = existed ? adminsOf(state, { before: before() }) : [];
+    if (existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
+  }
   // A map is usable as extra context only while it remains checked in Brain.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
-  if (!memory && (project || name)) state.people = (state.people || []).filter((/** @type {any} */ p) => p.joined).map((/** @type {any} */ p) => ({ ...p, role: roleOf(p.id), sees: 'all' }));
+  // An Admin is one by adminsOf alone; any other role a person was stored with stays theirs.
+  if (!memory && (project || name)) state.people = (state.people || []).filter((/** @type {any} */ p) => p.joined).map((/** @type {any} */ p) => ({ ...p, role: roleOf(p.id) || (p.role === 'Admin' ? undefined : p.role), sees: 'all' }));
   // a reply cut off when the server stopped says so, instead of thinking forever
   for (const t of Object.values(state.threads || {})) for (const m of t) if (m.thinking) { delete m.thinking; delete m.doing; delete m.since; m.text ||= 'Stopped before it answered. Ask again.'; }
   for (const n of allBoxesOf(state)) recoverAction(n);
@@ -196,23 +211,26 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   if (!memory) startMirror();
 
   // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
-  // here, headless, in the map's folder: the agent's own chat (agent.converse) with nobody to ask, so anything it
-  // would stop to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
-  // and what the owner writes there continues it, one turn at a time.
+  // here, headless, in the map's folder: the agent's own chat (agent.converse). Its only tools are this map's own,
+  // pinned to this map (drawServer), so what it reads cannot make it act anywhere else. Their pane follows that
+  // chat, and what the owner writes there continues it, one turn at a time; every turn answers the pane, so what
+  // it draws arrives as a proposal.
   let /** @type {any} */ building = null; const /** @type {any} */ queued = [];
   const brief = () => [
-    `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
-    'It began as a blank canvas from the prompt you are given. Find what it needs with the tools you have (files, the web, and the apps this Claude Code is connected to), then draw it with living_map_change: boxes for the parts, lines between them, and a question for a teammate where something is not known.',
-    'Read, never act: do not send, post, book, buy, or change anything outside this map.',
-    'Your replies show in the chat beside the map: say in two or three short lines what you drew, what you found, and what you could not reach.',
+    `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}", and your tools, living_map_read and living_map_change, work on it alone.`,
+    'Draw what you are asked with living_map_change: boxes for the parts and lines between them. What you draw waits as a proposal, blue on the map, until the owner presses Apply.',
+    'You have no other tools: no files, web or connected apps. Work from the map and what you are told, and say what you would need to look up.',
+    'Your replies show in the chat beside the map: say in two or three short lines what you proposed and what you could not reach.',
   ].join('\n');
   /** @param {any} l @param {any} text */
   function converse(l, text) {
     if (building) { queued.push(text); return; }
     fs.mkdirSync(home, { recursive: true });
     const first = !l.started; l.started = true; save();
-    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text,
-      onClose: () => { building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
+    answering.set(l.session, Date.now());
+    const servers = { living_map: drawServer({ url: `http://localhost:${PORT}`, map: name || (project ? mapName(project) : ''), session: l.session }) };
+    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text, servers,
+      onClose: () => { building = null; answering.delete(l.session); if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
     // its transcript appears once it starts; the pane follows it from then
     if (!l.file) {
       let tries = 0;
@@ -256,16 +274,18 @@ export function openMap({ project = '', name = '', home, initialState, undoState
    * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
    */
   function drawSystem({ title, folders = [], repos = [], by }) {
-    state.title = state.renamed = title;
+    state.title = state.renamed = title; state.admins = [by];
     return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
   /**
-   * A blank map; one that builds on a system map names it, and its chats read that map as background.
-   * @param {{ buildsOn?: { name: string, title: string } }} [o]
+   * A blank map, owned by whoever made it; one that builds on a system map names it, and its chats read that map
+   * as background.
+   * @param {{ buildsOn?: { name: string, title: string }, by?: string }} [o]
    */
-  function blank({ buildsOn } = {}) {
+  function blank({ buildsOn, by } = {}) {
     state.title = state.renamed = 'Untitled map';
+    if (by) state.admins = [by];
     if (buildsOn) { state.buildsOn = buildsOn; state.contextMapIds = [buildsOn.name]; }
     save();
   }
@@ -278,7 +298,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     const words = prompt.replace(/\s+/g, ' ').split(' ');
     let title = ''; for (const w of words) { if ((`${title} ${w}`).trim().length > 40) break; title = `${title} ${w}`.trim(); }
     state.title = state.renamed = (title || 'New map').replace(/^./, (c) => c.toUpperCase());
-    state.starting = { prompt, by, at: Date.now() };
+    state.starting = { prompt, by, at: Date.now() }; state.admins = [by];
     save(); push();
     const q = `/anur-living-map map:${name} ${prompt}`;
     chats.openNew({ prompt: q, folder: home });
@@ -320,6 +340,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const /** @type {any} */ waiters = [];
+  // The chats answering a request from the pane right now, by session, since when: from the moment a chat's listener
+  // takes the request until it listens again (a chat the map runs itself, until its turn ends). Their direct
+  // changes (edit, from living_map_change) arrive as proposals, so what was asked in the pane waits for Apply.
+  const answering = new Map(), ANSWER_MS = 30 * 60_000;
+  /** @param {unknown} session */
+  const isAnswering = (session) => typeof session === 'string' && Date.now() - (answering.get(session) ?? -Infinity) < ANSWER_MS;
   // this map's address, for the rules a chat follows
   const address = () => `http://localhost:${PORT}${name ? `/${name}` : project ? `/${mapName(project)}` : ''}`;
   // which version of the rules each chat last got: they go out again only when they are new to that chat,
@@ -348,7 +374,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       state.forChats = state.forChats.filter((/** @type {any} */ m) => !mine.includes(m));
       waiters.splice(waiters.indexOf(w), 1); clearTimeout(w.timer);
       w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((/** @type {any} */ m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
-      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((/** @type {any} */ x) => x.id === m.said); if (s) s.handed = Date.now(); }
+      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((/** @type {any} */ x) => x.id === m.said); if (s) s.handed = Date.now(); answering.set(w.who, Date.now()); }
       changed = true;
     }
     if (changed) { save(); setTimeout(sendMirror); }
@@ -501,17 +527,19 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
-    archived: state.archived || [], contextMapIds: state.contextMapIds || [], linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
+    archived: state.archived || [], ...(Array.isArray(state.admins) ? { admins: state.admins } : {}), contextMapIds: state.contextMapIds || [], linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
+  const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
+    selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
+    relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror });
   const ACTS = {
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
-    ...chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
-      selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
-      relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
-    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
+    ...chatting,
+    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering,
+      proposeFor: (a) => chatting.propose(a, 40) }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf, seesOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
@@ -566,6 +594,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // the pane hears when a listener comes and goes, so it can say whether the chat is listening
       const drop = () => { const i = waiters.indexOf(w); if (i >= 0) { waiters.splice(i, 1); setTimeout(sendMirror); } clearTimeout(w.timer); };
       const w = { who, res, timer: setTimeout(() => { drop(); res.writeHead(200).end(''); }, 240_000) };
+      // listening again: the request it was handed is answered
+      answering.delete(who);
       waiters.push(w);
       res.on('close', drop);
       wake(); setTimeout(sendMirror);
@@ -579,10 +609,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       res.writeHead(200, { 'content-type': im.type, 'cache-control': 'private, max-age=86400' }).end(im.buf); return true;
     }
     if (p === '/api/events') {
-      // whoever signs in and opens the map joins its people, with the role the seed gives their name, if any. They
-      // join before this window is followed, so it starts with the role it keeps: joining as an Admin makes them an
-      // owner, and a window that saw that change would reload as if its access had changed.
-      if (who && !guest && !state.people?.some((/** @type {any} */ p) => p.id === who)) { (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push(); }
+      // whoever signs in and opens the map joins its people, as an Admin if the map is theirs (roleOf); the first to
+      // open a named map nobody made becomes its Admin. They join before this window is followed, so it starts with
+      // the role it keeps: joining as an Admin makes them an owner, and a window that saw that change would reload
+      // as if its access had changed.
+      if (who && !guest && !state.people?.some((/** @type {any} */ p) => p.id === who)) {
+        if (name && !state.admins?.length) state.admins = [who];
+        (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push();
+      }
       // their Google picture, kept on them as one of the map's people so everyone here sees it on their face
       const one = /** @type {any} */ (who && !guest ? state.people?.find((/** @type {any} */ p) => p.id === who) : null), face = one ? pictureOf(String(who)) : '';
       if (one && (one.picture || '') !== face) { if (face) one.picture = face; else delete one.picture; save(); push(); }
@@ -635,12 +669,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // nothing may be done to a box drawn from a repo the person may not read on GitHub: they never see it
       if (touchesHidden(a, guest ? null : a.by)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That box is in a repo you can\'t read on GitHub.' })); return true; }
       told = null;
+      // what a handler says back about the action (edit's proposal, or why it refused) is its own, never the sender's
+      delete a.proposed; delete a.refused;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
       const result = actingAs(a.by, () => {
-        const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
+        const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a), error: a.refused };
         if (done.ok) {
           actions.reconcile(allBoxesOf(state));
           updateBoxDates(state, undefined, a.by);
@@ -650,7 +686,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         return done;
       });
       if (result.ok) push();
-      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(result.ok ? JSON.stringify(a.created ? { id: a.created } : {}) : JSON.stringify({ error: result.error || 'That change could not be saved.' }));
+      const made = { ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}) };
+      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(JSON.stringify(result.ok ? made : { error: result.error || 'That change could not be saved.' }));
       return true;
     }
     return false;
@@ -715,29 +752,36 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applic
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename) {
 const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
 const { MIN, users, recovery } = await import('./users.js');
-const { handleRecovery } = await import('./recovery.js');
-const maps = mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo });
+const { handleRecovery, mailReady } = await import('./recovery.js');
+// A map from before maps recorded who made them keeps the story's Admin, where that name has signed in here, and
+// the install's owner. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
+const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.owner()].filter((p) => !!p);
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before }), DIR, PROJECT, PROJECTS, mapName,
+  adminsOf: (/** @type {any} */ state, /** @type {string} */ project) => adminsOf(state, { project: !!project, owner: users.owner(), before: before() }) });
 const { deletedMaps, projects, mapCalled } = maps;
 
 // a page, with the signed-in person written into it for the page's own script; the list of maps, which has no
 // map to ask, is also told that person's role on the team
 const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
-  .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\w .-]/g, '')}">`,
+  .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\p{L}\p{N} ._-]/gu, '')}">`,
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
 // a person's role on the team, which the list of maps and Settings show: no one map is there to ask
-const teamRole = (/** @type {string} */ who) => String(demo().people?.find((/** @type {any} */ p) => p.id === who)?.role || '');
-const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf: teamRole });
+const teamRole = (/** @type {string} */ who) => who && who === users.owner() ? 'Owner' : '';
+// what someone runs on this Mac for a link to choose a new password, when no email can carry one
+const resetCommand = `node "${path.join(DIR, 'users.js')}" reset${PORT === 4323 ? '' : ` --port ${PORT}`}`;
+const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf: teamRole, mailReady, resetCommand });
 const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
-const systemMaps = systemRoutes({ maps, team: () => demo().people || [] });
+// the install's owner may draw a system map before any map makes them an Admin
+const systemMaps = systemRoutes({ maps, team: () => { const owner = users.owner(); return owner ? [{ id: owner, role: 'Admin' }] : []; } });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');
-  if (await handleRecovery(req, res, { users, recovery, port: PORT })) return;
-  // Signing in. Every page asks who you are; a person without a password yet chooses one the first time.
-  // The API stays open to this Mac's own tools, Claude's plans and the listeners, since the server only
-  // answers on this Mac; a signed-in browser always acts as the person who signed in.
+  // Signing in. Every page asks who you are; the first person on a new install creates the owner's account, and
+  // everyone after joins by the owner's invite. The API stays open to this Mac's own tools, Claude's plans and the
+  // listeners, since the server only answers on this Mac; a signed-in browser always acts as the person who signed in.
   const who = users.whoIs(cookieOf(req, 'lm_session'));
+  if (await handleRecovery(req, res, { users, recovery, port: PORT, who })) return;
   /** @type {(code: any, data: any, cookie?: any) => any} */
   const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
   if (await signIns(req, res, url, who, json)) return;
