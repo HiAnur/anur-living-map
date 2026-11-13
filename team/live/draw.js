@@ -6,6 +6,22 @@ import { fileURLToPath } from 'node:url';
 
 export const STATES = ['new', 'todo', 'assumed-gone', 'gone'];
 export const KINDS = ['timeline', 'sequence', 'venn'];
+// how long a box's name, second line and notes may be, wherever they are written
+export const BOX_TEXT = { label: 80, sub: 240, desc: 1500 };
+
+/** The person who last changed a box or made it, if a person did. @param {any} n @returns {string | null} */
+export const personOf = (n) => [n?.updatedBy, n?.by].find((w) => typeof w === 'string' && w && w !== 'Claude') || null;
+/**
+ * Why Claude may change a box already on the map only through a proposal a person applies, or null when it may
+ * change it directly: a person made or changed it, or the change takes off the map a box Claude did not make.
+ * @param {any} old the box as it is @param {any} change what Claude would set on it
+ */
+export function waitsForApply(old, change) {
+  const who = personOf(old);
+  if (who) return `${who} ${old.updatedBy === who ? 'last changed' : 'made'} it`;
+  if (change?.state === 'gone' && old?.by !== 'Claude') return 'Claude did not make it';
+  return null;
+}
 
 /** @param {unknown} t */
 export const slug = (t) => String(t).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 40) || 'box';
@@ -22,7 +38,7 @@ export const asksNothing = ({ boxes = [], lines = [], questions = [], remember =
  * @param {any} s the map's state, as its server gives it
  * @param {number} [now]
  */
-export function planChange({ note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start } = {}, s, now = Date.now()) {
+export function planChange({ note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start, session } = {}, s, now = Date.now()) {
   const had = s.nodes || [], people = s.people || [];
   /** @type {any[]} */
   const nodes = [], edges = [], calls = [], done = [], skipped = [];
@@ -36,8 +52,19 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   };
   const label = (/** @type {string} */ id) => nodes.find((/** @type {any} */ n) => n.id === id)?.label || had.find((/** @type {any} */ n) => n.id === id)?.label || id;
 
+  // a change to a box people wrote waits for Apply in the Claude pane of the chat that asked, when it is linked to
+  // this map, else of the chat linked to it
+  const linked = s.linked?.find((/** @type {any} */ l) => l.session === session) || s.linked?.[0] || null, propose = [];
   for (const b of boxes.slice(0, 40)) {
-    const old = b.id ? had.find((/** @type {any} */ n) => n.id === b.id) : find(b.label);
+    // a name only finds a box to hang it under another; changing a box already on the map takes its exact id
+    const named = !b.id && b.label ? find(b.label) : null;
+    if (named) {
+      const up = b.under ? find(b.under) : null;
+      if (['sub', 'notes', 'state', 'diagram', 'area'].some((k) => b[k] !== undefined) || !b.under) { skipped.push(`box "${b.label}": ${named.label} is already on the map; to change it, give its id (${named.id})`); continue; }
+      if (up && up.id !== named.id) { edges.push({ from: up.id, to: named.id }); done.push(`${named.label} hangs under ${up.label}`); } else skipped.push(`"${b.under}" above ${named.label}: no such box`);
+      continue;
+    }
+    const old = b.id ? had.find((/** @type {any} */ n) => n.id === b.id) : null;
     if (!old && !b.label) { skipped.push(`a box with no name${b.id ? ` (${b.id})` : ''}`); continue; }
     // a new box says what it is under its name; a box already on the map is changed as it is
     if (!old && !String(b.sub ?? '').trim()) { skipped.push(`box "${b.label}": a new box needs a second line (sub) that says what it is, in a few words`); continue; }
@@ -45,16 +72,23 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
     if (b.diagram && !KINDS.includes(b.diagram.kind)) { skipped.push(`diagram "${b.diagram.kind}" on ${b.label || b.id}: use ${KINDS.join(', ')}`); delete b.diagram; }
     let id = old?.id || (b.id && /^[a-z0-9-]{1,40}$/.test(b.id) ? b.id : slug(b.label));
     if (!old) { const base = id; for (let k = 2; taken.has(id); k++) id = `${base}-${k}`; taken.add(id); }
-    // a box found by its name keeps its own spelling; given its id, a new name renames it
-    const box = { id, ...(b.label && (!old || b.id) ? { label: clip(b.label, 60) } : {}), ...(b.sub !== undefined ? { sub: clip(b.sub, 80) } : {}),
-      ...(b.notes !== undefined ? { desc: clip(b.notes, 1500) } : {}), ...(b.state ? { state: b.state } : {}),
+    const box = { id, ...(b.label ? { label: clip(b.label, BOX_TEXT.label) } : {}), ...(b.sub !== undefined ? { sub: clip(b.sub, BOX_TEXT.sub) } : {}),
+      ...(b.notes !== undefined ? { desc: clip(b.notes, BOX_TEXT.desc) } : {}), ...(b.state ? { state: b.state } : {}),
       ...(b.area ? { area: clip(b.area, 30) } : {}), ...(b.diagram !== undefined ? { diagram: b.diagram } : {}), ...(old ? {} : { by: 'Claude' }) };
-    nodes.push(box);
-    done.push(old ? `Changed ${old.label} (${id})` : `Added ${box.label} (${id})`);
-    if (box.diagram?.items?.length) done.push(`  opens into a ${box.diagram.kind} of ${box.diagram.items.length} with a double click`);
+    const why = old && Object.keys(box).length > 1 ? waitsForApply(old, box) : null;
+    if (why && !linked) { skipped.push(`box ${old.label} (${id}): ${why}, so Claude changes it only through a proposal someone applies, and no Claude Code chat is linked to this map to hold one. Ask them to change it, or link this chat with /anur-living-map`); }
+    else if (why) {
+      // a proposal changes what a box says; which area it sits in is for a person to move
+      if (box.area) { skipped.push(`area "${box.area}" on ${old.label}: ${why}, so only a person moves it to another area`); delete box.area; }
+      if (Object.keys(box).length > 1) { propose.push(box); done.push(`Proposed a change to ${old.label} (${id}): ${why}, so it waits for Apply in ${linked.owner}'s Claude pane on the map`); }
+    } else {
+      nodes.push(box);
+      done.push(old ? `Changed ${old.label} (${id})` : `Added ${box.label} (${id})`);
+      if (box.diagram?.items?.length) done.push(`  opens into a ${box.diagram.kind} of ${box.diagram.items.length} with a double click`);
+    }
     if (b.under) {
       const up = find(b.under);
-      if (up && up.id !== id) { edges.push({ from: up.id, to: id }); done.push(`  under ${up.label}`); } else skipped.push(`"${b.under}" above ${box.label || id}: no such box`);
+      if (up && up.id !== id) { edges.push({ from: up.id, to: id }); done.push(`  under ${up.label}`); } else skipped.push(`"${b.under}" above ${box.label || old?.label || id}: no such box`);
     }
   }
   for (const l of lines.slice(0, 40)) {
@@ -97,8 +131,8 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   if (start && !top) skipped.push(`start from "${start}": no such box`);
   if (top) done.push(`The map starts from ${top.label}`);
   if (tidy === true) done.push('Laid out the whole map again, each box beside the box it hangs under');
-  if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true && !top) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
-  return { edit: { note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink, tidy: tidy === true, ...(top ? { start: top.id } : {}) }, done, skipped };
+  if (!nodes.length && !propose.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true && !top) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
+  return { edit: { note: clip(note || done[0], 200), nodes, ...(propose.length ? { propose } : {}), edges, calls, memory, unlink, tidy: tidy === true, ...(top ? { start: top.id } : {}) }, done, skipped };
 }
 
 // What a chat the map runs itself may draw with: mcp.js pinned to one map (LIVING_MAP_ONLY_MAP), so its tools refuse

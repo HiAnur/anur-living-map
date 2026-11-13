@@ -89,8 +89,32 @@ describe('checking a drawing', () => {
   it('lists the structural facts no box cites (rule 5)', () => {
     expect(checkDrawing({ boxes: [box('worker', ['f1'])], lines: [] }, facts).leftOut).toEqual(['f2', 'f3', 'f5']);
   });
+  it('keeps a name that shares a word with its facts, however the code spells it (rule 6)', () => {
+    const r = checkDrawing({ boxes: [box('w', ['f1'], { name: 'Workers' }), box('o', ['f2'], { name: 'Order store' }), box('g', ['f5'], { name: 'Orders access' })], lines: [] }, facts);
+    expect(r.boxes.map((b) => b.name)).toEqual(['Workers', 'Order store', 'Orders access']);
+    expect(r.rejected).toEqual([]);
+  });
+  it('names a box from its facts when its name shares no meaningful word with them (rule 6)', () => {
+    const logs = /** @type {Map<string, any>} */ (new Map([['l1', { id: 'l1', kind: 'function', at: 'src/log.py:3', name: 'write_audit_log' }]]));
+    // "the" counts for nothing, and its facts say nothing of payments or an API
+    const r = checkDrawing({ boxes: [box('pay', ['l1'], { name: 'The Payments API' })], lines: [] }, logs);
+    expect(r.boxes[0].name).toBe('Write audit log');
+    expect(r.rejected).toEqual([{ item: 'box "The Payments API"', why: 'its name shares no word with its facts: named "Write audit log" from them' }]);
+  });
+  it('describes a box from its facts when its description names code none of them contain (rule 6)', () => {
+    const api = /** @type {Map<string, any>} */ (new Map(/** @type {[string, any][]} */ ([
+      ['r1', { id: 'r1', kind: 'http_route', at: 'api.py:4', route: 'GET /users/{id}', function: 'get_user' }],
+      ['t1', { id: 't1', kind: 'table', at: 'db.py:2', name: 'UsersTable' }],
+    ])));
+    const ok = checkDrawing({ boxes: [box('users', ['r1', 't1'], { name: 'Users', description: 'Serves /users/:id from get_user() in UsersTable on DynamoDB' })], lines: [] }, api);
+    expect(ok.boxes[0].description).toBe('Serves /users/:id from get_user() in UsersTable on DynamoDB');
+    expect(ok.rejected).toEqual([]);
+    const made = checkDrawing({ boxes: [box('users', ['r1', 't1'], { name: 'Users', description: 'Calls chargeCard on /v2/pay, and `refunds.process`' })], lines: [] }, api);
+    expect(made.boxes[0].description).toBe('1 http route, 1 table');
+    expect(made.rejected).toEqual([{ item: 'the description of box "Users"', why: 'it names refunds.process, /v2/pay, chargeCard, which none of its facts contain: described from its facts instead' }]);
+  });
   it('rejects two boxes with one id, and trims what it keeps', () => {
-    const r = checkDrawing({ boxes: [box('worker', ['f1'], { name: 'W'.repeat(200) }), box('worker', ['f2'])], lines: [] }, facts);
+    const r = checkDrawing({ boxes: [box('worker', ['f1'], { name: `Worker ${'W'.repeat(200)}` }), box('worker', ['f2'])], lines: [] }, facts);
     expect(r.boxes).toHaveLength(1);
     expect(r.boxes[0].name).toHaveLength(80);
     expect(r.rejected[0].why).toMatch(/same id/);
