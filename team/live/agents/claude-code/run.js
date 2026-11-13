@@ -17,7 +17,11 @@ const MAP_DOES_IT = 'The map pushes the branch and opens the pull request when y
 /** @param {readonly string[] | undefined} tools */
 export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE, HANDS_OFF, MAP_DOES_IT);
 // Claude Code's tools that only read, so a call to one changed nothing a Continue could repeat
-export const READS = new Set([...ALWAYS, 'WebFetch', 'WebSearch', 'LS', 'NotebookRead']);
+const READS = new Set([...ALWAYS, 'WebFetch', 'WebSearch', 'LS', 'NotebookRead']);
+// tools that change only files on this Mac, and the shell, which can do anything
+const FILES = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']), SHELL = new Set(['Bash', 'BashOutput', 'KillShell']);
+/** @param {string} tool @returns {ToolReach} */
+export const reach = (tool) => (READS.has(tool) ? 'reads' : FILES.has(tool) ? 'files' : SHELL.has(tool) ? 'shell' : 'others');
 /** @param {unknown} content a tool result's content: text, or a list of blocks */
 const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.map((b) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '').slice(0, 4000);
 // Keep the chat on disk; every follow-up resumes its exact ID, never the latest chat in a folder.

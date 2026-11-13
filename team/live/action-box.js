@@ -93,7 +93,7 @@ export function recoverAction(n) {
 }
 
 // Preparation cannot execute. Only the explicit Execute request starts the reviewed task in its own resumable chat,
-// or, for an Action its author set to run on its own, the map once a brief is ready that only looks things up.
+// or, for an Action its author set to run on its own, the map once a brief is ready that reaches no other person.
 /**
  * A box comes back from `nodeOf` untyped: `owns` checks it is there and yours before anything reads it, which the
  * type check cannot follow.
@@ -112,10 +112,10 @@ export function recoverAction(n) {
  *   cannotRun?: (n: Box) => string | null,
  *   cwdFor?: (n: Box, by: string) => Promise<{ cwd: string } | { error: string } | null>,
  *   canBuild?: (n: Box, by: string) => Promise<string>,
- *   readsOnly?: (tool: string) => boolean,
+ *   reach?: (tool: string) => ToolReach,
  * }} deps
  */
-export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor, canBuild, readsOnly = () => false }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor, canBuild, reach = () => 'others' }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -242,7 +242,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     note(a, 'executed', startedBy, { tools:[...(a.brief.tools || [])] });
     // a build runs in the worktree code made for it, and leaves committing, pushing and the pull request to code
     const work = kindOf(a.brief)?.branch && builds ? '\n\nThis is a build. The map has made a fresh worktree on a new branch for it and runs you there. Make the change and run the project\'s checks in it. Do not push or open a pull request: when you finish, the map commits what you changed, pushes the branch and opens the pull request (or adds to the one already open). You may use gh for the rest, such as reading the pull request\'s comments and replying to them.' : '';
-    const pressed = startedBy === by ? 'The person pressed Execute.' : 'The person set this Action to run on its own once ready, and its brief only looks things up, so the map started it.';
+    const pressed = startedBy === by ? 'The person pressed Execute.' : 'The person set this Action to run on its own once ready, and nothing in its brief reaches another person, so the map started it.';
     const prompt = `${pressed} ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}${work}`;
     return runTurn(id, by, a, prompt, false);
   }
@@ -276,10 +276,10 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
       const settle = (pulls, mapNote = '') => {
         if (!active()) { reconcile(); return; }
         runs.delete(id);
-        // a step that only looked things up hands its result back in the reply: it changed nothing, so the
-        // finished reply is the whole of what there is to check
-        const answered = claimed?.status === 'completed' && !waitsFor(a.brief) && (result.calls || []).every((c) => c.reads);
-        const evidence = [...seen.evidence, ...(answered ? ['Answered in the reply. The run only looked things up.'] : []), ...pulls.map((url) => `Pull request ${url}`)];
+        // a step that only read and changed files here hands back its result in the reply and those files: it reached
+        // no one, so they are the whole of what there is to check, and a file can be put back
+        const kept = claimed?.status === 'completed' && !kindOf(a.brief)?.proof && !waitsFor(a.brief) && (result.calls || []).every((c) => ['reads', 'files'].includes(reach(c.tool)));
+        const evidence = [...seen.evidence, ...(kept ? [keptHere(result.calls || [])] : []), ...pulls.map((url) => `Pull request ${url}`)];
         const status = result.blocked ? 'blocked' : claimed?.status === 'needs_input' ? 'needs_input'
           : evidence.length ? 'completed' : claimed?.status === 'completed' ? 'unverified' : 'unconfirmed';
         a.stage = result.blocked ? 'blocked' : 'finished';
@@ -333,15 +333,22 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     }, () => { if (active()) finish({blocked:true,text:'Could not make a branch for this build.'}); });
     return true;
   }
-  // Why a ready brief still waits for its author's Execute, or '' when it may run on its own: it is a kind that
-  // sends or changes nothing by itself, and every tool it needs is one the agent marks as only reading.
+  // Why a ready brief still waits for its author's Execute, or '' when it may run on its own: what it does reaches
+  // no other person. Reading and changing files here do not; a build's shell runs in its own worktree and what it
+  // makes waits in a pull request for a reviewed merge; a send, a post or any other connector call may.
   /** @param {Brief | undefined} brief */
   function waitsFor(brief) {
     const kind = kindOf(brief);
     if (!brief || !kind) return 'Its brief could not be read, so it waits for your go.';
-    if (!kind.alone) return `${kind.does} Steps that change things wait for your go.`;
-    const writes = (brief.tools || []).filter((tool) => !readsOnly(tool));
-    return writes.length ? `It needs ${writes.join(', ')}, which can change things, so it waits for your go.` : '';
+    if (!kind.alone) return `${kind.does} It reaches another person, so it waits for your go.`;
+    const outward = (brief.tools || []).filter((tool) => { const r = reach(tool); return !(r === 'reads' || r === 'files' || (r === 'shell' && kind.branch)); });
+    return outward.length ? `It needs ${outward.join(', ')}, which can reach other people, so it waits for your go.` : '';
+  }
+  // What the map saw a run that reached no one do: only look things up, or change these files
+  /** @param {ToolCall[]} calls */
+  function keptHere(calls) {
+    const files = [...new Set(calls.filter((c) => c.ok && reach(c.tool) === 'files').map((c) => String(/** @type {any} */ (c.input)?.file_path || /** @type {any} */ (c.input)?.path || c.tool)))];
+    return files.length ? `Changed only files here, which can be put back: ${files.slice(0, 5).join(', ')}${files.length > 5 ? ` and ${files.length - 5} more` : ''}.` : 'Answered in the reply. The run only looked things up.';
   }
   // A ready Action set to run on its own: the map presses Execute for its author, or says why it waits.
   /** @param {string} id */

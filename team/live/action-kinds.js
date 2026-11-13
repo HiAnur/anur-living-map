@@ -9,13 +9,13 @@
 //   proof      what code accepts as proof it was done, from the tool calls the run made (action-evidence.js):
 //              'sent' a successful send to the brief's exact recipient, 'pull' a pull request GitHub confirms,
 //              null nothing code can check, so its author confirms it
-//   alone      it may run with no click, when its author chose that and every tool its brief needs only reads
+//   alone      it may run with no click, when its author chose that and no tool its brief needs reaches another person
 
 /** @typedef {{ does: string, email: boolean, toolless: boolean, branch: boolean, proof: 'sent' | 'pull' | null, alone: boolean }} ActionKind */
 
 export const ACTION_KINDS = /** @type {const} */ ({
   email: { does: 'Sends one email to the exact recipient, with the subject and body you reviewed.', email: true, toolless: false, branch: false, proof: 'sent', alone: false },
-  build: { does: 'Changes code on a new branch and ends in a pull request.', email: false, toolless: false, branch: true, proof: 'pull', alone: false },
+  build: { does: 'Changes code on a new branch and ends in a pull request.', email: false, toolless: false, branch: true, proof: 'pull', alone: true },
   other: { does: 'Anything else the connected tools allow, or a result written in the reply.', email: false, toolless: true, branch: false, proof: null, alone: true },
 });
 
