@@ -286,7 +286,7 @@ test("boxes show titles and reveal descriptions without moving on hover", async 
   await page.keyboard.press("Escape");
 });
 
-test("the map starts at an empty circle, with its main topics in orange around it", async ({
+test("the map starts at an empty circle, with its main topics as ordinary boxes around it", async ({
   page,
 }) => {
   await openSample(page);
@@ -297,9 +297,9 @@ test("the map starts at an empty circle, with its main topics in orange around i
   const size = await circle.boundingBox();
   expect(size!.width).toBeLessThan(40);
   expect(Math.abs(size!.width - size!.height)).toBeLessThan(1);
-  for (const name of ["Pricing", "Audience"])
-    await expect(box(page, name)).toHaveClass(/\bstart\b/);
-  await expect(box(page, "Free trial")).not.toHaveClass(/\bstart\b/);
+  // only the circle marks where the map starts: the main topics are ordinary boxes
+  for (const name of ["Pricing", "Audience", "Free trial"])
+    await expect(box(page, name)).not.toHaveClass(/\bstart\b|\bstart-rim\b/);
   // its lines leave from the circle's edge
   const ends = await page.evaluate(() => {
     const c = document.querySelector<HTMLElement>("#nodes .node.hub")!;
@@ -336,8 +336,7 @@ test("on a map of several groups, only the start box is the circle", async ({
     ],
   });
   await expect(hub(page)).toHaveAttribute("aria-label", "Launch plan");
-  await expect(box(page, "Pricing")).toHaveClass(/\bstart\b/);
-  for (const name of ["Notes", "An idea"])
+  for (const name of ["Pricing", "Notes", "An idea"])
     await expect(box(page, name)).not.toHaveClass(/\bstart\b|\bhub\b/);
 });
 

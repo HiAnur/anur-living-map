@@ -1,5 +1,5 @@
-// The centre of a map: its start box drawn as a small empty circle, with the boxes right under it (its main topics)
-// in orange around it, so a map's main topics read at a glance. The map's name is already at the top of the page,
+// The centre of a map: its start box drawn as a small empty circle, ringed in orange, with the boxes right under it
+// (its main topics) as ordinary boxes around it. The map's name is already at the top of the page,
 // so the circle carries none. project.js lays a map out with the same circle, so Tidy up and a new box's place agree
 // with what the page draws. A page module (see page-modules.js).
 

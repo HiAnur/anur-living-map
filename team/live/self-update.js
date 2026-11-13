@@ -1,7 +1,8 @@
 // ── keeps itself current ──
 // Run from a git clone on main with no changes of its own, the server looks at GitHub when it starts and every
-// ten minutes, moves to the newest release (the v* tag CI puts on each push to main that passed its checks, never
-// main itself), refreshes the skill's installed copy (chats.skillDir), and starts itself again in its place: every change is on disk already, pages and listeners reconnect by themselves. While Claude is at work
+// ten minutes, moves to the newest build its channel follows (channel.js: a release, v*, made by the Release
+// workflow; or on the dev channel any build CI tagged dev-* once a push to main passed its checks; never main
+// itself), refreshes the skill's installed copy (chats.skillDir), and starts itself again in its place: every change is on disk already, pages and listeners reconnect by themselves. While Claude is at work
 // on a map (a reply, an Action, a drawing) it neither pulls nor restarts, and looks again shortly. A copy without git
 // (npx) is left to npx, which fetches the newest version each run. The commit it runs from goes in
 // server.rev in the data folder (data-dir.js), which /anur-living-map reads to tell a server on older code.
@@ -11,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { chats } from './agent.js';
+import { channelOf, tagsFor } from './channel.js';
 import { DATA } from './data-dir.js';
 import { copySkill } from './skill-copy.js';
 
@@ -19,9 +21,10 @@ const DIR = import.meta.dirname;
 /**
  * @param {import('node:http').Server} server the server to start again in its place after a pull
  * @param {() => boolean} [busy] whether Claude is at work on a map now, when an update waits
- * @param {{ git?: (...a: any[]) => Promise<string | null>, wait?: number }} [test] stand-ins for git and the wait, in tests
+ * @param {{ git?: (...a: any[]) => Promise<string | null>, wait?: number, channel?: import('./channel.js').Channel }} [test] stand-ins for git, the wait and the channel, in tests
  */
 export function selfUpdate(server, busy = () => false, test = {}) {
+  const CHANNEL = test.channel || channelOf(process.env, DATA);
   const REPO = path.resolve(DIR, '..', '..');
   const REV = path.join(DATA, 'server.rev');
   const git = test.git || ((/** @type {any[]} */ ...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim()))));
@@ -32,7 +35,7 @@ export function selfUpdate(server, busy = () => false, test = {}) {
     const src = path.join(REPO, 'team', 'skill', 'anur-living-map'), main = chats.skillDir('anur-living-map');
     for (const dst of new Set([main, ...(chats.skillDirs?.('anur-living-map') || []).filter((d) => fs.existsSync(d))])) copySkill(src, dst);
   }
-  // the newest release: the last v* tag on origin's main, which CI tags only once a push passed its checks
+  // the newest build this copy's channel follows: the last of its tags on origin's main
   /** @type {string | null} */
   let release = null;
   // asks origin how many commits the newest release holds that this clone does not; null when this is not a clone
@@ -41,7 +44,7 @@ export function selfUpdate(server, busy = () => false, test = {}) {
   async function checkLatest() {
     if ((await git('rev-parse', '--is-inside-work-tree')) !== 'true') return null;
     if ((await git(...GIT_NET, 'fetch', '-q', '--tags', 'origin', 'main')) === null) return VERSION.latest;
-    release = await git('describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', 'origin/main');
+    release = await git('describe', '--tags', '--abbrev=0', ...tagsFor(CHANNEL).flatMap((t) => ['--match', t]), 'origin/main');
     // no release yet: nothing to move to
     VERSION.behind = release ? Number(await git('rev-list', '--count', `HEAD..${release}`)) || 0 : 0;
     VERSION.latest = VERSION.behind === 0;
@@ -81,7 +84,7 @@ export function selfUpdate(server, busy = () => false, test = {}) {
     if ((await pull())?.count) restart();
   }
   // build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
-  /** @type {any} */ const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
+  /** @type {any} */ const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, channel: CHANNEL, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
   // once the server answers: record the commit it runs from, then look for updates now and every ten minutes
   async function whenListening() {
     const head = await git('rev-parse', 'HEAD');
