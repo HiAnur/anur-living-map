@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { asksNothing, planChange } from './draw.js';
+import { asksNothing, drawnByClaude, planChange, waitsForApply } from './draw.js';
 
 // What a living_map_change call becomes, on a small map: the edit sent to the map, what the reply says was done,
 // and what it says was left out and why.
@@ -156,5 +156,22 @@ describe('boxes people wrote', () => {
     const r = on({ boxes: [{ id: 'notes', under: 'launch' }], lines: [{ from: 'draft', to: 'Notes', label: 'Feeds' }] });
     expect(r.edit.propose).toBeUndefined();
     expect(r.edit.edges).toEqual([{ from: 'launch', to: 'notes' }, { from: 'draft', to: 'notes', label: 'Feeds' }]);
+  });
+});
+
+describe('who made a box, as far as the box records it', () => {
+  const at = 1_700_000_000_000;
+  it('counts a box as drawn by Claude or code when it says so, and a person\'s when a person is named', () => {
+    for (const n of [{ by: 'Claude' }, { origin: 'code', createdAt: at }, { source: { kind: 'code' }, createdAt: at }, { file: 'web/', createdAt: at },
+      { source: { kind: 'edit' }, createdAt: at }, { source: { kind: 'proposal' }, createdAt: at }]) expect(drawnByClaude(n), JSON.stringify(n)).toBe(true);
+    for (const n of [{ by: 'Duy' }, { by: 'Claude', updatedBy: 'Duy' }, { source: { kind: 'map' }, createdAt: at }]) expect(drawnByClaude(n), JSON.stringify(n)).toBe(false);
+  });
+  it('treats a box with no maker as a person\'s, unless it predates the map recording makers (no creation date)', () => {
+    expect(drawnByClaude({ createdAt: at })).toBe(false);
+    expect(drawnByClaude({ createdAt: null })).toBe(true);
+    expect(drawnByClaude({})).toBe(true);
+    expect(waitsForApply({ createdAt: at }, { sub: 'x' })).toBe('nobody recorded who made it');
+    expect(waitsForApply({}, { sub: 'x' })).toBeNull();
+    expect(waitsForApply({}, { state: 'gone' })).toBe('Claude did not make it');
   });
 });

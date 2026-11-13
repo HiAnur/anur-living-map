@@ -87,3 +87,20 @@ describe('what a proposal may write in a box', () => {
     expect([plan.nodes[0].label.length, plan.nodes[0].sub.length, plan.nodes[0].desc.length]).toEqual([80, 240, 1500]);
   });
 });
+
+describe('questions in a proposal', () => {
+  it('carries a question for a teammate, opening its box to them, and leaves out one with no box or person', () => {
+    const s = { nodes: [box('root', 'Root'), box('price', 'Pricing')], edges: [], start: 'root', calls: [{ id: 'taken', status: 'open' }],
+      people: [{ id: 'Ana', sees: 'all' }, { id: 'Pri', sees: 'billing' }] };
+    const r = checksOn(s).check({ calls: [
+      { id: 'taken', node: 'price', for: 'Pri', ask: 'Three plans?', yes: 'Ship them', status: 'answered', picked: 'Yes' },
+      { id: 'q2', node: 'nowhere', for: 'Ana', ask: 'Where?' }, { id: 'q3', node: 'root', for: 'Sam', ask: 'Who?' },
+    ] }, 'Ana');
+    expect(r.status).toBe('pending');
+    expect(r.plan.calls).toEqual([{ id: expect.stringMatching(/^q[a-z0-9]+0$/), node: 'price', for: 'Pri', from: 'Claude', kind: 'Product call', status: 'open',
+      ask: 'Three plans?', text: 'Three plans?', yes: 'Ship them' }]);
+    expect(r.plan.nodes).toEqual([{ id: 'price', area: 'billing' }]);
+    expect(r.ops).toEqual(['Ask Pri on Pricing: Three plans?', 'Move Pricing into area "billing" so Pri can see it']);
+    expect(r.dropped).toEqual([{ text: 'the question "Where?"', why: 'no such box' }, { text: 'the question "Who?"', why: 'no one called Sam on the map' }]);
+  });
+});

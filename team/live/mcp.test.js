@@ -175,14 +175,23 @@ describe('the tools pinned to one map, as a chat the map runs itself gets them',
     } finally { await m.close(); }
   });
   it('says a change waits for Apply when the map holds it as a proposal', async () => {
-    const m = await recorder({ proposed: 'p1', ops: ['Add the box Billing (Stripe)'], dropped: [{ text: 'the question "Ship it?"', why: 'ask it once the change is applied' }] });
+    const m = await recorder({ proposed: 'p1', ops: ['Add the box Billing (Stripe)'], dropped: [{ text: 'a line Billing → Launch', why: 'a box it names is not on the map' }] });
     try {
       const s = server(m.origin, undefined, PINNED);
       const text = (await s.ask('tools/call', { name: 'living_map_change', arguments: { boxes: [{ label: 'Billing', sub: 'Stripe' }] } })).result.content[0].text;
       expect(text).toContain('until its owner presses Apply');
       expect(text).toContain('- Add the box Billing (Stripe)');
-      expect(text).toContain('- the question "Ship it?": ask it once the change is applied');
+      expect(text).toContain('- a line Billing → Launch: a box it names is not on the map');
       expect(text).not.toContain('Done on');
+    } finally { await m.close(); }
+  });
+  it('passes on the map\'s own reason when it refuses a change', async () => {
+    const m = await recorder({ error: 'The map was not tidied, and nothing changed: it would not leave one tree: Docs would hang under nothing.' }, 400);
+    try {
+      const s = server(m.origin, undefined, PINNED);
+      const r = (await s.ask('tools/call', { name: 'living_map_change', arguments: { tidy: true } })).result;
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toBe('The map was not tidied, and nothing changed: it would not leave one tree: Docs would hang under nothing.');
     } finally { await m.close(); }
   });
 });
