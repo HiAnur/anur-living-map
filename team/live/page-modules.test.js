@@ -68,4 +68,8 @@ describe('an Action\'s history as the page shows it', async () => {
     ]);
     expect(actionHistory(undefined)).toEqual([]);
   });
+  it('names the tools a run used that the map does not know', () => {
+    const [row] = actionHistory([{ what: 'finished', by: 'Claude', at: 1, status: 'unverified', ran: ['mcp__acme__do_thing'], unknown: ['mcp__acme__do_thing'] }]);
+    expect(row.detail).toBe('done, unverified · ran: mcp__acme__do_thing · tools the map does not know: mcp__acme__do_thing');
+  });
 });

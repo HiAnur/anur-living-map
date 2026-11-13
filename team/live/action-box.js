@@ -4,7 +4,7 @@ import { readCompletion } from './action-completion.js';
 import { judgeRun } from './action-evidence.js';
 import { dependencyBlockers, readPlannedTask, taskSource } from './action-plan.js';
 import { KINDS, kindFromTools, kindOf, kindsInWords } from './action-kinds.js';
-import { sendsTool } from './action-sends.js';
+import { sendsTool, toolUse } from './action-sends.js';
 import { actionCancellable, can, handedOff } from './action-stages.js';
 
 export const actionPrompt = `Prepare an Action box: a concrete task to carry out, not more planning boxes.
@@ -309,14 +309,16 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
         runs.delete(id);
         // a step that only read and changed files here hands back its result in the reply and those files: it reached
         // no one, so they are the whole of what there is to check, and a file can be put back
-        const kept = claimed?.status === 'completed' && !kindOf(a.brief)?.proof && !waitsFor(a.brief) && (result.calls || []).every((c) => ['reads', 'files'].includes(reach(c.tool)));
+        const kept = claimed?.status === 'completed' && !kindOf(a.brief)?.proof && !waitsFor(a.brief) && (result.calls || []).every((c) => ['reads', 'files'].includes(use(c.tool)));
+        // a tool the map does not know may run when someone pressed Execute; what it did is noted, not checked
+        const unknown = [...new Set((result.calls || []).filter((c) => use(c.tool) === 'unknown').map((c) => c.tool))];
         const evidence = [...seen.evidence, ...(kept ? [keptHere(result.calls || [])] : []), ...pulls.map((url) => `Pull request ${url}`)];
         const status = result.blocked ? 'blocked' : claimed?.status === 'needs_input' ? 'needs_input'
           : evidence.length ? 'completed' : claimed?.status === 'completed' ? 'unverified' : 'unconfirmed';
         a.stage = result.blocked ? 'blocked' : 'finished';
-        a.completion = { status, summary:claimed?.summary || '', evidence, claimed:claimed?.evidence || [], ...(mapNote ? { note:mapNote } : {}) };
+        a.completion = { status, summary:claimed?.summary || '', evidence, claimed:claimed?.evidence || [], ...(mapNote ? { note:mapNote } : {}), ...(unknown.length ? { unknown } : {}) };
         a.turns.push({who:'Claude',text:String(claimed?.summary || result.text || 'Claude returned no answer.').slice(-34000),completion:structuredClone(a.completion),at:Date.now()});
-        note(a, 'finished', 'Claude', { status, ms:Date.now() - started, verified:evidence.length > 0, ran:[...new Set((result.calls || []).map((c) => c.tool))] });
+        note(a, 'finished', 'Claude', { status, ms:Date.now() - started, verified:evidence.length > 0, ran:[...new Set((result.calls || []).map((c) => c.tool))], ...(unknown.length ? { unknown } : {}) });
         delete a.since; delete a.progress; reconcile(); changed();
       };
       /** @param {string[]} urls @param {string} [mapNote] */
@@ -365,22 +367,34 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     return true;
   }
   // What code checks in each call of a run before it goes (action-sends.js): any send must be the reviewed email,
-  // once in the Action's life, and a run nobody started may not write to GitHub or the web from the shell
+  // once in the Action's life, and a run nobody started may not send, write to GitHub or the web from the shell,
+  // or use a tool the map does not know
   /** @param {BoxAction} a @param {boolean} unattended @returns {SendGuard} */
   function guardFor(a, unattended) {
-    const m = a.brief?.email;
-    return { ...(m ? { message:{ to:m.to, subject:m.subject, body:m.body } } : {}), left:a.sent ? 0 : 1, ...(unattended ? { unattended:true } : {}) };
+    const m = a.brief?.email, unknown = (a.brief?.tools || []).filter((/** @type {string} */ t) => use(t) === 'unknown');
+    return { ...(m ? { message:{ to:m.to, subject:m.subject, body:m.body } } : {}), left:a.sent ? 0 : 1, ...(unattended ? { unattended:true } : {}), ...(unknown.length ? { unknown } : {}) };
+  }
+  // What a tool does as far as the map knows: the agent says which of its own tools read, change files or are the
+  // shell; the list in action-sends.js says which connector tools read, change things elsewhere or send. A tool
+  // either names as a send is one.
+  /** @param {string} tool @returns {ToolReach | 'changes' | 'sends' | 'unknown'} */
+  function use(tool) {
+    if (sendsTool(tool)) return 'sends';
+    const r = reach(tool), known = toolUse(tool);
+    return r !== 'others' ? r : known === 'reads' || known === 'changes' ? known : 'unknown';
   }
   // Why a ready brief still waits for its author's Execute, or '' when it may run on its own: what it does reaches
-  // no other person. Reading and changing files here do not; a build's shell runs in its own worktree and what it
-  // makes waits in a pull request for a reviewed merge; a send, a post or any other connector call may.
+  // no other person. Reading (here or through a connector the map knows) and changing files here do not; a build's
+  // shell runs in its own worktree and what it makes waits in a pull request for a reviewed merge; a send, a post,
+  // a change made through a connector, or a tool the map does not know may.
   /** @param {Brief | undefined} brief */
   function waitsFor(brief) {
     const kind = kindOf(brief);
     if (!brief || !kind) return 'Its brief could not be read, so it waits for your go.';
     if (!kind.alone) return `${kind.does} It reaches another person, so it waits for your go.`;
-    // a tool named as a send waits whatever the agent says of its reach
-    const outward = (brief.tools || []).filter((tool) => { const r = reach(tool); return sendsTool(tool) || !(r === 'reads' || r === 'files' || (r === 'shell' && kind.branch)); });
+    const tools = brief.tools || [], unknown = tools.filter((tool) => use(tool) === 'unknown');
+    if (unknown.length) return `It needs ${unknown.join(', ')}, which the map does not know, so it waits for your go.`;
+    const outward = tools.filter((tool) => { const u = use(tool); return !(u === 'reads' || u === 'files' || (u === 'shell' && kind.branch)); });
     return outward.length ? `It needs ${outward.join(', ')}, which can reach other people, so it waits for your go.` : '';
   }
   // What the map saw a run that reached no one do: only look things up, or change these files
