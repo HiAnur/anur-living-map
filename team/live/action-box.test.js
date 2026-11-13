@@ -248,13 +248,13 @@ describe('action boxes',()=>{
 
 describe('the tools a run may use',()=>{
   it('are the ones the reviewed brief names, on Execute and again on Continue',()=>{
-    const h=harness();h.start();h.requests.at(-1).onDone('',undefined,reply({status:'ready',brief:{...brief,tools:['Write','mcp__claude_ai_Gmail__send_message']}}));
+    const h=harness();h.start();h.requests.at(-1).onDone('',undefined,reply({status:'ready',brief:{...brief,tools:['Write','mcp__claude_ai_Notion__search']}}));
     expect(h.node.action.stage).toBe('ready');
     h.api.execute('form','Duy',h.node.action.id);
-    expect(h.launches[0].tools).toEqual(['Write','mcp__claude_ai_Gmail__send_message']);
+    expect(h.launches[0].tools).toEqual(['Write','mcp__claude_ai_Notion__search']);
     h.launches[0].onDone({text:'Done. Anything else?',blocked:false});
     expect(h.api.continue('form','Duy',h.node.action.id,'Send it')).toBe(true);
-    expect(h.launches[1].tools).toEqual(['Write','mcp__claude_ai_Gmail__send_message']);
+    expect(h.launches[1].tools).toEqual(['Write','mcp__claude_ai_Notion__search']);
   });
   it('are none beyond the fixed read-only set when the brief names none',()=>{
     const h=harness();h.start();h.ready();h.api.execute('form','Duy',h.node.action.id);

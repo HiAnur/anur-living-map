@@ -1,4 +1,9 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { refusal, sendsTool } from '../../action-sends.js';
 
 import { addWords, claudeEnv, killer, onlyTools, readLines } from './process.js';
 
@@ -12,29 +17,34 @@ const OUTSIDE = 'This tool is not in the reviewed brief, so this run cannot use 
 // in your own terminal: reading a pull request and its comments, replying, checking its runs.
 const HANDS_OFF = ['\\bgit\\s+push\\b', '(^|[;&|(]\\s*)gh\\s+pr\\s+create\\b'];
 const MAP_DOES_IT = 'The map pushes the branch and opens the pull request when you finish. Leave your changes in the worktree, uncommitted or committed, and finish the task.';
-// The run's limit: the tools the person reviewed in the brief, and the fixed read-only set. A tool named here
-// still goes through the person's own permission checks.
-/** @param {readonly string[] | undefined} tools */
-export const runSettings = (tools) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE, HANDS_OFF, MAP_DOES_IT);
+// The run's limit: the tools the person reviewed in the brief, and the fixed read-only set, with what each call
+// sends checked against the reviewed message (`guard`, its one send counted in the file `once`). A tool named
+// here still goes through the person's own permission checks.
+/** @param {readonly string[] | undefined} tools @param {SendGuard} [guard] @param {string} [once] */
+export const runSettings = (tools, guard, once) => onlyTools([...new Set([...ALWAYS, ...(tools || [])])], OUTSIDE, HANDS_OFF, MAP_DOES_IT, { guard, once });
 // Claude Code's tools that only read, so a call to one changed nothing a Continue could repeat
 const READS = new Set([...ALWAYS, 'WebFetch', 'WebSearch', 'LS', 'NotebookRead']);
 // tools that change only files on this Mac, and the shell, which can do anything
 const FILES = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']), SHELL = new Set(['Bash', 'BashOutput', 'KillShell']);
 /** @param {string} tool @returns {ToolReach} */
 export const reach = (tool) => (READS.has(tool) ? 'reads' : FILES.has(tool) ? 'files' : SHELL.has(tool) ? 'shell' : 'others');
+/** @param {string} file */
+const readOnce = (file) => { try { return fs.readFileSync(file, 'utf8'); } catch { return ''; /* no send was let through yet */ } };
 /** @param {unknown} content a tool result's content: text, or a list of blocks */
 const resultText = (content) => (typeof content === 'string' ? content : Array.isArray(content) ? content.map((b) => (typeof b?.text === 'string' ? b.text : '')).join('\n') : '').slice(0, 4000);
 // Keep the chat on disk; every follow-up resumes its exact ID, never the latest chat in a folder.
 /**
  * @param {{ cwd: string, env: Record<string, string | undefined>, session: string, resume?: boolean, prompt: string,
- *   tools?: string[], schema: object, system: string, read: (value: unknown) => any,
+ *   tools?: string[], guard?: SendGuard, schema: object, system: string, read: (value: unknown) => any,
  *   onText: (words: string) => void, onDone: (result: RunResult) => void, spawnProcess?: typeof spawn }} job
  */
-export function runAction({ cwd, env, session, resume, prompt, tools, schema, system, read: readResult, onText, onDone, spawnProcess = spawn }) {
+export function runAction({ cwd, env, session, resume, prompt, tools, guard, schema, system, read: readResult, onText, onDone, spawnProcess = spawn }) {
   env = claudeEnv(env);
+  // the hook marks the one send it lets through in this file, which goes when the run ends
+  const dir = guard?.message ? fs.mkdtempSync(path.join(os.tmpdir(), 'anur-living-map-run-')) : null, once = dir ? path.join(dir, 'sent') : undefined;
   const proc = spawnProcess('claude', ['-p', ...(resume ? ['--resume', session] : ['--session-id', session]),
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--permission-mode', 'auto', '--permission-prompts', 'none', '--settings', JSON.stringify(runSettings(tools)),
+    '--permission-mode', 'auto', '--permission-prompts', 'none', '--settings', JSON.stringify(runSettings(tools, guard, once)),
     '--json-schema', JSON.stringify(schema), '--append-system-prompt', system],
   { cwd, env, detached: process.platform !== 'win32', stdio: ['pipe', 'pipe', 'pipe'] });
   let words = '', errors = '', /** @type {RunResult | null} */ result = null, done = false, stopped = false, /** @type {ReturnType<typeof setTimeout> | undefined} */ killTimer;
@@ -42,7 +52,7 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
   // by what it did rather than what it says
   const calls = /** @type {Map<string, ToolCall>} */ (new Map());
   /** @param {RunResult} value */
-  const finish = (value) => { if (done) return; done = true; clearTimeout(killTimer); ended(); onDone({ ...value, calls:[...calls.values()] }); };
+  const finish = (value) => { if (done) return; done = true; if (dir) fs.rmSync(dir, { recursive: true, force: true }); clearTimeout(killTimer); ended(); onDone({ ...value, calls:[...calls.values()] }); };
   const { kill, done: ended } = killer(proc);
   /** @param {string} line */
   const read = (line) => {
@@ -52,7 +62,13 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
     const blocks = Array.isArray(d.message?.content) ? d.message.content : [];
     if (d.type === 'assistant') for (const b of blocks) if (b?.type === 'tool_use' && typeof b.id === 'string' && !calls.has(b.id))
       calls.set(b.id, { tool:String(b.name), input:b.input ?? null, ok:null, output:'', ...(READS.has(String(b.name)) ? { reads:true } : {}), ...(b.name === 'Bash' && typeof b.input?.command === 'string' ? { summary:b.input.command.slice(0, 160) } : {}) });
-    if (d.type === 'user') for (const b of blocks) { const call = b?.type === 'tool_result' && calls.get(b.tool_use_id); if (call) Object.assign(call, { ok:!b.is_error, output:resultText(b.content) }); }
+    if (d.type === 'user') for (const b of blocks) {
+      const call = b?.type === 'tool_result' && calls.get(b.tool_use_id);
+      if (!call) continue;
+      Object.assign(call, { ok:!b.is_error, output:resultText(b.content) });
+      // the send the hook let through failed, so nothing went: the run may try it once more
+      if (b.is_error && once && sendsTool(call.tool) && readOnce(once) === b.tool_use_id) fs.rmSync(once, { force: true });
+    }
     if (d.type === 'assistant' && !words) {
       words = (Array.isArray(d.message?.content) ? d.message.content : []).filter((/** @type {any} */ b) => b?.type === 'text' && typeof b.text === 'string').map((/** @type {any} */ b) => b.text).join('\n\n').slice(-MAX);
       if (words) onText(words);
@@ -65,7 +81,13 @@ export function runAction({ cwd, env, session, resume, prompt, tools, schema, sy
       const completion = !d.is_error && !denied ? readResult(d.structured_output) : null;
       result = { text: String(completion?.summary || d.result || (Array.isArray(d.errors) ? d.errors.join('\n') : '') || words || 'Claude returned no answer.').slice(-MAX), blocked: !!d.is_error || denied };
       if (completion && !result.blocked) { /** @type {any} */ (result).completion = completion; result.blocked = completion.status === 'blocked'; }
-      if (denied) result.text += '\n\nSome tools need permission. The task may be incomplete. Resolve access, then Continue here.';
+      // a call the guard refused for what it sends or runs is said as such, not as access to resolve; a matching
+      // send refused once one was let through can only have been a second one
+      const sentOne = !!guard?.message && (guard.left < 1 || !!(once && readOnce(once)));
+      const refused = [...new Set((denied ? d.permission_denials : []).filter((/** @type {any} */ x) => ALWAYS.includes(x?.tool_name) || tools?.includes(x?.tool_name)).map((/** @type {any} */ x) => refusal(guard, String(x?.tool_name), x?.tool_input, 0)
+        || (sentOne && sendsTool(String(x?.tool_name)) ? refusal(guard, String(x?.tool_name), x?.tool_input, 1) : '')).filter(Boolean))];
+      if (refused.length) result.text += `\n\nThe map stopped this run before it went further:\n${refused.map((r) => `- ${r}`).join('\n')}`;
+      else if (denied) result.text += '\n\nSome tools need permission. The task may be incomplete. Resolve access, then Continue here.';
     }
   };
   const flush = readLines(proc, read);

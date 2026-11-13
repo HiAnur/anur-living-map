@@ -4,8 +4,9 @@ import { addWords, claudeEnv, killer, mcpConfig, onlyTools, readLines } from './
 
 // Keep the executor's catalog visible, but prevent preparation from doing the task.
 // This hook also denies tools that a person's existing settings already allow. StructuredOutput is how Claude
-// Code returns the answer held to actionSchema: denied, the answer never arrives.
-const LOOKUPS = ['Read','Grep','Glob','ToolSearch','StructuredOutput','WebSearch','WebFetch',
+// Code returns the answer held to actionSchema: denied, the answer never arrives. WebFetch stays out: the box's
+// text, which teammates write, is in the prompt, and a link fetched could carry the map's content to any site.
+const LOOKUPS = ['Read','Grep','Glob','ToolSearch','StructuredOutput','WebSearch',
   'mcp__claude_ai_Gmail__search_threads','mcp__claude_ai_Gmail__get_thread','mcp__claude_ai_Gmail__get_message',
   'mcp__map_context__list_maps','mcp__map_context__load_map'];
 // Claude Code's own tools that change files or run commands: every Execute has them, connected or not

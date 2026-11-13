@@ -74,10 +74,10 @@ export function prepare({ cwd, connected = false, servers, schema, prompt, onTex
 }
 
 /** @param {RunJob & { spawnProcess?: typeof spawn }} job */
-export function run({ cwd, session, prompt, tools, schema, system, read: readResult, onText, onDone, spawnProcess }) {
+export function run({ cwd, session, prompt, tools, guard, schema, system, read: readResult, onText, onDone, spawnProcess }) {
   // Pi's --session-id opens the chat with that id, or starts it: a Continue resumes the exact run, never the latest chat
   const allowed = [...READ, SUBMIT, ...(tools || []).map(piTool).filter((t) => t !== null)];
-  const { stop, done } = startPi({ cwd, prompt, spawnProcess, onText, job: { schema, block: HANDS_OFF, blockReason: MAP_DOES_IT },
+  const { stop, done } = startPi({ cwd, prompt, spawnProcess, onText, job: { schema, block: HANDS_OFF, blockReason: MAP_DOES_IT, ...(guard ? { guard } : {}) },
     args: ['--session-id', session, '--append-system-prompt', system, ...toolArgs(allowed)] });
   done.then((r) => {
     const calls = r.calls.map((c) => ({ ...c, ...(READS.has(c.tool) ? { reads: true } : {}),

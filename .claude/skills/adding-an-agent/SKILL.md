@@ -19,7 +19,7 @@ Anur Living Map reaches its agent through one seam. The chat map (`server/`, `sk
 `AgentWorker`, for the map's own work:
 
 - `ask`, `prepare`, `run`, `converse`, `answer`, `signIn`, `signedOut`, `reach`. Each job carries the map's prompt, schema and MCP servers, each server listing the tools it may call. Name and allow those tools the way your agent does.
-- `run` may use only `job.tools` plus a fixed read-only set: enforce that in the agent, as `runSettings` in `agents/claude-code/run.js` does, or as `agents/pi/extension.js` does for an agent with no permission hooks.
+- `run` may use only `job.tools` plus a fixed read-only set: enforce that in the agent, as `runSettings` in `agents/claude-code/run.js` does, or as `agents/pi/extension.js` does for an agent with no permission hooks. Refuse any call that `refusal(job.guard, tool, input, sent)` in `team/live/action-sends.js` refuses, before it runs: what an email's run may send, and what a run nobody started may not do.
 - `converse` may use only its job's `servers` (the map's own tools, pinned to that map): none of the person's settings, MCP servers or context files, and every other tool refused, as `agents/claude-code/converse.js` does.
 - `ask` may also get `dirs`, more folders it may read (a system map's code), read-only like its own folder. `answer` gives one reply held to `job.schema`, with no tools.
 
