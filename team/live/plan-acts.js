@@ -5,9 +5,10 @@ import { waitsForApply } from './draw.js';
 /**
  * @param {{ getState: () => any, name: string, nodeOf: (id: any) => any, seesOf: (by: any) => string, draw: Function,
  *   stamp: () => string, waiters: any[], tell: Function, relayout: () => void, keepMemory: Function,
- *   offer: (change: { nodes: any[] }, note: string) => boolean }} deps `offer`: a change made a proposal for a person to Apply
+ *   isAnswering: (session: unknown) => boolean, proposeFor: (a: any) => boolean }} deps `proposeFor`: a change made one of a
+ *   linked chat's proposals (its `session`), for its owner to Apply
  */
-export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, offer }) {
+export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering, proposeFor }) {
   return {
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
@@ -81,17 +82,31 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
       if (i < 0 || (b && sees !== 'all' && b.area !== sees)) return false;
       getState().memory.splice(i, 1); return true;
     },
-    /** @param {Act<'edit'>} a */
+    // A chat answering a request from the map's pane proposes instead of drawing: what was asked there waits for
+    // its owner's Apply. A question for a teammate is no part of a proposal, so it waits until the change is applied.
+    /** @param {Act<'edit'> & { proposed?: any, refused?: string }} a */
     edit(a) {
       if (![a.nodes, a.propose, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
+      const marked = Array.isArray(a.propose) ? a.propose : [];
+      if (isAnswering(a.session)) {
+        const questions = (a.calls || []).map((/** @type {any} */ c) => ({ text: `the question "${String(c?.ask || '')}"`, why: 'ask it once the change is applied' }));
+        // a box named only to join a teammate's area is the question's, so it goes with the question
+        const nodes = [...(a.nodes || []), ...marked].filter((/** @type {any} */ n) => Object.keys(n || {}).some((k) => !['id', 'area', 'by'].includes(k)));
+        /** @type {any} */ const asked = { type: 'propose', by: a.by, session: a.session, note: a.note, nodes, edges: a.edges, unlink: a.unlink, memory: a.memory, start: a.start, tidy: a.tidy };
+        if (!proposeFor(asked)) { a.refused = 'Nothing in this change could be proposed: a request from the map\'s chat is answered with a proposal, and a question waits until one is applied.'; return false; }
+        a.proposed = { ...asked.proposed, dropped: [...asked.proposed.dropped, ...questions] };
+        return true;
+      }
       // Claude changes a box a person made or changed, or takes off one it did not make, only through a proposal a
-      // person applies. Moving a box into the area of someone this edit asks a question is how they get to see it.
+      // person applies: in the pane of the chat that sent it when that chat is linked, else of the chat linked to the
+      // map. Moving a box into the area of someone this edit asks a question is how they get to see it.
       const asks = (/** @type {any} */ n) => Object.keys(n).every((k) => k === 'id' || k === 'area')
         && (a.calls || []).some((/** @type {any} */ c) => c?.node === n.id && c.for && seesOf(c.for) === n.area);
       const waiting = (/** @type {any} */ n) => a.by === 'Claude' && n && typeof n === 'object' && nodeOf(n.id) && !asks(n) && !!waitsForApply(nodeOf(n.id), n);
       const nodes = Array.isArray(a.nodes) ? a.nodes.filter((n) => !waiting(n)) : a.nodes;
-      const held = [...(Array.isArray(a.propose) ? a.propose : []), ...(Array.isArray(a.nodes) ? a.nodes.filter(waiting) : [])];
-      const offered = held.length > 0 && offer({ nodes: held }, String(a.note || ''));
+      const held = [...marked, ...(Array.isArray(a.nodes) ? a.nodes.filter(waiting) : [])];
+      const linked = getState().linked || [], to = linked.find((/** @type {any} */ l) => l.session === a.session) || linked[0];
+      const offered = held.length > 0 && !!to && proposeFor({ type: 'propose', by: a.by, session: to.session, note: a.note, nodes: held });
       if (offered && !(nodes?.length || a.edges?.length || a.calls?.length || a.memory?.length || a.unlink?.length || a.tidy === true || a.start)) return true;
       if (typeof a.start === 'string' && [...getState().nodes, ...(nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;
       draw({ nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });

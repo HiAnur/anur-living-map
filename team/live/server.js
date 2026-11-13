@@ -38,6 +38,7 @@ import { sharedGithub } from './github.js';
 import { askAgent } from './ask.js';
 import { AUTO_PLAN_QUESTION, autoPlanAdditions, autoPlanPrompt } from './auto-plan.js';
 import { appendProposed } from './proposal-layout.js';
+import { drawServer } from './draw.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
@@ -196,23 +197,26 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   if (!memory) startMirror();
 
   // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
-  // here, headless, in the map's folder: the agent's own chat (agent.converse) with nobody to ask, so anything it
-  // would stop to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
-  // and what the owner writes there continues it, one turn at a time.
+  // here, headless, in the map's folder: the agent's own chat (agent.converse). Its only tools are this map's own,
+  // pinned to this map (drawServer), so what it reads cannot make it act anywhere else. Their pane follows that
+  // chat, and what the owner writes there continues it, one turn at a time; every turn answers the pane, so what
+  // it draws arrives as a proposal.
   let /** @type {any} */ building = null; const /** @type {any} */ queued = [];
   const brief = () => [
-    `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
-    'It began as a blank canvas from the prompt you are given. Find what it needs with the tools you have (files, the web, and the apps this Claude Code is connected to), then draw it with living_map_change: boxes for the parts, lines between them, and a question for a teammate where something is not known.',
-    'Read, never act: do not send, post, book, buy, or change anything outside this map.',
-    'Your replies show in the chat beside the map: say in two or three short lines what you drew, what you found, and what you could not reach.',
+    `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}", and your tools, living_map_read and living_map_change, work on it alone.`,
+    'Draw what you are asked with living_map_change: boxes for the parts and lines between them. What you draw waits as a proposal, blue on the map, until the owner presses Apply.',
+    'You have no other tools: no files, web or connected apps. Work from the map and what you are told, and say what you would need to look up.',
+    'Your replies show in the chat beside the map: say in two or three short lines what you proposed and what you could not reach.',
   ].join('\n');
   /** @param {any} l @param {any} text */
   function converse(l, text) {
     if (building) { queued.push(text); return; }
     fs.mkdirSync(home, { recursive: true });
     const first = !l.started; l.started = true; save();
-    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text,
-      onClose: () => { building = null; if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
+    answering.set(l.session, Date.now());
+    const servers = { living_map: drawServer({ url: `http://localhost:${PORT}`, map: name || (project ? mapName(project) : ''), session: l.session }) };
+    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text, servers,
+      onClose: () => { building = null; answering.delete(l.session); if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
     // its transcript appears once it starts; the pane follows it from then
     if (!l.file) {
       let tries = 0;
@@ -320,6 +324,12 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // what people do on the map goes to the outbox, and, given a chat to tell, to that chat's inbox:
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const /** @type {any} */ waiters = [];
+  // The chats answering a request from the pane right now, by session, since when: from the moment a chat's listener
+  // takes the request until it listens again (a chat the map runs itself, until its turn ends). Their direct
+  // changes (edit, from living_map_change) arrive as proposals, so what was asked in the pane waits for Apply.
+  const answering = new Map(), ANSWER_MS = 30 * 60_000;
+  /** @param {unknown} session */
+  const isAnswering = (session) => typeof session === 'string' && Date.now() - (answering.get(session) ?? -Infinity) < ANSWER_MS;
   // this map's address, for the rules a chat follows
   const address = () => `http://localhost:${PORT}${name ? `/${name}` : project ? `/${mapName(project)}` : ''}`;
   // which version of the rules each chat last got: they go out again only when they are new to that chat,
@@ -348,7 +358,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       state.forChats = state.forChats.filter((/** @type {any} */ m) => !mine.includes(m));
       waiters.splice(waiters.indexOf(w), 1); clearTimeout(w.timer);
       w.res.writeHead(200, { 'content-type': 'text/plain' }).end(mine.map((/** @type {any} */ m) => `- ${m.at} ${m.text}`).join('\n') + '\n' + rulesFor(w.who));
-      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((/** @type {any} */ x) => x.id === m.said); if (s) s.handed = Date.now(); }
+      for (const m of mine) if (m.said) { const s = state.said?.[w.who]?.find((/** @type {any} */ x) => x.id === m.said); if (s) s.handed = Date.now(); answering.set(w.who, Date.now()); }
       changed = true;
     }
     if (changed) { save(); setTimeout(sendMirror); }
@@ -438,15 +448,6 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   /** @type {(by?: any) => any[]} */
   const pendingProposals = (by) => pendingIn(state, by, ownsChat);
-  // a change Claude drew through the map's tools to boxes people wrote: one of the linked chat's proposals, in its
-  // owner's Claude pane with Apply, checked for that person like the ones the chat proposes itself
-  /** @param {{ nodes: any[] }} change @param {string} note */
-  function offer(change, note) {
-    const l = linkOf(); if (!l) return false;
-    const pr = check(change, l.owner); if (!pr.ops.length) return false;
-    state.proposals = [...(state.proposals || []), { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, session: l.session, made: Date.now(), note: note.slice(0, 200), ...pr }].slice(-30);
-    setTimeout(sendMirror); return true;
-  }
   // Older pending offers also adopt the branch preview when their map opens.
   for (const p of pendingProposals()) placeProposed(p.plan);
 
@@ -514,12 +515,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   const edits = editHistory(undoState);
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
+  const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
+    selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
+    relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror });
   const ACTS = {
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
-    ...chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
-      selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
-      relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
-    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, offer }),
+    ...chatting,
+    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering,
+      proposeFor: (a) => chatting.propose(a, 40) }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf, seesOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
@@ -574,6 +577,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // the pane hears when a listener comes and goes, so it can say whether the chat is listening
       const drop = () => { const i = waiters.indexOf(w); if (i >= 0) { waiters.splice(i, 1); setTimeout(sendMirror); } clearTimeout(w.timer); };
       const w = { who, res, timer: setTimeout(() => { drop(); res.writeHead(200).end(''); }, 240_000) };
+      // listening again: the request it was handed is answered
+      answering.delete(who);
       waiters.push(w);
       res.on('close', drop);
       wake(); setTimeout(sendMirror);
@@ -630,8 +635,9 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (guest && (!mayAct(state, a, true) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
       // A link cannot impersonate a member or start Claude on this Mac.
       a.by = guest ? 'Guest' : String(who || a.by || 'You').slice(0, 40);
-      // an edit from a program on this Mac is the map's tools drawing for Claude (mcp.js), and is held to Claude's rules
-      if (a.type === 'edit' && !who && !guest) a.by = 'Claude';
+      // an edit from a program on this Mac, or one naming the chat that sent it, is the map's tools drawing for
+      // Claude (mcp.js), and is held to Claude's rules whatever name it gives
+      if (a.type === 'edit' && !guest && (!who || a.session)) a.by = 'Claude';
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -645,12 +651,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       // nothing may be done to a box drawn from a repo the person may not read on GitHub: they never see it
       if (touchesHidden(a, guest ? null : a.by)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That box is in a repo you can\'t read on GitHub.' })); return true; }
       told = null;
+      // what a handler says back about the action (edit's proposal, or why it refused) is its own, never the sender's
+      delete a.proposed; delete a.refused;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
       const before = UNDOABLE.has(a.type) ? editSnapshot(state) : null;
       const result = actingAs(a.by, () => {
-        const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a) };
+        const done = a.type === 'undo' || a.type === 'redo' ? edits.apply(a.by, a.type, state, (n) => seesOf(a.by) === 'all' || n.area === seesOf(a.by)) : { ok: !!/** @type {Record<string, any>} */ (ACTS)[a.type]?.(a), error: a.refused };
         if (done.ok) {
           actions.reconcile(allBoxesOf(state));
           updateBoxDates(state, undefined, a.by);
@@ -660,7 +668,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         return done;
       });
       if (result.ok) push();
-      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(result.ok ? JSON.stringify(a.created ? { id: a.created } : {}) : JSON.stringify({ error: result.error || 'That change could not be saved.' }));
+      const made = { ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}) };
+      res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(JSON.stringify(result.ok ? made : { error: result.error || 'That change could not be saved.' }));
       return true;
     }
     return false;

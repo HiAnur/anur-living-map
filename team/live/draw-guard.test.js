@@ -114,6 +114,17 @@ describe('Claude\'s drawing through the map\'s tools', () => {
     const { box } = await tool({ nodes: [{ id: 'api', area: 'web' }], calls: [{ id: 'q1', node: 'api', for: 'Sam', ask: 'Ship it?', status: 'open' }] });
     expect(box('api').area).toBe('web');
   });
+  it('offers it in the pane of the chat that sent it, when that chat is linked', async () => {
+    const two = { ...linked(), linked: [...linked().linked, { session: 's2', file: '/y.jsonl', owner: 'Duy', at: 2 }] };
+    const { after } = await tool({ session: 's2', nodes: [{ id: 'api', sub: 'From the second chat' }] }, two);
+    expect(after.proposals.map((/** @type {any} */ p) => p.session)).toEqual(['s2']);
+    expect((await tool({ session: 'unlinked', nodes: [{ id: 'api', sub: 'x' }] }, two)).after.proposals[0].session).toBe('s1');
+  });
+  it('holds an edit naming a chat to Claude\'s rules, even from someone signed in', async () => {
+    const { after } = await actOn('Duy', { type: 'edit', session: 's1', nodes: [{ id: 'api', sub: 'Through a chat' }] }, linked());
+    expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBeUndefined();
+    expect(after.proposals).toHaveLength(1);
+  });
   it('leaves a signed-in person\'s own edit as it was', async () => {
     const { after } = await actOn('Duy', { type: 'edit', nodes: [{ id: 'api', sub: 'By hand' }] }, linked());
     expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBe('By hand');

@@ -132,6 +132,11 @@ describe('boxes people wrote', () => {
       'Changed Draft (draft)',
     ]);
   });
+  it('says the proposal waits in the pane of the chat that asked, when that chat is linked', () => {
+    const s = { ...map(), linked: [{ session: 's1', owner: 'Duy' }, { session: 's2', owner: 'Priyanka' }] };
+    expect(planChange({ session: 's2', boxes: [{ id: 'notes', sub: 'x' }] }, s).done[0]).toMatch(/in Priyanka's Claude pane/);
+    expect(planChange({ session: 'other', boxes: [{ id: 'notes', sub: 'x' }] }, s).done[0]).toMatch(/in Duy's Claude pane/);
+  });
   it('greys out only a box Claude made; any other box gone is a proposal', () => {
     const r = on({ boxes: [{ id: 'draft', state: 'gone' }, { id: 'launch', state: 'gone' }, { id: 'launch', state: 'todo' }] });
     expect(r.edit.nodes).toEqual([{ id: 'draft', state: 'gone' }, { id: 'launch', state: 'todo' }]);

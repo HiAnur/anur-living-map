@@ -2,6 +2,8 @@
 // the map and the lines that say what was done and what was left out. No network and no clock of its own, so
 // every rule about what Claude may draw can be tested here.
 
+import { fileURLToPath } from 'node:url';
+
 export const STATES = ['new', 'todo', 'assumed-gone', 'gone'];
 export const KINDS = ['timeline', 'sequence', 'venn'];
 // how long a box's name, second line and notes may be, wherever they are written
@@ -36,7 +38,7 @@ export const asksNothing = ({ boxes = [], lines = [], questions = [], remember =
  * @param {any} s the map's state, as its server gives it
  * @param {number} [now]
  */
-export function planChange({ note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start } = {}, s, now = Date.now()) {
+export function planChange({ note, boxes = [], lines = [], questions = [], remember = [], remove_lines: removeLines = [], tidy = false, start, session } = {}, s, now = Date.now()) {
   const had = s.nodes || [], people = s.people || [];
   /** @type {any[]} */
   const nodes = [], edges = [], calls = [], done = [], skipped = [];
@@ -50,8 +52,9 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   };
   const label = (/** @type {string} */ id) => nodes.find((/** @type {any} */ n) => n.id === id)?.label || had.find((/** @type {any} */ n) => n.id === id)?.label || id;
 
-  // a change to a box people wrote waits for Apply in the Claude pane of whoever linked a chat to this map
-  const linked = s.linked?.[0] || null, propose = [];
+  // a change to a box people wrote waits for Apply in the Claude pane of the chat that asked, when it is linked to
+  // this map, else of the chat linked to it
+  const linked = s.linked?.find((/** @type {any} */ l) => l.session === session) || s.linked?.[0] || null, propose = [];
   for (const b of boxes.slice(0, 40)) {
     // a name only finds a box to hang it under another; changing a box already on the map takes its exact id
     const named = !b.id && b.label ? find(b.label) : null;
@@ -131,3 +134,12 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   if (!nodes.length && !propose.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true && !top) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
   return { edit: { note: clip(note || done[0], 200), nodes, ...(propose.length ? { propose } : {}), edges, calls, memory, unlink, tidy: tidy === true, ...(top ? { start: top.id } : {}) }, done, skipped };
 }
+
+// What a chat the map runs itself may draw with: mcp.js pinned to one map (LIVING_MAP_ONLY_MAP), so its tools refuse
+// any other, list only reading and changing that map, and set no instructions or memory; LIVING_MAP_SESSION names the
+// chat on every change it sends, so the map knows whose change it is.
+export const PINNED = 'LIVING_MAP_ONLY_MAP', SESSION = 'LIVING_MAP_SESSION';
+export const DRAW_TOOLS = ['living_map_read', 'living_map_change'];
+/** @param {{ url: string, map: string, session: string }} o @returns {McpServer} */
+export const drawServer = ({ url, map, session }) => ({ command: process.execPath, args: [fileURLToPath(new URL('./mcp.js', import.meta.url))],
+  env: { LIVING_MAP_URL: url, [PINNED]: map, [SESSION]: session }, tools: DRAW_TOOLS });

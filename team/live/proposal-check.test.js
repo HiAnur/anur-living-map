@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { allBoxesOf, allLinesOf, boxIn } from './map-walk.js';
+import { openTestMap, send } from './map.harness.js';
 import { proposalChecks } from './proposal-check.js';
 
 // A change Claude proposes that takes boxes off the map: what it says it will do, and the lines it carries.
@@ -58,6 +59,20 @@ describe('a reorganize', () => {
   it('never names a box the person may not see', () => {
     const s = { ...state(), edges: state().edges.filter((e) => e.to !== 'secret') };
     expect(tidy({}, s, 'product').dropped.at(-1)?.why).toBe('it would not leave one tree: a box outside your access would hang under nothing');
+  });
+  it('is checked again at Apply, on the map as it is then', async () => {
+    const { map, close } = openTestMap({ ...state(), title: 'T', people: [{ id: 'Ana', role: 'Admin', sees: 'all' }], calls: [], threads: {}, log: [],
+      linked: [{ session: 's1', file: '/x.jsonl', owner: 'Ana', at: 1 }] });
+    try {
+      expect((await send(map, 'tool', { type: 'propose', session: 's1', start: 'root', tidy: true })).status).toBe(200);
+      const id = /** @type {any} */ (map.snapshot()).proposals[0].id;
+      // a box drawn since, under nothing
+      expect((await send(map, 'Ana', { type: 'add', label: 'Loose', x: 900, y: 900 })).status).toBe(200);
+      expect((await send(map, 'Ana', { type: 'apply', proposal: id })).status).toBe(200);
+      const p = /** @type {any} */ (map.snapshot()).proposals[0];
+      expect(p).toMatchObject({ status: 'dropped', ops: [] });
+      expect(p.dropped.at(-1).why).toBe('it would not leave one tree: Loose would hang under nothing');
+    } finally { close(); }
   });
   it('on a system map, lays out in layers as it always has', () => {
     const s = { ...state(), drawing: { status: 'done' }, edges: [] };
