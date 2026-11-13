@@ -6,6 +6,10 @@ import path from 'node:path';
 
 import { afterEach, expect, it } from 'vitest';
 
+// every test here runs users.js or the server as real node processes, each many times: far longer than
+// the default limit on a busy machine (the pre-commit hook runs every test file at once)
+const SPAWNS = 60_000;
+
 /** @type {(() => Promise<void> | void)[]} */
 const cleanup = [];
 afterEach(async () => { while (cleanup.length) await /** @type {() => any} */ (cleanup.pop())(); });
@@ -24,7 +28,7 @@ function install() {
   /** a script against this copy's users file @param {string} code */
   const run = (code) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: app, env, encoding: 'utf8' }).trim();
   /** `node users.js …`, as a script or Claude would run it: no terminal @param {string[]} args @param {string} [input] */
-  const cli = (args, input = '') => spawnSync(process.execPath, ['users.js', ...args], { cwd: app, env, input, encoding: 'utf8', timeout: 10_000 });
+  const cli = (args, input = '') => spawnSync(process.execPath, ['users.js', ...args], { cwd: app, env, input, encoding: 'utf8', timeout: 30_000 });
   return { root, app, repo, users, env, run, cli };
 }
 
@@ -105,7 +109,7 @@ it('makes the first person on a new install its owner, and lets others in only b
   // Settings shows the owner, and gives only the owner the invite
   expect((await map.get('/api/me', alex.cookie)).body).toMatchObject({ name: 'Alex', role: 'Owner', owner: true, mail: false });
   expect((await map.get('/api/me', duy.cookie)).body).toMatchObject({ name: 'Duy', role: '', owner: false });
-}, 20000);
+}, SPAWNS);
 
 it('keeps an install from before owners as it was: its passwords, its owner and the Admins of its maps', async () => {
   const at = install();
@@ -132,7 +136,7 @@ it('keeps an install from before owners as it was: its passwords, its owner and 
   expect(state.people).toContainEqual(expect.objectContaining({ id: 'Harshit', role: 'Admin' }));
   const deletable = async (/** @type {string} */ who) => (await map.get('/api/maps', who)).body.find((/** @type {any} */ m) => m.name === 'launch').deletable;
   expect([await deletable(harshit), await deletable(priyanka)]).toEqual([true, false]);
-}, 20000);
+}, SPAWNS);
 
 it('makes the story\'s Admin with a password the owner of an install from before owners', () => {
   const at = install();
@@ -140,7 +144,7 @@ it('makes the story\'s Admin with a password the owner of an install from before
   at.cli(['set', 'Duy', '--password-stdin'], 'duys password\n');
   at.run(`import {DatabaseSync} from 'node:sqlite';new DatabaseSync(${JSON.stringify(at.users)}).exec('DELETE FROM settings')`);
   expect(at.run(`import {users} from './users.js';console.log(users.owner())`)).toBe('Duy');
-});
+}, SPAWNS);
 
 it('prints a one-use reset link for any account, and never waits for a password without a terminal', () => {
   const at = install();
@@ -166,4 +170,4 @@ it('prints a one-use reset link for any account, and never waits for a password 
   const older = /#reset=([0-9a-f]{64})/.exec(printed.stdout)?.[1];
   expect(at.run(`import {recovery, users} from './users.js';const s=users.start('Alex');console.log(recovery.use(${JSON.stringify(older)},'reset','an older choice'), recovery.use(${JSON.stringify(token)},'reset','a new password'), recovery.use(${JSON.stringify(token)},'reset','again and again'), users.whoIs(s), users.check('Alex','a new password'))`))
     .toBe('false true false null Alex');
-});
+}, SPAWNS);
