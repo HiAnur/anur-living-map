@@ -130,6 +130,20 @@ describe('who may take each action', () => {
       expect((await act('Ana', a, linked())).status, `Ana ${a.type}`).toBe(200);
     }
   });
+  it('only a linked chat\'s tools, or its owner, may ask for Action drafts from it', async () => {
+    // words that are not in the chat make no draft, so nothing here starts preparing one (chat-action-items.test.js has the rest)
+    const linked = (built = false) => ({ ...state(), linked: [{ session: 's1', file: '/x.jsonl', owner: 'Ana', at: 1, ...(built ? { built } : {}) }] });
+    const ask = (session = 's1') => ({ type: 'myaction', session, items: [{ quote: 'I\'ll ship it', title: 'Ship it', task: { goal: 'Ship it' } }] });
+    for (const who of /** @type {Persona[]} */ (['tool', 'Ana'])) {
+      const r = await act(who, ask(), linked());
+      expect(r.status, who).toBe(200);
+      expect(r.body.items, who).toEqual([{ title: 'Ship it', refused: 'The quote is not in Ana\'s own words here.' }]);
+    }
+    expect((await act('Duy', ask(), linked())).status).toBe(400);
+    expect((await act('tool', ask('s9'), linked())).status).toBe(400);
+    expect((await act('tool', ask(), linked(true))).status).toBe(400);
+    for (const who of /** @type {Persona[]} */ (['edit link', 'view link', 'Lee'])) expect((await act(who, ask(), linked())).status, who).toBe(403);
+  });
   it('only an Admin may hand an Action over, to a member who can use its box', async () => {
     const owned = () => ({ ...state(), nodes: state().nodes.map((n) => n.id === 'web' || n.id === 'api' ? { ...n, action: { by: 'Duy', stage: 'ready', id: 'r', brief: {} } } : n) });
     expect((await act('Ana', { type: 'actionhandover', id: 'web', to: 'Sam' }, owned())).status).toBe(200);

@@ -26,7 +26,7 @@ function harness() {
   const acts=chatActs({getState:()=>state,project:'',name:'test-map',home:'.',nodeOf,seesOf,askPrompt,proposal,check,checkAutoPlan,
     pendingProposals:(by)=>pendingIn(state,by,()=>false),selectedContextMaps:()=>[],askAgent:ctx.askAgent,agent:ctx.agent,activeAsks:ctx.activeAsks,
     stamp:ctx.stamp,save(){},push(){},tell(){},ownsChat:()=>false,mineChat,ownerOf:()=>null,placeProposed(){},draw:ctx.draw,actions,relayout(){},keepMemory(){},
-    chats:/** @type {any} */ ({}),startMirror(){},linkOf:()=>null,savePicture(){},converse(){},sendMirror(){}});
+    chats:/** @type {any} */ ({}),startMirror(){},linkOf:()=>null,savePicture(){},converse(){},sendMirror(){},fromWords:()=>[],ownWords:()=>[]});
   return {state,calls,actions,actionRequests,runs,describe:a=>acts.describebox({by:'Tester',proposed:true,...a}),rename:a=>acts.renamebox({by:'Tester',proposed:true,...a}),ask:a=>acts.ask({by:'Tester',node:'launch',autoPlan:true,text:AUTO_PLAN_QUESTION,...a}),check:(p)=>ctx.check(p,'Tester'),apply:()=>acts.apply({by:'Tester',thread:'@Tester>launch',index:1})};
 }
 // what Claude's answer hands back: its words, and the change its propose_change call offered
