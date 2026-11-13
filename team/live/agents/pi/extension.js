@@ -4,6 +4,8 @@
 // limits a hook enforces in Claude Code: tools outside `allow` and shell commands matching `block` are refused.
 import fs from 'node:fs';
 
+import { refusal, sendsTool } from '../../action-sends.js';
+
 export const SUBMIT = 'submit_answer';
 
 /** @param {any} pi the ExtensionAPI */
@@ -27,9 +29,14 @@ export default function mapJob(pi) {
   });
   const allow = job.allow && new Set([...job.allow, SUBMIT]);
   const block = (job.block || []).map((r) => new RegExp(r));
-  if (allow || block.length) pi.on('tool_call', (/** @type {any} */ e) => {
+  // an Action run's sends are checked against the reviewed message, and counted, in this one process
+  let sent = 0;
+  if (allow || block.length || job.guard) pi.on('tool_call', (/** @type {any} */ e) => {
     if (allow && !allow.has(e.toolName)) return { block: true, reason: job.allowReason || 'This run cannot use that tool.' };
     if (e.toolName === 'bash' && block.some((r) => r.test(String(e.input?.command || '')))) return { block: true, reason: job.blockReason || 'This run cannot run that command.' };
+    const why = refusal(job.guard, e.toolName, e.input, sent);
+    if (why) return { block: true, reason: why };
+    if (job.guard?.message && sendsTool(e.toolName)) sent++;
     return undefined;
   });
 }

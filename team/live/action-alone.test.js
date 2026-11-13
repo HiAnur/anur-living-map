@@ -10,12 +10,12 @@ const REACH = { WebSearch: 'reads', Read: 'reads', Write: 'files', Edit: 'files'
 const research = { kind: 'other', goal: 'List ten places first users gather', target: 'The reply', result: 'A ranked list', steps: ['Search', 'Rank'], tools: ['WebSearch'] };
 const plan = (/** @type {string[]} */ dependsOn = []) => ({ goal: 'Find where first users gather', result: 'A ranked list', inputs: ['The product'], steps: ['Search'], evidence: ['The list'], dependsOn });
 
-function harness() {
+function harness(more = {}) {
   /** @type {Record<string, any>} */ const nodes = { a: { id: 'a', label: 'Research' }, b: { id: 'b', label: 'Shortlist' } };
   /** @type {any[]} */ const asks = [], runs = [];
   const api = actionBoxes({
     nodeOf: (id) => nodes[id], allNodes: () => Object.values(nodes), canUse: () => true, context: () => '', changed: () => {}, executionCwd: '/p',
-    ask: (r) => { asks.push(r); return () => {}; }, run: (r) => { runs.push(r); return () => {}; }, reach: (tool) => REACH[tool] || 'others',
+    ask: (r) => { asks.push(r); return () => {}; }, run: (r) => { runs.push(r); return () => {}; }, reach: (tool) => REACH[tool] || 'others', ...more,
   });
   /** the last preparation for a box answers with this brief */
   const ready = (/** @type {string} */ id, chosen = research) => asks.filter((r) => r.box === nodes[id]).at(-1).onDone('', { tools: chosen.tools, denied: [] }, { status: 'ready', brief: chosen });
@@ -147,5 +147,45 @@ describe('how far a tool reaches, as each agent marks it', () => {
       [pi(), { read: 'reads', grep: 'reads', edit: 'files', write: 'files', bash: 'shell', mcp__slack__post: 'others' }],
     ];
     for (const [agent, marks] of cases) for (const [tool, mark] of Object.entries(marks)) expect(agent.reach(tool), `${agent.name} ${tool}`).toBe(mark);
+  });
+});
+
+describe('what code checks in the calls of a run', () => {
+  const build = { ...research, kind: 'build', tools: ['Read', 'Edit', 'Bash'] };
+  const builds = { open: () => Promise.resolve({ worktree: '/w', branch: 'b', from: 'main' }), close: () => Promise.resolve({ commits: 0 }) };
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+  it('refuses GitHub writes to a build nobody started, and does not invite them in its instructions', async () => {
+    const h = harness({ builds });
+    h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', build);
+    await settled();
+    expect(h.runs[0].guard).toEqual({ left: 1, unattended: true });
+    expect(h.runs[0].prompt).toContain('may not comment, review, merge or otherwise write to GitHub');
+    expect(h.runs[0].prompt).not.toContain('replying to them');
+  });
+  it('leaves GitHub\'s CLI to a build someone started, as in their own terminal', async () => {
+    const h = harness({ builds });
+    h.api.begin('a', 'Duy', plan()); h.api.prepare('a', 'Duy'); h.ready('a', build);
+    expect(h.api.execute('a', 'Duy', h.nodes.a.action.id)).toBe(true);
+    await settled();
+    expect(h.runs[0].guard).toEqual({ left: 1 });
+    expect(h.runs[0].prompt).toContain('reading the pull request\'s comments and replying to them');
+  });
+  it('holds a step whose tools send, even when its agent marks one as only reading', () => {
+    const h = harness({ reach: (/** @type {string} */ tool) => (tool === 'mcp__chat__send_message' ? 'reads' : REACH[tool] || 'others') });
+    h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', { ...research, tools: ['WebSearch', 'mcp__chat__send_message'] });
+    expect(h.runs).toHaveLength(0);
+    expect(h.nodes.a.action.held).toContain('mcp__chat__send_message');
+  });
+  it('hands an email\'s run its reviewed message, and no send once the Action has sent', () => {
+    const email = { to: 'sam@example.com', subject: 'Hi', body: 'Hello' }, gmail = 'mcp__claude_ai_Gmail__send_message';
+    const h = harness();
+    h.api.begin('a', 'Duy', plan()); h.api.prepare('a', 'Duy'); h.ready('a', { ...research, kind: 'other', tools: [gmail], email });
+    expect(h.nodes.a.action.brief.kind).toBe('email');
+    h.api.execute('a', 'Duy', h.nodes.a.action.id);
+    expect(h.runs[0].guard).toEqual({ message: email, left: 1 });
+    h.runs[0].onDone({ text: 'Sent', blocked: false, calls: [{ tool: gmail, input: { to: ['sam@example.com'] }, ok: true, output: '' }] });
+    expect(h.nodes.a.action.completion.status).toBe('completed');
+    h.api.continue('a', 'Duy', h.nodes.a.action.id, 'Check it went');
+    expect(h.runs[1].guard).toEqual({ message: email, left: 0 });
   });
 });

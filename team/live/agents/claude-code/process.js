@@ -1,6 +1,7 @@
 // What every Claude Code process the map starts in the background has in common: the environment it gets, the
 // tools it may use, and how the words of its reply build up as they stream. Stopping a process and reading its
 // output line by line are the same for every agent (../process.js). What each job asks for stays with the job.
+import { fileURLToPath } from 'node:url';
 
 const MAX_WORDS = 32_000;
 
@@ -23,16 +24,20 @@ export const mcpTools = (servers = {}) => Object.entries(servers).flatMap(([name
 /** @param {string} s */
 const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 
-// Claude Code settings whose PreToolUse hook denies every tool not named in `allowed`, with `reason` as what
-// Claude is told, and any shell command matching one of `commands` (regular expressions), with `commandReason`.
+// Claude Code settings whose PreToolUse hook (./tool-hook.js) denies every tool not named in `allowed`, with
+// `reason` as what Claude is told, any shell command matching one of `commands` (regular expressions), with
+// `commandReason`, and, in an Action run, any call `guard` refuses for what it sends or runs (action-sends.js).
 // A hook decides before the person's own settings do, so a tool they allowed for themselves is denied here too;
 // a tool named here still goes through their usual permission checks.
-/** @param {readonly string[]} allowed @param {string} reason @param {readonly string[]} [commands] @param {string} [commandReason] */
-export function onlyTools(allowed, reason, commands = [], commandReason = reason) {
-  const deny = (/** @type {string} */ why) => `process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(why).replaceAll('"', "'")}}}))`;
-  const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let d={};try{d=JSON.parse(input)}catch{/* unreadable: no name, so denied */};const name=d.tool_name,command=name==='Bash'&&typeof d.tool_input?.command==='string'?d.tool_input.command:'';if(!${JSON.stringify(allowed)}.includes(name))${deny(reason)};else if(${JSON.stringify(commands)}.some(r=>new RegExp(r).test(command)))${deny(commandReason)};});`;
-  return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
+/**
+ * @param {readonly string[]} allowed @param {string} reason @param {readonly string[]} [commands] @param {string} [commandReason]
+ * @param {{ guard?: SendGuard, once?: string }} [send] what an Action run may send, and the file that counts its one send
+ */
+export function onlyTools(allowed, reason, commands = [], commandReason = reason, send = {}) {
+  const limits = { allowed:[...allowed], reason, commands:[...commands], commandReason, ...(send.guard ? { guard:send.guard } : {}), ...(send.once ? { once:send.once } : {}) };
+  return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} ${quote(HOOK)} ${quote(JSON.stringify(limits))}`,timeout:10}]}]}};
 }
+const HOOK = fileURLToPath(new URL('./tool-hook.js', import.meta.url));
 
 export { killer, readLines } from '../process.js';
 
