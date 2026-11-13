@@ -30,6 +30,7 @@ export const COMMANDS = /** @type {const} */ ({
   actionreopen: { id: 'id' },
   actionconfirm: { id: 'id', revision: 'any?' },
   actionhandover: { id: 'id', to: 'string' },
+  actionalone: { id: 'id', on: 'boolean' },
   actionexecute: { id: 'id', revision: 'any?' },
   actioncontinue: { id: 'id', revision: 'any?', answer: 'text?' },
   actionstop: { id: 'id', revision: 'any?' },

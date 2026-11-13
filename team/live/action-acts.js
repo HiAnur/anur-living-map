@@ -1,5 +1,5 @@
 // What people do with an Action box, by hand: make it, prepare it, answer, revise, cancel, reopen, hand it over,
-// execute, continue, stop and confirm it. Each hands the box to actionBoxes (action-box.js), which checks the
+// let it run on its own, execute, continue, stop and confirm it. Each hands the box to actionBoxes (action-box.js), which checks the
 // stage and who may; archiving lives in archive-acts.js.
 
 /** @param {{ getState: () => MapState, actions: ReturnType<typeof import('./action-box.js').actionBoxes> }} deps */
@@ -25,6 +25,8 @@ export function actionActs({ getState, actions }) {
     actionhandover(a) { return !!getState().people?.some((/** @type {any} */ p) => p.id === a.to) && actions.handover(/** @type {string} */ (a.id), a.by, a.to); },
     /** @param {Act<'actionconfirm'>} a */
     actionconfirm(a) { return actions.confirm(/** @type {string} */ (a.id), a.by, a.revision); },
+    /** @param {Act<'actionalone'>} a */
+    actionalone(a) { return actions.alone(/** @type {string} */ (a.id), a.by, a.on); },
     /** @param {Act<'actionexecute'>} a */
     actionexecute(a) { return actions.execute(/** @type {string} */ (a.id), a.by, a.revision); },
     /** @param {Act<'actioncontinue'>} a */

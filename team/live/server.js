@@ -380,6 +380,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     cannotRun: (n) => !project && state.drawing && !repoOf(state, n) ? 'This box is not inside one of the map\'s repos, so an Action here has nowhere to run.' : null,
     cwdFor: (n, by) => workOf(n, by, false),
     canBuild,
+    readsOnly: (tool) => agent.readsOnly(tool),
     checkPull: (url) => pullRequestExists(url, project || PROJECT || home),
     // a build's worktree lives in the team map's data folder, never inside the project it changes
     builds: {
