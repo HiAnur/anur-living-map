@@ -49,7 +49,8 @@ export function recoveryStore(db, setPassword, now = Date.now) {
         if (kind === 'verify') {
           db.prepare('INSERT OR REPLACE INTO recovery_emails VALUES (?, ?)').run(row.name, row.email);
           clear(row.name);
-        } else if (kind === 'reset' && this.email(row.name) === row.email) {
+        // a link printed by `users.js reset` has no mailbox behind it (email ''): this Mac's terminal vouched for it
+        } else if (kind === 'reset' && (row.email === '' || this.email(row.name) === row.email)) {
           setPassword(row.name, /** @type {string} */ (password));
           clear(row.name);
         } else { db.exec('ROLLBACK'); return false; }
@@ -66,6 +67,8 @@ export function mailConfig() {
   try { config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_MAIL_CONFIG || path.join(DATA, 'mail.json'), 'utf8')); } catch { /* no mail file: the environment may still configure mail */ }
   return { key: process.env.RESEND_API_KEY || config.key, from: process.env.LIVING_MAP_MAIL_FROM || config.from };
 }
+// whether this Mac can send recovery email; without it the pages offer the reset command instead
+export const mailReady = () => { const config = mailConfig(); return !!(config.key && config.from); };
 /** @param {string} to @param {string} link @param {boolean} verify */
 export async function sendRecoveryMail(to, link, verify, /** @type {any} */ config = mailConfig()) {
   if (!config.key || !config.from) throw new Error('Email recovery is not set up on this Mac yet.');
@@ -79,7 +82,8 @@ export async function sendRecoveryMail(to, link, verify, /** @type {any} */ conf
 }
 
 /** @param {any} req @param {any} res @param {any} options */
-export async function handleRecovery(req, res, { users, recovery, port, send = sendRecoveryMail, configured }) {
+// `who` is the person signed in on this browser, if anyone: their recovery email is theirs without typing their name.
+export async function handleRecovery(req, res, { users, recovery, port, send = sendRecoveryMail, configured, who = null }) {
   const route = new URL(req.url, 'http://localhost').pathname;
   if (!['/api/recovery/email', '/api/recovery/forgot', '/api/recovery/verify', '/api/recovery/reset'].includes(route)) return false;
   /** @param {number} code @param {unknown} data */
@@ -96,10 +100,10 @@ export async function handleRecovery(req, res, { users, recovery, port, send = s
   try {
     if (route.endsWith('/verify')) return recovery.use(data.token, 'verify') ? reply(200, { message: 'Your recovery email is verified.' }) : reply(400, { error: 'That link has expired or was already used. Request a new email.' });
     if (route.endsWith('/reset')) return recovery.use(data.token, 'reset', data.password) ? reply(200, { message: 'Your password has been changed. Sign in with your new password.' }) : reply(400, { error: 'Use at least 8 characters. If the link has expired or was already used, request a new one.' });
-    if (configured === undefined) { const config = mailConfig(); configured = !!(config.key && config.from); }
+    if (configured === undefined) configured = mailReady();
     if (!configured) return reply(503, { error: 'Email recovery is not set up on this Mac yet.' });
-    const name = users.person(data.name), generic = 'If this account has a verified recovery email, a reset link is on its way. Check your inbox and spam folder.';
-    const key = `mail:${String(data.name || '').trim().toLowerCase()}`;
+    const name = (route.endsWith('/email') && who) || users.person(data.name), generic = 'If this account has a verified recovery email, a reset link is on its way. Check your inbox and spam folder.';
+    const key = `mail:${String(name || data.name || '').trim().toLowerCase()}`;
     if (!recovery.allow(key, 3)) return reply(429, { error: 'Too many email requests. Try again in an hour.' });
     let email, kind;
     if (route.endsWith('/email')) {

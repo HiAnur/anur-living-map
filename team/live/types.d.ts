@@ -22,6 +22,8 @@ interface Person {
 interface Members {
   people?: Person[];
   removedPeople?: string[];
+  /** Who owns the map: whoever made it. Unset on a map kept from before maps recorded it. */
+  admins?: string[];
 }
 
 interface LinkSharing {
