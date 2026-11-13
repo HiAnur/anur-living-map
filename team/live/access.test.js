@@ -6,7 +6,15 @@ import path from 'node:path';
 
 import { expect, it } from 'vitest';
 
-import { canAccess, changeAccess, isEngineer, localTool, setEngineer } from './access.js';
+import { adminsOf, canAccess, changeAccess, isEngineer, localTool, setEngineer } from './access.js';
+
+it('makes whoever made a map its Admin, the install\'s owner Admin of a repo\'s own map, and keeps an older map\'s Admins', () => {
+  expect(adminsOf({ admins: ['Sam'], people: [{ id: 'Duy', role: 'Admin' }] }, { owner: 'Alex', before: ['Duy'] })).toEqual(['Sam']);
+  expect(adminsOf({ admins: ['Sam'] }, { project: true, owner: 'Alex' })).toEqual(['Alex', 'Sam']);
+  expect(adminsOf({ admins: [] }, { project: true, owner: null })).toEqual([]);
+  // a map from before maps recorded it: the Admins it was stored with, and the ones it is given
+  expect(adminsOf({ people: [{ id: 'Duy', role: 'Admin' }, { id: 'Kim', role: 'CFO' }] }, { before: ['Alex', 'Duy'] })).toEqual(['Duy', 'Alex']);
+});
 
 it('only owners remove members, owners keep access, and removal survives serialization', () => {
   const s = { people: [{ id: 'Duy', role: 'Admin' }, { id: 'Member' }] };
