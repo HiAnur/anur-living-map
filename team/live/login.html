@@ -13,7 +13,7 @@
 :root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --new:#2F6FE4; --gone:#D23B32; }
 *{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
+body{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr);place-items:center;padding:16px;background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 form{width:340px;max-width:100%;padding:28px 24px 24px;background:#fff;border:1px solid var(--rule);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
 h1{font-size:18px;font-weight:500;margin-bottom:6px}
 .sub{font-size:13px;color:var(--text-2);margin-bottom:6px;min-height:0}
@@ -34,6 +34,10 @@ form.google .or{display:block}
 button.link{height:auto;margin-top:12px;background:transparent;color:var(--text-2);font-size:12.5px;text-decoration:underline}
 .notice{margin-top:14px;font-size:13px}
 .err:empty{min-height:0}
+.namerow{position:relative}
+.namerow input[readonly]{padding-right:84px;background:#f6f5f1}
+.namerow button.link{position:absolute;right:10px;top:9px;width:auto;margin:0}
+code{display:block;margin-top:10px;padding:10px 12px;border:1px solid var(--rule-2);border-radius:8px;background:#f6f5f1;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;user-select:all}
 
 </style>
 </head>
@@ -44,14 +48,14 @@ button.link{height:auto;margin-top:12px;background:transparent;color:var(--text-
   <a class="google" id="google" href="/auth/google"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</a>
   <div class="or">or with a password</div>
   <label for="name">Username</label>
-  <input id="name" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+  <div class="namerow"><input id="name" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="40" required autofocus><button class="link" type="button" id="notyou" hidden>Not you?</button></div>
   <label for="pw" id="pwl">Password</label>
   <input id="pw" type="password" autocomplete="current-password" required>
   <div class="again"><label for="pw2">Password again</label><input id="pw2" type="password" autocomplete="new-password"></div>
   <button id="go" type="submit">Sign in</button>
   <div class="err" id="err" role="alert"></div>
-  <button class="link" type="button" data-recover="forgot">Forgot password?</button>
-  <button class="link" type="button" data-recover="email">Set up recovery email</button>
+  <button class="link" type="button" id="forgot">Forgot password?</button>
+  <button class="link" type="button" id="setup-email" hidden>Set up recovery email</button>
 </form>
 <form id="recovery" hidden>
   <h1 id="rh"></h1><p class="sub" id="rsub"></p>
@@ -59,70 +63,123 @@ button.link{height:auto;margin-top:12px;background:transparent;color:var(--text-
   <div id="remail-wrap"><label for="remail">Recovery email</label><input id="remail" type="email" autocomplete="email" maxlength="254"></div>
   <div id="rpw-wrap"><label for="rpw" id="rpwl">Current password</label><input id="rpw" type="password" maxlength="1024"></div>
   <div id="ragain-wrap"><label for="ragain">New password again</label><input id="ragain" type="password" autocomplete="new-password" maxlength="1024"></div>
+  <code id="rcmd" hidden></code>
   <button id="rgo" type="submit"></button>
   <div class="err" id="rerr" role="alert"></div><p class="notice" id="rnotice" role="status"></p>
   <button class="link" type="button" id="rback">Back to sign in</button>
 </form>
 <script>
-// Sign in, then go back to the page that asked; only an address on this server counts as "back".
-// A person with no password yet chooses one here: the same form asks for it twice.
+// Sign in, then go back to the page that asked; only an address on this server counts as "back". On a new
+// install the same form creates the owner's account; an invite link (#invite=) lets the person it names choose
+// their password; a reset or verify link (#reset=, #verify=) opens the recovery form.
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search), next = q.get('next') || '/';
 const back = next.startsWith('/') && !next.startsWith('//') ? next : '/';
+const fragment = new URLSearchParams(location.hash.slice(1));
+const ME = document.querySelector('meta[name="lm-user"]')?.content || '';
+// someone already signed in has nothing to do here, unless a link brought them or Settings sent them for an email
+if (ME && !['invite', 'reset', 'verify'].some((k) => fragment.has(k)) && !q.get('recovery')) location.replace(back);
 if (document.querySelector('meta[name="lm-google"]')) { $('f').classList.add('google'); $('google').href = `/auth/google?next=${encodeURIComponent(back)}`; }
 if (q.get('error')) $('err').textContent = q.get('error');
-let first = null;
-let recoveryMode = '', recoveryToken = '';
+// what the form does on submit: sign in, create the owner's account, or join by an invite
+let mode = 'signin', invite = '', inviter = '', min = 8;
+let recoveryMode = '', recoveryToken = '', mail = false, resetCommand = '';
 const recoveryText = {
   forgot: ['Forgot your password?', 'Enter your username. We will send a reset link to your verified recovery email.', 'Send reset email'],
+  command: ['Forgot your password?', 'Ask whoever runs this map for a link to choose a new one. On this Mac, this command prints one; Claude Code can run it for you.', ''],
+  nomail: ['Recovery email', 'This Mac cannot send email, so there is no recovery email to set up. If you forget your password, this command prints a link to choose a new one; Claude Code can run it for you.', ''],
   email: ['Set up recovery email', 'Confirm your current password, then verify your email. This recovers the password kept on this Mac.', 'Send verification email'],
   verify: ['Verify your recovery email', 'Confirm this email address for password recovery.', 'Verify email'],
   reset: ['Choose a new password', 'Use at least 8 characters. Your other signed-in browsers will be signed out.', 'Reset password'],
 };
+// the form for a password chosen here: typed twice, under a name typed here or fixed by an invite
+function choosing(heading, sub, button, fixedName) {
+  $('f').classList.add('first'); $('f').classList.remove('google');
+  $('h').textContent = heading; $('sub').textContent = sub; $('go').textContent = button;
+  $('pw').autocomplete = 'new-password'; $('pw2').required = true; $('pw').minLength = min;
+  $('forgot').hidden = true; $('setup-email').hidden = true;
+  if (fixedName) { $('name').value = fixedName; $('name').readOnly = true; $('notyou').hidden = false; $('pw').focus(); }
+}
 function showRecovery(mode) {
   recoveryMode = mode; $('f').hidden = true; $('recovery').hidden = false;
   const [heading, description, action] = recoveryText[mode];
-  $('rh').textContent = heading; $('rsub').textContent = description; $('rgo').textContent = action; $('rgo').disabled = false; $('rgo').hidden = false;
+  $('rh').textContent = heading; $('rsub').textContent = description; $('rgo').textContent = action; $('rgo').disabled = false; $('rgo').hidden = !action;
   $('rerr').textContent = ''; $('rnotice').textContent = '';
-  for (const [id, show] of [['rname', mode === 'forgot' || mode === 'email'], ['remail', mode === 'email'], ['rpw', mode === 'email' || mode === 'reset'], ['ragain', mode === 'reset']]) {
+  // signed in, the recovery email you set up is for you: the form does not ask who you are
+  const askName = mode === 'forgot' || (mode === 'email' && !ME);
+  for (const [id, show] of [['rname', askName], ['remail', mode === 'email'], ['rpw', mode === 'email' || mode === 'reset'], ['ragain', mode === 'reset']]) {
     $(id === 'ragain' ? 'ragain-wrap' : id + '-wrap').hidden = !show; $(id).disabled = !show; $(id).required = show;
   }
+  $('rcmd').hidden = mode !== 'command' && mode !== 'nomail';
+  $('rcmd').textContent = `${resetCommand} ${ME || $('name').value.trim() || '<your name>'}`;
   $('rpwl').textContent = mode === 'reset' ? 'New password' : 'Current password'; $('rpw').autocomplete = mode === 'reset' ? 'new-password' : 'current-password';
   $('rpw').minLength = mode === 'reset' ? 8 : 1; $('rpw').value = ''; $('ragain').value = '';
-  $('rname').value = $('name').value; $(mode === 'verify' ? 'rgo' : mode === 'reset' ? 'rpw' : 'rname').focus();
+  $('rname').value = $('name').value;
+  if (action) $(mode === 'verify' ? 'rgo' : mode === 'reset' ? 'rpw' : askName ? 'rname' : 'remail').focus();
 }
-document.querySelectorAll('[data-recover]').forEach((b) => b.addEventListener('click', () => showRecovery(b.dataset.recover)));
-$('rback').addEventListener('click', () => { recoveryToken = ''; $('rpw').value = ''; $('ragain').value = ''; $('recovery').hidden = true; $('f').hidden = false; $('name').focus(); });
-const fragment = new URLSearchParams(location.hash.slice(1));
-for (const kind of ['verify', 'reset']) if (fragment.has(kind)) { recoveryToken = fragment.get(kind); history.replaceState(null, '', location.pathname + location.search); showRecovery(kind); break; }
-if (!recoveryMode && q.get('recovery') === 'email') showRecovery('email');
+// "Forgot password?" sends a reset email only where this Mac can send one; otherwise it says how to print a link
+$('forgot').addEventListener('click', () => showRecovery(mail ? 'forgot' : 'command'));
+$('setup-email').addEventListener('click', () => showRecovery('email'));
+// signed in, there is no sign-in form to go back to: back is the page you came from
+if (ME) $('rback').textContent = 'Back';
+$('rback').addEventListener('click', () => {
+  if (ME) { if (history.length > 1) history.back(); else location.href = '/'; return; }
+  recoveryToken = ''; $('rpw').value = ''; $('ragain').value = ''; $('recovery').hidden = true; $('f').hidden = false; $('name').focus();
+});
+// someone else opened the invite: the form goes back to signing in under their own name
+$('notyou').addEventListener('click', () => {
+  const invited = $('name').value;
+  mode = 'signin'; invite = '';
+  $('f').classList.remove('first'); $('pw2').required = false; $('pw').autocomplete = 'current-password';
+  $('name').readOnly = false; $('name').value = ''; $('notyou').hidden = true; $('forgot').hidden = false; $('setup-email').hidden = !mail;
+  $('h').textContent = 'Sign in to Living Map'; $('go').textContent = 'Sign in';
+  $('sub').textContent = `That invite is for ${invited}. Sign in with your own name, or ask ${inviter || 'whoever runs this map'} for an invite of your own.`;
+  $('name').focus();
+});
 const post = (to, data) => fetch(to, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }).catch(() => null);
+const read = async (r) => (r ? await r.json().catch(() => ({})) : null);
+// The link's token leaves the address bar once read, so it is not kept in the browser's list of pages.
+const forget = () => history.replaceState(null, '', location.pathname + location.search);
+// what this install offers decides the form: a new install's first account, an invite, a link from an email or
+// the reset command, and email recovery only where this Mac can send email
+async function setUp() {
+  const offer = await fetch('/api/signin').then((r) => r.json()).catch(() => ({}));
+  mail = !!offer.mail; resetCommand = offer.reset || 'node users.js reset'; min = offer.min || 8;
+  $('setup-email').hidden = !mail;
+  for (const kind of ['verify', 'reset']) if (fragment.has(kind)) { recoveryToken = fragment.get(kind); forget(); showRecovery(kind); return; }
+  if (fragment.has('invite')) {
+    invite = fragment.get('invite'); forget();
+    const r = await post('/api/invite/check', { token: invite }), d = await read(r);
+    if (r?.ok) { mode = 'join'; inviter = d.by; choosing(`Welcome, ${d.name}`, `${d.by} invited you. Choose your password, at least ${min} characters.`, 'Set password and sign in', d.name); return; }
+    invite = ''; $('err').textContent = d?.error || 'The map server is not answering.';
+  }
+  if (offer.firstRun) { mode = 'create'; choosing('Create your account', `You are the first one here, so this map is yours to run. Use any name, and a password of at least ${min} characters.`, 'Create account'); return; }
+  if (q.get('recovery') === 'email') showRecovery(mail ? 'email' : 'nomail');
+}
+setUp();
+// a link pasted into this page's address bar changes only the part after #, which loads nothing by itself
+window.addEventListener('hashchange', () => { if (/^#(invite|reset|verify)=/.test(location.hash)) location.reload(); });
 $('recovery').addEventListener('submit', async (e) => {
   e.preventDefault(); $('rerr').textContent = ''; $('rnotice').textContent = '';
+  if (!recoveryText[recoveryMode][2]) return;
   if (recoveryMode === 'reset' && $('rpw').value !== $('ragain').value) { $('rerr').textContent = 'The two passwords differ.'; return; }
   $('rgo').disabled = true;
   const r = await post(`/api/recovery/${recoveryMode}`, { name: $('rname').value, email: $('remail').value, password: $('rpw').value, token: recoveryToken });
-  const d = r ? await r.json().catch(() => ({})) : null;
+  const d = await read(r);
   if (r?.ok) {
     $('rnotice').textContent = d.message; $('rgo').hidden = true; $('rpw').value = ''; $('ragain').value = '';
     if (recoveryMode === 'verify' || recoveryMode === 'reset') recoveryToken = '';
   } else $('rerr').textContent = d?.error || 'The map server is not answering.';
   $('rgo').disabled = false;
 });
-$('f').addEventListener('submit' , async (e) => {
+$('f').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('go').disabled = true; $('err').textContent = '';
   const name = $('name').value, password = $('pw').value;
-  if (first && password !== $('pw2').value) { $('err').textContent = 'The two passwords differ.'; $('go').disabled = false; return; }
-  const r = await post(first ? '/api/first' : '/api/login', { name, password });
-  const d = r ? await r.json().catch(() => ({})) : null;
+  if (mode !== 'signin' && password !== $('pw2').value) { $('err').textContent = 'The two passwords differ.'; $('go').disabled = false; return; }
+  const r = mode === 'join' ? await post('/api/join', { token: invite, password }) : await post(mode === 'create' ? '/api/first' : '/api/login', { name, password });
+  const d = await read(r);
   if (r?.ok) { location.href = back; return; }
-  if (r?.status === 409) {
-    first = d.first; $('f').classList.add('first'); $('name').value = first; $('name').readOnly = true;
-    $('h').textContent = `Welcome, ${first}`; $('sub').textContent = `Choose your password, at least ${d.min} characters.`;
-    $('pwl').textContent = 'New password'; $('pw').autocomplete = 'new-password'; $('pw2').required = true; $('go').textContent = 'Set password and sign in';
-    $('go').disabled = false; $('pw').focus(); return;
-  }
   $('err').textContent = d?.error || (r ? 'Could not sign in.' : 'The map server is not answering.');
   $('go').disabled = false; $('pw').select();
 });

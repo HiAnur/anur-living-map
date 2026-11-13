@@ -27,7 +27,7 @@
     "start": "vite build && node server/launcher.ts",
     "test": "vitest run",
     "coverage": "vitest run --coverage",
-    "test:ui": "playwright test",
+    "test:ui": "playwright test && playwright test -c playwright.chat.config.ts",
     "ts": "tsc --noEmit && tsc -p team && tsc -p team/tsconfig.strict.json",
     "lint": "eslint . --fix",
     "format": "prettier --write .",
@@ -36,7 +36,7 @@
     "upgrade:latest": "ncu --doctor -u --target latest",
     "upgrade:test": "npm run check && npm run build",
     "check": "eslint . --max-warnings=0 && tsc --noEmit && tsc -p team && tsc -p team/tsconfig.strict.json && prettier --check . && vitest run",
-    "skill": "node skill/install.ts",
+    "skill": "node team/skill/install.js && node skill/install.ts",
     "prepare": "husky"
   },
   "dependencies": {

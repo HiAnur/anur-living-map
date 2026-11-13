@@ -15,9 +15,9 @@ function fixture() {
   const users = { person: (name) => name?.toLowerCase() === 'tester' ? 'Tester' : null, has: (name) => !!db.prepare('SELECT 1 FROM users WHERE name = ?').get(name), check: (name, value) => name === 'Tester' && value === password ? name : null };
   return { db, recovery, users, later: () => { time += 16 * 60000; } };
 }
-async function api({ failMail = false, configured = true } = {}) {
+async function api({ failMail = false, configured = true, who = /** @type {string | null} */ (null) } = {}) {
   const f = fixture(), mail = [];
-  const server = http.createServer((req, res) => handleRecovery(req, res, { ...f, port: /** @type {import('node:net').AddressInfo} */ (server.address()).port, configured, send: async (...args) => { if (failMail) throw new Error('offline'); mail.push(args); } }));
+  const server = http.createServer((req, res) => handleRecovery(req, res, { ...f, port: /** @type {import('node:net').AddressInfo} */ (server.address()).port, configured, who, send: async (...args) => { if (failMail) throw new Error('offline'); mail.push(args); } }));
   await new Promise((resolve) => server.listen(0, '127.0.0.1', /** @type {() => void} */ (resolve)));
   cleanup.push(() => new Promise((resolve) => server.close(resolve)));
   const origin = `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}`;
@@ -60,6 +60,20 @@ describe('email password recovery', () => {
     expect(f.recovery.use(old, 'verify')).toBe(false);
     expect(f.recovery.use(current, 'reset', 'new-password')).toBe(false);
     f.later(); expect(f.recovery.use(current, 'verify')).toBe(false);
+  });
+  it('takes a signed-in person\'s recovery email without asking their name', async () => {
+    const f = await api({ who: 'Tester' });
+    expect((await f.post('email', { password: 'old-password', email: 'tester@example.com' })).status).toBe(200);
+    expect(f.mail.at(-1)[0]).toBe('tester@example.com');
+    expect((await f.post('email', { name: 'Someone else', password: 'wrong', email: 'tester@example.com' })).status).toBe(401);
+  });
+  it('accepts a reset link printed on this Mac, which has no mailbox behind it', () => {
+    const f = fixture();
+    const printed = f.recovery.issue('Tester', '', 'reset');
+    expect(f.recovery.use(printed, 'reset', 'new-password')).toBe(true);
+    expect(f.recovery.use(printed, 'reset', 'newer-password')).toBe(false);
+    // a link sent to an address that was never verified is still refused
+    expect(f.recovery.use(f.recovery.issue('Tester', 'other@example.com', 'reset'), 'reset', 'new-password')).toBe(false);
   });
   it('invalidates reset links when the recovery address changes', () => {
     const f = fixture();

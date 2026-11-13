@@ -217,7 +217,7 @@ describe('the meeting routes', () => {
     const answer = vi.spyOn(agent, 'answer').mockImplementation(async (/** @type {any} */ j) => { asked.push(j); return { ...topicAnswer(j), ms: 1 }; });
     const converse = vi.spyOn(agent, 'converse').mockImplementation(() => () => {});
     const deps = { DIR: home, PROJECT: '', PROJECTS: path.join(home, 'projects.json'), mapName: path.basename };
-    const maps = mapList({ ...deps, openMap, demo: () => ({ people: [] }) });
+    const maps = mapList({ ...deps, openMap });
     const routes = mapsRoutes({ ...deps, maps });
     undo.push(() => { for (const m of maps.named.values()) m.close(); maps.main?.close(); answer.mockRestore(); converse.mockRestore(); fs.rmSync(home, { recursive: true, force: true }); });
     /** @param {string} p @param {any} data @param {string | null} [who] @param {boolean} [tool] */
@@ -236,7 +236,7 @@ describe('the meeting routes', () => {
     const r = await post('/api/meetings', { title: 'Launch sync', app: 'Zoom', by: 'Harshit' });
     expect(r).toEqual({ status: 200, body: { name: 'launch-sync', title: 'Launch sync', href: '/launch-sync/' } });
     const map = maps.mapCalled('launch-sync');
-    expect(map.snapshot()).toMatchObject({ title: 'Launch sync', start: MEETING_ID, meeting: { by: 'Harshit', live: true } });
+    expect(map.snapshot()).toMatchObject({ title: 'Launch sync', start: MEETING_ID, admins: ['Harshit'], meeting: { by: 'Harshit', live: true } });
 
     const words = { segments: [seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, 'Friday works for design.')] };
     expect(await post('/api/meetings/launch-sync/segments', words)).toEqual({ status: 200, body: { ok: true, count: 2 } });
