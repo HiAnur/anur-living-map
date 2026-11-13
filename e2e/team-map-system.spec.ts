@@ -190,7 +190,8 @@ test("a system map starts at a circle for the whole system, every repo hanging o
   await expect(page.locator("#edges path.spoke")).toHaveCount(2);
   // the calls between them stay plain lines, never curved cross-links
   await expect(page.locator("#edges path.cross")).toHaveCount(0);
-  // a click shows only the repos; another, every box again
+  // a click shows only the repos; another, every box again (the drawing's panel, over the top, closed first)
+  await page.locator("#sysdraw").getByRole("button", { name: "Close" }).click();
   await circle.click();
   await expect(box(page, "My note")).toHaveCount(0);
   await expect(box(page, "web")).toBeVisible();
