@@ -2,7 +2,7 @@
 
 The team's shared map of a codebase. Claude Code draws its plan for a feature on the map before building anything; the team confirms or disputes each call with a click; the agent builds from what was agreed, and what it changes lands back on the map.
 
-The map is the server in [`live/`](live/): `node live/server.js 4323 --project <repo>`, then http://localhost:4323/<repo folder name>/. Its own [README](live/README.md) says how sign-in, the MCP tools and the list of maps work. Node 22 or newer; no install step.
+The map is the server in [`live/`](live/): `node live/server.js 4323 --project <repo>`, then http://localhost:4323/<repo folder name>/ (a new map takes its package's name instead, when that differs and is free). Its own [README](live/README.md) says how sign-in, the MCP tools and the list of maps work. Node 22.18 or newer (24.2 or newer on Node 24); no install step.
 
 The pages below are the story boards the map grew from, each a click-through in one HTML file (open it in a browser; no build, no server), and `site/index.html` is the landing page that went to heyanur.ai/living-map.
 

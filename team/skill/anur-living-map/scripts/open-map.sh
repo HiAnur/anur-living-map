@@ -90,8 +90,14 @@ if [ -z "${1:-}" ]; then
   fi
 fi
 curl -s -X POST "${U}api/act" -H 'content-type: application/json' --data '{"type":"open","by":"Claude"}' >/dev/null
-curl -s "${U}api/history" | node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>{let h=[];try{h=JSON.parse(s)}catch{}
-console.log(`map: ${process.argv[1]}, ${h.length>1?`as it was left, ${h.length} versions in History`:"fresh"}`)})' "$U"
+# what is on it, so the chat says what is really there: a repo's own map with no boxes offers Draw this repo
+OWN=$([ "$OPEN" = "$U" ] && [ "$M" = "$(name_of "$(basename "$R")")" ] && echo 1)
+node -e 'const [u, own] = process.argv.slice(1), get = (p, none) => fetch(u + p).then((r) => r.json()).catch(() => none);
+Promise.all([get("api/history", []), get("api/state", {})]).then(([h, s]) => {
+  const n = Array.isArray(s?.nodes) ? s.nodes.length : 0, kept = Array.isArray(h) && h.length > 1 ? `as it was left, ${h.length} versions in History` : "new";
+  const what = n ? `${n} ${n === 1 ? "box" : "boxes"}` : own ? "no boxes yet: it offers Draw this repo, a system map drawn from the code in this folder" : "no boxes yet";
+  console.log(`map: ${u}, ${kept}, ${what}`);
+});' "$U" "$OWN"
 
 # 3. the map in Chrome: the tab already on it comes to the front, otherwise a new tab
 how=$([ "${ANUR_LIVING_MAP_NO_BROWSER:-}" = 1 ] && echo skipped || osascript - "$U" "$OPEN" 2>/dev/null <<'OSA'

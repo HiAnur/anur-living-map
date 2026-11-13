@@ -4,9 +4,14 @@
   "description": "Anur Living Map: the team's shared map of a codebase, where Claude Code plans a feature before building it. `npx anur-living-map` in a repo opens its map.",
   "type": "module",
   "bin": { "anur-living-map": "bin.js" },
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=22" },
-  "files": ["*.js", "system_facts.py", "agents/**/*.js", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "login.html", "maps.html", "settings.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node server.js --demo",
+    "prepack": "node -e \"require('fs').cpSync('../skill/anur-living-map', 'skill', { recursive: true })\"",
+    "postpack": "node -e \"require('fs').rmSync('skill', { recursive: true, force: true })\""
+  },
+  "engines": { "node": "^22.18.0 || >=24.2.0" },
+  "files": ["*.js", "system_facts.py", "agents/**/*.js", "skill/**", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "login.html", "maps.html", "settings.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
   "repository": { "type": "git", "url": "git+https://github.com/HiAnur/anur-living-map.git", "directory": "team/live" },
   "homepage": "https://hianur.com",
   "license": "MIT",

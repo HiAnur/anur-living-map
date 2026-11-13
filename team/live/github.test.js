@@ -43,7 +43,7 @@ describe('linking GitHub', () => {
     expect(await gh.link('Harshit')).toMatchObject({ code: 'ABCD-1234', uri: 'https://github.com/login/device' });
     expect(gh.status('Harshit')).toMatchObject({ linked: null, pending: { code: 'ABCD-1234' } });
     await until(() => gh.status('Harshit').linked === 'octo');
-    expect(gh.status('Harshit')).toEqual({ linked: 'octo', pending: null });
+    expect(gh.status('Harshit')).toEqual({ linked: 'octo', pending: null, failed: null, asking: null });
     expect(JSON.stringify(gh.status('Harshit'))).not.toContain('secret');
     expect(calls[0].body).toEqual({ client_id: CLIENT_ID });
     const file = path.join(dir, 'github', 'Harshit.json');
@@ -176,5 +176,35 @@ describe('reading repos from GitHub', () => {
     const gh = github({ dir, http });
     await expect(gh.repos('Harshit')).rejects.toThrow('Link your GitHub account again.');
     expect(gh.status('Harshit').linked).toBeNull();
+  });
+  it('waits on the owners of the organization someone asked to install the app on, until the install shows up', async () => {
+    const { dir, http } = linked({ 'GET /users/acme': () => ({ login: 'Acme', type: 'Organization' }), 'GET /users/nobody': () => ({ status: 404 }) });
+    const gh = github({ dir, http });
+    expect(await gh.askInstall('Harshit', 'acme')).toEqual({ org: 'Acme', type: 'Organization' });
+    expect(gh.status('Harshit').asking).toEqual({ org: 'Acme', type: 'Organization' });
+    await expect(gh.askInstall('Harshit', '../x')).rejects.toThrow('Not a GitHub account or organization name.');
+    await expect(gh.askInstall('Harshit', 'nobody')).rejects.toThrow('GitHub has no account or organization called nobody.');
+    // the owners approved: the install is listed, and nothing is waited on
+    const approved = linked({ 'GET /user/installations?': () => ({ installations: [{ id: 1, account: { login: 'Acme' } }] }), 'GET /users/acme': () => ({ login: 'Acme', type: 'Organization' }) });
+    const later = github({ dir: approved.dir, http: approved.http });
+    await later.askInstall('Harshit', 'acme');
+    await later.repos('Harshit');
+    expect(later.status('Harshit').asking).toBeNull();
+  });
+});
+
+describe('a link that does not go through', () => {
+  it('says the code expired or was denied, instead of quietly starting over', async () => {
+    const { http } = fakeGitHub({
+      'POST /login/device/code': () => ({ device_code: 'dev', user_code: 'ABCD-1234', verification_uri: 'https://github.com/login/device', interval: 1, expires_in: 900 }),
+      'POST /login/oauth/access_token': () => ({ error: 'access_denied' }),
+    });
+    const gh = github({ dir: tmp(), http, second: 1 });
+    await gh.link('Harshit');
+    await until(() => !gh.status('Harshit').pending);
+    expect(gh.status('Harshit')).toMatchObject({ linked: null, failed: 'The GitHub code expired or was denied — try again.' });
+    // trying again clears it while the new code waits
+    await gh.link('Harshit');
+    expect(gh.status('Harshit').failed).toBeNull();
   });
 });

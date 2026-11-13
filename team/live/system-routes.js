@@ -1,6 +1,6 @@
 // A system map from code, at the server's own /api/systemmap...: your GitHub link and the repos it can read, a
 // new map drawn from the chosen ones, and Cancel and Retry while it draws. A map may also be drawn from repos in
-// folders on this Mac, by their paths. Only a person signed in on a page this Mac serves may use them, since they
+// folders on this Mac, by their paths: the code folders this server already keeps a map of are offered to pick from. Only a person signed in on a page this Mac serves may use them, since they
 // act with that person's GitHub link and read this Mac's folders. Each route answers with the response, and true
 // when it answered.
 import fs from 'node:fs';
@@ -25,6 +25,8 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
    * map on this Mac, as `isEngineer` reads roles. Everyone else asks one of them.
    */
   const engineer = (/** @type {any} */ p) => p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(String(p.role || ''));
+  // whom to ask: someone who can draw and is really here, the install's owner or an Engineer or Admin of a map on
+  // this Mac; never a name from the demo story's cast
   const engineers = () => [...new Set([...team(), ...maps.everyMap().flatMap(([, m]) => /** @type {any[]} */ (m.snapshot().people || []))].filter(engineer).map((p) => String(p.id)))];
   const mayDraw = (/** @type {string} */ who) => team().some((p) => p.id === who && engineer(p)) || maps.everyMap().some(([, m]) => isEngineer(m.snapshot(), who));
   /** Whether a folder may be drawn: a repo inside your home folder. @param {unknown} f */
@@ -41,6 +43,22 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
       catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
     }
     if (url.pathname === '/api/systemmap/github/unlink' && req.method === 'POST') { github().unlink(who); return json(200, { ok: true }); }
+    // where you are about to install the app, so the page can say whose approval it waits for
+    if (url.pathname === '/api/systemmap/github/install' && req.method === 'POST') {
+      const /** @type {any} */ a = await jsonBody(req, {});
+      try { return json(200, await github().askInstall(who, String(a.org || '').trim())); }
+      catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
+    }
+    // The code folders this server keeps a map of, which are repos inside your home folder: someone opened the map
+    // from each, so these are the folders on this Mac it may read. Each says where it is (from your home folder) and,
+    // when one is already drawn on a system map, which. Each goes by its map's address, as the list of maps names it.
+    if (url.pathname === '/api/systemmap/folders' && req.method === 'GET') {
+      const folders = [...maps.folders].filter(([, folder]) => drawable(folder)).map(([name, folder]) => {
+        const on = maps.everyMap().find(([, m]) => m.allowed(who, req) && m.repoBox?.(folder));
+        return { folder, name, where: `~${folder.slice(home.length)}`, ...(on ? { system: { name: on[0], href: `/${on[0]}/` } } : {}) };
+      });
+      return json(200, { folders });
+    }
     if (url.pathname === '/api/systemmap/github/repos' && req.method === 'GET') {
       try { return json(200, await github().repos(who)); }
       catch (/** @type {any} */ e) { return json(e.status || 502, { error: e.status ? e.message : 'GitHub could not be reached.' }); }
@@ -57,7 +75,7 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
       if (wrong) return json(400, { error: `Not a repo inside your home folder: ${String(wrong).slice(0, 200)}` });
       if (repos.some((/** @type {{ owner: string, name: string }} */ r) => !GITHUB_NAME.test(r.owner) || !GITHUB_NAME.test(r.name))) return json(400, { error: 'Not a GitHub repo name.' });
       if (repos.length && !github().status(who).linked) return json(401, { error: 'Link your GitHub account first.' });
-      const title = String(a.title || '').trim().slice(0, 80) || `${folders.length ? path.basename(path.dirname(folders[0])) : repos[0].owner} system`;
+      const title = String(a.title || '').trim().slice(0, 80) || `${folders.length ? path.basename(folders.length === 1 ? folders[0] : path.dirname(folders[0])) : repos[0].owner} system`;
       const name = maps.freeName(title);
       maps.mapCalled(name).drawSystem({ title, folders, repos, by: who });
       return json(200, { name, href: `/${name}/` });

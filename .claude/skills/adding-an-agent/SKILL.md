@@ -27,7 +27,7 @@ Anur Living Map reaches its agent through one seam. The chat map (`server/`, `sk
 
 ## Steps
 
-1. Add `team/live/agents/<agent>/index.js` returning an `AgentWorker` and an `AgentConversation`, typed in JSDoc against `team/live/types.d.ts`. Keep it JavaScript with no install: the team package runs on Node 22.
+1. Add `team/live/agents/<agent>/index.js` returning an `AgentWorker` and an `AgentConversation`, typed in JSDoc against `team/live/types.d.ts`. Keep it JavaScript with no install: the team package runs on Node 22.18 or newer (24.2 on Node 24; `team/live/node-version.js`).
 2. List it in `AGENTS` in `team/live/agent.js`, and in `agentName` if `LIVING_MAP_AGENT` should name it.
 3. Copy the scripted agents in `team/live/agent.test.js` into tests of your agent's own parsing and arguments, the way `agents/claude-code/*.test.js` and `agents/pi/*.test.js` test theirs.
 4. If the agent keeps files outside `agents/<agent>/`, add that folder to `ADAPTERS` in `team/live/seam.test.js`.

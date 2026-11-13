@@ -5,3 +5,5 @@ saves/
 maps/
 history/
 projects.json
+# the skill, copied in only while the package is packed
+skill/

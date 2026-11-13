@@ -121,6 +121,16 @@ a.map:hover{border-color:var(--text)}
 #code .go{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:18px}
 #code-est{color:var(--text-2);font-size:13px}
 #code-err{margin-top:10px;color:#B42318;font-size:13px}
+/* where the code is: a repo on GitHub, or a folder on this Mac the map already keeps */
+.nm-src{display:inline-flex;gap:2px;padding:2px;margin:0 0 16px;border:1px solid var(--rule-2);border-radius:8px}
+.nm-src button{border:0;background:none;padding:5px 12px;border-radius:6px;font:13px var(--plex);color:var(--text-2);cursor:pointer}
+.nm-src button[aria-pressed="true"]{background:#f0eee8;color:var(--text);font-weight:500}
+.nm-fail{color:#B42318}
+.nm-wait{margin:0 0 12px;padding:10px 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--canvas);font-size:13px;color:var(--text)}
+#gh-org{display:block;width:100%;box-sizing:border-box;height:36px;margin:0 0 12px;padding:0 10px;border:1px solid var(--rule-2);border-radius:8px;font:13.5px var(--plex)}
+/* no maps yet: what to do first */
+.empty{padding:22px 20px;background:#fff;border:1px dashed var(--rule-2);border-radius:10px;color:var(--text-2)}
+.empty b{display:block;margin-bottom:4px;color:var(--text);font-weight:500;font-size:15px}
 .tag-sys{font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--rule-2);color:var(--text-2)}
 .sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
@@ -197,7 +207,9 @@ a.map:hover{border-color:var(--text)}
   </div>
   <form id="code" hidden aria-label="System map">
     <div class="nm-top"><button type="button" class="nm-back" data-nm-back>‹ Back</button><div id="gh-who"></div></div>
+    <div class="nm-src" role="group" aria-label="Where the code is"><button type="button" data-src="local" aria-pressed="false">A folder on this Mac</button><button type="button" data-src="github" aria-pressed="false">On GitHub</button></div>
     <div id="code-gh"><div id="gh-state" class="nm-step" aria-live="polite"></div><div id="gh-repos"></div></div>
+    <div id="code-local" hidden><div id="local-state" class="nm-step" aria-live="polite"></div><div id="local-repos"></div></div>
     <div id="code-pick" hidden>
       <label class="nm-label" for="code-title">Name</label><input type="text" id="code-title" maxlength="80" autocomplete="off">
       <div class="go"><span id="code-est"></span><button type="submit" class="nm-btn" id="code-go" disabled>Draw the map</button></div>
@@ -210,7 +222,7 @@ a.map:hover{border-color:var(--text)}
 // every map this server holds; a click opens it, with ?as= carried along
 const $ = (id) => document.getElementById(id);
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
-const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'You';
 if (SIGNED_IN){
   $('account').hidden = false;
   $('account-button').title = `Signed in as ${SIGNED_IN}`;
@@ -256,7 +268,10 @@ form.addEventListener('submit', (e) => {
 // New map asks which kind first. A default map opens at once; a system map walks through GitHub one step at a
 // time: connect your account, install the app where your code is, choose repos
 const dialog = $('newmap'), code = $('code');
-const chosen = () => [...$('gh-repos').querySelectorAll('input:checked')].map((i) => i.value);
+// where the code is: a folder on this Mac, or GitHub; this browser remembers the choice
+let source = 'local';
+try { if (localStorage.getItem('lm.source') === 'github') source = 'github'; } catch {}
+const chosen = () => [...$(source === 'local' ? 'local-repos' : 'gh-repos').querySelectorAll('input:checked')].map((i) => i.value);
 const codeError = (text) => { $('code-err').textContent = text; $('code-err').hidden = !text; };
 function estimate(){
   const n = chosen().length;
@@ -267,9 +282,43 @@ function step(name){
   $('nm-choose').hidden = name !== 'choose'; code.hidden = name !== 'system';
   $('nm-title').textContent = name === 'system' ? 'System map' : 'New map';
   codeError('');
-  if (name === 'system') showGitHub();
+  if (name === 'system') showSource();
   else clearTimeout(ghWatch);
 }
+function showSource(){
+  document.querySelectorAll('[data-src]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.src === source)));
+  $('code-gh').hidden = source !== 'github'; $('code-local').hidden = source !== 'local';
+  $('code-pick').hidden = true; $('gh-who').innerHTML = ''; codeError('');
+  if (source === 'github') showGitHub(); else { clearTimeout(ghWatch); showFolders(); }
+}
+code.querySelector('.nm-src').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-src]'); if (!b || b.dataset.src === source) return;
+  source = b.dataset.src; try { localStorage.setItem('lm.source', source); } catch {}
+  showSource();
+});
+// Drawing is for Engineers and Admins: anyone else is told whom to ask, with a request to copy.
+const ASK = `Could you draw a system map of our code in Living Map (New map, then System map)? I'd like to see how our system fits together.`;
+const askOthers = (can) => `<p>Drawing a system map is for Engineers and Admins.${can.engineers.length ? ` Ask ${esc(can.engineers.join(', '))} to draw it.` : ' Ask an Admin to draw it.'}</p><button type="button" class="nm-btn" data-ask-engineer="${esc(ASK)}">Copy a request to send them</button>`;
+// The code folders this server already keeps a map of: someone opened the map from each, in its own chat or with
+// npx. A folder is never typed in here, so the page cannot ask after other folders on this Mac.
+async function showFolders(){
+  const can = await fetch('/api/systemmap/can').then((x) => x.json()).catch(() => ({ may: true, engineers: [] }));
+  if (source !== 'local') return;
+  if (!can.may){ $('local-state').innerHTML = askOthers(can); $('local-repos').innerHTML = ''; return; }
+  const r = await fetch('/api/systemmap/folders').then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
+  if (source !== 'local') return;
+  if (!r.ok){ codeError(r.b.error); return; }
+  if (!r.b.folders.length){
+    $('local-state').innerHTML = '<p>No code folders here yet. Type <b>/anur-living-map</b> in a Claude Code chat in your repo (or run <b>npx anur-living-map</b> there), and its folder shows here.</p>';
+    $('local-repos').innerHTML = ''; return;
+  }
+  $('local-state').innerHTML = '';
+  $('local-repos').innerHTML = `<div class="gh-head"><b>Repos to draw</b><span>on this Mac</span></div><div class="gh-list">${r.b.folders.map((f, i) => `<label class="gh-row"><input type="checkbox" value="${esc(f.folder)}"${i === 0 && r.b.folders.length === 1 ? ' checked' : ''}><span class="gh-name">${esc(f.name)}</span><span class="gh-meta">${esc(f.where)}${f.system ? ` · on ${esc(f.system.name)}` : ''}</span></label>`).join('')}</div>`;
+  if (!$('code-title').value) $('code-title').placeholder = `${r.b.folders[0].name} system`;
+  $('code-pick').hidden = false;
+  estimate();
+}
+$('local-repos').addEventListener('change', estimate);
 blank.addEventListener('click', () => { step('choose'); dialog.showModal(); });
 dialog.addEventListener('click', (e) => {
   if (e.target === dialog || e.target.closest('[data-nm-close]')){ clearTimeout(ghWatch); dialog.close(); }
@@ -283,7 +332,7 @@ dialog.addEventListener('close', () => clearTimeout(ghWatch));
 // organization that holds your code, then choose its repos. The map never sees your GitHub token, and reads
 // only repos you can read
 const INSTALL = 'https://github.com/apps/anur-living-map/installations/new';
-let ghWatch = 0;
+let ghWatch = 0, ghElsewhere = false;
 const ghApi = (route, post) => fetch(`/api/systemmap/github${route}`, post ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' } : undefined)
   .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
 async function showGitHub(){
@@ -291,13 +340,15 @@ async function showGitHub(){
   const account = (html) => { if ($('gh-who').innerHTML !== html) $('gh-who').innerHTML = html; };
   const r = await ghApi('');
   if (!r.ok){ codeError(r.b.error); return; }
-  const { linked, pending } = r.b;
+  const { linked, pending, failed, asking } = r.b;
+  // a code that ran out or was turned down on GitHub says so, above the way to try again
+  const fail = failed ? `<p class="nm-fail" role="alert">${esc(failed)}</p>` : '';
   // drawing a system map is for Engineers and Admins: anyone else asks one, and may still connect GitHub so the
   // private repos they can read show on the system maps they open
   const can = await fetch('/api/systemmap/can').then((x) => x.json()).catch(() => ({ may: true, engineers: [] }));
+  if (source !== 'github') return;
   if (!can.may){
-    const ask = `Could you draw a system map of our code in Living Map (New map, then System map)? I'd like to see how our system fits together.`;
-    $('gh-state').innerHTML = `<p>Drawing a system map is for Engineers and Admins.${can.engineers.length ? ` Ask ${esc(can.engineers.join(', '))} to draw it.` : ' Ask an Admin to draw it.'}</p><button type="button" class="nm-btn" data-ask-engineer="${esc(ask)}">Copy a request to send them</button>`
+    $('gh-state').innerHTML = askOthers(can) + fail
       + (pending ? `<p>Enter this code on GitHub to connect your account:</p><div class="code">${esc(pending.code)}</div><br><a class="nm-quiet" href="${esc(pending.uri)}" target="_blank" rel="noopener">Open GitHub</a>`
         : linked ? `<div class="nm-who"><span>Connected to GitHub as ${esc(linked)}, so system maps show you the private repos you can read</span><button type="button" class="nm-quiet" data-gh-unlink>Disconnect</button></div>`
         : '<p>Connect your GitHub account so system maps show you the private repos you can read.</p><button type="button" class="nm-quiet" data-gh-link>Connect GitHub</button>');
@@ -313,7 +364,7 @@ async function showGitHub(){
     return;
   }
   if (!linked){
-    $('gh-state').innerHTML = '<p>Connect your GitHub account to choose the repos your system is built from. The map reads only repos you can read, and never changes them.</p><button type="button" class="nm-btn" data-gh-link>Connect GitHub</button>';
+    $('gh-state').innerHTML = `${fail}<p>Connect your GitHub account to choose the repos your system is built from. The map reads only repos you can read, and never changes them.</p><button type="button" class="nm-btn" data-gh-link>Connect GitHub</button>`;
     $('gh-repos').innerHTML = '';
     return;
   }
@@ -324,8 +375,12 @@ async function showGitHub(){
   if (!shown.length){ set('gh-state', ''); set('gh-repos', '<span class="none">Finding your repos…</span>'); }
   const got = await ghApi('/repos');
   if (!got.ok){ codeError(got.b.error); return; }
+  // An install on an organization you do not own goes to its owners for approval, and GitHub shows nothing for it
+  // until they approve: the map says whom it waits on, for as long as no install there shows up.
+  const waiting = asking && !ghElsewhere && !(got.b.installed || []).some((x) => x.toLowerCase() === asking.org.toLowerCase());
+  const waitNote = waiting ? `<div class="nm-wait" role="status">${asking.type === 'User' ? `Finish installing the app on ${esc(asking.org)} on GitHub, then come back here.` : `Waiting for an owner of ${esc(asking.org)} to approve the install. GitHub sent them your request; your repos there show here once they approve.`} <button type="button" class="nm-quiet" data-gh-elsewhere>Install somewhere else</button></div>` : '';
   if (!got.b.repos.length){
-    set('gh-state', `<p>Install Anur Living Map on the GitHub organization that holds your code, and choose which repos it may read. Come back here when you are done.</p><a class="nm-btn" href="${INSTALL}" target="_blank" rel="noopener">Install on GitHub</a>`);
+    set('gh-state', waiting ? waitNote : `<p>Install Anur Living Map where your code is, and choose which repos it may read. If you are not an owner of that organization, GitHub asks its owners to approve.</p><label class="nm-label" for="gh-org">GitHub organization or account</label><input type="text" id="gh-org" autocomplete="off" spellcheck="false" value="${esc(asking?.org || linked)}"><button type="button" class="nm-btn" data-gh-install>Install on GitHub</button>`);
     set('gh-repos', ''); $('code-pick').hidden = true;
     return;
   }
@@ -335,7 +390,7 @@ async function showGitHub(){
     return `<label class="gh-row"><input type="checkbox" value="${esc(v)}"${off.has(v) ? '' : ' checked'}><span class="gh-name">${esc(x.name)}</span><span class="gh-meta">${esc(meta)}</span></label>`;
   };
   const list = (/** @type {string} */ o) => `<div class="gh-list">${got.b.repos.filter((x) => x.owner === o).map(row).join('')}</div>`;
-  set('gh-state', '');
+  set('gh-state', waitNote);
   // one organization names itself beside the heading; several each get their own list
   set('gh-repos', `<div class="gh-head"><b>Repos to draw</b>${owners.length === 1 ? `<span>${esc(owners[0])}</span>` : ''}</div>`
     + (owners.length === 1 ? list(owners[0]) : owners.map((o) => `<div class="gh-owner">${esc(o)}</div>${list(o)}`).join(''))
@@ -348,16 +403,28 @@ $('gh-repos').addEventListener('change', estimate);
 code.addEventListener('click', async (e) => {
   if (e.target.closest('[data-gh-link]')){ const r = await ghApi('/link', true); if (!r.ok) codeError(r.b.error); showGitHub(); }
   if (e.target.closest('[data-gh-unlink]')){ await ghApi('/unlink', true); showGitHub(); }
+  // GitHub opens at once (a window opened later is blocked); the map keeps where, to say whose approval it waits for
+  if (e.target.closest('[data-gh-install]')){
+    const org = $('gh-org').value.trim();
+    if (!org){ codeError('Say which GitHub organization or account holds your code.'); return; }
+    window.open(INSTALL, '_blank', 'noopener');
+    const r = await fetch('/api/systemmap/github/install', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ org }) })
+      .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
+    if (!r.ok){ codeError(r.b.error); return; }
+    ghElsewhere = false; codeError(''); showGitHub();
+  }
+  if (e.target.closest('[data-gh-elsewhere]')){ ghElsewhere = true; showGitHub(); }
   const ask = e.target.closest('[data-ask-engineer]');
   if (ask){ navigator.clipboard.writeText(ask.dataset.askEngineer).then(() => { ask.textContent = 'Copied. Send it to them'; }, () => { codeError(ask.dataset.askEngineer); }); }
 });
 // back from installing the app on GitHub: look again
-window.addEventListener('focus', () => { if (dialog.open && !code.hidden) showGitHub(); });
+window.addEventListener('focus', () => { if (dialog.open && !code.hidden && source === 'github') showGitHub(); });
 code.addEventListener('submit', async (e) => {
   e.preventDefault(); if ($('code-go').disabled) return;
   $('code-go').disabled = true; codeError('');
   const title = $('code-title').value.trim() || $('code-title').placeholder;
-  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, repos: chosen().map((x) => ({ owner: x.split('/')[0], name: x.split('/')[1] })) }) })
+  const what = source === 'local' ? { folders: chosen() } : { repos: chosen().map((x) => ({ owner: x.split('/')[0], name: x.split('/')[1] })) };
+  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, ...what }) })
     .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
   if (!r.ok){ codeError(r.b.error || 'The map could not start.'); estimate(); return; }
   location.href = `${r.b.href}${location.search}`;
@@ -468,7 +535,7 @@ function list(){
   const el = document.getElementById('list');
   document.querySelectorAll('.sort button').forEach((b) => b.classList.toggle('on', b.dataset.sort === sortBy));
   if (!maps) return;
-  if (!maps.length) { el.textContent = 'No maps yet.'; return; }
+  if (!maps.length) { el.innerHTML = '<div class="empty"><b>No maps yet — make one</b>Say what Claude should map in the box above, or press <button type="button" class="nm-quiet" data-empty-new>New map</button> to draw a repo from its code or start from a blank canvas.</div>'; return; }
   el.className = '';
   const sorted = ordered(maps, sortBy);
   el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a><button type="button" class="pin${m.pinned ? ' on' : ''}" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}" title="${m.pinned ? 'Unpin' : 'Pin to the top'}" aria-label="${m.pinned ? `Unpin ${esc(titleOf(m))}` : `Pin ${esc(titleOf(m))} to the top`}">${pinIcon}</button>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
@@ -485,6 +552,7 @@ async function togglePin(name, button){
   } catch (e){ button.disabled = false; trashNotice(e.message); }
 }
 $('list').addEventListener('click', (e) => {
+  if (e.target.closest('[data-empty-new]')) return blank.click();
   const button = e.target.closest('[data-trash]'); if (button) return moveToTrash(button.dataset.trash, button);
   const pin = e.target.closest('[data-pin]'); if (pin) togglePin(pin.dataset.pin, pin);
 });

@@ -15,8 +15,8 @@ const SCRIPT = path.join(REPO, 'team', 'skill', 'anur-living-map', 'scripts', 'o
 const dirs = /** @type {string[]} */ ([]);
 const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-open-')); dirs.push(d); return d; };
 
-/** what the stand-in server was asked, and what it says about system maps @type {{ asked: string[], systemOf: object }} */
-const stub = { asked: [], systemOf: {} };
+/** what the stand-in server was asked, what it says about system maps, and the boxes on a map @type {{ asked: string[], systemOf: object, nodes: object[] }} */
+const stub = { asked: [], systemOf: {}, nodes: [{ id: 'web' }, { id: 'api' }] };
 let port = 0;
 /** @type {http.Server} */
 let server;
@@ -29,6 +29,7 @@ beforeAll(async () => {
     if (url.pathname === '/api/projects') return json({ name: 'shop-api', href: '/shop-api/' });
     if (url.pathname === '/api/maps/system-of') return json(stub.systemOf);
     if (url.pathname.endsWith('/api/history')) return json([{ id: 'v1' }, { id: 'v2' }]);
+    if (url.pathname.endsWith('/api/state')) return json({ nodes: stub.nodes });
     if (url.pathname.endsWith('/api/rules')) return res.writeHead(200).end('rules here');
     json({ ok: true });
   });
@@ -63,7 +64,7 @@ describe('opening the map from a repo', () => {
     const out = await open();
     expect(out).toContain('update: skipped, ANUR_LIVING_MAP_NO_UPDATE is set');
     expect(out).toContain('server: already running');
-    expect(out).toContain('map: http://localhost:' + port + '/shop-api/, as it was left, 2 versions in History');
+    expect(out).toContain('map: http://localhost:' + port + '/shop-api/, as it was left, 2 versions in History, 2 boxes');
     expect(out).toContain(`chrome: skipped, would open http://localhost:${port}/shop-api/`);
     expect(out).toContain('chat: not linked');
     expect(out).toContain('rules here');
@@ -79,5 +80,11 @@ describe('opening the map from a repo', () => {
     // what the chat hears and the map it opens are the system map's
     expect(stub.asked).toContain('POST /shop-system/api/act');
     expect(stub.asked.some((a) => a.startsWith('GET /shop-system/api/rules'))).toBe(true);
+  });
+  it('says when the repo\'s map has nothing on it, and that it offers to draw the repo', async () => {
+    stub.asked.length = 0; stub.systemOf = {}; stub.nodes = [];
+    const out = await open();
+    stub.nodes = [{ id: 'web' }, { id: 'api' }];
+    expect(out).toContain('/shop-api/, as it was left, 2 versions in History, no boxes yet: it offers Draw this repo');
   });
 });

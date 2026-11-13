@@ -329,4 +329,26 @@ describe('the system map routes', () => {
     await until(() => map.snapshot().drawing?.status === 'done');
     expect((await call('/api/systemmap/retry', { name: 'nowhere' })).status).toBe(404);
   });
+  it('names no one to ask on an install with no owner yet and no map anyone draws on', async () => {
+    const nobody = systemRoutes({ maps, home, github: () => gh, team: () => [] });
+    const req = Object.assign(Readable.from([]), { method: 'GET', headers: { host: 'localhost:4323', 'sec-fetch-site': 'same-origin' } });
+    let got; await nobody(req, {}, new URL('http://localhost/api/systemmap/can'), 'Sam', (/** @type {number} */ status, /** @type {any} */ body) => { got = body; return true; });
+    expect(got).toEqual({ may: false, engineers: [] });
+  });
+  it('offers the code folders it keeps a map of to draw from, by where they are in your home folder', async () => {
+    const folder = folders[0];
+    maps.addProject(folder);
+    const { body } = await call('/api/systemmap/folders');
+    expect(body.folders).toEqual([expect.objectContaining({ folder, name: path.basename(folder), where: `~${path.sep}workspace${path.sep}${path.basename(folder)}` })]);
+    // a folder outside your home folder, or with no repo, is never offered
+    maps.folders.set('elsewhere', '/etc');
+    expect((await call('/api/systemmap/folders')).body.folders).toHaveLength(1);
+    maps.folders.delete('elsewhere');
+  });
+  it('keeps where you are installing the app, to say whose approval it waits for', async () => {
+    gh.askInstall = async (/** @type {string} */ who, /** @type {string} */ org) => ({ org, type: 'Organization', who });
+    expect((await call('/api/systemmap/github/install', { org: 'shop' })).body).toEqual({ org: 'shop', type: 'Organization', who: 'Harshit' });
+    gh.askInstall = async () => { throw Object.assign(new Error('Not a GitHub account or organization name.'), { status: 400 }); };
+    expect((await call('/api/systemmap/github/install', { org: '../x' })).status).toBe(400);
+  });
 });

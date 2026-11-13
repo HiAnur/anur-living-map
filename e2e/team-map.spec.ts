@@ -211,7 +211,9 @@ test("a box inside a box inside a box opens level by level, and Back goes up one
 test("Export image downloads the view as a picture", async ({ page }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();
-  await expect(page.getByText("Local only")).toBeVisible();
+  await expect(
+    page.getByText("Only this Mac can open this link"),
+  ).toBeVisible();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
     page.locator("[data-share-image]").click(),
