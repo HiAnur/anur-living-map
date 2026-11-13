@@ -3,9 +3,10 @@
 
 /**
  * @param {{ getState: () => any, name: string, nodeOf: (id: any) => any, seesOf: (by: any) => string, draw: Function,
- *   stamp: () => string, waiters: any[], tell: Function, relayout: () => void, keepMemory: Function }} deps
+ *   stamp: () => string, waiters: any[], tell: Function, relayout: () => void, keepMemory: Function,
+ *   isAnswering: (session: unknown) => boolean, proposeFor: (a: any) => boolean }} deps
  */
-export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }) {
+export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering, proposeFor }) {
   return {
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
@@ -79,9 +80,20 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
       if (i < 0 || (b && sees !== 'all' && b.area !== sees)) return false;
       getState().memory.splice(i, 1); return true;
     },
-    /** @param {Act<'edit'>} a */
+    // A chat answering a request from the map's pane proposes instead of drawing: what was asked there waits for
+    // its owner's Apply. A question for a teammate is no part of a proposal, so it waits until the change is applied.
+    /** @param {Act<'edit'> & { proposed?: any, refused?: string }} a */
     edit(a) {
       if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
+      if (isAnswering(a.session)) {
+        const questions = (a.calls || []).map((/** @type {any} */ c) => ({ text: `the question "${String(c?.ask || '')}"`, why: 'ask it once the change is applied' }));
+        // a box named only to join a teammate's area is the question's, so it goes with the question
+        const nodes = (a.nodes || []).filter((/** @type {any} */ n) => Object.keys(n || {}).some((k) => !['id', 'area', 'by'].includes(k)));
+        /** @type {any} */ const asked = { type: 'propose', by: a.by, session: a.session, note: a.note, nodes, edges: a.edges, unlink: a.unlink, memory: a.memory, start: a.start, tidy: a.tidy };
+        if (!proposeFor(asked)) { a.refused = 'Nothing in this change could be proposed: a request from the map\'s chat is answered with a proposal, and a question waits until one is applied.'; return false; }
+        a.proposed = { ...asked.proposed, dropped: [...asked.proposed.dropped, ...questions] };
+        return true;
+      }
       if (typeof a.start === 'string' && [...getState().nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;
       draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });
       if (a.tidy === true) relayout();

@@ -35,9 +35,9 @@ The map's own work (answering on a box, preparing and running an Action, drawing
 
 Everything runs on your machine. Clone somewhere else? Set `ANUR_LIVING_MAP_HOME` to that folder. Sign-in, Google sign-in for a team, and the list of maps: [team/README.md](team/README.md).
 
-## The chat map
+## The chat map (retired)
 
-The other map in this repo: one Claude Code chat as a mind map beside it, so you see where that chat stands (what waits on you, what is open, what was decided). `/living-map` in any chat. Install and use: [docs/chat-map.md](docs/chat-map.md).
+The older Living Map drew one Claude Code chat as a mind map beside it (`/living-map`). It is retired: use Anur Living Map above. If you have it installed, `node skill/uninstall.ts` in its folder removes it, and asks before deleting its data. More in [docs/chat-map.md](docs/chat-map.md).
 
 ## What changed
 

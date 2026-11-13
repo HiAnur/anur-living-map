@@ -245,6 +245,8 @@ interface ConverseJob {
   title: string;
   system: string;
   prompt: string;
+  // the map's own tool servers, the only tools the chat may use
+  servers: McpServers;
   onClose: () => void;
 }
 

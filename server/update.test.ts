@@ -33,7 +33,12 @@ const CLEAN = {
   "git rev-parse --is-inside-work-tree": "true",
   "git rev-parse --abbrev-ref HEAD": "main",
   "git status --porcelain": "",
+  "git describe --tags --abbrev=0": "v0.1.30",
 };
+
+const FETCH =
+  "git fetch --quiet --tags https://github.com/harshit-pi/living-map.git main";
+const MOVE = "git merge --quiet --ff-only v0.1.30";
 
 const release = async () => ({
   tag_name: "v0.1.30",
@@ -97,13 +102,7 @@ test("a lockfile rewritten by npm install does not block the update", async () =
   const r = await runUpdate(() => {}, { git, skill });
   assert.deepEqual(r, { ok: true });
   const reset = ran.indexOf("git checkout -- package-lock.json");
-  assert.ok(
-    reset >= 0 &&
-      reset <
-        ran.indexOf(
-          "git pull --rebase https://github.com/harshit-pi/living-map.git main",
-        ),
-  );
+  assert.ok(reset >= 0 && reset < ran.indexOf(MOVE));
 });
 
 test("being offline means no update, not an error", async () => {
@@ -119,7 +118,7 @@ test("being offline means no update, not an error", async () => {
   assert.equal(info.latest, null);
 });
 
-test("an update pulls, installs, builds and rewrites the skill, reporting each step", async () => {
+test("an update moves to the latest release, installs, builds and rewrites the skill, reporting each step", async () => {
   const { git, ran } = fakeGit(CLEAN);
   const steps: UpdateStep[] = [];
   let skillWritten = 0;
@@ -134,10 +133,15 @@ test("an update pulls, installs, builds and rewrites the skill, reporting each s
   });
   assert.equal(skillWritten, 1);
   assert.deepEqual(r, { ok: true });
+  assert.ok(ran.indexOf(FETCH) >= 0);
   assert.ok(
-    ran.includes(
-      "git pull --rebase https://github.com/harshit-pi/living-map.git main",
-    ),
+    ran.includes("git describe --tags --abbrev=0 --match v[0-9]* FETCH_HEAD"),
+    "the release is the last v* tag on the project's main",
+  );
+  assert.ok(ran.indexOf(FETCH) < ran.indexOf(MOVE));
+  assert.ok(
+    !ran.some((l) => l.startsWith("git pull")),
+    "main itself is never pulled",
   );
   assert.ok(ran.some((l) => l.startsWith("npm ci")));
   assert.ok(ran.includes("npm run build"));
@@ -169,22 +173,29 @@ test("a skill that cannot be written is reported, and the update still finishes"
   assert.ok(steps.some((s) => s.step === "Restart Living Map to finish"));
 });
 
-test("a pull that fails is rolled back and nothing is installed", async () => {
+test("a copy that cannot fast-forward to the release is left as it was, and nothing is installed", async () => {
   const { git, ran } = fakeGit({
     ...CLEAN,
-    "git pull": new Error("CONFLICT in app/web/App.tsx"),
+    "git merge": new Error("fatal: Not possible to fast-forward, aborting."),
   });
   const steps: UpdateStep[] = [];
   const r = await runUpdate((s) => steps.push(s), { git, skill });
   assert.equal(r.ok, false);
-  assert.match(r.error ?? "", /CONFLICT/);
-  assert.ok(
-    ran.includes("git rebase --abort"),
-    "the half-done rebase is undone",
-  );
+  assert.match(r.error ?? "", /fast-forward/);
   assert.ok(
     !ran.some((l) => l.startsWith("npm")),
     "nothing installed or built",
   );
   assert.equal(steps.at(-1)?.state, "failed");
+});
+
+test("with no release yet there is nothing to update to", async () => {
+  const { git, ran } = fakeGit({
+    ...CLEAN,
+    "git describe --tags --abbrev=0": new Error("No names found"),
+  });
+  const r = await runUpdate(() => {}, { git, skill });
+  assert.equal(r.ok, false);
+  assert.match(r.error ?? "", /no release/);
+  assert.ok(!ran.some((l) => l.startsWith("git merge")));
 });

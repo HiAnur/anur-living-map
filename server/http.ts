@@ -165,7 +165,7 @@ export function createApp(
     res.json(await checkForUpdate({ force: req.query.refresh === "1" }));
   });
 
-  // pull, install, build, restart; progress goes to every tab as "update" events
+  // move to the latest release, install, build, restart; progress goes to every tab as "update" events
   app.post("/api/update", (_req, res) => {
     res.json({ started: true });
     void runUpdate((s) => hub.emit({ type: "update", ...s })).then((r) => {
