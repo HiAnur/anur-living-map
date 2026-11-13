@@ -21,12 +21,17 @@ describe('boxes', () => {
     expect(r.skipped).toEqual([]);
     expect(r.edit.note).toBe('Added Pilot Users (pilot-users)');
   });
-  it('updates a box found by its name without renaming it, and renames one given by id', () => {
-    const byName = plan({ boxes: [{ label: 'pricing', sub: 'Three plans' }] });
-    expect(byName.edit.nodes).toEqual([{ id: 'pricing', sub: 'Three plans' }]);
-    expect(byName.done).toEqual(['Changed Pricing (pricing)']);
-    const byId = plan({ boxes: [{ id: 'pricing', label: 'Plans and prices' }] });
-    expect(byId.edit.nodes).toEqual([{ id: 'pricing', label: 'Plans and prices' }]);
+  it('changes a box only by its id, and renames it that way; a name alone changes nothing', () => {
+    const byId = plan({ boxes: [{ id: 'pricing', label: 'Plans and prices', sub: 'Three plans' }] });
+    expect(byId.edit.nodes).toEqual([{ id: 'pricing', label: 'Plans and prices', sub: 'Three plans' }]);
+    expect(byId.done).toEqual(['Changed Pricing (pricing)']);
+    expect(() => plan({ boxes: [{ label: 'pricing', sub: 'Three plans' }] })).toThrow('Nothing changed. box "pricing": Pricing is already on the map; to change it, give its id (pricing)');
+  });
+  it('finds a box by its name to hang it under another, and to draw lines to it', () => {
+    const r = plan({ boxes: [{ label: 'Invite email', under: 'Pricing' }], lines: [{ from: 'Launch', to: 'invite email', label: 'Sends it' }] });
+    expect(r.edit.nodes).toEqual([]);
+    expect(r.edit.edges).toEqual([{ from: 'pricing', to: 'email' }, { from: 'launch', to: 'email', label: 'Sends it' }]);
+    expect(r.done[0]).toBe('Invite email hangs under Pricing');
   });
   it('gives a second box of the same new name its own id', () => {
     const r = plan({ boxes: [{ label: 'Risk', sub: 'One' }, { id: 'launch', label: 'Launch day', sub: 'x' }, { label: 'Launch!', sub: 'Two' }] });
@@ -91,8 +96,8 @@ describe('what Claude must give', () => {
       'box "Blank": a new box needs a second line (sub) that says what it is, in a few words',
     ]);
   });
-  it('still changes a box already on the map without one, by name or by id', () => {
-    expect(plan({ boxes: [{ label: 'Invite email', state: 'todo' }] }).edit.nodes).toEqual([{ id: 'email', state: 'todo' }]);
+  it('still changes a box already on the map without one, by its id', () => {
+    expect(plan({ boxes: [{ id: 'email', state: 'todo' }] }).edit.nodes).toEqual([{ id: 'email', state: 'todo' }]);
     expect(plan({ boxes: [{ id: 'email', label: 'Invitation' }] }).skipped).toEqual([]);
   });
   it('leaves out a line with no label, and points at "under" for a box that only belongs under another', () => {
@@ -108,5 +113,43 @@ describe('what Claude must give', () => {
   it('says nothing changed when a call held only a bare box or a bare line', () => {
     expect(() => plan({ boxes: [{ label: 'Bare' }] })).toThrow('Nothing changed. box "Bare": a new box needs a second line');
     expect(() => plan({ lines: [{ from: 'launch', to: 'email' }] })).toThrow('Nothing changed. line Launch → Invite email: say what happens on it');
+  });
+});
+
+describe('boxes people wrote', () => {
+  // Notes is Duy's; Plan is Claude's but Priyanka changed it since; Draft is Claude's own; Launch came from the code
+  const map = (linked = true) => ({ ...state(), ...(linked ? { linked: [{ session: 's1', owner: 'Duy' }] } : {}),
+    nodes: [...state().nodes, { id: 'notes', label: 'Notes', by: 'Duy' }, { id: 'plan', label: 'Plan', by: 'Claude', updatedBy: 'Priyanka' }, { id: 'draft', label: 'Draft', by: 'Claude', updatedBy: 'Claude' }] });
+  const on = (/** @type {any} */ args, linked = true) => planChange(args, map(linked), 1_700_000_000_000);
+
+  it('turns a change to a box a person made or changed into a proposal, and draws the rest', () => {
+    const r = on({ boxes: [{ id: 'notes', notes: 'Rewritten by Claude' }, { id: 'plan', label: 'Plan B' }, { id: 'draft', sub: 'Second try' }] });
+    expect(r.edit.nodes).toEqual([{ id: 'draft', sub: 'Second try' }]);
+    expect(r.edit.propose).toEqual([{ id: 'notes', desc: 'Rewritten by Claude' }, { id: 'plan', label: 'Plan B' }]);
+    expect(r.done).toEqual([
+      'Proposed a change to Notes (notes): Duy made it, so it waits for Apply in Duy\'s Claude pane on the map',
+      'Proposed a change to Plan (plan): Priyanka last changed it, so it waits for Apply in Duy\'s Claude pane on the map',
+      'Changed Draft (draft)',
+    ]);
+  });
+  it('greys out only a box Claude made; any other box gone is a proposal', () => {
+    const r = on({ boxes: [{ id: 'draft', state: 'gone' }, { id: 'launch', state: 'gone' }, { id: 'launch', state: 'todo' }] });
+    expect(r.edit.nodes).toEqual([{ id: 'draft', state: 'gone' }, { id: 'launch', state: 'todo' }]);
+    expect(r.edit.propose).toEqual([{ id: 'launch', state: 'gone' }]);
+    expect(r.done[1]).toBe('Proposed a change to Launch (launch): Claude did not make it, so it waits for Apply in Duy\'s Claude pane on the map');
+  });
+  it('leaves a person\'s box as it is when no chat is linked to hold the proposal, and says why', () => {
+    expect(() => on({ boxes: [{ id: 'notes', notes: 'x' }] }, false)).toThrow(/Nothing changed\. box Notes \(notes\): Duy made it, so Claude changes it only through a proposal/);
+  });
+  it('never proposes moving a person\'s box to another area, but still opens it to someone asked a question on it', () => {
+    const r = on({ boxes: [{ id: 'notes', sub: 'Money notes', area: 'billing' }], questions: [{ box: 'notes', for: 'Priyanka', ask: 'Right?' }] });
+    expect(r.edit.propose).toEqual([{ id: 'notes', sub: 'Money notes' }]);
+    expect(r.skipped).toEqual(['area "billing" on Notes: Duy made it, so only a person moves it to another area']);
+    expect(r.edit.nodes).toEqual([{ id: 'notes', area: 'billing' }]);
+  });
+  it('still draws lines to and under a person\'s box', () => {
+    const r = on({ boxes: [{ id: 'notes', under: 'launch' }], lines: [{ from: 'draft', to: 'Notes', label: 'Feeds' }] });
+    expect(r.edit.propose).toBeUndefined();
+    expect(r.edit.edges).toEqual([{ from: 'launch', to: 'notes' }, { from: 'draft', to: 'notes', label: 'Feeds' }]);
   });
 });

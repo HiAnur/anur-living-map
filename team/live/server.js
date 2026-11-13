@@ -438,6 +438,15 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   }
   /** @type {(by?: any) => any[]} */
   const pendingProposals = (by) => pendingIn(state, by, ownsChat);
+  // a change Claude drew through the map's tools to boxes people wrote: one of the linked chat's proposals, in its
+  // owner's Claude pane with Apply, checked for that person like the ones the chat proposes itself
+  /** @param {{ nodes: any[] }} change @param {string} note */
+  function offer(change, note) {
+    const l = linkOf(); if (!l) return false;
+    const pr = check(change, l.owner); if (!pr.ops.length) return false;
+    state.proposals = [...(state.proposals || []), { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, session: l.session, made: Date.now(), note: note.slice(0, 200), ...pr }].slice(-30);
+    setTimeout(sendMirror); return true;
+  }
   // Older pending offers also adopt the branch preview when their map opens.
   for (const p of pendingProposals()) placeProposed(p.plan);
 
@@ -510,7 +519,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     ...chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
       selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
       relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }),
-    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }),
+    ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, offer }),
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf, seesOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
@@ -621,6 +630,8 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       if (guest && (!mayAct(state, a, true) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
       // A link cannot impersonate a member or start Claude on this Mac.
       a.by = guest ? 'Guest' : String(who || a.by || 'You').slice(0, 40);
+      // an edit from a program on this Mac is the map's tools drawing for Claude (mcp.js), and is held to Claude's rules
+      if (a.type === 'edit' && !who && !guest) a.by = 'Claude';
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);

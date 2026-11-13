@@ -50,6 +50,7 @@ export function askContext({ getState, project, nodeOf, allNodes, allEdges, hidd
       'turning a line around when the flow reads better the other way. Set "start" to the id of the box the map starts from; when no box on the map',
       'can hold all the others, add one new box for the map\'s subject, with lines from it to the boxes at the top, and start from it.',
       'Then add "tidy": true, and on Apply the map places every box itself; never try to place boxes.',
+      'The map checks the result and offers nothing when it is not one tree: a box with no line into it, a box with two lines with no words into it, or boxes that hang under each other in a loop.',
       'When planning new topics, include a short sub description on every new box explaining what it covers. Keep it to one brief sentence.',
       'A new box needs a new lowercase id and a label; giving an existing box id changes that box. Leave out x and y.',
       'Your earlier replies below say which changes you offered and what became of them. A box already on the map is changed by its id,',

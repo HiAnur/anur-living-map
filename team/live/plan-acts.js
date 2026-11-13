@@ -1,11 +1,13 @@
 // What a chat draws and builds on the map: its plan, its pull request, Build the plan and plan.md, quick changes from
 // the map's tools, and the memory people may reword or take away. The map passes in its state and the helpers each needs.
+import { waitsForApply } from './draw.js';
 
 /**
  * @param {{ getState: () => any, name: string, nodeOf: (id: any) => any, seesOf: (by: any) => string, draw: Function,
- *   stamp: () => string, waiters: any[], tell: Function, relayout: () => void, keepMemory: Function }} deps
+ *   stamp: () => string, waiters: any[], tell: Function, relayout: () => void, keepMemory: Function,
+ *   offer: (change: { nodes: any[] }, note: string) => boolean }} deps `offer`: a change made a proposal for a person to Apply
  */
-export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory }) {
+export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, offer }) {
   return {
     // an agent draws its plan: boxes, lines and calls are added or updated by id,
     // so Claude Code (or Codex) can put "Billing" on the map from a chat
@@ -81,9 +83,18 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
     },
     /** @param {Act<'edit'>} a */
     edit(a) {
-      if (![a.nodes, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
-      if (typeof a.start === 'string' && [...getState().nodes, ...(a.nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;
-      draw({ nodes: a.nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });
+      if (![a.nodes, a.propose, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
+      // Claude changes a box a person made or changed, or takes off one it did not make, only through a proposal a
+      // person applies. Moving a box into the area of someone this edit asks a question is how they get to see it.
+      const asks = (/** @type {any} */ n) => Object.keys(n).every((k) => k === 'id' || k === 'area')
+        && (a.calls || []).some((/** @type {any} */ c) => c?.node === n.id && c.for && seesOf(c.for) === n.area);
+      const waiting = (/** @type {any} */ n) => a.by === 'Claude' && n && typeof n === 'object' && nodeOf(n.id) && !asks(n) && !!waitsForApply(nodeOf(n.id), n);
+      const nodes = Array.isArray(a.nodes) ? a.nodes.filter((n) => !waiting(n)) : a.nodes;
+      const held = [...(Array.isArray(a.propose) ? a.propose : []), ...(Array.isArray(a.nodes) ? a.nodes.filter(waiting) : [])];
+      const offered = held.length > 0 && offer({ nodes: held }, String(a.note || ''));
+      if (offered && !(nodes?.length || a.edges?.length || a.calls?.length || a.memory?.length || a.unlink?.length || a.tidy === true || a.start)) return true;
+      if (typeof a.start === 'string' && [...getState().nodes, ...(nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;
+      draw({ nodes, edges: a.edges, calls: a.calls, unlink: a.unlink }, a.by, { kind: 'edit' });
       if (a.tidy === true) relayout();
       for (const m of (a.memory || []).slice(0, 10)) keepMemory(m, a.by);
       getState().log.push({ at: Date.now(), who: a.by, action: 'drew', text: String(a.note || 'a quick change').slice(0, 200) });

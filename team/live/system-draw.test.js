@@ -40,7 +40,7 @@ const agent = {
     if (prompt.includes('The repo is trading-service')) {
       return { value: { boxes: [
         { id: 'trade', name: 'Trade function', kind: 'function', description: 'Places trades', facts: [id((f) => f.kind === 'construct')] },
-        { id: 'chat', name: 'Chat users', kind: 'person', description: 'Only a description says so', facts: [id((f) => f.kind === 'module')] },
+        { id: 'chat', name: 'Trading stack', kind: 'person', description: 'Only a description says so', facts: [id((f) => f.kind === 'module' && String(f.module).includes('trading'))] },
       ], lines: [] }, cost: { value: 0.1, unit: 'usd' }, ms: 5 };
     }
     return { value: { boxes: [{ id: 'home', name: 'Home screen', kind: 'screen', description: 'Home', facts: [id((f) => f.kind === 'screens')] }], lines: [] }, cost: { value: 0.1, unit: 'usd' }, ms: 5 };
@@ -85,7 +85,7 @@ describe('drawing a system map', () => {
   });
   it('marks what only descriptions show, with a warning on the map', async () => {
     const { state } = await drawSystem({ folders: [trading()], agent });
-    expect(allBoxesOf(state).find((n) => n.label === 'Chat users')?.warn).toMatch(/^Unconfirmed/);
+    expect(allBoxesOf(state).find((n) => n.label === 'Trading stack')?.warn).toMatch(/^Unconfirmed/);
   });
   it('reports each repo\'s stage as it goes, and what it cost', async () => {
     /** @type {string[]} */
