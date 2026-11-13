@@ -6,6 +6,7 @@
 //   are marked, and on an older map, a line to or from a box people added
 
 import { allBoxesOf, allLinesOf, graphOfBox, graphsOf } from './map-walk.js';
+import { fromCentre, isCentre } from './system-centre.js';
 
 /**
  * The map drawn again, with what people did to the map before it. `keep` names drawn boxes and lines (`from>to`) the
@@ -58,7 +59,8 @@ export function keepHandEdits(before, drawn, keep = {}) {
 /**
  * What a redraw would change on the map, for an Engineer to review before it lands: boxes code added, took away or
  * renamed or redescribed, and lines added or taken away. Each names its repo, so someone who may not read that repo
- * is not told of it (withoutRepos in sharing.js).
+ * is not told of it (withoutRepos in sharing.js). The system's centre and its lines are code's own, kept in step with
+ * the boxes (system-centre.js), so they are never a change to review.
  * @param {any} before the map as it is @param {any} after the map as the redraw would leave it (keepHandEdits applied)
  * @returns {{ what: 'added' | 'gone' | 'changed', kind: 'box' | 'line', id: string, label: string, was?: string, repo?: string, toRepo?: string }[]}
  */
@@ -78,13 +80,14 @@ export function redrawChanges(before, after) {
   const repoField = (/** @type {string | undefined} */ repo) => repo ? { repo } : {};
   for (const [id, { n, repo }] of now) {
     const o = was.get(id)?.n;
+    if (isCentre(n)) continue;
     if (!o) changes.push({ what: 'added', kind: 'box', id, label: String(n.label || id), ...repoField(repo) });
     else if (o.origin === 'code' && (o.label !== n.label || (o.sub || '') !== (n.sub || '')))
       changes.push({ what: 'changed', kind: 'box', id, label: String(n.label || id), ...(o.label !== n.label ? { was: String(o.label || '') } : {}), ...repoField(repo) });
   }
-  for (const [id, { n, repo }] of was) if (!now.has(id)) changes.push({ what: 'gone', kind: 'box', id, label: String(n.label || id), ...repoField(repo) });
+  for (const [id, { n, repo }] of was) if (!now.has(id) && !isCentre(n)) changes.push({ what: 'gone', kind: 'box', id, label: String(n.label || id), ...repoField(repo) });
   /** every line, keyed by its ends @param {any} map @param {Map<string, { n: any, repo?: string }>} by */
-  const lines = (map, by) => new Map(allLinesOf(map).map((/** @type {any} */ e) => [`${e.from}>${e.to}`, { e, label: `${by.get(e.from)?.n.label || e.from} → ${by.get(e.to)?.n.label || e.to}`, repo: by.get(e.from)?.repo, toRepo: by.get(e.to)?.repo }]));
+  const lines = (map, by) => new Map(allLinesOf(map).filter((/** @type {any} */ e) => !fromCentre(e)).map((/** @type {any} */ e) => [`${e.from}>${e.to}`, { e, label: `${by.get(e.from)?.n.label || e.from} → ${by.get(e.to)?.n.label || e.to}`, repo: by.get(e.from)?.repo, toRepo: by.get(e.to)?.repo }]));
   const wasLines = lines(before, was), nowLines = lines(after, now);
   // a line names both its ends, so it carries the repo of each
   const ends = (/** @type {{ repo?: string, toRepo?: string }} */ l) => ({ ...repoField(l.repo), ...(l.toRepo && l.toRepo !== l.repo ? { toRepo: l.toRepo } : {}) });

@@ -61,9 +61,9 @@ async function pool(items, limit, work) {
  * drawn again stays the same box (system-ids.js).
  * @param {{ folders: string[], agent: Pick<AgentWorker, 'answer'>, onProgress?: (p: Progress) => void, model?: string, concurrency?: number,
  *   signal?: AbortSignal, reuse?: (r: Reading) => Checked | null, onDrawn?: (r: Reading, drawn: Checked) => void,
- *   before?: (repo: string | null) => import('./system-ids.js').Known[] | null }} job
+ *   before?: (repo: string | null) => import('./system-ids.js').Known[] | null, title?: string }} job `title`: the map's, the name of its centre
  */
-export async function drawSystem({ folders, agent, onProgress = () => {}, model, concurrency = 3, signal, reuse = () => null, onDrawn = () => {}, before = () => null }) {
+export async function drawSystem({ folders, agent, onProgress = () => {}, model, concurrency = 3, signal, reuse = () => null, onDrawn = () => {}, before = () => null, title = '' }) {
   const started = Date.now();
   /** @type {Map<string, Progress>} */
   const progress = new Map();
@@ -136,5 +136,5 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
   tell({ repo: 'platform', stage: p.value ? 'done' : 'failed', ...(p.error ? { error: p.error } : {}), boxes: platform.boxes.length });
   // the facts and links behind the map, kept beside it for tracing a request (system-trace.js)
   const store = { readings: readings.map((r) => ({ repo: r.repo, facts: r.facts })), links };
-  return { state: systemState(platform, linkMap, drawn), report: report(), cancelled: false, store };
+  return { state: systemState(platform, linkMap, drawn, title), report: report(), cancelled: false, store };
 }

@@ -346,18 +346,38 @@ describe('the centre circle', () => {
     edges: [{ from: 'launch', to: 'pricing' }, { from: 'launch', to: 'audience' }, { from: 'pricing', to: 'trial' }],
   });
 
-  it('is the start box of a topic map, and nothing on a map drawn from code', () => {
+  it('is the start box, given or found, unless it holds what a circle cannot show', () => {
     const { nodes, edges } = sample();
-    expect([...hubSizes(nodes, edges, null, false)]).toEqual([['launch', { w: HUB_SIZE, h: HUB_SIZE }]]);
-    expect([...hubSizes(nodes, edges, 'launch', true)]).toEqual([]);
+    expect([...hubSizes(nodes, edges, null)]).toEqual([['launch', { w: HUB_SIZE, h: HUB_SIZE }]]);
+    expect([...hubSizes(nodes, edges, 'launch')]).toEqual([['launch', { w: HUB_SIZE, h: HUB_SIZE }]]);
     nodes[0] = { ...nodes[0], inside: { nodes: [], edges: [] } };
-    expect([...hubSizes(nodes, edges, null, false)]).toEqual([]);
+    expect([...hubSizes(nodes, edges, null)]).toEqual([]);
+  });
+
+  it('lays a system map\'s centre out in a row of its own, in the middle above the rows of calls', () => {
+    const at = (id, label) => ({ id, label, x: 0, y: 0, origin: 'code' });
+    const nodes = [at('system', 'Shop system'), at('system-web', 'web'), at('system-app', 'app'), at('system-api', 'api'), at('system-pay', 'Payments')];
+    const edges = [...nodes.slice(1).map((n) => ({ from: 'system', to: n.id, origin: 'code' })), { from: 'system-web', to: 'system-api', label: 'calls' }, { from: 'system-app', to: 'system-api', label: 'calls' }, { from: 'system-api', to: 'system-pay', label: 'charges' }];
+    const sizes = hubSizes(nodes, edges, 'system');
+    expect([...sizes]).toEqual([['system', { w: HUB_SIZE, h: HUB_SIZE }]]);
+    expect(tidyLayers(nodes, edges, null, sizes)).toBe(true);
+    const [centre, web, app, api, pay] = nodes;
+    // what calls above what is called, one row each, with the centre on top
+    expect(centre.y).toBeLessThan(web.y);
+    expect(web.y).toBe(app.y);
+    expect(api.y).toBeGreaterThan(web.y);
+    expect(pay.y).toBeGreaterThan(api.y);
+    // the centre over the middle of the boxes it leads to, and its row only as tall as the circle
+    const xs = nodes.slice(1).map((n) => n.x);
+    expect(centre.x).toBeGreaterThan(Math.min(...xs));
+    expect(centre.x).toBeLessThan(Math.max(...xs));
+    expect(web.y - centre.y).toBe(HUB_SIZE / 2 + 150 + 50 / 2);
   });
 
   it('brings the main topics in close to the circle, the next ring keeping its gap from them', () => {
     const box = sample(), hub = sample();
     tidyTree(box.nodes, box.edges, null, () => false, 'launch');
-    tidyTree(hub.nodes, hub.edges, null, () => false, 'launch', hubSizes(hub.nodes, hub.edges, 'launch', false));
+    tidyTree(hub.nodes, hub.edges, null, () => false, 'launch', hubSizes(hub.nodes, hub.edges, 'launch'));
     const near = (nodes) => Math.abs(get(nodes, 'pricing').x - get(nodes, 'launch').x);
     expect(near(box.nodes) - near(hub.nodes)).toBe((140 - HUB_SIZE) / 2);
     // the circle's edge to its topics' edge is the gap any two rings keep
@@ -366,7 +386,7 @@ describe('the centre circle', () => {
   });
 
   it('places a new topic in the main topics\' column, as Tidy up would, without moving a box already there', () => {
-    const { nodes, edges } = sample(), sizes = () => hubSizes(nodes, edges, 'launch', false);
+    const { nodes, edges } = sample(), sizes = () => hubSizes(nodes, edges, 'launch');
     tidyTree(nodes, edges, null, () => false, 'launch', sizes());
     const before = at(nodes);
     /** @type {any[]} */ (nodes).push({ id: 'channels', label: 'Channels' });
@@ -376,7 +396,7 @@ describe('the centre circle', () => {
     expect(Math.abs(get(nodes, 'channels').x - get(nodes, 'launch').x)).toBe(Math.abs(get(nodes, 'pricing').x - get(nodes, 'launch').x));
     // without the circle's size the tree's columns no longer match, and the new box would fall back to the grid
     const grid = sample();
-    tidyTree(grid.nodes, grid.edges, null, () => false, 'launch', hubSizes(grid.nodes, grid.edges, 'launch', false));
+    tidyTree(grid.nodes, grid.edges, null, () => false, 'launch', hubSizes(grid.nodes, grid.edges, 'launch'));
     /** @type {any[]} */ (grid.nodes).push({ id: 'channels', label: 'Channels' });
     grid.edges.push({ from: 'launch', to: 'channels' });
     placeNew(grid.nodes, grid.edges, 'launch');

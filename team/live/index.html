@@ -1974,6 +1974,9 @@ function portsFor(list, nodes, spreadOut = true){
 // largest group of boxes that lines join; boxes no line joins to it are loose and never stop it being one, and a
 // group of them that is a tree of its own is drawn as one.
 function crossLinks(){
+  // a map drawn from code reads in rows, what calls above what is called: its centre makes its top level one tree, yet
+  // its calls stay plain lines, never cross-links
+  if (S.drawing) return null;
   const ids = new Set(S.nodes.map((n) => n.id)), es = S.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
   // the groups of boxes that lines join, a box with no line a group of its own
   const near = new Map(S.nodes.map((n) => [n.id, []])), groupOf = new Map(), groups = [];
@@ -2066,7 +2069,7 @@ function placeWords(labels, lines, nodes){
 // the start box of a map's top level is drawn as a small empty circle (page-hub.js); while you rename it, as a box,
 // so the name you type has room
 function hubbed(n){
-  return isHub(n, { start: fold.start, top: view === 'system', code: !!S?.drawing }) && naming?.edit !== n.id;
+  return isHub(n, { start: fold.start, top: view === 'system' }) && naming?.edit !== n.id;
 }
 // the circle, and the boxes right under it, its main topics, in orange; where the start is drawn as a box, that one box
 // in orange. When a box carries a colour of its own (a question waiting on it, an answer, something the plan does to
@@ -2589,14 +2592,15 @@ document.addEventListener('keydown', (e) => {
   popup.hidePopover(); popup.previousElementSibling.focus();
 }, true);
 // On a map that builds on a system map, a box may point at the box there it is about: a link to it, or a search of
-// that map's boxes to pick one. The system map's boxes are read once, as the viewer may see them.
+// that map's boxes to pick one. The system map's boxes are read once, as the viewer may see them. Its centre, the
+// whole system, is no box to be about: every box there is part of it.
 let baseBoxes = null;
 function loadBaseBoxes(){
   if (baseBoxes || !S.buildsOn) return;
   baseBoxes = [];
   fetch(`/${encodeURIComponent(S.buildsOn.name)}/api/state`).then((r) => r.ok ? r.json() : null).then((st) => {
     const out = [];
-    const walk = (nodes, above) => { for (const b of nodes || []){ if (b.hiddenRepo || !b.label) continue; out.push({ id: b.id, label: b.label, pick: above ? `${b.label} (in ${above})` : b.label }); walk(b.inside?.nodes, b.label); } };
+    const walk = (nodes, above) => { for (const b of nodes || []){ if (b.hiddenRepo || !b.label || isHub(b, { start: st.start, top: !above })) continue; out.push({ id: b.id, label: b.label, pick: above ? `${b.label} (in ${above})` : b.label }); walk(b.inside?.nodes, b.label); } };
     walk(st?.nodes, '');
     baseBoxes = out; renderSide();
   }).catch(() => { /* the system map did not answer: there is nothing to pick from */ });
