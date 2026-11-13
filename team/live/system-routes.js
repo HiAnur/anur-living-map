@@ -18,17 +18,16 @@ const onThisMac = (req) => LOCAL.test(req.headers.host || '') && (req.method ===
   : req.headers.origin === `http://${req.headers.host}` && String(req.headers['content-type'] || '').startsWith('application/json'));
 const GITHUB_NAME = /^[\w.-]+$/;
 /** @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, home?: string, github?: () => ReturnType<typeof import('./github.js').github>,
- *   team?: () => any[], known?: (who: string) => boolean }} deps `team`: the team's people as seed.json lists them; `known`: whether
- *   someone on it can sign in on this install */
-export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub, team = () => /** @type {any[]} */ ([]), known = () => true }) {
+ *   team?: () => any[] }} deps `team`: who may draw before any map makes them an Admin (the install's owner) */
+export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub, team = () => /** @type {any[]} */ ([]) }) {
   /**
-   * Who may draw a system map, before any map of it exists: an Admin or Engineer of the team (seed.json), or of any
+   * Who may draw a system map, before any map of it exists: an Admin or Engineer of the team (`team`), or of any
    * map on this Mac, as `isEngineer` reads roles. Everyone else asks one of them.
    */
   const engineer = (/** @type {any} */ p) => p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(String(p.role || ''));
-  // whom to ask: someone who can draw and is really here, on a map on this Mac or with a sign-in; never a name from
-  // the role book that nobody on this install uses
-  const engineers = () => [...new Set([...team().filter((p) => known(String(p.id))), ...maps.everyMap().flatMap(([, m]) => /** @type {any[]} */ (m.snapshot().people || []))].filter(engineer).map((p) => String(p.id)))];
+  // whom to ask: someone who can draw and is really here, the install's owner or an Engineer or Admin of a map on
+  // this Mac; never a name from the demo story's cast
+  const engineers = () => [...new Set([...team(), ...maps.everyMap().flatMap(([, m]) => /** @type {any[]} */ (m.snapshot().people || []))].filter(engineer).map((p) => String(p.id)))];
   const mayDraw = (/** @type {string} */ who) => team().some((p) => p.id === who && engineer(p)) || maps.everyMap().some(([, m]) => isEngineer(m.snapshot(), who));
   /** Whether a folder may be drawn: a repo inside your home folder. @param {unknown} f */
   const drawable = (f) => typeof f === 'string' && path.isAbsolute(f) && path.resolve(f) === f && f.startsWith(home + path.sep) && fs.existsSync(path.join(f, '.git'));

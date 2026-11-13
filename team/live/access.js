@@ -1,6 +1,16 @@
 // Removed members stay removed when they reconnect or the map restarts.
 /** @param {Members} state @param {Who} who */
 export const managesAccess = (state, who) => !!who && state.people?.some((p) => p.id === who && p.role === 'Admin');
+/**
+ * Who owns a map, as its Admins: whoever made it, and on a repo's own map the owner of this install. A map kept
+ * from before maps recorded who made them has the Admins it was stored with, and `before`.
+ * @param {Members} state @param {{ project?: boolean, owner?: string | null, before?: string[] }} [o]
+ * @returns {string[]}
+ */
+export function adminsOf(state, { project = false, owner = null, before = [] } = {}) {
+  const own = Array.isArray(state.admins) ? state.admins : [...(state.people || []).filter((p) => p.role === 'Admin').map((p) => p.id), ...before];
+  return [...new Set([...(project && owner ? [owner] : []), ...own])];
+}
 /** @param {Members} state @param {Who} who */
 export const removedFrom = (state, who) => !!who && (state.removedPeople || []).includes(who);
 // A request from a program on this Mac (Claude's tools, curl), not a browser page. Browsers mark every request with

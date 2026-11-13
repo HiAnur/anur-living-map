@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   SAMPLE,
   box,
+  makeOwner,
   server,
   signIn,
   useTeamServer,
@@ -196,7 +197,7 @@ test("a default map opens empty at once, even with a system map there", async ({
   await expect(
     page.locator(".row", { hasText: "Builds-on base" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "New map" }).click();
+  await page.locator("#new-map").click();
   await page.getByRole("button", { name: /Default map/ }).click();
   await expect(page).toHaveURL(/\?new=1$/);
   await expect(page.locator("#crumbs .builds")).toHaveCount(0);
@@ -235,6 +236,8 @@ test("someone who may not draw a system map is told whom to ask", async ({
   context,
   page,
 }) => {
+  // the install's owner is whom to ask
+  makeOwner("Duy");
   await context.clearCookies();
   await context.addCookies([
     {
@@ -244,18 +247,8 @@ test("someone who may not draw a system map is told whom to ask", async ({
       path: "/",
     },
   ]);
-  // Duy, an Admin, has a map here, so Duy is someone to ask
-  const own = path.join(server.root, "app", "maps", "duy-whom-to-ask");
-  fs.mkdirSync(own, { recursive: true });
-  fs.writeFileSync(
-    path.join(own, "state.json"),
-    JSON.stringify({
-      ...SAMPLE,
-      people: [{ id: "Duy", role: "Admin", sees: "all", joined: "2026-01-01" }],
-    }),
-  );
   await page.goto(`${server.origin}/maps.html`);
-  await page.getByRole("button", { name: "New map" }).click();
+  await page.locator("#new-map").click();
   await page.getByRole("button", { name: /System map/ }).click();
   // a folder on this Mac, then GitHub: either way, whom to ask
   await expect(page.locator("#local-state")).toContainText("Ask Duy");

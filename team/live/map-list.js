@@ -9,9 +9,10 @@ import { managesAccess, removedFrom } from './access.js';
 
 /**
  * @param {{ openMap: (options: any) => any, DIR: string, PROJECT: string, PROJECTS: string,
- *   mapName: (folder: any) => string, demo: () => any, DEMO?: boolean }} deps `DEMO`: the story is the map at /
+ *   mapName: (folder: any) => string, adminsOf?: (state: any, project: string) => string[], DEMO?: boolean }} deps
+ * `adminsOf`: who owns a map, by its state and its code folder ('' for a map with none); `DEMO`: the story is the map at /
  */
-export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo, DEMO = false }) {
+export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, adminsOf = () => [], DEMO = false }) {
   const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
   const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
   const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
@@ -108,10 +109,10 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo, DEMO =
       try {
         const archive = path.join(bin, d.name), state = JSON.parse(fs.readFileSync(path.join(archive, 'state.json'), 'utf8'));
         let meta; try { meta = JSON.parse(fs.readFileSync(path.join(archive, 'trash.json'), 'utf8')); } catch { /* an older archive has no trash.json */ }
-        if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || demo().people.some((/** @type {any} */ p) => p.id === who && p.role === 'Admin'))) return [];
         const name = meta?.name || d.name.replace(/-(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|[a-z0-9]{8,12})$/, '');
         if (!/^[a-z0-9-]+$/.test(name)) return [];
         const project = meta ? meta.project : [PROJECT, ...remembered()].find((f) => f && mapName(f) === name) || '';
+        if (meta?.restored || removedFrom(state, who) || !(managesAccess(state, who) || adminsOf(state, project).includes(who))) return [];
         return [{ id: d.name, name, title: state.title || name, at: meta?.at || fs.statSync(archive).mtimeMs, project, archive }];
       } catch { return []; }
     }).sort((a, b) => b.at - a.at);

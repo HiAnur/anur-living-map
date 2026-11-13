@@ -28,7 +28,8 @@ const cloudSent = async (map, who) => {
 };
 
 it('sends every member where the map is kept, and only an owner its link and errors', async () => {
-  const map = openMap({ name: 'shared', home: path.join(dir, 'map'), initialState: { title: 'Shared', nodes: [], edges: [], calls: [], threads: {},
+  fs.mkdirSync(path.join(dir, 'map'));
+  const map = openMap({ name: 'shared', home: path.join(dir, 'map'), initialState: { title: 'Shared', nodes: [], edges: [], calls: [], threads: {}, admins: ['Duy'],
     people: [{ id: 'Duy', role: 'Admin', sees: 'all', joined: '2026-01-01' }, { id: 'Sam', sees: 'all', joined: '2026-01-01' }] } });
   try {
     const owner = await cloudSent(map, 'Duy'), member = await cloudSent(map, 'Sam');

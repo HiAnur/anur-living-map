@@ -29,7 +29,7 @@ const quote = (s) => "'" + s.replaceAll("'", "'\\''") + "'";
 // a tool named here still goes through their usual permission checks.
 /** @param {readonly string[]} allowed @param {string} reason @param {readonly string[]} [commands] @param {string} [commandReason] */
 export function onlyTools(allowed, reason, commands = [], commandReason = reason) {
-  const deny = (/** @type {string} */ why) => `process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(why).replaceAll('"', "'")}}}))`;
+  const deny = (/** @type {string} */ why) => `process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'deny',permissionDecisionReason:${JSON.stringify(why)}}}))`;
   const script = `let input='';process.stdin.on('data',c=>input+=c);process.stdin.on('end',()=>{let d={};try{d=JSON.parse(input)}catch{/* unreadable: no name, so denied */};const name=d.tool_name,command=name==='Bash'&&typeof d.tool_input?.command==='string'?d.tool_input.command:'';if(!${JSON.stringify(allowed)}.includes(name))${deny(reason)};else if(${JSON.stringify(commands)}.some(r=>new RegExp(r).test(command)))${deny(commandReason)};});`;
   return {hooks:{PreToolUse:[{matcher:'*',hooks:[{type:'command',command:`${quote(process.execPath)} -e ${quote(script)}`,timeout:10}]}]}};
 }

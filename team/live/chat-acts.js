@@ -174,13 +174,15 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
       tell(`${a.by} wrote in the map's chat: "${text}"${pics.length ? ` (attached ${pics.map((/** @type {any} */ p) => p.file).join(', ')})` : ''}`, l.session, id);
       setTimeout(sendMirror); return true;
     },
-    // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply
-    /** @param {Act<'propose'>} a */
-    propose(a) {
+    // a change the linked chat proposes: blue on the map and a card in the pane until its owner presses Apply; a
+    // change it draws directly while answering the pane comes here too, with the drawing tool's larger limit
+    /** @param {Act<'propose'> & { proposed?: any }} a */
+    propose(a, limit = 12) {
       const session = String(a.session || ''), l = (getState().linked || []).find((/** @type {any} */ x) => x.session === session);
       if (!l) return false;
-      const pr = check(a, l.owner); if (!pr.ops.length) return false;
-      getState().proposals = [...(getState().proposals || []), { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr }].slice(-30);
+      const pr = check(a, l.owner, limit); if (!pr.ops.length) return false;
+      a.proposed = { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr };
+      getState().proposals = [...(getState().proposals || []), a.proposed].slice(-30);
       setTimeout(sendMirror); return true;
     },
     // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one

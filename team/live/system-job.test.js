@@ -278,7 +278,7 @@ describe('the system map routes', () => {
   const repoAt = (/** @type {string} */ made) => { const to = path.join(work, path.basename(made)); fs.mkdirSync(work, { recursive: true }); fs.cpSync(made, to, { recursive: true }); fs.mkdirSync(path.join(to, '.git')); return to; };
   const folders = [repoAt(app()), repoAt(api())];
   fs.mkdirSync(path.join(work, 'notes'));
-  const maps = mapList({ openMap, DIR, PROJECT: '', PROJECTS: path.join(DIR, 'projects.json'), mapName: path.basename, demo: () => ({ people: [] }) });
+  const maps = mapList({ openMap, DIR, PROJECT: '', PROJECTS: path.join(DIR, 'projects.json'), mapName: path.basename });
   /** @type {any} */
   const linkedAs = { who: '' };
   const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });
@@ -329,8 +329,8 @@ describe('the system map routes', () => {
     await until(() => map.snapshot().drawing?.status === 'done');
     expect((await call('/api/systemmap/retry', { name: 'nowhere' })).status).toBe(404);
   });
-  it('names no one to ask who cannot sign in here, and says only "an Admin" when no one can', async () => {
-    const nobody = systemRoutes({ maps, home, github: () => gh, team: () => [{ id: 'Harshit', role: 'Engineer' }, { id: 'Sam', role: 'Designer' }], known: () => false });
+  it('names no one to ask on an install with no owner yet and no map anyone draws on', async () => {
+    const nobody = systemRoutes({ maps, home, github: () => gh, team: () => [] });
     const req = Object.assign(Readable.from([]), { method: 'GET', headers: { host: 'localhost:4323', 'sec-fetch-site': 'same-origin' } });
     let got; await nobody(req, {}, new URL('http://localhost/api/systemmap/can'), 'Sam', (/** @type {number} */ status, /** @type {any} */ body) => { got = body; return true; });
     expect(got).toEqual({ may: false, engineers: [] });
