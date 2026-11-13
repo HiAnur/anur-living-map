@@ -12,7 +12,7 @@ import { agent } from './agent.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
 import { MEETING_ID } from './meeting-draw.js';
-import { CHUNK_MS, meetingJob, parseTranscript } from './meeting.js';
+import { CHUNK_MS, meetingJob, parseTranscript, SUMMARY_ID } from './meeting.js';
 import { openMap } from './server.js';
 
 const T0 = 1_700_000_000_000;
@@ -122,6 +122,27 @@ describe('a meeting on a map', () => {
     expect(asked[2].prompt).toContain('LAST PASS');
     expect(state.meeting).toMatchObject({ live: false, done: true, sent: 2 });
     expect(j.add([seg(40, 'late')])).toEqual({ error: 'That meeting has ended.' });
+  });
+
+  it('keeps a summary box of what was decided and who does what, built by code and out of the model\'s reach', async () => {
+    const { j, state, asked } = job({ answer: (/** @type {any} */ jb, /** @type {number} */ n) => (n > 1 ? { value: { summary: '', ops: [] } } : { value: { summary: 'Launch', ops: [
+      { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+      { op: 'add', kind: 'decision', title: 'Launch Tuesday', sub: 'Friday is too risky', under: 't', quote: 'decide on Tuesday' },
+      { op: 'add', kind: 'action', title: 'Review onboarding', under: 't', owner: 'Priya', due: 'Monday', quote: 'Priya will review the onboarding screens by Monday' },
+    ] } }) });
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(20, "Let's decide on Tuesday, Friday is too risky."), seg(CHUNK_MS / 1000, 'Priya will review the onboarding screens by Monday.')]);
+    await j.idle();
+    const summary = state.nodes.find((/** @type {any} */ n) => n.id === SUMMARY_ID);
+    expect(summary).toMatchObject({ label: 'Summary and next steps', sub: '1 decided · 1 to do' });
+    expect(summary.desc).toBe('Decided:\n- Launch Tuesday — Friday is too risky\n\nNext steps:\n- Review onboarding (Priya · Monday)');
+    expect(state.edges).toContainEqual({ from: MEETING_ID, to: SUMMARY_ID });
+    expect(state.meeting.boxes).not.toContain(SUMMARY_ID);
+    // the next step does not see it as one of the meeting's boxes to change
+    j.add([seg(70, 'Next up is pricing.'), seg(70 + CHUNK_MS / 1000, 'Free tier or trial?')]);
+    await j.idle();
+    expect(asked[1].prompt).not.toContain(SUMMARY_ID);
+    j.close();
   });
 
   it('refuses words on a map that is not a meeting, and a list that is not one', () => {

@@ -11,6 +11,7 @@ import path from 'node:path';
 import { checkMeetingOps, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt } from './meeting-draw.js';
 
 export const CHUNK_MS = 60_000;
+export const SUMMARY_ID = 'meeting-summary';
 export const CHUNK_WORDS = 220;
 export const PAUSE_MS = 12_000;
 // what came just before the new talk, shown again so a point that spans a minute boundary still reads whole
@@ -120,6 +121,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
   };
 
   // the meeting's boxes as the agent and the checks know them; one a person wrote or changed is theirs
+  /** @returns {{ id: string, label: string, sub: string, kind: string, under: string, locked: boolean }[]} */
   const ownBoxes = () => {
     const meeting = m(), s = getState(), mine = new Set(meeting?.boxes || []);
     const parent = new Map((s.edges || []).filter((/** @type {any} */ e) => !e.label).map((/** @type {any} */ e) => [e.to, e.from]));
@@ -127,6 +129,22 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       id: n.id, label: n.label, sub: n.sub || '', kind: meeting.kinds?.[n.id] || 'topic', under: parent.get(n.id) || MEETING_ID,
       locked: !!n.updatedBy && n.updatedBy !== 'Claude',
     }));
+  };
+
+  // "Summary and next steps" under the meeting box, rebuilt by code from the meeting's decision and action
+  // boxes after each step: no model writes it, so it lists exactly what the map holds
+  const summarize = () => {
+    const meeting = m(), boxes = ownBoxes();
+    const decided = boxes.filter((b) => meeting.kinds?.[b.id] === 'decision'), todo = boxes.filter((b) => meeting.kinds?.[b.id] === 'action');
+    if (!decided.length && !todo.length) return;
+    const rest = (/** @type {string} */ sub, /** @type {string} */ word) => sub.replace(new RegExp(`^${word}(?: · )?`), '');
+    const desc = [
+      decided.length ? `Decided:\n${decided.map((b) => `- ${b.label}${rest(b.sub, 'Decided') ? ` — ${rest(b.sub, 'Decided')}` : ''}`).join('\n')}` : '',
+      todo.length ? `Next steps:\n${todo.map((b) => `- ${b.label}${rest(b.sub, 'Action') ? ` (${rest(b.sub, 'Action')})` : ''}`).join('\n')}` : '',
+    ].filter(Boolean).join('\n\n');
+    const had = (getState().nodes || []).some((/** @type {any} */ n) => n.id === SUMMARY_ID);
+    draw({ nodes: [{ id: SUMMARY_ID, label: 'Summary and next steps', sub: `${decided.length} decided · ${todo.length} to do`, desc: desc.slice(0, 1500) }],
+      edges: had ? [] : [{ from: MEETING_ID, to: SUMMARY_ID }] });
   };
 
   /**
@@ -162,6 +180,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       retry = again.map((x) => `- ${JSON.stringify(x.op).slice(0, 300)}: ${x.why}`).join('\n');
     }
     delete meeting.error;
+    if (drawn) summarize();
     if (summary || drawn) say(meeting.by, `${summary || `Updated ${drawn} box${drawn === 1 ? '' : 'es'}.`}`);
     return true;
   }
