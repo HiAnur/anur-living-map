@@ -63,3 +63,35 @@ describe('Action box status pills',()=>{
     expect(p.actionStatusPill({stage:'running',completion:{status:'completed',evidence:['old report']}})).toContain('Action status: Executing');
   });
 });
+
+describe('Actions made from your words, and Claude\'s own suggestions',()=>{
+  const from={kind:'chat',quote:'I\'ll send Dan <the> pricing',at:1};
+  it('says a draft was made from your words, with the quote, and offers Not an action and Not mine until it runs',()=>{
+    const p=panel(),n={id:'pricing',action:{by:'Duy',id:'r',stage:'ready',from,brief:{goal:'Send it',target:'Dan',result:'Sent',steps:['Send']}}};
+    const rendered=p.actionChat(n,'');
+    expect(rendered).toContain('Made from your words: <q data-content>I\'ll send Dan &lt;the&gt; pricing</q>');
+    expect(rendered).toContain('data-box-action="actionnotaction"');expect(rendered).toContain('data-box-action="actionnotmine" data-action-id="pricing" data-action-to="*"');
+    const ran=p.actionChat({...n,action:{...n.action,stage:'finished',session:'s',turns:[]}},'');
+    expect(ran).toContain('Made from your words');expect(ran).not.toContain('actionnotaction');
+    // someone else sees whose words they were, and no buttons
+    const theirs=p.actionChat({...n,action:{...n.action,by:'Priya'}},'');
+    expect(theirs).toContain('Made from Priya\'s words');expect(theirs).not.toContain('actionnotmine');
+  });
+  it('never says Claude\'s suggestion is your words',()=>{
+    const p=panel(),plan={goal:'Email Dan',result:'Sent',steps:['Send'],evidence:['Sent mail']};
+    expect(p.plannedActionCard({id:'e',proposed:true},plan)).toContain('Claude suggests an Action for you');
+    const applied=p.actionChat({id:'e',action:{by:'Duy',stage:'draft',intent:'Email Dan',plan,from:{kind:'suggested',at:1}}},'');
+    expect(applied).toContain('Claude suggested this Action.');expect(applied).not.toContain('your words');expect(applied).not.toContain('actionnotaction');
+  });
+  it('offers Take it on only to the person an item names, or to anyone for the team',()=>{
+    const p=panel(),item=(/** @type {string} */ to)=>({id:'c',for:to,task:{goal:'Check the contract'},from:{...from,said:'Ana'}});
+    expect(p.actionItemCard(item('Duy'))).toContain('data-box-action="actiontakeon"');expect(p.actionItemCard(item('Duy'))).toContain('Action item for you');
+    expect(p.actionItemCard(item('*'))).toContain('Action item for the team');expect(p.actionItemCard(item('*'))).toContain('actiontakeon');
+    expect(p.actionItemCard(item('Priya'))).toContain('Action item for Priya');expect(p.actionItemCard(item('Priya'))).not.toContain('actiontakeon');
+    expect(p.actionItemCard({id:'c',label:'Plain'})).toBe('');
+  });
+  it('records in the history that the map prepared it from your words',()=>{
+    const p=panel(),rows=p.actionChat({id:'x',action:{by:'Duy',stage:'gathering',from,events:[{what:'created',by:'Duy',at:1,from:'chat'},{what:'preparing',by:'Map',at:2,auto:'words'}]}},'');
+    expect(rows).toContain('Prepared automatically, from your words');expect(rows).toContain('Made from your words</b>');
+  });
+});

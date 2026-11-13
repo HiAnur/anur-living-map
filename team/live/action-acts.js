@@ -1,9 +1,13 @@
 // What people do with an Action box, by hand: make it, prepare it, answer, revise, cancel, reopen, hand it over,
 // let it run on its own, execute, continue, stop and confirm it. Each hands the box to actionBoxes (action-box.js), which checks the
-// stage and who may; archiving lives in archive-acts.js.
+// stage and who may; archiving lives in archive-acts.js. Saying a draft made from your words is not an action or not
+// yours, and taking on an item that names you, go to action-items.js.
 
-/** @param {{ getState: () => MapState, actions: ReturnType<typeof import('./action-box.js').actionBoxes> }} deps */
-export function actionActs({ getState, actions }) {
+/**
+ * @param {{ getState: () => MapState, actions: ReturnType<typeof import('./action-box.js').actionBoxes>,
+ *   items: ReturnType<typeof import('./action-items.js').actionItems> | null }} deps
+ */
+export function actionActs({ getState, actions, items }) {
   return {
     // the schema lets an id come as a number, which finds no box, so an Action box reads every id as text
     /** @param {Act<'actionbox'>} a */
@@ -33,5 +37,11 @@ export function actionActs({ getState, actions }) {
     actioncontinue(a) { return actions.continue(/** @type {string} */ (a.id), a.by, a.revision, a.answer); },
     /** @param {Act<'actionstop'>} a */
     actionstop(a) { return actions.stop(/** @type {string} */ (a.id), a.by, a.revision); },
+    /** @param {Act<'actionnotaction'>} a */
+    actionnotaction(a) { return !!items?.notAction(String(a.id), a.by); },
+    /** @param {Act<'actionnotmine'>} a */
+    actionnotmine(a) { return !!items?.notMine(String(a.id), a.by, a.to); },
+    /** @param {Act<'actiontakeon'>} a */
+    actiontakeon(a) { return !!items?.takeOn(String(a.id), a.by); },
   };
 }

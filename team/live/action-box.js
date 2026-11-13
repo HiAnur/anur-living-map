@@ -124,13 +124,15 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
-  /** @param {string} id @param {string} by @param {unknown} [planned] @param {boolean} [notify] */
-  function begin(id, by, planned, notify = true) {
+  // `from` says where an Action came from when nobody made it by hand (action-items.js): the words it was made from,
+  // or Claude's suggestion someone applied. Code writes it, and it stays on the Action for its header and history.
+  /** @param {string} id @param {string} by @param {unknown} [planned] @param {{ notify?: boolean, from?: ActionFrom }} [options] */
+  function begin(id, by, planned, { notify = true, from } = {}) {
     const n = nodeOf(id); if (!owns(n, by) || n.action) return false;
     const plan = planned === undefined ? null : readPlannedTask(planned);
     if (planned !== undefined && !plan) return false;
-    n.action = {id:crypto.randomUUID(),by,stage:'draft',intent:plan?.goal || '',history:[],...(plan ? {plan} : {})};
-    note(n.action, 'created', by, { planned:!!plan });
+    n.action = {id:crypto.randomUUID(),by,stage:'draft',intent:plan?.goal || '',history:[],...(plan ? {plan} : {}),...(from ? {from} : {})};
+    note(n.action, 'created', by, { planned:!!plan, ...(from ? { from:from.took ? 'taken' : from.kind } : {}) });
     n.boxType = 'action'; if (notify) changed(); return true;
   }
   /** @param {string} id @param {string} by @param {any} intent */
@@ -138,8 +140,12 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const n = nodeOf(id); if (!owns(n, by) || !can('start', n.action?.stage) || !text(intent, 4000)) return false;
     n.action.intent = intent.trim(); return prepare(id, by);
   }
-  /** @param {string} id @param {string} by @param {any} [answer] @param {string} [startedBy] who started it, when not its author (the map, once its prerequisites finish) */
-  function prepare(id, by, answer, startedBy = by) {
+  /**
+   * @param {string} id @param {string} by @param {any} [answer]
+   * @param {string} [startedBy] who started it, when not its author (the map, once its prerequisites finish, or for a draft made from someone's words)
+   * @param {Record<string, unknown>} [why] what the history records of why the map started it
+   */
+  function prepare(id, by, answer, startedBy = by, why = {}) {
     const n = nodeOf(id), prior = n?.action;
     if (!owns(n, by) || !prior?.intent || !can('prepare', prior.stage) || prior.session) return false;
     if (answer !== undefined && (!can('answer', prior?.stage) || !text(answer, 2000))) return false;
@@ -148,8 +154,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const waiting = dependencyBlockers(prior.plan,prerequisiteOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); note(prior, 'waiting', by); changed(); return true; }
     /** @type {BoxAction} */
-    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.auto ? {auto:prior.auto} : {}),...(prior.events ? {events:prior.events} : {}) };
-    note(current, answer === undefined ? 'preparing' : 'answered', startedBy);
+    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.auto ? {auto:prior.auto} : {}),...(prior.from ? {from:prior.from} : {}),...(prior.events ? {events:prior.events} : {}) };
+    note(current, answer === undefined ? 'preparing' : 'answered', startedBy, why);
     const active = () => nodeOf(id)?.action === current && owns(nodeOf(id), by);
     const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}${finishedBefore(current.plan)}`;
     jobs.set(id, null); changed();
@@ -207,6 +213,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   function cancel(id, by) {
     const n = nodeOf(id); if (!owns(n, by) || !actionCancellable(n.action)) return false;
     jobs.get(id)?.(); jobs.delete(id);
+    // set aside, it is not prepared later by the map, even once reopened
+    delete n.action.autoPrepare;
     if (untouched(n.action)) { delete n.action; n.boxType = 'topic'; }
     else {
       note(n.action, 'cancelled', by, { from:n.action.stage });
@@ -216,6 +224,17 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     changed(); return true;
   }
   // a cancelled Action becomes a draft again with its instructions; a brief it had is kept as a version first
+  // Not an action, or Not mine, on a draft made from its author's words: the Action goes, preparation under way is
+  // stopped first, and the box stays as an Info box. Only before it has run; the Action it was is handed back.
+  /** @param {string} id @param {string} by @returns {BoxAction | null} */
+  function unmake(id, by) {
+    const n = nodeOf(id), a = n?.action;
+    if (!owns(n, by) || !a?.from?.quote || a.from.took || !actionCancellable(a)) return null;
+    jobs.get(id)?.(); jobs.delete(id);
+    // an answer preparation sends back after this finds no Action to fill in
+    a.stage = 'cancelled';
+    delete n.action; n.boxType = 'topic'; changed(); return a;
+  }
   /** @param {string} id @param {string} by */
   function reopen(id, by) {
     const n = nodeOf(id), a = n?.action; if (!owns(n, by) || !can('reopen', a?.stage)) return false;
@@ -400,8 +419,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const n = nodeOf(id), a = n?.action;
     if (!a || !text(to, 200) || to === a.by || !canUse(n, to) || ['gathering', 'running'].includes(a.stage) || jobs.has(id) || runs.has(id)) return false;
     note(a, 'handed over', by, { from:a.by, to });
-    // the new author has not chosen to let it run on its own
-    delete a.auto; delete a.held;
+    // the new author has not chosen to let it run on its own, nor to have the map prepare it
+    delete a.auto; delete a.held; delete a.autoPrepare;
     a.by = to; changed(); return true;
   }
   // the author's word that an unverified run did what it should: a person's click, recorded as such
@@ -451,5 +470,5 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   }
   /** whether an Action is being prepared or run now */
   const busy = () => jobs.size > 0 || runs.size > 0;
-  return { begin, start, prepare, cancel, reopen, revise, execute, alone:setAlone, continue:continueAction, confirm, handover, stop, reconcile, close, busy };
+  return { begin, start, prepare, cancel, unmake, reopen, revise, execute, alone:setAlone, continue:continueAction, confirm, handover, stop, reconcile, close, busy };
 }
