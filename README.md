@@ -37,7 +37,7 @@ Everything runs on your machine. Clone somewhere else? Set `ANUR_LIVING_MAP_HOME
 
 ## The chat map (retired)
 
-The older Living Map drew one Claude Code chat as a mind map beside it (`/living-map`). It is retired: use Anur Living Map above. If you have it installed, `node skill/uninstall.ts` in its folder removes it, and asks before deleting its data. More in [docs/chat-map.md](docs/chat-map.md).
+The older Living Map drew one Claude Code chat as a mind map beside it (`/living-map`). It is retired and no longer updates: use Anur Living Map above. If you have it installed, `node skill/uninstall.ts` in its folder removes it, and asks before deleting its data. More in [docs/chat-map.md](docs/chat-map.md).
 
 ## What changed
 

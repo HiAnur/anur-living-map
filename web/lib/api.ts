@@ -4,7 +4,7 @@ import type { UpdateInfo } from "../../shared/model.ts";
 import { api } from "./session.ts";
 
 // Is a newer release out? Asked when the page opens and every half hour;
-// refresh() asks GitHub again now.
+// refresh() asks again now. The retired chat map's server always answers no.
 export function useUpdate(): {
   info: UpdateInfo | null;
   refresh: () => Promise<UpdateInfo | null>;

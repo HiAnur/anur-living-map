@@ -11,6 +11,6 @@ export const RESTATE =
 export const fromMap = (text: string) =>
   `FROM YOUR LIVING MAP:\n${text}\n\n${RESTATE}`;
 
-// the note the hook adds to the user's next message
+// the note for the user's next message (the retired hook no longer sends it)
 export const mapNote = (text: string, port: number) =>
   `LIVING MAP: the user keeps a live map of this conversation at http://localhost:${port}/, with side chats that know everything said here. Since your last turn there:\n${text}\nTake this into account where it bears on the user's message; they may refer to it. ${RESTATE}`;

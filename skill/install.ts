@@ -1,9 +1,9 @@
 // The living-map skill, for your own Claude Code: it starts this app, links
 // the conversation it is used in, and opens the map beside it. `npm run skill`
 // installs it in ~/.claude/skills; a server that starts with it installed
-// writes it again, so an update reaches it too. `npm run skill -- --hook`
-// also adds the hook that tells a conversation what its map did (side
-// chats, ticks) each time you write there. The team map's skill has its own
+// writes it again, so a change to it reaches you. `npm run skill -- --hook`
+// also adds the hook, which now only shows, once per chat, how to remove the
+// retired chat map. The team map's skill has its own
 // installer, team/skill/install.js, which `npm run skill` runs first.
 
 import fs from "node:fs";
@@ -117,7 +117,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv.includes("--hook")) {
     const h = installHook(port);
     console.log(
-      `${said(h)}: the living-map hook in ${settingsFile()}\nEach message you send now brings what your map did since (side chats, ticks).`,
+      `${said(h)}: the living-map hook in ${settingsFile()}\nIt shows each chat once how to remove the retired chat map, and nothing else.`,
     );
   }
 }
