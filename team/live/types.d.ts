@@ -128,8 +128,10 @@ interface SendGuard {
   message?: { to: string; subject: string; body: string };
   /** how many sends the run may still make: 1, or 0 once the Action has sent */
   left: number;
-  /** nobody clicked Execute: the shell may not write to GitHub or the web */
+  /** nobody clicked Execute: the shell may not write to GitHub or the web, nothing may be sent but the reviewed email, and `unknown` tools are refused */
   unattended?: boolean;
+  /** the brief's tools the map does not know (neither the agent's own nor on the list in action-sends.js) */
+  unknown?: string[];
 }
 
 /** What a run of an Action came back with. */

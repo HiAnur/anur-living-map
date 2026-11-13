@@ -48,7 +48,7 @@ export function actionHistory(events) {
     label: e.what === 'preparing' && ACTION_AUTO[e.auto] ? ACTION_AUTO[e.auto] : e.what === 'created' && ACTION_FROM[e.from] ? ACTION_FROM[e.from] : ACTION_STEPS[e.what] || e.what,
     who: e.by === 'Map' ? 'the map' : String(e.by || ''),
     at: e.at,
-    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : '', e.boxes?.length ? `boxes: ${e.boxes.join(', ')}` : '', e.quote ? `“${e.quote}”` : ''].filter(Boolean).join(' · '),
+    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.unknown?.length ? `tools the map does not know: ${e.unknown.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : '', e.boxes?.length ? `boxes: ${e.boxes.join(', ')}` : '', e.quote ? `“${e.quote}”` : ''].filter(Boolean).join(' · '),
   })).reverse();
 }
 
@@ -152,7 +152,8 @@ export function actionScreens(view){
     // Confirmation is what the map saw the run do; Claude's account is what it says it did, shown apart
     const evidence = (c?.evidence?.length ? `<div class="action-evidence"><b>Confirmation</b><ul>${c.evidence.map((/** @type {any} */ e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
       + (c?.claimed?.length && !done ? `<div class="action-evidence claimed"><b>Claude's account</b><ul>${c.claimed.map((/** @type {any} */ e) => `<li>${esc(e)}</li>`).join('')}</ul></div>` : '')
-      + (c?.note ? `<p class="action-note">${esc(c.note)}</p>` : '');
+      + (c?.note ? `<p class="action-note">${esc(c.note)}</p>` : '')
+      + (c?.unknown?.length ? `<p class="action-note">The run used ${esc(c.unknown.join(', '))}, which the map does not know, so it could not check what that did.</p>` : '');
     return `<section class="action-result" aria-label="Task result"><h3>${done ? `<span class="result-pill">Executed</span>` : label}</h3>${done ? `<p class="result-summary">${esc(actionSummary(turn))}</p><details class="result-details" data-open-key="${esc(openKey)}" ${view.opened(openKey) ? 'open' : ''}><summary>View details</summary><div class="result-detail-body">${md(turn.text)}${evidence}</div></details>` : `${md(turn.text)}${c?.status === 'unconfirmed' || !c ? '<p class="action-note">No completion confirmation was returned.</p>' : ''}${evidence}`}</section>`;
   }
   function actionCard(/** @type {any} */ n){

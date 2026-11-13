@@ -163,4 +163,12 @@ describe('what a run may send',{timeout:30_000},()=>{
     }
     expect(decide(alone,'Bash',{command:'gh pr view 7 --comments'}).permissionDecision).toBe('asks as usual');
   });
+  it('refuses, in a run nobody started, a send nobody reviewed and a tool the map does not know, and lets a known read go',()=>{
+    const tools=['mcp__claude_ai_Slack__slack_send_message','mcp__acme__do_thing','mcp__claude_ai_Slack__slack_read_channel'];
+    const alone=runSettings(tools,{left:1,unattended:true,unknown:['mcp__acme__do_thing']}),clicked=runSettings(tools,{left:1,unknown:['mcp__acme__do_thing']});
+    expect(decide(alone,tools[0],{channel_id:'C1',message:'Hi'}).permissionDecisionReason).toContain('may not send, post or reply');
+    expect(decide(alone,tools[1],{}).permissionDecisionReason).toContain('does not know what mcp__acme__do_thing does');
+    expect(decide(alone,tools[2],{channel_id:'C1'}).permissionDecision).toBe('asks as usual');
+    for(const tool of tools)expect(decide(clicked,tool,{}).permissionDecision,tool).toBe('asks as usual');
+  });
 });

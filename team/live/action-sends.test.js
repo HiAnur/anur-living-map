@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { readAction } from './action-box.js';
 import { kindFromTools } from './action-kinds.js';
-import { addresses, mailTool, notTheMessage, refusal, sendsTool } from './action-sends.js';
+import { addresses, mailTool, notTheMessage, refusal, sendsTool, toolUse } from './action-sends.js';
 
 const message = { to: 'Sam@Example.com', subject: 'Launch notes', body: 'Hi Sam,\n\nThe notes are attached below.\n\nThanks' };
 const exact = { to: ['sam@example.com'], subject: 'Launch notes', body: 'Hi Sam,\n\nThe notes are attached below.\n\nThanks' };
@@ -97,5 +97,46 @@ describe('the kind, from the tools a brief needs', () => {
     expect(ready({ tools: [GMAIL], email: message })).toMatchObject({ stage: 'ready', brief: { kind: 'email', email: message, target: message.to } });
     expect(ready({ kind: 'build', tools: ['Edit', GMAIL], email: message })).toMatchObject({ stage: 'clarify', question: expect.stringContaining('its own Action') });
     expect(ready({ tools: ['mcp__slack__slack_send_message'] })).toMatchObject({ stage: 'ready', brief: { kind: 'other' } });
+  });
+});
+
+describe('the tools the map knows', () => {
+  it('lists which connector tools read, change things, send or send mail, by the server they come from', () => {
+    /** @type {[string, string | null][]} */
+    const cases = [
+      ['mcp__claude_ai_Gmail__search_threads', 'reads'], ['mcp__claude_ai_Gmail__create_draft', 'changes'], ['mcp__claude_ai_Gmail__reply', 'mails'],
+      ['mcp__claude_ai_Slack__slack_read_channel', 'reads'], ['mcp__claude_ai_Slack__slack_add_reaction', 'sends'], ['mcp__claude_ai_Slack__slack_send_message', 'sends'],
+      ['mcp__claude_ai_Microsoft_365__outlook_email_search', 'reads'], ['mcp__claude_ai_Microsoft_365__outlook_create_event', 'sends'],
+      ['mcp__claude_ai_Microsoft_365__outlook_send_mail', 'mails'], ['mcp__claude_ai_Microsoft_365__teams_send_chat_message', 'sends'],
+      ['mcp__github__get_pull_request_comments', 'reads'], ['mcp__github__add_issue_comment', 'sends'], ['mcp__github__merge_pull_request', 'sends'],
+      ['mcp__claude_ai_Linear__list_issues', 'reads'], ['mcp__claude_ai_Linear__save_issue', 'sends'],
+      ['mcp__claude_ai_Notion__notion-search', 'reads'], ['mcp__claude_ai_Notion__notion-create-comment', 'sends'],
+      ['mcp__map_context__load_map', 'reads'],
+      // a name the list holds counts only from its own kind of server
+      ['mcp__weather__search_threads', null], ['mcp__claude_ai_Gmail__slack_read_channel', null],
+      ['mcp__acme__do_thing', null], ['Bash', null], ['', null],
+    ];
+    for (const [tool, use] of cases) expect(toolUse(tool), tool).toBe(use);
+  });
+  it('takes a name that says send as a backup, which adds a send and never takes one away', () => {
+    // not on the list, but named as a send
+    expect(toolUse('mcp__acme__post_update')).toBe('sends');
+    expect(toolUse('mcp__acme__send_mail')).toBe('mails');
+    // on the list as only changing things, but named as a send: it sends
+    expect(sendsTool('mcp__claude_ai_Slack__slack_send_message_draft')).toBe(true);
+    // on the list as a send, with a name that says nothing of sending: it still sends
+    expect(sendsTool('mcp__claude_ai_Slack__slack_add_reaction')).toBe(true);
+    expect(sendsTool('mcp__github__merge_pull_request')).toBe(true);
+  });
+  it('refuses, in a run nobody started, a send that was not reviewed and a tool the map does not know', () => {
+    const alone = { left: 1, unattended: true, unknown: ['mcp__acme__do_thing'] };
+    expect(refusal(alone, 'mcp__claude_ai_Slack__slack_send_message', { channel_id: 'C1', message: 'Hi' })).toContain('may not send, post or reply');
+    expect(refusal(alone, 'mcp__github__add_issue_comment', { body: 'Hi' })).toContain('may not send, post or reply');
+    expect(refusal(alone, 'mcp__acme__do_thing', {})).toContain('does not know what mcp__acme__do_thing does');
+    expect(refusal(alone, 'mcp__claude_ai_Slack__slack_read_channel', { channel_id: 'C1' })).toBe('');
+    // a run someone started may use both, as before
+    const clicked = { left: 1, unknown: ['mcp__acme__do_thing'] };
+    expect(refusal(clicked, 'mcp__acme__do_thing', {})).toBe('');
+    expect(refusal(clicked, 'mcp__claude_ai_Slack__slack_send_message', { channel_id: 'C1', message: 'Hi' })).toBe('');
   });
 });

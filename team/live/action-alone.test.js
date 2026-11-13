@@ -189,3 +189,33 @@ describe('what code checks in the calls of a run', () => {
     expect(h.runs[1].guard).toEqual({ message: email, left: 0 });
   });
 });
+
+describe('the tools the map knows, in a run', () => {
+  const slackRead = 'mcp__claude_ai_Slack__slack_read_channel', slackSend = 'mcp__claude_ai_Slack__slack_send_message', mystery = 'mcp__acme__do_thing';
+  it('runs a step on its own when its connector tools only read', () => {
+    const h = harness();
+    h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', { ...research, tools: ['WebSearch', slackRead] });
+    expect(h.runs).toHaveLength(1);
+    expect(h.runs[0].guard).toEqual({ left: 1, unattended: true });
+    h.runs[0].onDone({ ...done, calls: [{ tool: slackRead, input: {}, ok: true, output: '' }] });
+    expect(h.nodes.a.action.completion).toMatchObject({ status: 'completed', evidence: ['Answered in the reply. The run only looked things up.'] });
+  });
+  it('holds a known send, and a tool the map does not know, from running on its own', () => {
+    for (const [tool, why] of [[slackSend, 'can reach other people'], [mystery, 'the map does not know']]) {
+      const h = harness();
+      h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', { ...research, tools: ['WebSearch', tool] });
+      expect(h.runs, tool).toHaveLength(0);
+      expect(h.nodes.a.action.held, tool).toContain(why);
+    }
+  });
+  it('lets someone who pressed Execute use a tool the map does not know, and notes it in what the run did', () => {
+    const h = harness();
+    h.api.begin('a', 'Duy', plan()); h.api.prepare('a', 'Duy'); h.ready('a', { ...research, tools: [mystery] });
+    expect(h.api.execute('a', 'Duy', h.nodes.a.action.id)).toBe(true);
+    // the run names it, so a hook would refuse it were the run unattended
+    expect(h.runs[0].guard).toEqual({ left: 1, unknown: [mystery] });
+    h.runs[0].onDone({ ...done, calls: [{ tool: mystery, input: {}, ok: true, output: 'done' }] });
+    expect(h.nodes.a.action.completion).toMatchObject({ status: 'unverified', unknown: [mystery] });
+    expect(h.nodes.a.action.events.find((/** @type {any} */ e) => e.what === 'finished')).toMatchObject({ unknown: [mystery] });
+  });
+});
