@@ -20,7 +20,7 @@
 //      quote must say the speaker will do it ("I'll", "I will", "let me", "on me"…)
 //   3. its task passes readPlannedTask, then readiness is "needs_information" and it waits on nothing
 //   4. it is not on the map's refused list (Not an action, Not mine)
-//   5. it is not a duplicate of the person's Actions and action items they can see (sameThing): the quote is added
+//   5. it is not a duplicate of the person's Actions and action items they can see (sameItem): the quote is added
 //      to that box instead
 //   6. it goes under `under` when the person can use that box, else under a box code keeps for their items
 //   7. at most PER_PASS boxes a pass and PER_SOURCE from one source
@@ -30,7 +30,7 @@
 // into the map's log with its reason.
 import { note } from './action-box.js';
 import { readPlannedTask } from './action-plan.js';
-import { sameThing } from './name-words.js';
+import { wordsOf } from './name-words.js';
 
 export const PER_PASS = 5, PER_SOURCE = 20, AT_ONCE = 3;
 /** `for` on an item for the whole team or no one in particular: anyone who can see it may take it on. */
@@ -93,6 +93,17 @@ export function taskFrom(value) {
   return plan && { ...plan, readiness: 'needs_information', dependsOn: [] };
 }
 
+/**
+ * Whether two action items are one: at least 2 words shared, making three quarters of both titles' words together.
+ * Stricter than Auto plan's sameThing, which reads "Send Dan the pricing" and "Send Dan the contract" as one; here
+ * that would turn a second commitment into a note on the first.
+ * @param {unknown} a @param {unknown} b
+ */
+export function sameItem(a, b) {
+  const x = wordsOf(a), y = wordsOf(b), shared = [...x].filter((w) => y.has(w)).length;
+  return shared >= 2 && shared / new Set([...x, ...y]).size >= 0.75;
+}
+
 /** @param {unknown} v @param {number} max */
 const text = (v, max) => typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : '';
 
@@ -120,8 +131,8 @@ export function checkItem(raw, source, map) {
   if (!owner && !firstPerson(quote)) return { refused: 'The quote does not say the speaker will do it ("I\'ll", "I will", "let me", "on me").' };
   const task = taskFrom(item.task);
   if (!task) return { refused: 'Its task needs a goal, a result, at least one step and how to know it is done.' };
-  if (map.refused.some((r) => bare(r.quote) === bare(quote) || (r.by === source.who && sameThing(r.title, title)))) return { refused: 'It was said not to be an action, or not theirs, before.' };
-  const same = map.boxes.find((n) => sameThing(n.label, title));
+  if (map.refused.some((r) => bare(r.quote) === bare(quote) || (r.by === source.who && sameItem(r.title, title)))) return { refused: 'It was said not to be an action, or not theirs, before.' };
+  const same = map.boxes.find((n) => sameItem(n.label, title));
   if (same) return { merge: same, quote };
   if (map.made.pass >= PER_PASS) return { refused: `Over the limit of ${PER_PASS} a pass.` };
   if (map.made.source >= PER_SOURCE) return { refused: `Over the limit of ${PER_SOURCE} from one ${source.kind}.` };

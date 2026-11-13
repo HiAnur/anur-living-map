@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { AT_ONCE, checkItem, firstPerson, ownerOf, PER_PASS, PER_SOURCE, quotedIn, taskFrom, TEAM } from './action-items.js';
+import { AT_ONCE, checkItem, firstPerson, ownerOf, PER_PASS, PER_SOURCE, quotedIn, sameItem, taskFrom, TEAM } from './action-items.js';
 
 // Action drafts from someone's own words: the one check that decides each item Claude proposes, and the map making,
 // preparing, refusing and handing on drafts, with the agent scripted so nothing reaches Claude.
@@ -63,8 +63,18 @@ describe('the check of one item', () => {
     expect(checkItem(item({ quote: 'Let me check the contract tomorrow', title: 'Check contract' }), mine, map({ refused: [{ quote: 'x', title: 'Check the contract', by: 'Duy', at: 1 }] }))).toHaveProperty('refused');
   });
   it('merges a second, similarly worded item into the first', () => {
-    const had = { id: 'pricing', label: 'Email Dan the pricing' };
+    const had = { id: 'pricing', label: 'Send the pricing to Dan by Thursday' };
     expect(checkItem(item(), mine, map({ boxes: [had] }))).toEqual({ merge: had, quote: 'I\'ll send Dan the pricing by Thursday' });
+  });
+  it('keeps two commitments apart that share only some words', () => {
+    // 3 of 4 words: one item; 2 of 4: two
+    expect(sameItem('Send Dan the pricing', 'Send the pricing to Dan by Thursday')).toBe(true);
+    expect(sameItem('Send Dan the pricing', 'Send Dan the contract')).toBe(false);
+    expect(checkItem(item({ quote: 'Let me check the contract tomorrow', title: 'Send Dan the contract' }), mine, map({ boxes: [{ id: 'pricing', label: 'Send Dan the pricing' }] }))).toHaveProperty('make');
+    // near misses each way: 4 of 5 is one item, 3 of 5 is not; one shared word is never enough
+    expect(sameItem('Send Dan the pricing sheet', 'Send Dan the pricing sheet tomorrow')).toBe(true);
+    expect(sameItem('Send Dan the pricing', 'Send Dan the pricing sheet tomorrow')).toBe(false);
+    expect(sameItem('Pricing', 'Pricing')).toBe(false);
   });
   it('puts it under a box the speaker can use, else nowhere Claude named', () => {
     expect(/** @type {any} */ (checkItem(item(), mine, map({ canPlace: () => false }))).make.under).toBeNull();
@@ -137,9 +147,12 @@ describe('drafts the map makes from your words', () => {
   it('adds the same thing said again to the box already there', async () => {
     const { map: m, close } = opened();
     m.fromWords(mine, [item()]);
-    const [again] = m.fromWords({ ...mine, lines: ['I will email Dan the pricing'] }, [item({ quote: 'I will email Dan the pricing', title: 'Email Dan the pricing' })]);
-    expect(again).toEqual({ title: 'Email Dan the pricing', merged: 'send-dan-the-pricing' });
-    expect(boxOf(m, 'send-dan-the-pricing').action.events.at(-1)).toMatchObject({ what: 'said again', quote: 'I will email Dan the pricing' });
+    const [again] = m.fromWords({ ...mine, lines: ['I will send the pricing to Dan by Thursday'] }, [item({ quote: 'I will send the pricing to Dan by Thursday', title: 'Send the pricing to Dan by Thursday' })]);
+    expect(again).toEqual({ title: 'Send the pricing to Dan by Thursday', merged: 'send-dan-the-pricing' });
+    expect(boxOf(m, 'send-dan-the-pricing').action.events.at(-1)).toMatchObject({ what: 'said again', quote: 'I will send the pricing to Dan by Thursday' });
+    // another commitment that shares some words is a draft of its own
+    const [other] = m.fromWords({ ...mine, lines: ['I will send Dan the contract'] }, [item({ quote: 'I will send Dan the contract', title: 'Send Dan the contract' })]);
+    expect(other).toEqual({ title: 'Send Dan the contract', made: 'send-dan-the-contract' });
     close();
   });
   it('puts a one-area member\'s draft in their area, under a box the map keeps for their items', async () => {
