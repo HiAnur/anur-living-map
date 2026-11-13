@@ -43,7 +43,7 @@ import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
-import { meetingBrief, meetingJob } from './meeting.js';
+import { meetingJob } from './meeting.js';
 import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
@@ -201,7 +201,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // would stop to ask about (sending, posting, changing things outside the map) is refused. Their pane follows that chat,
   // and what the owner writes there continues it, one turn at a time.
   let /** @type {any} */ building = null; const /** @type {any} */ queued = [];
-  const brief = () => state.meeting ? meetingBrief(name, state.meeting.by) : [
+  const brief = () => [
     `You are drawing a map on Living Map, the team's shared map on this Mac. This map is "${name}": pass map: "${name}" to living_map_read and living_map_change.`,
     'It began as a blank canvas from the prompt you are given. Find what it needs with the tools you have (files, the web, and the apps this Claude Code is connected to), then draw it with living_map_change: boxes for the parts, lines between them, and a question for a teammate where something is not known.',
     'Read, never act: do not send, post, book, buy, or change anything outside this map.',
@@ -224,20 +224,17 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       }, 500);
     }
   }
-  // a meeting drawn live (meeting.js): what the recorder hears goes to this map's own chat, which draws it
-  const meeting = meetingJob({ home, memory, getState: () => state, save, push, send: (text) => { const l = linkOf(); if (l?.built) converse(l, text); } });
-  /**
-   * Makes this map a meeting's, with a chat of its own that draws it, owned by whoever records it: their pane
-   * follows that chat, as it does a chat started from a prompt.
-   * @param {string} by
-   */
-  const meetingChat = (by) => {
-    state.linked = [{ session: crypto.randomUUID(), owner: by, built: true, at: Date.now() }, ...(state.linked || [])].slice(0, 10);
-  };
+  // A meeting drawn live (meeting.js): what the recorder hears is asked about with no tools, checked by code
+  // (meeting-draw.js) and drawn as Claude; each step's one-line summary goes into the recorder's own chat.
+  const meeting = meetingJob({ home, memory, getState: () => state, save, push,
+    answer: (job) => agent.answer(job),
+    draw: (p) => actingAs('Claude', () => draw(p, 'Claude', { kind: 'meeting' })),
+    say: (to, text) => { if (!to) return; (state.threads[`@${to}`] ??= []).push({ who: 'Claude', text, at: stamp() }); },
+    people: () => (state.people || []).map((/** @type {any} */ p) => p.id) });
   /** @param {{ title: string, app?: string, by: string }} o */
-  function startMeeting({ title, app, by }) { meetingChat(by); meeting.start({ title, app, by }); }
+  function startMeeting(o) { meeting.start(o); }
   /** @param {{ title: string, text: string, me?: string, by: string }} o */
-  function importMeeting(o) { meetingChat(o.by); return meeting.importText(o); }
+  function importMeeting(o) { return meeting.importText(o); }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
   // a system map notices new commits in its repos while nobody has it open

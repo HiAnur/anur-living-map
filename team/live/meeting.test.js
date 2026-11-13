@@ -1,6 +1,6 @@
-// A meeting drawn live: what the recorder sends is kept and handed to the map's own chat about once a minute of
-// talk, after a pause, and at the end with a last pass; a pasted transcript goes whole. The routes make a meeting's
-// map with a chat of its own, owned by whoever records it, and refuse what is not theirs.
+// A meeting drawn live: what the recorder sends is kept, asked about with no tools about once a minute of talk,
+// after a pause and at the end with a last pass, checked by code and drawn; the talk counts as sent only once
+// its answer landed. The routes make a meeting's map, owned by whoever records it, and refuse what is not theirs.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,68 +8,120 @@ import { Readable } from 'node:stream';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { agent, chats } from './agent.js';
+import { agent } from './agent.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
-import { CHUNK_MS, meetingBrief, meetingJob, parseTranscript } from './meeting.js';
+import { MEETING_ID } from './meeting-draw.js';
+import { CHUNK_MS, meetingJob, parseTranscript } from './meeting.js';
 import { openMap } from './server.js';
 
 const T0 = 1_700_000_000_000;
-/** A meeting on a state of its own, its messages to the chat kept in `sent`. @param {Partial<Parameters<typeof meetingJob>[0]>} [o] */
-function job(o = {}) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-meeting-'));
-  /** @type {any} */ const state = { title: 'Untitled map' };
-  /** @type {string[]} */ const sent = [];
-  let now = T0;
-  const j = meetingJob({ home, getState: () => state, save() {}, push() {}, send: (t) => sent.push(t), now: () => now, pauseMs: 30, ...o });
-  return { j, state, sent, home, tick: (/** @type {number} */ ms) => (now += ms) };
-}
 /** @param {number} s @param {string} text @param {string} [speaker] */
 const seg = (s, text, speaker = 'others') => ({ text, speaker, start: T0 + s * 1000, end: T0 + s * 1000 + 900 });
 const wait = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+/** an answer that adds one topic per call, quoting the newest line it was shown */
+const topicAnswer = (/** @type {any} */ job) => {
+  const now = job.prompt.split(/SAID SINCE YOU LAST LOOKED:|LAST PASS[^\n]*\n/).at(-1).trim().split('\n').filter((/** @type {string} */ l) => /: /.test(l)).at(-1) || '';
+  const quote = now.replace(/^[^:]+: /, '');
+  return { value: { summary: `Added "${quote}"`, ops: [{ op: 'add', kind: 'topic', title: quote.slice(0, 40), under: MEETING_ID, quote }] } };
+};
+
+/** A meeting on a state of its own; `answers` scripts what the agent answers, in turn. @param {any} [o] */
+function job(o = {}) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-meeting-'));
+  /** @type {any} */ const state = { title: 'Untitled map', nodes: [], edges: [] };
+  /** @type {any[]} */ const asked = [], drawn = [], said = [];
+  let now = T0;
+  const j = meetingJob({
+    home, getState: () => state, save() {}, push() {},
+    answer: async (job) => { asked.push(job); return (o.answer || topicAnswer)(job, asked.length); },
+    draw: (p) => { drawn.push(p); for (const n of p.nodes) { const had = state.nodes.find((/** @type {any} */ x) => x.id === n.id); if (had) Object.assign(had, n); else state.nodes.push({ ...n }); } state.edges.push(...p.edges); },
+    say: (to, text) => said.push({ to, text }),
+    now: () => now, pauseMs: 30, retryMs: 40, ...o.job,
+  });
+  return { j, state, asked, drawn, said, home, tick: (/** @type {number} */ ms) => (now += ms) };
+}
 
 describe('a meeting on a map', () => {
-  it('waits for a minute of talk, then sends it with what the meeting is', () => {
-    const { j, state, sent } = job();
+  it('starts with a meeting box at the centre of the map', () => {
+    const { j, state } = job();
     j.start({ title: 'Launch sync', app: 'Zoom', by: 'Harshit' });
-    expect(state).toMatchObject({ title: 'Launch sync', renamed: 'Launch sync', meeting: { app: 'Zoom', by: 'Harshit', live: true, sent: 0 } });
-    expect(j.add([seg(0, 'Launch date first.', 'you'), seg(20, "Let's decide on Friday.")])).toEqual({ count: 2 });
-    expect(sent).toEqual([]);
+    expect(state).toMatchObject({ title: 'Launch sync', start: MEETING_ID, meeting: { app: 'Zoom', by: 'Harshit', live: true, sent: 0 } });
+    expect(state.nodes[0]).toMatchObject({ id: MEETING_ID, label: 'Launch sync' });
+    j.close();
+  });
+
+  it('waits for a minute of talk, asks once with no tools, draws only what passes the checks', async () => {
+    const { j, state, asked, said } = job();
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(20, "Let's decide on Friday.")]);
+    expect(asked).toEqual([]);
     j.add([seg(CHUNK_MS / 1000, 'Now pricing.')]);
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatch(/^The meeting "Launch sync" started at \d\d:\d\d on Zoom\.\n\nSaid in the meeting \(\d\d:\d\d–\d\d:\d\d\):\nYou: Launch date first\.\nOthers: Let's decide on Friday\.\nOthers: Now pricing\.$/);
+    await j.idle();
+    expect(asked).toHaveLength(1);
+    expect(asked[0].schema).toBeTruthy();
+    expect(asked[0].prompt).toContain('"You:" are Harshit');
+    expect(asked[0].prompt).toMatch(/SAID SINCE YOU LAST LOOKED:\n\(\d\d:\d\d–\d\d:\d\d\)\nYou: Launch date first\.\nOthers: Let's decide on Friday\.\nOthers: Now pricing\./);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Launch sync', 'Now pricing.']);
+    expect(state.meeting).toMatchObject({ sent: 3, boxes: [state.nodes[1].id], kinds: { [state.nodes[1].id]: 'topic' } });
+    expect(said).toEqual([{ to: 'Harshit', text: 'Added "Now pricing."' }]);
+    j.close();
+  });
+
+  it('shows the last two minutes again, as already on the map', async () => {
+    const { j, asked } = job();
+    j.start({ title: 'M', by: 'Harshit' });
+    j.add([seg(0, 'First point here.'), seg(CHUNK_MS / 1000, 'Second point here.')]);
+    await j.idle();
+    j.add([seg(100, 'Third point here.'), seg(100 + CHUNK_MS / 1000, 'Fourth point here.')]);
+    await j.idle();
+    expect(asked[1].prompt).toMatch(/SAID BEFORE \(already on the map\):\n.*\nOthers: First point here\.\nOthers: Second point here\./);
+    expect(asked[1].prompt).toMatch(/SAID SINCE YOU LAST LOOKED:\n.*\nOthers: Third point here\.\nOthers: Fourth point here\.$/m);
+    j.close();
+  });
+
+  it('keeps the talk when a call fails, and sends it again later with what came after', async () => {
+    const { j, state, asked } = job({ answer: (/** @type {any} */ job, /** @type {number} */ n) => (n === 1 ? { error: 'signed out' } : topicAnswer(job)) });
+    j.start({ title: 'M', by: 'Harshit' });
+    j.add([seg(0, 'Point one is here.'), seg(CHUNK_MS / 1000, 'Point two is here.')]);
+    await j.idle();
+    expect(state.meeting).toMatchObject({ sent: 0, error: 'signed out' });
+    j.add([seg(70, 'Point three is here.')]);
+    await wait(120); await j.idle();
     expect(state.meeting.sent).toBe(3);
+    expect(state.meeting.error).toBeUndefined();
+    expect(asked.at(-1).prompt).toContain('Point one is here.\nOthers: Point two is here.\nOthers: Point three is here.');
     j.close();
   });
 
-  it('sends what waits once nobody has spoken for a while, and only what is new', async () => {
-    const { j, sent } = job();
+  it('sends refused items back once with the reasons, then keeps what landed', async () => {
+    const { j, state, asked } = job({ answer: (/** @type {any} */ job, /** @type {number} */ n) => n === 1
+      ? { value: { summary: 'two', ops: [{ op: 'add', kind: 'topic', title: 'Budget', under: MEETING_ID, quote: 'the budget is forty thousand' }, { op: 'add', kind: 'topic', title: 'Pricing', under: MEETING_ID, quote: 'Now pricing' }] } }
+      : { value: { summary: 'fixed', ops: [] } } });
+    j.start({ title: 'M', by: 'Harshit' });
+    j.add([seg(0, 'Now pricing.'), seg(CHUNK_MS / 1000, 'Free tier or trial?')]);
+    await j.idle();
+    expect(asked).toHaveLength(2);
+    expect(asked[1].prompt).toMatch(/WERE REFUSED[\s\S]*Budget[\s\S]*its quote is not in what was said/);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['M', 'Pricing']);
+    expect(state.meeting.refused).toEqual([expect.objectContaining({ why: 'its quote is not in what was said' })]);
+    j.close();
+  });
+
+  it('sends what waits after a pause, and at the end the rest and a last pass', async () => {
+    const { j, state, asked } = job({ answer: (/** @type {any} */ jb) => (jb.prompt.includes('LAST PASS') ? { value: { summary: 'Tidied', ops: [] } } : topicAnswer(jb)) });
     j.start({ title: 'Standup', by: 'Harshit' });
-    j.add([seg(0, 'Quick one.')]);
-    j.add([seg(2, 'Still here.')]);
-    await wait(80);
-    expect(sent).toHaveLength(1);
-    expect(sent[0]).toContain('Others: Quick one.\nOthers: Still here.');
-    j.add([seg(30, 'One more thing.', 'you')]);
-    await wait(80);
-    expect(sent).toHaveLength(2);
-    expect(sent[1]).toBe(sent[1].replace(/^The meeting/, ''));
-    expect(sent[1]).toMatch(/^Said in the meeting .*:\nYou: One more thing\.$/);
-    j.close();
-  });
-
-  it('ends with what is left and a last pass, then takes no more words', () => {
-    const { j, state, sent } = job();
-    j.start({ title: 'Review', by: 'Harshit' });
-    j.add([seg(0, 'Who reviews it?')]);
+    j.add([seg(0, 'Quick one about the deploy.')]);
+    await wait(80); await j.idle();
+    expect(asked).toHaveLength(1);
+    j.add([seg(30, 'And the release notes too.')]);
     expect(j.end()).toEqual({});
-    expect(sent).toHaveLength(2);
-    expect(sent[0]).toContain('Others: Who reviews it?');
-    expect(sent[1]).toMatch(/^The meeting has ended\. Make a last pass/);
-    expect(state.meeting.live).toBe(false);
-    expect(j.add([seg(5, 'late')])).toEqual({ error: 'That meeting has ended.' });
-    expect(j.end()).toEqual({});
-    expect(sent).toHaveLength(2);
+    await wait(20); await j.idle(); await wait(20); await j.idle();
+    expect(asked).toHaveLength(3);
+    expect(asked[1].prompt).toContain('And the release notes too.');
+    expect(asked[2].prompt).toContain('LAST PASS');
+    expect(state.meeting).toMatchObject({ live: false, done: true, sent: 2 });
+    expect(j.add([seg(40, 'late')])).toEqual({ error: 'That meeting has ended.' });
   });
 
   it('refuses words on a map that is not a meeting, and a list that is not one', () => {
@@ -82,32 +134,31 @@ describe('a meeting on a map', () => {
     j.close();
   });
 
-  it('keeps what was said in the map\'s folder, and sends what was waiting after a restart', () => {
-    const { j, state, sent, home } = job({ memory: false });
-    j.start({ title: 'Kept', by: 'Harshit' });
-    j.add([seg(0, 'First words.')]);
-    j.close();
-    expect(fs.readFileSync(path.join(home, 'meeting.jsonl'), 'utf8')).toContain('First words.');
-    const again = meetingJob({ home, getState: () => state, save() {}, push() {}, send: (t) => sent.push(t), pauseMs: 30 });
+  it('keeps what was said in the map\'s folder, and sends what was waiting after a restart', async () => {
+    const first = job({ job: { memory: false } });
+    first.j.start({ title: 'Kept', by: 'Harshit' });
+    first.j.add([seg(0, 'First words here.')]);
+    first.j.close();
+    expect(fs.readFileSync(path.join(first.home, 'meeting.jsonl'), 'utf8')).toContain('First words here.');
+    /** @type {any[]} */ const asked = [];
+    const again = meetingJob({ home: first.home, getState: () => first.state, save() {}, push() {}, draw() {}, say() {},
+      answer: async (jb) => { asked.push(jb); return topicAnswer(jb); } });
     expect(again.said()).toHaveLength(1);
-    again.end();
-    expect(sent[0]).toContain('Others: First words.');
+    await wait(20); await again.idle();
+    expect(asked[0].prompt).toContain('First words here.');
+    again.close();
   });
 
-  it('sends a pasted transcript whole, with your lines as yours', () => {
-    const { j, state, sent } = job();
+  it('draws a pasted transcript in stretches, with your lines as yours, then a last pass', async () => {
+    const { j, state, asked } = job();
     expect(j.importText({ title: 'Pasted', text: '  ', by: 'Harshit' }).error).toBe('The transcript has no words.');
-    expect(j.importText({ title: 'Pasted', text: 'Priya: We ship Friday.\nHarshit Khandelwal: I will write the notes.', me: 'Harshit Khandelwal', by: 'Harshit' })).toEqual({ count: 2 });
-    expect(state.meeting).toMatchObject({ imported: true, live: false });
-    expect(sent).toEqual([expect.stringMatching(/^This is the whole transcript of a meeting, "Pasted".*\n\nPriya: We ship Friday\.\nYou: I will write the notes\.$/s)]);
-  });
-
-  it('tells the chat whose words are whose, and to draw only what was said', () => {
-    const brief = meetingBrief('launch-sync', 'Harshit');
-    expect(brief).toContain('pass map: "launch-sync"');
-    expect(brief).toContain('"You:" are Harshit');
-    expect(brief).toMatch(/Never invent/);
-    expect(brief).toMatch(/Read, never act/);
+    const long = Array.from({ length: 30 }, (_, i) => `Priya: Point number ${i} is about the long launch plan for everyone here.`).join('\n');
+    expect(j.importText({ title: 'Pasted', text: `${long}\nHarshit Khandelwal: I will write the notes.`, me: 'Harshit Khandelwal', by: 'Harshit' })).toEqual({ count: 31 });
+    for (let i = 0; i < 20 && !state.meeting.done; i++) await wait(10);
+    expect(state.meeting).toMatchObject({ imported: true, live: false, done: true, sent: 31 });
+    expect(asked.length).toBeGreaterThanOrEqual(3);
+    expect(asked.at(-2).prompt).toContain('You: I will write the notes.');
+    expect(asked.at(-1).prompt).toContain('LAST PASS');
   });
 });
 
@@ -142,12 +193,12 @@ describe('the meeting routes', () => {
   function server() {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-meeting-routes-'));
     /** @type {any[]} */ const asked = [];
-    const converse = vi.spyOn(agent, 'converse').mockImplementation((/** @type {any} */ j) => { asked.push(j); setTimeout(j.onClose); return () => {}; });
-    const find = vi.spyOn(chats, 'findChat').mockImplementation(() => null);
+    const answer = vi.spyOn(agent, 'answer').mockImplementation(async (/** @type {any} */ j) => { asked.push(j); return { ...topicAnswer(j), ms: 1 }; });
+    const converse = vi.spyOn(agent, 'converse').mockImplementation(() => () => {});
     const deps = { DIR: home, PROJECT: '', PROJECTS: path.join(home, 'projects.json'), mapName: path.basename };
     const maps = mapList({ ...deps, openMap, demo: () => ({ people: [] }) });
     const routes = mapsRoutes({ ...deps, maps });
-    undo.push(() => { for (const m of maps.named.values()) m.close(); maps.main?.close(); converse.mockRestore(); find.mockRestore(); fs.rmSync(home, { recursive: true, force: true }); });
+    undo.push(() => { for (const m of maps.named.values()) m.close(); maps.main?.close(); answer.mockRestore(); converse.mockRestore(); fs.rmSync(home, { recursive: true, force: true }); });
     /** @param {string} p @param {any} data @param {string | null} [who] @param {boolean} [tool] */
     const post = async (p, data, who = null, tool = true) => {
       const req = Object.assign(Readable.from([JSON.stringify(data)]), { method: 'POST', headers: tool ? {} : { origin: 'http://localhost', cookie: 'x=1' } });
@@ -155,29 +206,29 @@ describe('the meeting routes', () => {
       await routes(req, {}, new URL(`http://localhost${p}`), who, (/** @type {number} */ status, /** @type {any} */ body) => { result = { status, body }; return true; });
       return result;
     };
-    return { maps, post, asked, home };
+    return { maps, post, asked, converse };
   }
 
-  it('makes a meeting\'s map with its own chat, and the recorder\'s words reach that chat', async () => {
-    const { maps, post, asked } = server();
+  it('makes a meeting\'s map, and the recorder\'s words are drawn on it with no chat and no tools', async () => {
+    const { maps, post, asked, converse } = server();
     expect((await post('/api/meetings', {})).status).toBe(400);
     const r = await post('/api/meetings', { title: 'Launch sync', app: 'Zoom', by: 'Harshit' });
     expect(r).toEqual({ status: 200, body: { name: 'launch-sync', title: 'Launch sync', href: '/launch-sync/' } });
-    const map = maps.mapCalled('launch-sync'), s = map.snapshot();
-    expect(s).toMatchObject({ title: 'Launch sync', meeting: { by: 'Harshit', app: 'Zoom', live: true } });
-    expect(s.linked[0]).toMatchObject({ owner: 'Harshit', built: true });
+    const map = maps.mapCalled('launch-sync');
+    expect(map.snapshot()).toMatchObject({ title: 'Launch sync', start: MEETING_ID, meeting: { by: 'Harshit', live: true } });
 
-    const words = { segments: [seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, 'Friday works.')] };
+    const words = { segments: [seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, 'Friday works for design.')] };
     expect(await post('/api/meetings/launch-sync/segments', words)).toEqual({ status: 200, body: { ok: true, count: 2 } });
+    await map.meeting.idle();
     expect(asked).toHaveLength(1);
-    expect(asked[0]).toMatchObject({ first: true, session: s.linked[0].session, cwd: expect.stringContaining('launch-sync') });
-    expect(asked[0].system).toContain('live map of a meeting');
-    expect(asked[0].prompt).toContain('You: Launch date first.\nOthers: Friday works.');
+    expect(converse).not.toHaveBeenCalled();
+    const s = map.snapshot();
+    expect(s.nodes.find((/** @type {any} */ n) => n.label === 'Friday works for design.')).toMatchObject({ by: 'Claude' });
+    expect(s.threads['@Harshit'].at(-1)).toMatchObject({ who: 'Claude', text: 'Added "Friday works for design."' });
 
     expect(await post('/api/meetings/launch-sync/end', {})).toEqual({ status: 200, body: { ok: true } });
-    await wait(20);
-    expect(asked.at(-1).prompt).toMatch(/^The meeting has ended/);
-    expect(asked.at(-1).first).toBe(false);
+    for (let i = 0; i < 20 && !map.snapshot().meeting.done; i++) await wait(10);
+    expect(asked.at(-1).prompt).toContain('LAST PASS');
     expect((await post('/api/meetings/launch-sync/segments', words)).status).toBe(400);
   });
 
@@ -188,12 +239,13 @@ describe('the meeting routes', () => {
     expect(maps.mapCalled(r.body.name).snapshot().meeting.by).toBe('Priyanka');
   });
 
-  it('files a pasted transcript as a meeting map, and refuses one with no words', async () => {
+  it('draws a pasted transcript as a meeting map, and refuses one with no words', async () => {
     const { post, asked, maps } = server();
     expect((await post('/api/meetings/import', { title: 'Empty', text: ' ', by: 'Harshit' })).status).toBe(400);
     expect(maps.everyMap()).toEqual([]);
     const r = await post('/api/meetings/import', { title: 'Yesterday', text: 'Priya: We cut the ads spend.', by: 'Harshit' });
     expect(r.status).toBe(200);
+    for (let i = 0; i < 20 && !maps.mapCalled('yesterday').snapshot().meeting.done; i++) await wait(10);
     expect(asked[0].prompt).toContain('Priya: We cut the ads spend.');
   });
 
