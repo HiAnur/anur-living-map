@@ -12,11 +12,20 @@ final class MapWindowController: NSObject, NSWindowDelegate, WKNavigationDelegat
 
   func show(url: URL, title: String) {
     serverHost = url.host
+    present(title: title)
+    webView?.load(URLRequest(url: url))
+  }
+
+  /// Brings the window to the front now. Called straight from a click too,
+  /// before the server answers: macOS lets an app come forward only while it
+  /// handles your click, and a window shown later stays behind the app you
+  /// were in. `orderFrontRegardless` covers the times activation is refused.
+  func present(title: String) {
     let window = self.window ?? makeWindow()
     window.title = "Living Map — \(title)"
-    webView?.load(URLRequest(url: url))
-    window.makeKeyAndOrderFront(nil)
     NSApp.activate()
+    window.makeKeyAndOrderFront(nil)
+    window.orderFrontRegardless()
   }
 
   var isVisible: Bool { window?.isVisible ?? false }

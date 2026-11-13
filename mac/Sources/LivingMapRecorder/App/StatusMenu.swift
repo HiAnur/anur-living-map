@@ -103,6 +103,7 @@ extension AppDelegate: NSMenuDelegate {
   }
 
   @objc func openCurrentMap() {
+    mapWindow.present(title: session?.meeting.title ?? settings.recent.first?.title ?? "your maps")
     if let session {
       Task { await openMap(conv: session.meeting.conv, title: session.meeting.title) }
     } else if let last = settings.recent.first {
@@ -116,6 +117,7 @@ extension AppDelegate: NSMenuDelegate {
     guard let conv = sender.representedObject as? String,
       let meeting = settings.recent.first(where: { $0.conv == conv })
     else { return }
+    mapWindow.present(title: meeting.title)
     Task { await openMap(conv: meeting.conv, title: meeting.title) }
   }
 
