@@ -2,6 +2,8 @@
 // the map and the lines that say what was done and what was left out. No network and no clock of its own, so
 // every rule about what Claude may draw can be tested here.
 
+import { fileURLToPath } from 'node:url';
+
 export const STATES = ['new', 'todo', 'assumed-gone', 'gone'];
 export const KINDS = ['timeline', 'sequence', 'venn'];
 
@@ -98,3 +100,12 @@ export function planChange({ note, boxes = [], lines = [], questions = [], remem
   if (!nodes.length && !edges.length && !calls.length && !memory.length && !unlink.length && tidy !== true && !top) throw new Error(`Nothing changed. ${skipped.join('; ')}`);
   return { edit: { note: clip(note || done[0], 200), nodes, edges, calls, memory, unlink, tidy: tidy === true, ...(top ? { start: top.id } : {}) }, done, skipped };
 }
+
+// What a chat the map runs itself may draw with: mcp.js pinned to one map (LIVING_MAP_ONLY_MAP), so its tools refuse
+// any other, list only reading and changing that map, and set no instructions or memory; LIVING_MAP_SESSION names the
+// chat on every change it sends, so the map knows whose change it is.
+export const PINNED = 'LIVING_MAP_ONLY_MAP', SESSION = 'LIVING_MAP_SESSION';
+export const DRAW_TOOLS = ['living_map_read', 'living_map_change'];
+/** @param {{ url: string, map: string, session: string }} o @returns {McpServer} */
+export const drawServer = ({ url, map, session }) => ({ command: process.execPath, args: [fileURLToPath(new URL('./mcp.js', import.meta.url))],
+  env: { LIVING_MAP_URL: url, [PINNED]: map, [SESSION]: session }, tools: DRAW_TOOLS });

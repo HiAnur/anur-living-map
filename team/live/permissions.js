@@ -62,7 +62,7 @@ export const WHO = {
   // what a chat sends through the map's tools
   propose: { standing: 'member', then: 'it names a chat linked to the map' },
   plan: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer' },
-  edit: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer' },
+  edit: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer; from a chat answering a request in the map\'s pane, a proposal for that chat\'s owner instead' },
   pr: { standing: 'member', then: 'nothing' },
   // Action boxes
   ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionconfirm', 'actionalone', 'actionexecute', 'actioncontinue', 'actionstop']

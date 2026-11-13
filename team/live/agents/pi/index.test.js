@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { answer, ask, prepare, run } from './index.js';
+import { answer, ask, converse, prepare, run } from './index.js';
 import { SIGNED_OUT } from './process.js';
 
 // Each job the map gives Pi, from a stand-in for `pi` that prints the JSON events Pi would: the flags it is
@@ -123,5 +123,20 @@ describe('run', () => {
     const r = await new Promise((resolve) => run({ cwd: '/w', session: 'run-0002', prompt: 'p', schema: {}, system: '', read: (v) => /** @type {any} */ (v), onText() {}, onDone: resolve, spawnProcess: s.spawnProcess }));
     expect(r.blocked).toBe(true);
     expect(r.text).toContain('overloaded');
+  });
+});
+
+describe('converse', () => {
+  it('a chat the map runs itself gets only the map\'s own tools, none of your servers or context files', async () => {
+    const s = stand(text('Proposed two boxes.'));
+    const servers = { living_map: { command: 'node', args: ['mcp.js'], env: { LIVING_MAP_ONLY_MAP: 'demo' }, tools: ['living_map_read', 'living_map_change'] } };
+    await new Promise((resolve) => converse({ cwd: '/maps/demo', session: 'chat-1', first: true, title: 'Living Map: Demo', system: 'Draw it.', prompt: 'Add billing', servers, onClose: () => resolve(null), spawnProcess: s.spawnProcess }));
+    expect(flag(s.seen.args, '--session-id')).toBe('chat-1');
+    expect(flag(s.seen.args, '--name')).toBe('Living Map: Demo');
+    expect(flag(s.seen.args, '--tools')).toBe('mcp__living_map__living_map_read,mcp__living_map__living_map_change');
+    expect(s.seen.args).toEqual(expect.arrayContaining(['--no-context-files', '--no-approve']));
+    expect(s.seen.job.servers).toEqual(servers);
+    expect(s.seen.job.allow).toEqual(['mcp__living_map__living_map_read', 'mcp__living_map__living_map_change']);
+    expect(s.seen.prompt).toBe('Add billing');
   });
 });
