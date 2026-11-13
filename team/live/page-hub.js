@@ -7,14 +7,14 @@
 export const HUB_SIZE = 28;
 
 /**
- * Whether a box is drawn as the centre circle: the start box of a map's top level. Not on a map drawn from code,
- * where the start is a repo or service people need to read; not inside a box, where the start is one of that box's
- * parts; and not a box that holds something the circle has no room to show (boxes inside it, a diagram, an Action).
+ * Whether a box is drawn as the centre circle: the start box of a map's top level (on a system map, the centre code
+ * adds for the whole system, system-centre.js). Not inside a box, where the start is one of that box's parts; and not
+ * a box that holds something the circle has no room to show (boxes inside it, a diagram, an Action).
  * @param {any} n the box
- * @param {{ start: string | null | undefined, top: boolean, code: boolean }} map where the map starts, whether this is its top level, whether it is drawn from code
+ * @param {{ start: string | null | undefined, top: boolean }} map where the map starts, and whether this is its top level
  */
-export function isHub(n, { start, top, code }) {
-  return !!n && top && !code && !!start && n.id === start && !n.proposed && !n.inside && !n.diagram && !n.action;
+export function isHub(n, { start, top }) {
+  return !!n && top && !!start && n.id === start && !n.proposed && !n.inside && !n.diagram && !n.action;
 }
 
 /**

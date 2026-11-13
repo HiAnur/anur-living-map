@@ -14,6 +14,7 @@ import path from 'node:path';
 import { DATA } from './data-dir.js';
 import { sharedGithub } from './github.js';
 import { systemState } from './system-build.js';
+import { withCentre } from './system-centre.js';
 import { repoHead } from './system-facts.js';
 import { drawSystem } from './system-draw.js';
 import { allBoxesOf } from './map-walk.js';
@@ -50,8 +51,10 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
     if (!repo || !Array.isArray(start) || !start.length) return null;
     return traceFrom(repo, start, JSON.parse(fs.readFileSync(FACTS, 'utf8')), hiddenFor(who));
   }
+  /** puts a drawing on the map, with its centre over every box code drew, kept or new (system-centre.js) @param {any} drawn */
+  const put = (drawn) => { Object.assign(getState(), { nodes: drawn.nodes, edges: drawn.edges, start: drawn.start }); withCentre(getState(), getState().title); };
   /** puts a drawing on the map, keeping what people did to it @param {any} drawn */
-  const applyDrawn = (drawn) => { const merged = keepHandEdits(getState(), drawn); Object.assign(getState(), { nodes: merged.nodes, edges: merged.edges, start: merged.start }); };
+  const applyDrawn = (drawn) => put(keepHandEdits(getState(), drawn));
   const KEPT = path.join(home, 'system-drawn.json'), REPORT = path.join(home, 'system-report.json'), FOLDERS = path.join(home, 'system-folders.json');
   /** The drawn boxes on the map's top level, under the ids the agent gave them: a repo once, by its first box. @returns {import('./system-ids.js').Known[]} */
   const platformBoxes = () => {
@@ -98,8 +101,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       if (!fresh) return;
       sofar.set(r.repo, { reading: r, drawn: d });
       const boxes = [...sofar.values()].map(({ reading }) => ({ id: reading.repo, name: reading.repo, kind: 'library', description: (reading.kinds || []).join(', '), facts: [`repo:${reading.repo}`], repo: reading.repo }));
-      const partial = systemState({ boxes, lines: [] }, new Map(), [...sofar.values()]);
-      Object.assign(getState(), { nodes: partial.nodes, edges: [], start: partial.start });
+      put(systemState({ boxes, lines: [] }, new Map(), [...sofar.values()], getState().title));
     };
     getState().drawing = drawing;
     save(); push();
@@ -128,7 +130,7 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       return got;
     };
     download().then((all) => draw({
-      folders: all, agent, signal: controller.signal,
+      folders: all, agent, signal: controller.signal, title: getState().title,
       reuse: (r) => { const k = store[r.repo]; return k && k.commit === basis(r) ? k.drawn : null; },
       // what each drawing replaces: a repo's last checked drawing, and for the platform the drawn boxes on the map's
       // top level under the ids the agent gave them, so a box drawn again is the same box and never a second one
@@ -146,15 +148,14 @@ export function systemJob({ home, getState, save, push, agent, draw = drawSystem
       drawing.status = cancelled ? 'cancelled' : failed.length ? 'failed' : 'done';
       // a new map takes its drawing at once; a map drawn again keeps what people did to it (system-merge.js), and what
       // code would change waits for an Engineer to apply it
-      if (state && fresh) { Object.assign(getState(), { nodes: state.nodes, edges: state.edges, start: state.start }); keepFacts(FACTS, facts); }
+      if (state && fresh) { put(state); keepFacts(FACTS, facts); }
       else if (state) {
         // drawn again: what code added or renamed lands now, keeping what people did; what code no longer finds stays
         // on the map until an Engineer takes it off (Apply) or keeps it (system-merge.js)
         const changes = redrawChanges(getState(), keepHandEdits(getState(), structuredClone(state)));
         const gone = changes.filter((c) => c.what === 'gone');
         const keep = { boxes: new Set(gone.filter((c) => c.kind === 'box').map((c) => c.id)), lines: new Set(gone.filter((c) => c.kind === 'line').map((c) => c.id)) };
-        const now = keepHandEdits(getState(), structuredClone(state), keep);
-        Object.assign(getState(), { nodes: now.nodes, edges: now.edges, start: now.start });
+        put(keepHandEdits(getState(), structuredClone(state), keep));
         keepFacts(FACTS, facts);
         drawing.updated = changes.length - gone.length;
         if (gone.length) { fs.writeFileSync(PENDING, JSON.stringify(state)); getState().redraw = { at: Date.now(), by: drawing.by, count: gone.length, changes: gone.slice(0, 300) }; }

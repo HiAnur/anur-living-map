@@ -61,6 +61,7 @@ import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { hubSizes, placeNew, readProject, tidy, tidyLayers, tidyTree } from './project.js';
+import { withCentre } from './system-centre.js';
 import { adminsOf, isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
@@ -153,6 +154,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     state.admins = existed ? adminsOf(state, { before: before() }) : [];
     if (existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
   }
+  // A system map drawn before it had a centre gets one now, written down at once, so it shows on first open
+  if (state.drawing && withCentre(state, state.title) && existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
   // A map is usable as extra context only while it remains checked in Brain.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
@@ -477,13 +480,15 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     if (!fresh.length) return;
     plan.layout = appendProposed(state.nodes, state.edges, fresh, plan.edges);
     const nodes = [...state.nodes.map((/** @type {any} */ n) => ({ ...n, ...plan.layout.find((/** @type {any} */ m) => m.id === n.id) })), ...fresh], edges = [...state.edges, ...plan.edges], start = plan.start || state.start;
-    placeNew(nodes, edges, start, hubSizes(nodes, edges, start, !!state.drawing));
+    placeNew(nodes, edges, start, hubSizes(nodes, edges, start));
     for (const f of fresh) Object.assign(plan.nodes.find((/** @type {any} */ n) => n.id === f.id), { x: f.x, y: f.y });
   }
   // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
   // read as one tree; the boxes are Claude's to place again until someone drags one
   function relayout() {
-    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start, hubSizes(state.nodes, state.edges, state.start, !!state.drawing)) && !(state.drawing && tidyLayers(state.nodes, state.edges))) tidy(state.nodes, state.edges);
+    // a map drawn from code reads in rows, what calls above what is called, even with its centre making it one tree
+    const sizes = hubSizes(state.nodes, state.edges, state.start);
+    if (!(state.drawing ? tidyLayers(state.nodes, state.edges, null, sizes) : tidyTree(state.nodes, state.edges, null, () => false, state.start, sizes))) tidy(state.nodes, state.edges);
     for (const n of state.nodes) delete n.moved;
     for (const p of pendingProposals()) placeProposed(p.plan);
   }
@@ -585,6 +590,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
       Object.assign(state, restored);
+      // a version from before the system map had its centre comes back with it
+      if (state.drawing) withCentre(state, state.title);
       tell(`${a.by} went back to the version from ${clock(v.at)}`);
       return true;
     },

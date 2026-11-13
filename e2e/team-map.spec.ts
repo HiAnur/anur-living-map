@@ -414,21 +414,23 @@ test("Tidy up lays out the circle and its topics with no box on another", async 
   // the circle's half, the gap between rings, then half of a main topic
   await expect.poll(gap).toBe(14 + 70 + 70);
   await expect(box(page, "Free trial")).toBeVisible();
-  const overlaps = await page.evaluate(() => {
-    const r = [...document.querySelectorAll("#nodes .node")].map((n) =>
-      n.getBoundingClientRect(),
-    );
-    return r.flatMap((a, i) =>
-      r
-        .slice(i + 1)
-        .filter(
-          (b) =>
-            a.left < b.right &&
-            b.left < a.right &&
-            a.top < b.bottom &&
-            b.top < a.bottom,
-        ),
-    ).length;
-  });
-  expect(overlaps).toBe(0);
+  // the page draws the new places when the server's update reaches it, a moment after they are stored
+  const overlaps = () =>
+    page.evaluate(() => {
+      const r = [...document.querySelectorAll("#nodes .node")].map((n) =>
+        n.getBoundingClientRect(),
+      );
+      return r.flatMap((a, i) =>
+        r
+          .slice(i + 1)
+          .filter(
+            (b) =>
+              a.left < b.right &&
+              b.left < a.right &&
+              a.top < b.bottom &&
+              b.top < a.bottom,
+          ),
+      ).length;
+    });
+  await expect.poll(overlaps).toBe(0);
 });

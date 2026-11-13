@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   SAMPLE,
   box,
+  hub,
   makeOwner,
   server,
   signIn,
@@ -167,9 +168,39 @@ test("Keep the map as it is keeps what code no longer finds", async ({
   await expect(panel).not.toContainText("no longer finds");
   await expect(box(page, "web")).toBeVisible();
   await expect(box(page, "api")).toBeVisible();
-  // a system map starts at a repo people need to read: a named box, not the empty circle
-  await expect(page.locator("#nodes .node.hub")).toHaveCount(0);
-  await expect(box(page, "api")).toHaveClass(/\bstart\b/);
+});
+
+test("a system map starts at a circle for the whole system, every repo hanging off it", async ({
+  page,
+}) => {
+  const map = systemMap();
+  // a box someone drew under a repo, one level further out
+  const name = openState({
+    ...map,
+    nodes: [...map.nodes, { id: "mine", label: "My note", x: 300, y: 200 }],
+    edges: [...map.edges, { from: "system-web", to: "mine" }],
+  });
+  await page.goto(`${server.origin}/${name}/`);
+  const circle = hub(page);
+  await expect(circle).toHaveAttribute("aria-label", "Shop system");
+  await expect(circle).toHaveText("");
+  // the repos are ordinary boxes, each with a straight line from the circle
+  for (const repo of ["api", "web"])
+    await expect(box(page, repo)).not.toHaveClass(/\bstart\b/);
+  await expect(page.locator("#edges path.spoke")).toHaveCount(2);
+  // the calls between them stay plain lines, never curved cross-links
+  await expect(page.locator("#edges path.cross")).toHaveCount(0);
+  // a click shows only the repos; another, every box again (the drawing's panel, over the top, closed first)
+  await page.locator("#sysdraw").getByRole("button", { name: "Close" }).click();
+  await circle.click();
+  await expect(box(page, "My note")).toHaveCount(0);
+  await expect(box(page, "web")).toBeVisible();
+  await circle.click();
+  await expect(box(page, "My note")).toBeVisible();
+  // a repo still opens into its own map, whose first box keeps its name
+  await page.locator('[data-expand="system-api"]').click();
+  await expect(box(page, "Payments")).toBeVisible();
+  await expect(hub(page)).toHaveCount(0);
 });
 
 test("the map updating itself from new commits does not pop the panel up", async ({

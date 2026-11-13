@@ -132,8 +132,9 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
-    // in their window). A topic map lays out as a mind map. A map drawn from code that is not one, and what any of
-    // its boxes opens into, lays out in rows, what calls above what is called. Any other map puts its showing boxes
+    // in their window). A topic map lays out as a mind map. A map drawn from code, and what any of its boxes opens
+    // into, lays out in rows, what calls above what is called, its centre in a row of its own on top (its centre makes
+    // its top level one tree, which is still no reason to lay it out as one). Any other map puts its showing boxes
     // that are off the grid on it, with no line through a box. None moves anything when pressed twice. Boxes
     // Claude proposed and nobody applied yet find new places around it.
     /** @param {Act<'tidy'>} a */
@@ -143,11 +144,11 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       const edges = inside ? inside.edges || [] : getState().edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
       // the top level's start box is the page's small circle, unless the page measured it as a box
       const code = !!getState().drawing;
-      const sizes = inside ? new Map() : hubSizes(list, edges, getState().start, code);
+      const sizes = inside ? new Map() : hubSizes(list, edges, getState().start);
       for (const s of Array.isArray(a.sizes) ? a.sizes : []) if (s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000) sizes.set(s.id, {w:s.w, h:s.h});
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      const done = inside && code ? tidyLayers(list, edges, only, sizes)
-        : tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : getState().start, sizes) || (code && tidyLayers(list, edges, only, sizes));
+      const done = code ? tidyLayers(list, edges, only, sizes)
+        : tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : getState().start, sizes);
       if (!done) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;

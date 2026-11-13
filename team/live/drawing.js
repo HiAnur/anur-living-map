@@ -56,7 +56,7 @@ export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
       levels.add(level);
     }
     // a new box with no place goes where its lines cross nothing
-    placeNew(state.nodes, state.edges, state.start, hubSizes(state.nodes, state.edges, state.start, !!state.drawing));
+    placeNew(state.nodes, state.edges, state.start, hubSizes(state.nodes, state.edges, state.start));
     for (const level of levels) if (level !== state) placeNew(level.nodes, level.edges || []);
     for (const c of p.calls || []) { const had = state.calls.find((/** @type {any} */ x) => x.id === c.id); if (had) Object.assign(had, c); else state.calls.push(c); }
     // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing

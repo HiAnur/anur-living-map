@@ -154,6 +154,7 @@ body.blank-repo #tidyb{display:none}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
 #edges > path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .3s}
 #edges > path.old{stroke:var(--line);stroke-width:1.2}
+#edges > path.spoke{stroke:var(--line);stroke-width:1;opacity:.5}
 /* what the plan builds is alive: its lines flow toward where they go, its boxes breathe */
 #edges > path.new{stroke:var(--new);stroke-dasharray:7 5;animation:flow .9s linear infinite}
 /* a plan whose questions are all answered stops moving: still blue and dashed, because nothing is built yet */
@@ -1974,6 +1975,9 @@ function portsFor(list, nodes, spreadOut = true){
 // largest group of boxes that lines join; boxes no line joins to it are loose and never stop it being one, and a
 // group of them that is a tree of its own is drawn as one.
 function crossLinks(){
+  // a map drawn from code reads in rows, what calls above what is called: its centre makes its top level one tree, yet
+  // its calls stay plain lines, never cross-links
+  if (S.drawing) return null;
   const ids = new Set(S.nodes.map((n) => n.id)), es = S.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
   // the groups of boxes that lines join, a box with no line a group of its own
   const near = new Map(S.nodes.map((n) => [n.id, []])), groupOf = new Map(), groups = [];
@@ -2066,7 +2070,13 @@ function placeWords(labels, lines, nodes){
 // the start box of a map's top level is drawn as a small empty circle (page-hub.js); while you rename it, as a box,
 // so the name you type has room
 function hubbed(n){
-  return isHub(n, { start: fold.start, top: view === 'system', code: !!S?.drawing }) && naming?.edit !== n.id;
+  return isHub(n, { start: fold.start, top: view === 'system' }) && naming?.edit !== n.id;
+}
+// a straight line from the circle's edge to the edge of a box, along the line between their middles
+function spokePts(a, b){
+  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+  const t = Math.min((W(b) / 2 + 2) / (Math.abs(dx) || 1e-9), (HT(b) / 2 + 2) / (Math.abs(dy) || 1e-9));
+  return [[a.x + dx / d * W(a) / 2, a.y + dy / d * HT(a) / 2], [b.x - dx * t, b.y - dy * t]].map((p) => p.map((v) => Math.round(v * 10) / 10));
 }
 // the circle; where the start is drawn as a box, that one box in orange. The main topics around a circle are ordinary
 // boxes. When the start box carries a colour of its own (a question waiting on it, an answer, something the plan
@@ -2106,8 +2116,11 @@ function render(){
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
   const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
   const routed = [], dupOf = new Map();
+  // on a system map the centre's own lines are spokes, straight and faint under the boxes: a line to every repo, routed
+  // like the calls between them, would bury those calls
+  const spoke = (e) => !!S.drawing && view === 'system' && e.origin === 'code' && !!byId[e.from] && hubbed(byId[e.from]);
   for (const e of edges){
-    const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
+    const a = byId[e.from], b = byId[e.to]; if (!a || !b || spoke(e)) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
     if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup, e });
   }
@@ -2117,6 +2130,7 @@ function render(){
   const ptsOf = new Map(routed.map((l) => [l.id, fanned.has(l.id) ? fanPts(l.a, l.b, nodes) : l.e.out || l.e.in ? plainPts(l, nodes, routed) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id), routed.slice(0, routed.indexOf(l)).map((o) => plainPts(o, nodes, routed)))]));
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
+    if (spoke(e)){ svg += `<path class="spoke" d="${spokePts(a, b).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; continue; }
     const dup = dupOf.get(e);
     // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
     const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
@@ -2589,14 +2603,15 @@ document.addEventListener('keydown', (e) => {
   popup.hidePopover(); popup.previousElementSibling.focus();
 }, true);
 // On a map that builds on a system map, a box may point at the box there it is about: a link to it, or a search of
-// that map's boxes to pick one. The system map's boxes are read once, as the viewer may see them.
+// that map's boxes to pick one. The system map's boxes are read once, as the viewer may see them. Its centre, the
+// whole system, is no box to be about: every box there is part of it.
 let baseBoxes = null;
 function loadBaseBoxes(){
   if (baseBoxes || !S.buildsOn) return;
   baseBoxes = [];
   fetch(`/${encodeURIComponent(S.buildsOn.name)}/api/state`).then((r) => r.ok ? r.json() : null).then((st) => {
     const out = [];
-    const walk = (nodes, above) => { for (const b of nodes || []){ if (b.hiddenRepo || !b.label) continue; out.push({ id: b.id, label: b.label, pick: above ? `${b.label} (in ${above})` : b.label }); walk(b.inside?.nodes, b.label); } };
+    const walk = (nodes, above) => { for (const b of nodes || []){ if (b.hiddenRepo || !b.label || isHub(b, { start: st.start, top: !above })) continue; out.push({ id: b.id, label: b.label, pick: above ? `${b.label} (in ${above})` : b.label }); walk(b.inside?.nodes, b.label); } };
     walk(st?.nodes, '');
     baseBoxes = out; renderSide();
   }).catch(() => { /* the system map did not answer: there is nothing to pick from */ });
