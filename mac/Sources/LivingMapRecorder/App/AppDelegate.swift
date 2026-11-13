@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   lazy var uploader = PendingUploader(store: pendingStore) { [unowned self] in self.server.client }
   let mapWindow = MapWindowController()
   let importWindow = ImportWindowController()
+  let transcriptWindow = TranscriptWindowController()
   let prompt = MeetingPrompt()
 
   var statusItem: NSStatusItem!
@@ -90,6 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if let url = server.config.absolute(meeting.href) { mapWindow.show(url: url, title: meeting.title) }
 
     let session = RecordingSession(meeting: meeting, app: app, client: client, pending: pendingStore)
+    transcriptWindow.reset(title: meeting.title)
+    session.onHeard = { [weak self] segment in self?.transcriptWindow.add(segment) }
     self.session = session
     uploader.activeName = meeting.name
     await session.start(captureSystemAudio: settings.captureSystemAudio)

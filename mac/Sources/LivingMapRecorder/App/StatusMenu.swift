@@ -49,10 +49,13 @@ extension AppDelegate: NSMenuDelegate {
         others += ", no sound yet (System Audio Recording may be off for this app)"
       }
       menu.addItem(disabled(others))
+      menu.addItem(item("Show transcript", #selector(showTranscript)))
     } else if busy {
       menu.addItem(disabled("Working…"))
     } else {
       menu.addItem(item("Start Living Map Recorder", #selector(startClicked)))
+      // the last meeting's transcript stays readable after you stop
+      menu.addItem(item("Show transcript", #selector(showTranscript)))
     }
     if let note { menu.addItem(disabled(note)) }
     if uploader.waiting > 0 {
@@ -113,6 +116,8 @@ extension AppDelegate: NSMenuDelegate {
   }
 
   @objc func importTranscript() { showImport() }
+
+  @objc func showTranscript() { transcriptWindow.show() }
 
   @objc func toggleDetect() {
     settings.detectMeetings.toggle()

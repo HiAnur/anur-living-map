@@ -21,6 +21,9 @@ final class RecordingSession {
   private var systemTranscriber: LiveTranscriber?
   private var feeds: [TimedFeed] = []
 
+  /// Called on the main actor with each finished sentence, as it is heard.
+  var onHeard: (@MainActor (Segment) -> Void)?
+
   init(meeting: MeetingStart, app: String?, client: LivingMapClient, pending: PendingStore) {
     self.meeting = meeting
     self.app = app
@@ -90,7 +93,7 @@ final class RecordingSession {
       return
     }
     let transcriber = await Transcribers.make()
-    let feed = TimedFeed(speaker: .you, queue: queue)
+    let feed = TimedFeed(speaker: .you, queue: queue) { [weak self] s in self?.onHeard?(s) }
     feeds.append(feed)
     do {
       try await transcriber.start(onText: feed.heard)
@@ -114,7 +117,7 @@ final class RecordingSession {
       return
     }
     let transcriber = await Transcribers.make()
-    let feed = TimedFeed(speaker: .others, queue: queue)
+    let feed = TimedFeed(speaker: .others, queue: queue) { [weak self] s in self?.onHeard?(s) }
     feeds.append(feed)
     do {
       try await transcriber.start(onText: feed.heard)
@@ -150,12 +153,15 @@ final class TimedFeed: @unchecked Sendable {
   private let input: AsyncStream<Segment>.Continuation
   private let consumer: Task<Void, Never>
 
-  init(speaker: Speaker, queue: SegmentQueue) {
+  init(speaker: Speaker, queue: SegmentQueue, heard: @escaping @MainActor (Segment) -> Void = { _ in }) {
     self.speaker = speaker
     let (stream, input) = AsyncStream<Segment>.makeStream()
     self.input = input
     consumer = Task {
-      for await segment in stream { await queue.append(segment) }
+      for await segment in stream {
+        await queue.append(segment)
+        await heard(segment)
+      }
     }
   }
 
