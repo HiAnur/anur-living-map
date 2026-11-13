@@ -3,7 +3,9 @@
 import { readPlannedTask } from './action-plan.js';
 import { autoPlanAdditions } from './auto-plan.js';
 import { diagramOf, diagramSaid } from './diagram.js';
+import { BOX_TEXT } from './draw.js';
 import { allLinesOf, graphOfBox, movedUp } from './map-walk.js';
+import { notOneTree } from './one-tree.js';
 
 // a person's chats with Claude: their own (`@Duy`), the ones they kept (`@Duy#…`) and their side chats (`@Duy>box`)
 /** @param {string} key @param {any} by */
@@ -49,6 +51,8 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       if (!had && !n.label) { dropped.push({ text: n.id, why: 'a new box needs a name' }); continue; }
       if (!had && !String(n.sub ?? '').trim()) { dropped.push({ text: n.label, why: 'a new box needs a second line that says what it is' }); continue; }
       const box = Object.fromEntries(Object.entries(n).filter(([k]) => ['id', 'label', 'sub', 'desc', 'state', 'w'].includes(k)));
+      // a name, second line and notes as long as a person may write them on the map, and no longer
+      for (const k of /** @type {const} */ (['label', 'sub', 'desc'])) if (k in box) box[k] = String(box[k] ?? '').slice(0, BOX_TEXT[k]);
       if (!had && ['topic','action'].includes(n.boxType)) {
         box.boxType = n.boxType;
         if (n.boxType === 'action') {
@@ -111,10 +115,30 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       if (typeof p.start === 'string' && there(p.start)) { plan.start = p.start; ops.push(`Start the map from ${name(p.start)}`); }
       else dropped.push({ text: `start from ${p.start}`, why: 'no such box' });
     }
-    if (p.tidy === true) { plan.tidy = true; ops.push('Lay out the whole map again, each box beside the box it hangs under'); }
+    if (p.tidy === true) {
+      // a reorganize is offered only when what it leaves is one tree from the start box, so the layout can read it;
+      // a system map is drawn from code in layers, never as one tree, and lays out that way
+      const trouble = getState().drawing ? [] : treeTrouble(plan, mayTouch);
+      if (trouble.length) return { status: 'dropped', ops: [], plan,
+        dropped: [...dropped, { text: 'Reorganize the map', why: `it would not leave one tree: ${trouble.slice(0, 3).join('; ')}${trouble.length > 3 ? `; and ${trouble.length - 3} more` : ''}` }] };
+      plan.tidy = true; ops.push('Lay out the whole map again, each box beside the box it hangs under');
+    }
     // a new box gets its place now, so the page can show it on the map as proposed and Apply puts it exactly there
     placeProposed(plan);
     return { status: ops.length ? 'pending' : 'dropped', ops, dropped, plan };
+  }
+  // the map's own level as the change would leave it (what a tidy lays out), checked as one tree; boxes the person
+  // may not see are named only as that
+  /** @param {any} plan @param {(n: any) => boolean} mayTouch */
+  function treeTrouble(plan, mayTouch) {
+    const st = getState(), going = new Set(plan.remove), cut = new Set(plan.unlink.map((/** @type {any} */ e) => `${e.from}>${e.to}`));
+    const nodes = [...(st.nodes || []).filter((/** @type {any} */ n) => !going.has(n.id)).map((/** @type {any} */ n) => ({ ...n, ...plan.nodes.find((/** @type {any} */ m) => m.id === n.id) })),
+      ...plan.nodes.filter((/** @type {any} */ n) => !nodeOf(n.id))];
+    const ids = new Set(nodes.map((n) => n.id));
+    /** @type {any[]} */
+    const edges = (st.edges || []).filter((/** @type {any} */ e) => !cut.has(`${e.from}>${e.to}`)).map((/** @type {any} */ e) => ({ ...e }));
+    for (const e of plan.edges) { const had = edges.find((x) => x.from === e.from && x.to === e.to); if (had) Object.assign(had, e); else edges.push(e); }
+    return notOneTree(nodes, edges.filter((e) => ids.has(e.from) && ids.has(e.to)), plan.start || st.start, (n) => mayTouch(n) ? n.label || n.id : 'a box outside your access');
   }
   return { proposal, checkAutoPlan, check };
 }

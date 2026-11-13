@@ -1,4 +1,5 @@
 import { readPlannedTask } from './action-plan.js';
+import { sameThing } from './name-words.js';
 
 export const AUTO_PLAN_QUESTION = 'Find what is missing in this topic and its children, using the whole map.';
 
@@ -41,20 +42,24 @@ export function autoPlanAdditions(plan, parent, existing, edges, accessible = ne
   const branch = branchIds(parent, existing, edges, accessible);
   /** @param {unknown} label */
   const name = (label) => String(label || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  const labels = new Set(existing.filter((n) => accessible.has(n.id)).map((n) => name(n.label)));
+  // every name the person can see on the whole map, and the ones this plan adds: a new box saying the same thing
+  // in other words is the same box twice
+  const seen = existing.filter((n) => accessible.has(n.id)).map((n) => String(n.label || ''));
   const candidates = new Map(), destinations = new Map(), dropped = [];
   const proposedEdges = Array.isArray(plan?.edges) ? plan.edges : [];
   for (const n of (Array.isArray(plan?.nodes) ? plan.nodes : []).slice(0, 100)) {
     if (!n || typeof n.id !== 'string' || !/^[a-z0-9-]{1,40}$/.test(n.id) || ids.has(n.id) || typeof n.label !== 'string') continue;
     const label = n.label.trim().slice(0, 80), key = name(label);
-    if (!key || labels.has(key)) continue;
+    if (!key) continue;
+    const twin = seen.find((s) => name(s) === key) ?? seen.find((s) => sameThing(s, label));
+    if (twin !== undefined) { dropped.push({ text: label, why: name(twin) === key ? `"${twin}" is already on the map` : `"${twin}" already covers it` }); continue; }
     if (n.boxType !== undefined && !['topic','action'].includes(n.boxType)) continue;
     const task = n.boxType === 'action' ? readPlannedTask(n.task) : null;
     if (n.boxType === 'action' && !task) { dropped.push({text:label,why:'Action needs a valid goal, result and task details'}); continue; }
     const incoming = proposedEdges.filter((/** @type {any} */ e) => e?.to === n.id);
     const from = incoming.length === 0 ? parent : incoming.length === 1 ? incoming[0].from : null;
     if (!from) continue;
-    ids.add(n.id); labels.add(key);
+    ids.add(n.id); seen.push(label);
     const sub = (typeof n.sub === 'string' ? n.sub : typeof n.desc === 'string' ? n.desc.split('\n')[0] : '').trim().slice(0, 160);
     if (!sub) { dropped.push({text:label,why:'a new box needs a second line that says what it is'}); continue; }
     candidates.set(n.id, { id:n.id,label,...(sub ? {sub} : {}),...(typeof n.desc === 'string' ? {desc:n.desc.slice(0, 4000)} : {}),
