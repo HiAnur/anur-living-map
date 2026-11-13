@@ -31,10 +31,12 @@ jobs:
       # the agent docs (AGENTS.md, CLAUDE.md, skills) still match the code
       - run: python3 .github/agent-docs/check.py .
 
-  # Every push to main that passes the checks becomes a release, named
-  # v<major.minor from package.json>.<run number>. Running apps compare
-  # themselves with the latest release and offer a one-click update.
-  release:
+  # Every push to main that passes the checks becomes a dev build, tagged
+  # dev-<major.minor from package.json>.<run number>: copies on the dev
+  # channel (team/live/channel.js) update to it. It is not a release, so
+  # copies on the stable channel, customers', never see it: only the Release
+  # workflow (release.yml), run by hand by a maintainer, makes one.
+  dev-build:
     needs: app
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -42,10 +44,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
-      - name: Publish the release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Tag the dev build
         run: |
           base=$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')")
-          tag="v${base}.${{ github.run_number }}"
-          gh release create "$tag" --target "${{ github.sha }}" --title "Living Map $tag" --generate-notes
+          tag="dev-${base}.${{ github.run_number }}"
+          git tag "$tag" "${{ github.sha }}"
+          git push origin "refs/tags/$tag"

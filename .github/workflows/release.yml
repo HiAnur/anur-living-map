@@ -1,0 +1,62 @@
+name: Release
+
+# Makes a release that every copy on the stable channel (customers') updates to: a dev build that passed CI,
+# tagged dev-<version> on main, gets the tag v<version> and a GitHub release. Only run by hand (Actions → Release
+# → Run workflow), and only by someone with admin or maintain rights on this repository: GitHub lets only people
+# with write access run it at all, and the first step stops anyone below maintain. A fork runs its own copy,
+# which cannot tag this repository.
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: "The dev build to release, e.g. dev-0.1.1234. Leave empty for the newest."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only a maintainer may release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          role=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission" --jq .role_name)
+          case "$role" in admin|maintain) echo "${{ github.actor }} may release ($role)." ;;
+            *) echo "::error::${{ github.actor }} has '$role' on this repository; releasing needs admin or maintain."; exit 1 ;;
+          esac
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Release the build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # read from the environment, never pasted into the script: the input is text anyone running it typed
+          BUILD: ${{ inputs.build }}
+        run: |
+          git fetch -q --tags --force origin main
+          build="$BUILD"
+          [ -n "$build" ] || build=$(git describe --tags --abbrev=0 --match 'dev-[0-9]*' origin/main)
+          if ! printf %s "$build" | grep -Eq '^dev-[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::\"$build\" is not a dev build name like dev-0.1.1234."; exit 1
+          fi
+          git rev-parse -q --verify "refs/tags/$build" >/dev/null || { echo "::error::There is no build $build."; exit 1; }
+          sha=$(git rev-list -n 1 "$build")
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$build is not on main."; exit 1; }
+          tag="v${build#dev-}"
+          git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "::error::$tag is released already."; exit 1; }
+          # a release only moves forward: copies update to the newest release on main, so an older one would
+          # never reach anyone
+          prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' origin/main 2>/dev/null || true)
+          if [ -n "$prev" ] && git merge-base --is-ancestor "$sha" "$prev"; then
+            echo "::error::$build is not newer than the current release $prev."; exit 1
+          fi
+          gh release create "$tag" --target "$sha" --title "Living Map $tag" --generate-notes ${prev:+--notes-start-tag "$prev"}
+          echo "Released $build as $tag."

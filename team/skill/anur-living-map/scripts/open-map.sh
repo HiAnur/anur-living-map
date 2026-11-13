@@ -22,6 +22,9 @@ H="${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}"; S="$H/te
 U="http://localhost:$P/$M/"
 # the team map's data folder, as team/live/data-dir.js picks it: the old ~/.living-map-2 while it is the only one
 D="$HOME/.anur-living-map"; [ ! -d "$D" ] && [ -d "$HOME/.living-map-2" ] && D="$HOME/.living-map-2"
+# the builds the clone moves to, as team/live/channel.js picks them: releases only (stable), unless
+# ANUR_LIVING_MAP_CHANNEL or a channel file in the data folder says dev (every build that passed CI)
+CH=$(printf %s "${ANUR_LIVING_MAP_CHANNEL:-$(cat "$D/channel" 2>/dev/null)}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'); [ "$CH" = dev ] || CH=stable
 REV="$D/server.rev"   # the commit the running server was started from
 
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, moved to the newest release (the
@@ -37,10 +40,10 @@ if [ "${ANUR_LIVING_MAP_NO_UPDATE:-}" = 1 ]; then echo "update: skipped, ANUR_LI
 elif [ "$br" != main ]; then echo "update: skipped, $H is on $br"
 elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
 elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin main 2>/dev/null \
-  && rel=$(git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main 2>/dev/null) \
+  && rel=$(if [ "$CH" = dev ]; then git -C "$H" describe --tags --abbrev=0 --match 'dev-[0-9]*' --match 'v[0-9]*' origin/main; else git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main; fi 2>/dev/null) \
   && git -C "$H" merge -q --ff-only "$rel" 2>/dev/null; then
   now=$(git -C "$H" rev-parse HEAD)
-  if [ "$now" = "$was" ]; then echo "update: already the latest"
+  if [ "$now" = "$was" ]; then echo "update: already the latest ($CH)"
   else
     echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled: $(git -C "$H" log -1 --format=%s)"
   fi
