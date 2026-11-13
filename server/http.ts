@@ -1,5 +1,5 @@
 // The HTTP surface: live events, the map of your chat, linking a chat, its
-// inbox to the chat, the one-click update, and the built page.
+// inbox to the chat, the frozen update check, and the built page.
 
 import express from "express";
 import path from "node:path";
@@ -160,23 +160,21 @@ export function createApp(
     }
   });
 
-  // is a newer release out? (?refresh=1 asks GitHub again now)
-  app.get("/api/update", async (req, res) => {
-    res.json(await checkForUpdate({ force: req.query.refresh === "1" }));
+  // the chat map is retired: never anything new to update to
+  app.get("/api/update", async (_req, res) => {
+    res.json(await checkForUpdate());
   });
 
-  // move to the latest release, install, build, restart; progress goes to every tab as "update" events
-  app.post("/api/update", (_req, res) => {
-    res.json({ started: true });
-    void runUpdate((s) => hub.emit({ type: "update", ...s })).then((r) => {
-      if (!r.ok)
-        hub.emit({
-          type: "update",
-          step: "Update stopped",
-          state: "failed",
-          message: r.error,
-        });
+  // refused, with why, here and in every tab that listens for "update" events
+  app.post("/api/update", async (_req, res) => {
+    const r = await runUpdate();
+    hub.emit({
+      type: "update",
+      step: "Update stopped",
+      state: "failed",
+      message: r.error,
     });
+    res.json({ started: false, error: r.error });
   });
 
   app.use(express.static(STATIC_DIR));
