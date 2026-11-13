@@ -15,9 +15,8 @@ describe('the centre circle', () => {
     expect(isHub(null, top)).toBe(false);
   });
 
-  it('stays a box inside a box and on a map drawn from code', () => {
+  it('stays a box inside a box', () => {
     expect(isHub(launch, { ...top, top: false })).toBe(false);
-    expect(isHub(launch, { ...top, code: true })).toBe(false);
   });
 
   it('stays a box when it holds what a circle cannot show, or is only proposed', () => {

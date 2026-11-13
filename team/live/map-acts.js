@@ -1,6 +1,8 @@
 // What people write on the map itself: its name and description, the maps it draws background from, and
 // comments. The map passes in its state and the helpers each needs.
 
+import { renameCentre } from './system-centre.js';
+
 /**
  * @param {{ getState: () => any, contextMaps: ((by: any) => any[]) | null, nodeOf: (id: any) => any,
  *   tell: Function, ownerOf: Function, seesOf: (by: any) => string }} deps
@@ -30,6 +32,7 @@ export function mapActs({ getState, contextMaps, nodeOf, tell, ownerOf, seesOf }
     rename(a) {
       const title = String(a.title || '').trim().slice(0, 60);
       if (!title) return false;
+      renameCentre(getState(), getState().title, title);
       getState().title = title; getState().renamed = title;
       return true;
     },

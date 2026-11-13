@@ -61,8 +61,8 @@ describe('a system map drawing in the background', () => {
     const { state, job } = jobOn(draw);
     job.start({ folders: ['/x/api', '/x/bot'], by: 'Sam' });
     await until(() => seen.length === 1);
-    expect(seen[0]).toEqual(['api']);
-    expect(state.nodes[0].inside.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Fn']);
+    expect(seen[0]).toEqual(['System', 'api']);
+    expect(state.nodes[1].inside.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Fn']);
     release();
     await until(() => state.drawing.status === 'done');
     expect(state.nodes).toEqual(built.nodes);
@@ -70,7 +70,7 @@ describe('a system map drawing in the background', () => {
     seen.length = 0;
     job.retry('Sam');
     await until(() => seen.length === 1);
-    expect(seen[0]).toEqual(['api']);
+    expect(seen[0]).toEqual(['System', 'api']);
     expect(state.nodes).toEqual(built.nodes);
     release();
     await until(() => state.drawing.status === 'done');
@@ -229,13 +229,15 @@ describe('a system map drawing in the background', () => {
     job.start({ folders: ['/x/api'], by: 'Sam' });
     await until(() => state.drawing.status === 'done');
     // the rename and the new repo are on the map at once; "old" stays until an Engineer takes it off
-    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'old']);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['System', 'API service', 'jobs', 'old']);
+    // the centre is never a change to review, and still leads to "old" while it waits
+    expect(state.edges.filter((/** @type {any} */ e) => e.from === 'system').map((/** @type {any} */ e) => e.to)).toEqual(['system-api', 'system-jobs', 'system-old']);
     expect(state.drawing.updated).toBe(2);
     expect(state.redraw).toMatchObject({ by: 'Sam', count: 1, changes: [{ what: 'gone', kind: 'box', id: 'system-old', label: 'old', repo: 'old' }] });
     // someone adds a box meanwhile: applying keeps it, and takes "old" off
     state.nodes.push({ id: 'mine', label: 'My note' });
     expect(job.applyRedraw()).toBe(true);
-    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['System', 'API service', 'jobs', 'My note']);
     expect(state.redraw).toBeUndefined();
     expect(job.applyRedraw()).toBe(false);
     // drawn again without jobs, and kept: jobs stays
@@ -243,7 +245,7 @@ describe('a system map drawing in the background', () => {
     job.retry('Sam');
     await until(() => state.drawing.status === 'done' && !!state.redraw);
     expect(job.dropRedraw()).toBe(true);
-    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['API service', 'jobs', 'My note']);
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['System', 'API service', 'jobs', 'My note']);
   });
   it('notices new commits by itself, as whoever drew the map, and draws them', async () => {
     const heads = /** @type {Record<string, string>} */ ({ api: 'c2', site: 'c1' });

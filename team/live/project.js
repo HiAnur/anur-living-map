@@ -223,10 +223,10 @@ const sizedW = (n, sizes) => sizes.get(n.id)?.w || BW(n), sizedH = (/** @type {L
 
 // The page draws a map's start box as a small circle (page-hub.js), so laying out its top level counts it at that
 // size: Tidy up and a new box's place then match the lines the page draws. Empty when the start is drawn as a box.
-/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null | undefined} start @param {boolean} code whether the map is drawn from code */
-export function hubSizes(nodes, edges, start, code) {
-  const root = treeOf(nodes, edges, start)?.root;
-  return new Map(root && isHub(root, { start: root.id, top: true, code }) ? [[root.id, { w: HUB_SIZE, h: HUB_SIZE }]] : []);
+/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null | undefined} start */
+export function hubSizes(nodes, edges, start) {
+  const root = nodes.find((n) => n.id === start) || treeOf(nodes, edges, start)?.root;
+  return new Map(root && isHub(root, { start: root.id, top: true }) ? [[root.id, { w: HUB_SIZE, h: HUB_SIZE }]] : []);
 }
 
 // Each new box takes the column and order a tidied copy of the map gives it, at the free height nearest that

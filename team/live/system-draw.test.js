@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { allBoxesOf } from './map-walk.js';
 import { evidence } from './system-build.js';
+import { CENTRE, fromCentre } from './system-centre.js';
 import { compact, drawSystem } from './system-draw.js';
 import { api, app, repo, trading } from './system.harness.js';
 
@@ -49,15 +50,21 @@ const agent = {
 
 describe('drawing a system map', () => {
   it('builds the platform, each repo inside its box, and each box\'s components inside it', async () => {
-    const { state } = await drawSystem({ folders: [app(), api(), trading()], agent });
-    expect(state?.nodes.map((n) => n.label)).toEqual(['mobile-app', 'api-service', 'trading-service']);
+    const { state } = await drawSystem({ folders: [app(), api(), trading()], agent, title: 'Shop system' });
+    // the system's centre first, named after the map, starting it, with a line to each repo and no facts of its own
+    expect(state?.nodes.map((n) => n.label)).toEqual(['Shop system', 'mobile-app', 'api-service', 'trading-service']);
+    expect(state?.start).toBe(CENTRE);
+    expect(state?.nodes[0]).not.toHaveProperty('source');
+    expect(state?.edges.filter(fromCentre).map((e) => e.to)).toEqual(['system-mobile-app', 'system-api-service', 'system-trading-service']);
+    // a row of its own above the repos
+    expect(Math.max(...(state?.nodes.slice(1) || []).map((n) => -n.y))).toBeLessThan(-(state?.nodes[0].y ?? 0));
     const apiBox = state?.nodes.find((n) => n.label === 'api-service');
     expect(apiBox?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
     // the Users API box opens into its components, built by code from its facts: no model
     const usersApi = apiBox?.inside?.nodes.find((n) => n.label === 'Users API');
     expect(usersApi?.inside?.nodes.map((n) => n.label)).toEqual(['GetUser', 'ListOrders', 'users-table']);
     expect(usersApi?.inside?.edges).toEqual([expect.objectContaining({ label: 'dynamodb' })]);
-    expect(allBoxesOf(state).length).toBe(3 + 2 + 3 + 1 + 1 + 1);
+    expect(allBoxesOf(state).length).toBe(1 + 3 + 2 + 3 + 1 + 1 + 1);
   });
   it('keeps each box\'s evidence and where it came from', async () => {
     const { state } = await drawSystem({ folders: [api()], agent });
@@ -81,7 +88,7 @@ describe('drawing a system map', () => {
       { repo: 'api-service', item: 'box "Ghost"', why: 'cites facts that do not exist: f999' },
       { repo: 'platform', item: 'line mobile-app → trading-service', why: 'its facts do not show both of its ends' },
     ]));
-    expect(state?.edges.map((e) => e.label)).toEqual(['calls routes', 'routes trades']);
+    expect(state?.edges.filter((e) => !fromCentre(e)).map((e) => e.label)).toEqual(['calls routes', 'routes trades']);
   });
   it('marks what only descriptions show, with a warning on the map', async () => {
     const { state } = await drawSystem({ folders: [trading()], agent });
@@ -99,7 +106,7 @@ describe('drawing a system map', () => {
     const failing = { answer: async (/** @type {{ prompt: string }} */ job) => job.prompt.includes('api-service') && !job.prompt.includes('platform map') ? { error: 'Claude Code is signed out.', ms: 1 } : agent.answer(job) };
     const { state, report } = await drawSystem({ folders: [app(), api()], agent: failing });
     expect(report.progress.find((p) => p.repo === 'api-service')).toMatchObject({ stage: 'failed', error: 'Claude Code is signed out.' });
-    expect(state?.nodes.map((n) => n.label)).toEqual(['mobile-app']);
+    expect(state?.nodes.map((n) => n.label)).toEqual(['System', 'mobile-app']);
   });
 });
 

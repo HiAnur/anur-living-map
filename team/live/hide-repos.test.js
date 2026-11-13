@@ -74,7 +74,10 @@ describe('a real system map', () => {
     const map = open();
     // Duy has linked no GitHub account on this Mac, so a private repo stays hidden from him
     const state = JSON.parse((await read(map, 'Duy', '/api/state')).text);
-    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual([PRIVATE_REPO, 'web']);
+    // the system's centre shows to everyone; its line to the private repo keeps its ends, like any line there
+    expect(state.nodes.map((/** @type {any} */ n) => n.label)).toEqual(['Shop system', PRIVATE_REPO, 'web']);
+    expect(state.start).toBe('system');
+    expect(state.edges.filter((/** @type {any} */ e) => e.from === 'system')).toEqual([{ from: 'system', to: 'system-api', origin: 'code' }, { from: 'system', to: 'system-web', origin: 'code' }]);
     expect(allBoxesOf(state).some((/** @type {any} */ n) => n.label === 'Users API')).toBe(false);
     expect((await read(map, 'Duy', '/api/file')).text).not.toContain('Users API');
     map.close();
