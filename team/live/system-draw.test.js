@@ -56,8 +56,11 @@ describe('drawing a system map', () => {
     expect(state?.start).toBe(CENTRE);
     expect(state?.nodes[0]).not.toHaveProperty('source');
     expect(state?.edges.filter(fromCentre).map((e) => e.to)).toEqual(['system-mobile-app', 'system-api-service', 'system-trading-service']);
-    // a row of its own above the repos
-    expect(Math.max(...(state?.nodes.slice(1) || []).map((n) => -n.y))).toBeLessThan(-(state?.nodes[0].y ?? 0));
+    // the repos round the centre, the way every level is laid out, and each level inside marked as laid out so
+    const [centre, ...repos] = state?.nodes || [];
+    expect(new Set(repos.map((n) => Math.abs(n.x - centre.x))).size).toBe(1);
+    expect(state).toHaveProperty('centre');
+    expect(state?.nodes.find((n) => n.label === 'api-service')?.inside).toHaveProperty('centre');
     const apiBox = state?.nodes.find((n) => n.label === 'api-service');
     expect(apiBox?.inside?.nodes.map((n) => n.label)).toEqual(['Users API', 'Users table']);
     // the Users API box opens into its components, built by code from its facts: no model
