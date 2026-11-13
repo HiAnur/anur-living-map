@@ -33,3 +33,5 @@ CLAUDE.local.md
 
 # a map opened on this repo keeps its state here
 .living-map/
+
+mac/*build/
