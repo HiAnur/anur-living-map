@@ -37,6 +37,8 @@ final class MapWindowController: NSObject, NSWindowDelegate, WKNavigationDelegat
     web.navigationDelegate = self
     web.uiDelegate = self
     web.allowsMagnification = true
+    // a map opened from the list goes back to it with a two-finger swipe
+    web.allowsBackForwardNavigationGestures = true
 
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
@@ -66,12 +68,19 @@ final class MapWindowController: NSObject, NSWindowDelegate, WKNavigationDelegat
     decisionHandler(.allow)
   }
 
-  // `target=_blank` and window.open: the browser, not a second web view.
+  // `target=_blank` and window.open: a page of the map's own server (a map
+  // picked from the list) opens here, where you are signed in; anything else
+  // in the browser.
   func webView(
     _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
     for action: WKNavigationAction, windowFeatures: WKWindowFeatures
   ) -> WKWebView? {
-    if let url = action.request.url { NSWorkspace.shared.open(url) }
+    guard let url = action.request.url else { return nil }
+    if url.host == serverHost {
+      webView.load(URLRequest(url: url))
+    } else {
+      NSWorkspace.shared.open(url)
+    }
     return nil
   }
 
