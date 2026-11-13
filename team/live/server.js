@@ -56,6 +56,7 @@ import { callActs } from './call-acts.js';
 import { drawing } from './drawing.js';
 import { mapActs } from './map-acts.js';
 import { actionActs } from './action-acts.js';
+import { actionItems } from './action-items.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
@@ -405,16 +406,22 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
 
   const { seesOf, askPrompt } = askContext({ getState: () => state, project, nodeOf, allNodes, allEdges, hiddenFor: (who) => hiddenFor(who) });
 
+  // Action drafts made from people's words, and the map preparing them (action-items.js); set once drawing is ready
+  /** @type {ReturnType<typeof actionItems> | null} */
+  let items = null;
+  /** whether someone signed in may use a box: one in their area, not as Guest, not removed @param {Box} n @param {string} [by] */
+  const canUse = (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by));
   const actions = actionBoxes({
     nodeOf,
     // an archived Action still counts for the Actions that wait on it
     prerequisiteOf: (id) => nodeOf(id) || state.archived?.find((/** @type {any} */ x) => x.box.id === id)?.box,
     allNodes,
-    canUse: (n, by) => !!by && by !== 'Guest' && !(state.removedPeople || []).includes(by) && (seesOf(by) === 'all' || n.area === seesOf(by)),
+    canUse,
     context: (n, by) => askPrompt(by, n, 'Prepare this box as an action. Ask for missing information before it is ready.', (state.threads?.[`@${by}>${n.id}`] || []).filter((/** @type {any} */ m) => !m.thinking).slice(-20), true),
     ask: (request) => askAgent({ cwd:workFolder(project || PROJECT, home), contextMaps:selectedContextMaps, who:request.by, prepare:true, connected:managesAccess(state,request.by),
       place: () => workOf(request.box, request.by, false), ...request }),
-    changed: () => { save(); push(); },
+    // a finished preparation makes room for the next draft the map prepares (action-items.js)
+    changed: () => { save(); push(); if (!closed) items?.pump(); },
     executionCwd: workFolder(project || PROJECT, home),
     // on a system map an Action works in its box's repo; a box in no repo has nowhere to run
     cannotRun: (n) => !project && state.drawing && !repoOf(state, n) ? 'This box is not inside one of the map\'s repos, so an Action here has nowhere to run.' : null,
@@ -458,6 +465,9 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   // a drawing (plan, edit or an applied proposal) reaching the map: drawing.js
   const draw = drawing({ getState: () => state, nodeOf, seesOf, unlinkEdge });
+  items = actionItems({ getState: () => state, nodeOf, allNodes, canUse, actions, draw, tell });
+  // drafts the map was to prepare when it last stopped
+  setTimeout(() => { if (!closed) items?.pump(); });
 
   const { proposal, checkAutoPlan, check } = proposalChecks({ getState: () => state, nodeOf, allNodes, allEdges, seesOf, placeProposed: (plan) => placeProposed(plan) });
   /** @param {any} plan */
@@ -543,6 +553,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // what outlives starting over
   const kept = () => ({
     // the Claude chat this map is linked to, and what was written to it from the map, outlive it too
+    // and what people said is not an action for them, so it is never made one again
+    ...(state.refusedItems ? { refusedItems: state.refusedItems } : {}), ...(state.itemSources ? { itemSources: state.itemSources } : {}),
     archived: state.archived || [], ...(Array.isArray(state.admins) ? { admins: state.admins } : {}), contextMapIds: state.contextMapIds || [], linked: state.linked || [], said: state.said || {}, removedPeople: state.removedPeople || [], linkSharing: state.linkSharing || { mode: 'restricted' },
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
@@ -559,7 +571,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     ...mapActs({ getState: () => state, contextMaps, nodeOf, tell, ownerOf, seesOf }),
     ...archiveActs({ getState: () => state, nodeOf, seesOf, tell }),
     ...callActs({ getState: () => state, nodeOf, seesOf, stamp, tell, ownerOf, allEdges }),
-    ...actionActs({ getState: () => state, actions }),
+    ...actionActs({ getState: () => state, actions, items }),
     // the Save menu: Save now, and Auto-save, on unless someone turns it off; off, the map still changes for
     // everyone at once, but only Save now puts a version in History. One switch for the whole map.
     /** @param {Act<'savenow'>} a */
@@ -752,7 +764,17 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   // whether Claude is at work on this map now: a reply, an Action, a system map drawing, a new map being drawn
   const busy = () => activeAsks.size > 0 || !!building || system.running() || actions.busy();
-  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy,
+  // Action drafts from someone's own words, decided by action-items.js: what a chat's tool or a meeting's end calls
+  /** @param {WordsSource} source @param {unknown} proposed */
+  function fromWords(source, proposed) {
+    if (closed) return [];
+    told = null;
+    const out = actingAs(String(source?.who || 'Claude'), () => /** @type {ReturnType<typeof actionItems>} */ (items).fromWords(source, proposed));
+    if (out.some((/** @type {ItemOutcome} */ o) => !('refused' in o))) { actions.reconcile(allBoxesOf(state)); remember('words', source.who); }
+    save(); push();
+    return out;
+  }
+  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy, fromWords,
     /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
     mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,

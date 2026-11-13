@@ -34,20 +34,28 @@ const ACTION_STEPS = /** @type {Record<string, string>} */ ({
   released:'Prerequisites finished', failed:'Preparation stopped', cancelled:'Cancelled', reopened:'Prepared again', confirmed:'Confirmed done',
   branched:'Made a branch', built:'Committed and pushed', 'handed over':'Handed over', archived:'Archived', restored:'Put back on the map',
   unblocked:'Stopped waiting on a deleted box', alone:'Set to run on its own', manual:'Set to wait for your go',
-  held:'Waits for your go',
+  held:'Waits for your go', 'said again':'Said again',
 });
+// how the map started preparing it, or where it came from, when nobody did it by hand (action-items.js)
+const ACTION_AUTO = /** @type {Record<string, string>} */ ({ words:'Prepared automatically, from your words', taken:'Prepared automatically, once taken on' });
+const ACTION_FROM = /** @type {Record<string, string>} */ ({ meeting:'Made from your words', chat:'Made from your words', prompt:'Made from your words', taken:'Taken on', suggested:'Made from Claude\'s suggestion' });
 const ACTION_ENDS = /** @type {Record<string, string>} */ ({ completed:'completed, verified', unverified:'done, unverified', needs_input:'needs an answer', blocked:'blocked', unconfirmed:'unconfirmed' });
 /** @param {number} ms */
 const actionTook = (ms) => ms < 60_000 ? `${Math.max(1, Math.round(ms / 1000))} s` : `${Math.round(ms / 60_000)} min`;
 /** @param {any[] | undefined} events @returns {{ label: string, who: string, at: number, detail: string }[]} */
 export function actionHistory(events) {
   return (events || []).map((e) => ({
-    label: ACTION_STEPS[e.what] || e.what,
+    label: e.what === 'preparing' && ACTION_AUTO[e.auto] ? ACTION_AUTO[e.auto] : e.what === 'created' && ACTION_FROM[e.from] ? ACTION_FROM[e.from] : ACTION_STEPS[e.what] || e.what,
     who: e.by === 'Map' ? 'the map' : String(e.by || ''),
     at: e.at,
-    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : '', e.boxes?.length ? `boxes: ${e.boxes.join(', ')}` : ''].filter(Boolean).join(' · '),
+    detail: [e.what === 'finished' ? ACTION_ENDS[e.status] : '', Number.isFinite(e.ms) ? actionTook(e.ms) : '', e.tools?.length ? `tools: ${e.tools.join(', ')}` : '', e.ran?.length ? `ran: ${e.ran.join(', ')}` : '', e.branch ? `branch: ${e.branch}` : '', e.pull ? `pull request: ${e.pull}` : '', e.to ? `${e.from} → ${e.to}` : '', e.boxes?.length ? `boxes: ${e.boxes.join(', ')}` : '', e.quote ? `“${e.quote}”` : ''].filter(Boolean).join(' · '),
   })).reverse();
 }
+
+// Whether its author can still say a draft is not an action, or not theirs: one made from their words, before it
+// runs. action-box.js (unmake) decides the same on the server.
+/** @param {any} a @param {(a: any) => boolean} cancellable */
+export const actionUnmakeable = (a, cancellable) => !!a?.from?.quote && !a.from.took && cancellable(a);
 
 // The Action box's screens on the box card: its status pill, its chat, the card for where it stands, a planned
 // Action's card, its history and the Info box / Action box switch. The page hands in what they need of it:
@@ -103,7 +111,28 @@ export function actionScreens(view){
     const others = view.people.filter((/** @type {any} */ p) => p.id !== a.by && (p.sees === 'all' || !p.sees || p.sees === n.area));
     const handover = view.live && view.admin && !['gathering','running'].includes(a.stage) && others.length
       ? `<details class="action-handover"><summary>Hand over</summary><div>${others.map((/** @type {any} */ p) => `<button class="gb" data-box-action="actionhandover" data-action-id="${esc(n.id)}" data-action-to="${esc(p.id)}">${esc(p.id)}</button>`).join('')}</div></details>` : '';
-    return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${alone}${handover}${cancel}</div>${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
+    // a draft made from its author's words: they can say it is not an action, or someone else's, before it runs
+    const undo = mine && actionUnmakeable(a, view.cancellable);
+    const notMine = undo ? `<details class="action-handover action-notmine"><summary>Not mine</summary><div><span class="quiet">Whose is it?</span>${others.map((/** @type {any} */ p) => `<button class="gb" data-box-action="actionnotmine" data-action-id="${esc(n.id)}" data-action-to="${esc(p.id)}">${esc(p.id)}</button>`).join('')}<button class="gb" data-box-action="actionnotmine" data-action-id="${esc(n.id)}" data-action-to="*">The team</button></div></details>` : '';
+    const notAction = undo ? `<button class="gb action-not" data-box-action="actionnotaction" data-action-id="${esc(n.id)}" title="It goes back to an Info box, and these words never make an Action again on this map.">Not an action</button>` : '';
+    return `<div class="action-chat-head"><span class="action-chat-title">Action box ${actionStatusPill(a)}</span>${alone}${handover}${cancel}</div>${actionFrom(a, notAction + notMine)}${actionHistoryList(n)}<div class="sc-msgs">${previousChat}${actionDocuments(a)}${turns}${current}${confirmDone}</div>${composer}`;
+  }
+  // where the Action came from, when nobody made it by hand: the words it was made from, as code kept them
+  function actionFrom(/** @type {any} */ a, controls = ''){
+    const f = a?.from; if (!f) return '';
+    const quote = f.quote ? ` <q data-content>${esc(f.quote)}</q>` : '';
+    const words = f.kind === 'suggested' ? 'Claude suggested this Action.'
+      : f.took ? `${a.by === view.me ? 'You' : esc(a.by)} took this on${f.said ? ` from ${esc(f.said)}'s words` : ''}:`
+      : `Made from ${a.by === view.me ? 'your' : `${esc(a.by)}'s`} words:`;
+    return `<div class="action-from-row"><p class="action-from">${words}${f.kind === 'suggested' ? '' : quote}</p>${controls ? `<div class="action-from-controls">${controls}</div>` : ''}</div>`;
+  }
+  // An info box naming whose action item it is, with the task Claude filled in: Take it on for the person it names,
+  // or for anyone who can see one for the team or no one
+  function actionItemCard(/** @type {any} */ n){
+    if (!n.for || n.action || n.proposed) return '';
+    const team = n.for === '*', mayTake = view.live && n.task && (team || n.for === view.me);
+    const quote = n.from?.quote ? `<p class="action-from">${n.from.said ? `${n.from.said === view.me ? 'You' : esc(n.from.said)} said:` : 'Said:'} <q data-content>${esc(n.from.quote)}</q></p>` : '';
+    return `<section class="action-item-for" aria-label="Action item"><p><b>Action item for ${team ? 'the team' : n.for === view.me ? 'you' : esc(n.for)}</b></p>${quote}${n.task?.goal ? `<p data-content>${esc(n.task.goal)}</p>` : ''}${mayTake ? `<div class="action-controls"><button class="gb" data-box-action="actiontakeon" data-action-id="${esc(n.id)}" title="Make it your Action draft. The map prepares it; Execute stays your click.">Take it on</button></div>` : ''}</section>`;
   }
   // what code recorded of this Action, newest first, folded away until opened
   function actionHistoryList(/** @type {any} */ n){
@@ -147,7 +176,8 @@ export function actionScreens(view){
     const readiness = released ? 'Prerequisites completed. Ready for preparation' : /** @type {Record<string, string>} */ ({ready:'Ready for preparation',needs_information:'Needs information',waiting:'Waiting on a dependency'})[plan.readiness] || 'Needs information';
     const key = `action-plan:${n.id}`;
     const notes = list('Planner notes', (plan.blockers || []).map((/** @type {any} */ b) => `${b.detail} (${b.resolver})`));
-    return `<section class="action-card" aria-label="Planned Action"><h3>Planned Action</h3><p><b>${esc(plan.goal)}</b></p><p><b>Expected result:</b> ${esc(plan.result)}</p><p><b>Save to:</b> ${esc(plan.destination || 'Confirm during preparation')}</p><p class="action-note">${readiness}. Preparation checks the plan and available tools before you can review and Execute.</p>${released ? '' : notes}${list('Prerequisite Actions',deps)}<details data-open-key="${esc(key)}" ${view.opened(key) ? 'open' : ''}><summary>Task details</summary>${list('Inputs',plan.inputs)}${list('Steps',plan.steps)}${list('Completion evidence',plan.evidence)}${released ? notes : ''}</details></section>`;
+    // Claude's own idea, not anything you said: it waits for your Apply
+    return `<section class="action-card" aria-label="Planned Action"><h3>${n.proposed ? 'Claude suggests an Action for you' : 'Planned Action'}</h3><p><b>${esc(plan.goal)}</b></p><p><b>Expected result:</b> ${esc(plan.result)}</p><p><b>Save to:</b> ${esc(plan.destination || 'Confirm during preparation')}</p><p class="action-note">${readiness}. Preparation checks the plan and available tools before you can review and Execute.</p>${released ? '' : notes}${list('Prerequisite Actions',deps)}<details data-open-key="${esc(key)}" ${view.opened(key) ? 'open' : ''}><summary>Task details</summary>${list('Inputs',plan.inputs)}${list('Steps',plan.steps)}${list('Completion evidence',plan.evidence)}${released ? notes : ''}</details></section>`;
   }
-  return { actionStatusPill, actionSpinner, actionDocuments, boxTypeButton, actionChat, actionHistoryList, actionSummary, actionResult, actionCard, plannedActionCard };
+  return { actionStatusPill, actionSpinner, actionDocuments, boxTypeButton, actionChat, actionFrom, actionItemCard, actionHistoryList, actionSummary, actionResult, actionCard, plannedActionCard };
 }

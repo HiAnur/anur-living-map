@@ -7,7 +7,8 @@
 // what the answer changes, and those changes reach only boxes the sender may change.
 
 // set only by the map, never by a drawing
-const OWNED = ['action', 'by', 'source', 'createdAt', 'updatedAt', 'updatedBy', 'proposed', 'archived'];
+// (an action item's `for`, the words it came from and the box a person's items go under are action-items.js's)
+const OWNED = ['action', 'by', 'source', 'createdAt', 'updatedAt', 'updatedBy', 'proposed', 'archived', 'for', 'from', 'itemsFor'];
 // what a new box may bring and a box already on the map keeps as it is
 const AT_BIRTH = ['inside', 'boxType', 'task'];
 

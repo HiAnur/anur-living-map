@@ -16,6 +16,7 @@ describe('action schemas', () => {
       { type: 'actionanswer', id: 'research', answer: 'Customers' },
       { type: 'actioncontinue', id: 'research', revision: '3', answer: 'Go on' },
       { type: 'actionexecute', id: 'research', revision: 7 },
+      { type: 'actionnotaction', id: 'research' }, { type: 'actionnotmine', id: 'research', to: 'Priya' }, { type: 'actiontakeon', id: 'research' },
       { type: 'autosave', on: false },
       { type: 'contextmap', id: 'gtm', include: true },
       { type: 'describemap', description: 'What this map is for' },

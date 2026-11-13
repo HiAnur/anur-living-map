@@ -36,6 +36,10 @@ export const COMMANDS = /** @type {const} */ ({
   actionstop: { id: 'id', revision: 'any?' },
   actionarchive: { id: 'id' },
   actionunarchive: { id: 'id' },
+  // to: one of the map's people, or '*' for the team or no one in particular
+  actionnotaction: { id: 'id' },
+  actionnotmine: { id: 'id', to: 'string' },
+  actiontakeon: { id: 'id' },
   savenow: {},
   autosave: { on: 'boolean?' },
   reset: {},

@@ -37,6 +37,34 @@ interface ActionCompletion {
   [more: string]: any;
 }
 
+/**
+ * Where an Action came from when nobody made it by hand: the words of its author it was made from ("meeting",
+ * "chat", "prompt"), or Claude's suggestion someone applied ("suggested"). `took` marks an item someone else's
+ * words named them for, which they took on; `said` is whose words those were.
+ */
+interface ActionFrom {
+  kind: string;
+  quote?: string;
+  at: number;
+  took?: boolean;
+  said?: string;
+}
+
+/**
+ * The words an Action draft may be made from (action-items.js): only `who`'s own, as `lines`. `id` is what the
+ * cap per source counts by (one meeting, or one chat a day); speech is `spoken`, and matched loosely.
+ */
+interface WordsSource {
+  kind: "meeting" | "chat" | "prompt";
+  id: string;
+  who: string;
+  lines: string[];
+  spoken?: boolean;
+}
+
+/** What became of one item Claude proposed from someone's words: a box made, a note on a box already there, or why not. */
+type ItemOutcome = { title: string } & ({ made: string } | { info: string; for: string } | { merged: string } | { refused: string });
+
 /** A box's Action: the task planned for it and how far it got. */
 interface BoxAction {
   stage: string;
