@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Let an Action run on its own once it's ready</strong></dt>
+<dd>
+
+Turn on **Run on its own** in an Action's header, and the map runs it for you as soon as it's ready, so a plan of research, writing and code steps moves along without a click on each one. Anything that reaches another person, like an email or a Slack message, still waits for your go, and code changes still end in a pull request you merge. <!-- source: https://github.com/HiAnur/anur-living-map/pull/458 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/459 --> <!-- merged-at: 2026-11-13T06:46:33Z -->
+
+<img src="docs/shipping/2026-11-13/action-run-on-its-own.jpg" alt="A sample team map with the Streak share card Action selected; its Side Chat header shows the Waiting pill and the Run on its own switch turned on." width="560">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Removing a box in a change keeps what hung under it on the map's tree</strong></dt>
 <dd>
 
