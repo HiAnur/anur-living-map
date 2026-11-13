@@ -61,6 +61,7 @@ export const WHO = {
   say: { standing: 'member', then: 'they own the chat linked to the map' },
   // what a chat sends through the map's tools
   propose: { standing: 'member', then: 'it names a chat linked to the map' },
+  myaction: { standing: 'member', then: 'it names a chat linked to the map, not one the map runs itself, sent by that chat\'s tools or its owner; the drafts are always that owner\'s, from their own messages in that chat (action-items.js)' },
   plan: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer' },
   edit: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer; from a chat answering a request in the map\'s pane, a proposal for that chat\'s owner instead' },
   pr: { standing: 'member', then: 'nothing' },

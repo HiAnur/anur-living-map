@@ -23,7 +23,7 @@ Anur Living Map reaches its agent through one seam. The chat map (`server/`, `sk
 - `converse` may use only its job's `servers` (the map's own tools, pinned to that map): none of the person's settings, MCP servers or context files, and every other tool refused, as `agents/claude-code/converse.js` does.
 - `ask` may also get `dirs`, more folders it may read (a system map's code), read-only like its own folder. `answer` gives one reply held to `job.schema`, with no tools.
 
-`AgentConversation`, for your own chats: `follow`, `findChat`, `findNewChat`, `isChat`, `owns`, `sessionOf`, `openNew`, `skillDir`, `connectTools`. `allChats` in `agent.js` combines every agent's, so each transcript is followed by the agent that `owns` it.
+`AgentConversation`, for your own chats: `follow` (its `readNow` reads the transcript at once, for a chat's own words), `findChat`, `findNewChat`, `isChat`, `owns`, `sessionOf`, `openNew`, `skillDir`, `connectTools`. `allChats` in `agent.js` combines every agent's, so each transcript is followed by the agent that `owns` it.
 
 ## Steps
 

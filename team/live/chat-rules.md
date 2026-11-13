@@ -10,6 +10,7 @@ How to answer what the map sent you. These rules come from the map server whenev
   JSON
   ```
 
+- When the user commits to doing something themselves with a checkable result ("I'll send Dan the pricing by Thursday"), in this chat or the map's, call `living_map_my_action` at once with their exact words: the map checks them against what they typed and makes it their Action draft. Never for your own suggestions or someone else's work.
 - To reorganize the map, clean it up, or make the lines point better, change only which box hangs under which: every box but one with one line into it (`unlink` the rest, or turn a line around when the flow reads better the other way). Set `"start"` to the id of the box the map starts from; when no box can hold the others, add one for the map's subject with lines to the top boxes, and start from it. Then add `"tidy":true`: on Apply the map lays every box out again itself. Never place boxes.
 - A change to what a box opens into goes the same way: give the box its whole new `diagram` (`{"kind":"sequence","items":[…]}`, the shape `living_map_change` takes). Opening the box before Apply shows what comes in blue and what goes in red.
 - `<Name> pressed Build the plan: …` is the user's go to build the plan: follow the repo's own instructions (its CLAUDE.md); without any, build on a new branch from the default branch, and post the branch with its checks back to the map.

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 
 import { AUTO_PLAN_QUESTION } from './auto-plan.js';
 import { pathTo } from './map-walk.js';
+import { actionItemsOf } from './proposal-check.js';
 
 /**
  * @param {{ getState: () => any, project: string, name: string, home: string, nodeOf: (id: any) => any,
@@ -14,11 +15,15 @@ import { pathTo } from './map-walk.js';
  *   activeAsks: Set<any>, stamp: () => string, save: () => void, push: () => void, tell: Function,
  *   ownsChat: Function, mineChat: Function, ownerOf: Function, placeProposed: Function, draw: Function,
  *   actions: any, relayout: () => void, keepMemory: Function, chats: AgentConversation, startMirror: () => void,
- *   linkOf: () => any, savePicture: (picture: any) => any, converse: Function, sendMirror: () => void }} deps
+ *   linkOf: () => any, savePicture: (picture: any) => any, converse: Function, sendMirror: () => void,
+ *   fromWords: (source: WordsSource, proposed: unknown) => ItemOutcome[], ownWords: (l: any) => string[] }} deps
  */
 export function chatActs({ getState, project, name, home, nodeOf, systemCode, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
   selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
-  relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror }) {
+  relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords }) {
+  // items as the speaker's own: an `owner` Claude wrote is never read, so a chat makes no item for anyone else
+  const asSaid = (/** @type {unknown[]} */ items) => items.map((i) => ({ .../** @type {object} */ (i && typeof i === 'object' ? i : {}), owner: undefined }));
+  const day = () => new Date().toISOString().slice(0, 10);
   return {
     /** @param {Act<'renamebox'>} a */
     renamebox(a) {
@@ -101,8 +106,13 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
         onDone: (/** @type {any} */ text, /** @type {any} */ _access, /** @type {any} */ change) => {
           activeAsks.delete(stop); clearTimeout(soon); delete msg.thinking; delete msg.since; delete msg.doing; msg.text = String(text).trim(); msg.at = stamp();
           if (text === agent.signedOut) msg.signin = true;
+          // what the asker said they will do becomes their Action draft at once, checked against their own messages
+          // in this thread; the rest of the change stays a proposal waiting for Apply
+          const { items, rest } = actionItemsOf(change);
+          if (items.length) msg.drafts = fromWords({ kind: 'chat', id: `ask:${key}:${day()}`, who: a.by,
+            lines: t.filter((/** @type {any} */ m) => m.who === a.by && m.text !== AUTO_PLAN_QUESTION).map((/** @type {any} */ m) => String(m.text || '')) }, asSaid(items));
           // a new offer replaces Claude's earlier ones in this chat that nobody applied yet, so they never stack up
-          const pr = proposal(change, a.by, autoPlan ? n.id : null);
+          const pr = proposal(rest, a.by, autoPlan ? n.id : null);
           if (pr?.status === 'pending') for (const x of t) if (x !== msg && x.proposal?.status === 'pending') Object.assign(x.proposal, { status: 'dropped', replaced: true });
           if (pr) msg.proposal = pr;
           save(); push();
@@ -189,6 +199,21 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
       a.proposed = { id: Date.now().toString(36), session, made: Date.now(), note: String(a.note || '').slice(0, 200), ...pr };
       getState().proposals = [...(getState().proposals || []), a.proposed].slice(-30);
       setTimeout(sendMirror); return true;
+    },
+    // What the linked chat heard its owner commit to (living_map_my_action in mcp.js). The map, not the chat, decides
+    // each item, from that owner's own messages: what they typed in the chat and in this pane, never what Claude, a
+    // tool, a file or a web page said there. The drafts are always the owner's, and the pane says what was made.
+    /** @param {Act<'myaction'> & { outcomes?: ItemOutcome[], refused?: string }} a */
+    myaction(a) {
+      const session = String(a.session), l = (getState().linked || []).find((/** @type {any} */ x) => x.session === session);
+      if (!l) { a.refused = 'This chat is not linked to this map. Open the map from it with /anur-living-map first.'; return false; }
+      if (l.built) { a.refused = 'A chat the map runs itself makes no Action drafts.'; return false; }
+      if (a.by !== 'Claude' && a.by !== l.owner) { a.refused = 'Only that chat, or its owner, makes Action drafts from it.'; return false; }
+      const lines = [...ownWords(l), ...(getState().said?.[session] || []).map((/** @type {any} */ x) => String(x?.text || ''))];
+      a.outcomes = fromWords({ kind: 'chat', id: `chat:${session}:${day()}`, who: l.owner, lines }, asSaid(a.items));
+      const made = a.outcomes.filter((o) => 'made' in o);
+      if (made.length) { getState().itemNotes = [...(getState().itemNotes || []), { session, at: Date.now(), made }].slice(-30); setTimeout(sendMirror); }
+      return true;
     },
     // New chat: the chat you have goes into your history as threads['@Duy#<now>'], and you start an empty one
     /** @param {Act<'newchat'>} a */

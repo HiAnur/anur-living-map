@@ -1115,7 +1115,7 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { actionExecuted, actionHistory, actionScreens, actionStatus } from './page-action.js';
+import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { historyScreens } from './page-history.js';
@@ -2730,7 +2730,7 @@ function renderSide(){
   const sideKey = `@${ME}>${n.id}`, sideT = S.threads?.[sideKey] || [], asked = sideT.filter((m) => m.who !== 'Claude').length;
   // laid out like the Claude app: Claude on the left, you on the right
   const previousChat = sideT.map((m, i) => m.who !== 'Claude' ? yours(m.text)
-    : claudes(`${md(m.text)}${contextSources(m)}${change(m, sideKey, i)}${signin(m)}`)).join('');
+    : claudes(`${md(m.text)}${contextSources(m)}${drafted(m.drafts)}${change(m, sideKey, i)}${signin(m)}`)).join('');
   const chat = n.action ? actionView().actionChat(n, previousChat) : `<div class="sc-msgs">${previousChat}${n.proposed && n.boxType === 'action' && n.task ? actionView().plannedActionCard(n,n.task) : ''}</div>
     ${replyProgress(sideT, autoPlanning.has(n.id))}<form class="ask cbox side-ask" data-ask="${n.id}">${attached(n)}<div class="crow"><textarea rows="2" placeholder="Brainstorm ${esc(n.label)}" autocomplete="off">${esc(draftOf(`side:${n.id}`))}</textarea><button class="send" type="submit" title="Ask" aria-label="Ask">${SEND_ICON}</button></div></form>`;
   // Auto plan asks for useful additions; Side Chat opens the same conversation ready for your words.
@@ -2855,6 +2855,18 @@ const change = (m, key, i) => {
     ${p.ops.length ? `<ul>${p.ops.map((o) => `<li>${prose(o)}</li>`).join('')}</ul>` : ''}
     ${p.dropped.length ? `<div class="pd">Left out: ${p.dropped.map((d) => prose(`${d.text}, ${d.why}`)).join('; ')}</div>` : ''}
     ${p.status === 'pending' ? `<div class="btns"><span class="gb yes" data-apply="${key}|${i}">Apply</span><span class="gb" data-drop="${key}|${i}">Not now</span></div>` : ''}</div>`;
+};
+
+/* Action drafts the map made from what you said in a chat (each {title, made: box id}): one line naming them, with
+   Undo while any is still yours to undo; Undo says each is not an action, so those words never make one again */
+const drafted = (outcomes) => {
+  const made = (outcomes || []).filter((o) => o.made);
+  if (!made.length) return '';
+  const live = made.filter((o) => { const a = nodeById(o.made)?.action; return a?.by === ME && actionUnmakeable(a, actionCancellable); });
+  return `<div class="prop applied drafted"><div class="ph">Made ${made.length === 1 ? 'an Action draft' : `${made.length} Action drafts`} from what you said</div>
+    <ul>${made.map((o) => `<li data-content>${prose(o.title)}</li>`).join('')}</ul>
+    <div class="pd">${live.length ? `The map prepares ${live.length === 1 ? 'it' : 'them'}; Execute stays your click.` : 'Undone, or under way.'}</div>
+    ${live.length ? `<div class="btns"><span class="gb" data-undo-drafts="${live.map((o) => esc(o.made)).join(' ')}">Undo</span></div>` : ''}</div>`;
 };
 
 /* the chat in the corner: your one thread with Claude, about the whole map or, with a box attached, about that box;
@@ -2983,7 +2995,7 @@ function renderMirror(el){
   el.innerHTML = `<div class="ct"><span><span class="star">${CLAUDE_MARK}</span>Claude <span class="quiet">· your Claude chat</span></span><span class="cb">
       <button class="ci ${chatHist ? 'on' : ''}" data-chathist title="Linked chats" aria-label="Linked chats">${CHAT_ICON.history}</button>
       <span class="x" data-close-chat>×</span></span></div>
-    <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
+    <div class="msgs">${chatHist ? linkedList() : msgs.map((m) => m.who === 'you' ? yours(m.text, m.imgs) : claudes(m.drafts ? drafted(m.drafts) : m.proposal ? changeP(m.proposal) : md(m.text))).join('')}
       ${chatHist ? '' : waitLine(last)}</div>
     ${chatHist ? '' : composer('Reply to Claude…', true, MIRROR.model)}`;
   const box = el.querySelector('.msgs'), n = msgs.length + msgs.reduce((k, m) => k + (m.text?.length || 0), 0) + (chatHist ? 1e9 : 0);
@@ -3009,7 +3021,7 @@ function renderChat(){
       <span class="x" data-close-chat>×</span></span></div>
     <div class="msgs">${chatHist ? chatList() : S.starting ? `${yours(S.starting.prompt)}${working('Opening a new session in the Claude app')}` : thread.length ? thread.map((m, i) => m.who !== 'Claude'
         ? yours(m.text, null, m.about && nodeById(m.about) ? `<span class="about" data-about="${m.about}" title="Open ${esc(nodeById(m.about).label)}">${esc(nodeById(m.about).label)}</span>` : '')
-        : claudes(`${md(m.text)}${contextSources(m)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
+        : claudes(`${md(m.text)}${contextSources(m)}${drafted(m.drafts)}${change(m, `@${ME}`, i)}${signin(m)}`)).join('')
       : `<div class="hello"><div class="ic">${CLAUDE_MARK}</div><div class="big">I'm Claude. Ask me anything about ${prose(S.title)}.</div>
         ${CHAT_IDEAS.map(([q, why]) => `<button class="sug" data-idea="${q}">${q}<span>${why}</span></button>`).join('')}</div>`}</div>
     ${chatHist ? '' : chatAbout && nodeById(chatAbout) ? `<div class="att"><span>About</span><b>${esc(nodeById(chatAbout).label)}</b><span class="x" data-unattach title="Ask about the whole map instead">×</span></div>` : ''}
@@ -4028,7 +4040,7 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-hnow]')){ backToNow(); return; }
   if (t.closest('[data-hrestore]')){ const v = PREVIEW; act('restore', { id: v.id }); backToNow(); toast(`Went back to the version from ${vtime(v.at)}.`); return; }
   // and an earlier version on show takes no answers, Apply or Not now: its own toast says why, not theirs
-  if (PREVIEW && t.closest('[data-call], [data-apply], [data-drop], [data-applyp], [data-dropp], #tidyb')){ toast(FROZEN_SAYS); return; }
+  if (PREVIEW && t.closest('[data-call], [data-apply], [data-drop], [data-applyp], [data-dropp], [data-undo-drafts], #tidyb')){ toast(FROZEN_SAYS); return; }
   const face = t.closest('[data-as]');
   if (face && face.dataset.as !== ME){ const q = new URLSearchParams(location.search); q.set('as', face.dataset.as); location.search = q.toString(); return; }
   if (t.closest('[data-claude-login]')){ claudeLogin(); return; }
@@ -4139,6 +4151,11 @@ document.addEventListener('click', (e) => {
   // a change your Claude Code chat proposed, and switching which linked chat the pane follows
   else if (t.closest('[data-applyp]')){ act('apply', { proposal: t.closest('[data-applyp]').dataset.applyp }); toast('Applied to the map. Your Claude chat hears it now.'); }
   else if (t.closest('[data-dropp]')){ act('drop', { proposal: t.closest('[data-dropp]').dataset.dropp }); }
+  // Undo on drafts made from what you said: each goes back to an Info box, and those words never make one again
+  else if (t.closest('[data-undo-drafts]')){
+    const ids = t.closest('[data-undo-drafts]').dataset.undoDrafts.split(' ').filter(Boolean);
+    Promise.all(ids.map((id) => act('actionnotaction', { id }))).then((rs) => toast(rs.every((r) => r?.ok) ? (ids.length === 1 ? 'Undone: it is an Info box again.' : 'Undone: they are Info boxes again.') : 'Some could not be undone. Refresh and try again.'));
+  }
   else if (t.closest('[data-relink]')){ const l = (S.linked || []).find((x) => x.session === t.closest('[data-relink]').dataset.relink); if (l) act('link', { session: l.session, file: l.file }); chatHist = false; chatSeen = -1; }
   else if (t.closest('[data-idea]')){ act('ask', { text: t.closest('[data-idea]').dataset.idea }); }
 });
