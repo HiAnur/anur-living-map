@@ -85,8 +85,8 @@ describe('action schemas', () => {
       let j = i + 1;
       if (!/\},\s*$/.test(lines[i])) { while (lines[j] !== '    },') j++; j++; }
       const body = lines.slice(i, j).join('\n') + (handedOn[m[1]] ?? '');
-      // what a handler writes back on the action for its reply (created, proposed, refused) is no field it takes
-      for (const [, f] of body.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS[m[1]]) && !['by', 'type', 'created', 'proposed', 'refused'].includes(f)) undeclared.push(`${m[1]}.${f}`);
+      // what a handler writes back on the action for its reply (created, proposed, refused, outcomes) is no field it takes
+      for (const [, f] of body.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS[m[1]]) && !['by', 'type', 'created', 'proposed', 'refused', 'outcomes'].includes(f)) undeclared.push(`${m[1]}.${f}`);
     }
     // `call` is answerCall itself, not a method
     for (const [, f] of handedOn.call.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS.call) && !['by', 'type'].includes(f)) undeclared.push(`call.${f}`);

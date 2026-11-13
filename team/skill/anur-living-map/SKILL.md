@@ -65,6 +65,8 @@ The script links this chat to the map, so the map's Claude pane shows this conve
 
 It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. When the rules for answering are new to this chat, they come under it after `HOW TO ANSWER IT`, from the server itself (otherwise one line says they are unchanged since you last got them): how to say it back, how to propose a change so it waits for Apply, how to reorganize the map, what Build the plan means, how a plan is drawn. Follow them; they are always as current as the map, and they win over anything read earlier. `open-map.sh` prints the same rules when it opens the map (after `RULES FROM THE MAP`), so plans this chat draws follow them too. Then, in Claude Code, start the listener again right away, the same way (Pi's keeps listening).
 
+While the map is open, when the user commits to doing something themselves with a checkable result ("I'll send Dan the pricing by Thursday"), call `living_map_my_action` with their exact words, without asking first: the map, not this chat, decides whether it becomes their Action draft.
+
 ## 4. Reply
 
 **When the arguments carry a request** (`/anur-living-map, plan changing our payment provider to Stripe`), skip this reply: do the request right after step 1's message, as the repo's CLAUDE.md says. Where that CLAUDE.md already gives the plan for the request, draw it from there in the next message, without reading the code, the database or the map first. 

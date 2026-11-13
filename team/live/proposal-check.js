@@ -11,6 +11,16 @@ import { notOneTree } from './one-tree.js';
 /** @param {string} key @param {any} by */
 export const mineChat = (key, by) => key === `@${by}` || key.startsWith(`@${by}#`) || key.startsWith(`@${by}>`);
 
+// A propose_change call's input split in two: its actionItems, which go to the map's check of the person's own words
+// (action-items.js) and become drafts at once, and the rest, which stays a proposal waiting for Apply (null when
+// nothing is left of it). Claude's own suggested Actions are boxes in the rest, never action items.
+/** @param {unknown} change @returns {{ items: unknown[], rest: unknown }} */
+export function actionItemsOf(change) {
+  if (!change || typeof change !== 'object' || Array.isArray(change) || !('actionItems' in change)) return { items: [], rest: change };
+  const { actionItems, ...rest } = /** @type {Record<string, unknown>} */ (change);
+  return { items: Array.isArray(actionItems) ? actionItems : [], rest: Object.keys(rest).length ? rest : null };
+}
+
 // every change Claude proposed that nobody has applied or set aside yet, from the map's chats and the linked
 // chat; with a person, only the ones that person may apply
 /** @param {any} state @param {any} by @param {(session: any, by: any) => boolean} ownsChat @returns {any[]} */
