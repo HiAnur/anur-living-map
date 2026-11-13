@@ -20,9 +20,12 @@ import { summarize } from "./chats.ts";
 import { openDb, type Conv } from "./db.ts";
 import { createLedger, type Ledger } from "./follow.ts";
 import { writeHandover } from "./handover.ts";
+import { isMeeting, isMeetingFile, readMeeting } from "./meeting/file.ts";
+import { createMeetings, type Meetings } from "./meeting/meetings.ts";
 import { heardAt as heardAtOf, post } from "./outbox.ts";
 import { outline as outlineOf, type OutlineLens } from "./outline.ts";
 import { createSides, type Sides } from "./sides.ts";
+import type { ReadMore } from "./transcript.ts";
 
 export const DB_FILE = path.join(HOME, "ledger.db");
 
@@ -46,6 +49,8 @@ const idsOf = (conv: Conv) => (conv.ids.length ? conv.ids : [conv.root]);
 // acted on something it is part of; `quiet` ones (a side chat's finding you
 // applied) wait for your next message there.
 export function tellChat(conv: Conv, text: string, quiet = false) {
+  // a meeting has no chat to tell
+  if (isMeeting(conv.root)) return;
   post(idsOf(conv), conv.title, text, !quiet);
 }
 
@@ -55,6 +60,7 @@ export const heardAt = (conv: Conv) => heardAtOf(idsOf(conv));
 export type LedgerServer = {
   ledger: Ledger;
   sides: Sides;
+  meetings: Meetings;
   router: express.Router;
   outline: (conv?: unknown, lens?: OutlineLens) => string | null;
 };
@@ -65,6 +71,9 @@ export function startLedger(
   file = DB_FILE,
 ): LedgerServer {
   const db = openDb(file);
+  // a meeting's file is the map's own (meeting/file.ts); a chat's is the agent's
+  const read: ReadMore = (t, f) =>
+    isMeetingFile(f) ? readMeeting(t, f) : provider.readMore(t, f);
   // the settings' model, as the agent will use it for judgment
   const judgment = () => {
     const asked = ledgerModel();
@@ -72,9 +81,10 @@ export function startLedger(
   };
   const ledger = createLedger({
     db,
-    read: provider.readMore,
+    read,
     findSuccessor: provider.successor
-      ? (file, id) => provider.successor!(file, id)
+      ? (file, id) =>
+          isMeetingFile(file) ? null : provider.successor!(file, id)
       : undefined,
     extract: provider.extract ? (req) => provider.extract!(req) : undefined,
     emit: (e) => hub.emit(e),
@@ -89,12 +99,16 @@ export function startLedger(
     },
   });
   ledger.resume();
+  const meetings = createMeetings({
+    home: HOME,
+    follow: (c) => ledger.follow(c),
+  });
   const sides = createSides({
     db,
     ledger,
     emit: (e) => hub.emit(e),
     home: HOME,
-    read: provider.readMore,
+    read,
     openChat: provider.openChat
       ? (req, on) => provider.openChat!(req, on)
       : undefined,
@@ -166,7 +180,7 @@ export function startLedger(
     const v = root ? ledger.view(root) : null;
     return v ? outlineOf(v, lens) : null;
   };
-  return { ledger, sides, router, outline };
+  return { ledger, sides, meetings, router, outline };
 }
 
 const SIDE_ACTIONS = new Set<string>([

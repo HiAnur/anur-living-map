@@ -5,6 +5,7 @@ import express from "express";
 import path from "node:path";
 
 import { linkChat } from "../ledger/link.ts";
+import { meetingRoutes } from "../ledger/meeting/routes.ts";
 import { unsentFor, wakesFor } from "../ledger/outbox.ts";
 import { outlineLens } from "../ledger/outline.ts";
 import type { LedgerServer } from "../ledger/routes.ts";
@@ -136,6 +137,11 @@ export function createApp(
   });
 
   app.use("/api/ledger", map.router);
+  // what the meeting recorder sends (ledger/meeting/)
+  app.use(
+    "/api/meetings",
+    meetingRoutes(map.meetings, (conv) => signInPath(auth.signInCode(), conv)),
+  );
 
   // A fresh sign-in link for another browser of yours, asked by a page that
   // is signed in (the token): opened in your default browser, or with

@@ -16,6 +16,12 @@ import {
   PROMPT_ID,
   SWEEP_PROMPT_ID,
 } from "../extract.ts";
+import { isMeeting } from "../meeting/file.ts";
+import {
+  MEETING_PROMPT_ID,
+  MEETING_SYSTEM,
+  meetingMessage,
+} from "../meeting/prompt.ts";
 import type { Turn } from "../transcript.ts";
 import {
   BATCH,
@@ -84,14 +90,19 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
   const root = f.s.conv.root;
   const base = f.s.store.read;
   const turns = batch.map((t) => t.n);
+  // a meeting is told what a meeting is (meeting/prompt.ts)
+  const meeting = isMeeting(root);
+  const prompt = meeting ? MEETING_PROMPT_ID : PROMPT_ID;
   const fail = (error: string) => {
     onFile(f, "failed", now());
     f.error = error;
   };
   try {
     const r = await deps.extract!({
-      system: SYSTEM,
-      message: message(f.s.store, batch),
+      system: meeting ? MEETING_SYSTEM : SYSTEM,
+      message: meeting
+        ? meetingMessage(f.s.store, batch)
+        : message(f.s.store, batch),
       schema: SCHEMA as unknown as Record<string, unknown>,
       model: model(),
       timeoutMs: 120_000,
@@ -109,11 +120,7 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
       const error = r.ok
         ? "The map's answer was not in the shape asked for."
         : r.error || "The model did not answer.";
-      db.saveRun(
-        root,
-        { turns, base, error, usage, ms: r.ms, prompt: PROMPT_ID },
-        now(),
-      );
+      db.saveRun(root, { turns, base, error, usage, ms: r.ms, prompt }, now());
       fail(error);
       return;
     }
@@ -128,7 +135,7 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
           error: "the map moved on",
           usage,
           ms: r.ms,
-          prompt: PROMPT_ID,
+          prompt,
         },
         now(),
       );
@@ -136,7 +143,7 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
     }
     const id = db.saveRun(
       root,
-      { turns, base, answer: r.value, usage, ms: r.ms, prompt: PROMPT_ID },
+      { turns, base, answer: r.value, usage, ms: r.ms, prompt },
       now(),
     );
     commitRun(ctx, f, id, answer, batch);
@@ -144,7 +151,12 @@ async function run(ctx: Ctx, f: Follower, batch: Turn[]) {
     f.error = undefined;
     measure(ctx, f, batch, r.ms);
     const store = f.s.store;
-    if (store.read - f.lastSweep >= SWEEP_EVERY && quiet(store).length) {
+    // the sweep's instructions are a chat's: a meeting has none yet
+    if (
+      !meeting &&
+      store.read - f.lastSweep >= SWEEP_EVERY &&
+      quiet(store).length
+    ) {
       f.lastSweep = store.read;
       await sweep(ctx, f);
     }
