@@ -77,7 +77,7 @@ export const COMMANDS = /** @type {const} */ ({
   say: { text: 'text?', images: 'array?' },
   propose: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', remove: 'array?', unlink: 'array?', memory: 'array?', start: 'any?', tidy: 'any?' },
   plan: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', remove: 'array?', unlink: 'array?', answers: 'object?', title: 'text?', ticket: 'text?', prompt: 'text?' },
-  edit: { note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', memory: 'array?', unlink: 'array?', start: 'any?', tidy: 'any?' },
+  edit: { session: 'text?', note: 'text?', nodes: 'array?', edges: 'array?', calls: 'array?', memory: 'array?', unlink: 'array?', start: 'any?', tidy: 'any?' },
   pr: { id: 'id', title: 'text?', url: 'text?', status: 'any?', agent: 'text?', checks: 'array?', files: 'array?' },
 });
 

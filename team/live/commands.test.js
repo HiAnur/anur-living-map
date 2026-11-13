@@ -79,12 +79,13 @@ describe('action schemas', () => {
     const handedOn = { reparent: helper('editing.js', 'export function reparentTopic('), call: helper('server.js', '  function answerCall(a) {').replace(/\n {2}\}[\s\S]*/, '') };
     const undeclared = [];
     for (let i = 0; i < lines.length; i++) {
-      const m = /^ {4}(?:async )?(\w+)\(a\) \{/.exec(lines[i]);
+      const m = /^ {4}(?:async )?(\w+)\(a(?:, [^)]*)?\) \{/.exec(lines[i]);
       if (!m || !COMMANDS[m[1]]) continue;
       let j = i + 1;
       if (!/\},\s*$/.test(lines[i])) { while (lines[j] !== '    },') j++; j++; }
       const body = lines.slice(i, j).join('\n') + (handedOn[m[1]] ?? '');
-      for (const [, f] of body.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS[m[1]]) && !['by', 'type', 'created'].includes(f)) undeclared.push(`${m[1]}.${f}`);
+      // what a handler writes back on the action for its reply (created, proposed, refused) is no field it takes
+      for (const [, f] of body.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS[m[1]]) && !['by', 'type', 'created', 'proposed', 'refused'].includes(f)) undeclared.push(`${m[1]}.${f}`);
     }
     // `call` is answerCall itself, not a method
     for (const [, f] of handedOn.call.matchAll(/\ba\.(\w+)/g)) if (!(f in COMMANDS.call) && !['by', 'type'].includes(f)) undeclared.push(`call.${f}`);
