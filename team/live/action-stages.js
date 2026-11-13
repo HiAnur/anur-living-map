@@ -28,6 +28,8 @@ const FROM = {
   // anything before a run; once it has run, what it did stays on the map
   cancel: ['draft', 'gathering', 'clarify', 'ready', 'waiting', 'error'],
   reopen: ['cancelled'],
+  // its author chooses whether it runs on its own once ready, until it has run
+  alone: ['draft', 'gathering', 'clarify', 'ready', 'waiting', 'error'],
   // the author confirms a run whose completion code could not verify
   confirm: ['finished'],
   // its prerequisites are watched: it waits while one is unfinished, and is a draft again once all are done
@@ -37,7 +39,7 @@ const FROM = {
   archive: ['finished', 'blocked', 'unconfirmed'],
 };
 
-/** @param {'start' | 'prepare' | 'answer' | 'revise' | 'execute' | 'continue' | 'stop' | 'cancel' | 'reopen' | 'confirm' | 'watch' | 'remove' | 'archive'} ask @param {unknown} stage */
+/** @param {'start' | 'prepare' | 'answer' | 'revise' | 'execute' | 'continue' | 'stop' | 'cancel' | 'reopen' | 'alone' | 'confirm' | 'watch' | 'remove' | 'archive'} ask @param {unknown} stage */
 export const can = (ask, stage) => FROM[ask].includes(/** @type {string} */ (stage));
 
 // handed to a run whose outcome never came back: it cannot be cancelled, and Execute first checks what happened

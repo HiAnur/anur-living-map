@@ -131,4 +131,4 @@ function signIn() {
 }
 
 /** @returns {AgentWorker} */
-export const pi = () => ({ name: 'Pi', signedOut: SIGNED_OUT, signIn, ask, prepare, run, converse, answer });
+export const pi = () => ({ name: 'Pi', signedOut: SIGNED_OUT, signIn, ask, prepare, run, readsOnly: (/** @type {string} */ tool) => READS.has(tool), converse, answer });

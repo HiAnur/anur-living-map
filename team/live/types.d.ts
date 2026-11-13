@@ -139,6 +139,8 @@ interface AgentWorker {
   prepare(job: PrepareJob): Stop;
   // carries out a reviewed task in a resumable session, limited to `tools`, held to `schema`
   run(job: RunJob): Stop;
+  // whether a tool only reads, so a task that needs only such tools changes nothing by running
+  readsOnly(tool: string): boolean;
   // one turn of a headless chat the map runs itself, resumed by session id
   converse(job: ConverseJob): () => void;
   // one answer held to `schema`, with no tools and nothing read but the prompt (drawing a system map from facts)

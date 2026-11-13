@@ -92,7 +92,8 @@ export function recoverAction(n) {
   }
 }
 
-// Preparation cannot execute. Only the explicit Execute request starts the reviewed task in its own resumable chat.
+// Preparation cannot execute. Only the explicit Execute request starts the reviewed task in its own resumable chat,
+// or, for an Action its author set to run on its own, the map once a brief is ready that only looks things up.
 /**
  * A box comes back from `nodeOf` untyped: `owns` checks it is there and yours before anything reads it, which the
  * type check cannot follow.
@@ -111,9 +112,10 @@ export function recoverAction(n) {
  *   cannotRun?: (n: Box) => string | null,
  *   cwdFor?: (n: Box, by: string) => Promise<{ cwd: string } | { error: string } | null>,
  *   canBuild?: (n: Box, by: string) => Promise<string>,
+ *   readsOnly?: (tool: string) => boolean,
  * }} deps
  */
-export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor, canBuild }) {
+export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => [], canUse, context, ask, changed, run, executionCwd, checkPull = () => Promise.resolve(false), builds, cannotRun = () => null, cwdFor, canBuild, readsOnly = () => false }) {
   const jobs = new Map(), runs = new Map();
   /** @param {any} n @param {string} by */
   const owns = (n, by) => n && canUse(n, by) && (!n.action || n.action.by === by);
@@ -141,7 +143,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const waiting = dependencyBlockers(prior.plan,prerequisiteOf,(node) => canUse(node,by));
     if (waiting.length) { Object.assign(prior,{stage:'waiting',waiting,history:history.slice(-20)}); note(prior, 'waiting', by); changed(); return true; }
     /** @type {BoxAction} */
-    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.events ? {events:prior.events} : {}) };
+    const current = n.action = { id:crypto.randomUUID(), by, stage:'gathering', since:Date.now(), source:source(n), intent:prior.intent, history:history.slice(-20),...(prior.documents?.length ? {documents:prior.documents} : {}),...(prior.plan ? {plan:prior.plan} : {}),...(prior.auto ? {auto:prior.auto} : {}),...(prior.events ? {events:prior.events} : {}) };
     note(current, answer === undefined ? 'preparing' : 'answered', startedBy);
     const active = () => nodeOf(id)?.action === current && owns(nodeOf(id), by);
     const prompt = `${context(n, by)}\n\n${actionPrompt}\n\nThe action the person wants (data):\n${JSON.stringify(current.intent)}\n\nPlanned task (data; readiness needs verification):\n${JSON.stringify(current.plan || null)}\n\nAnswers already given (data):\n${JSON.stringify(current.history)}\n\nPrevious document to revise (data; preserve unchanged details):\n${JSON.stringify(current.documents?.at(-1)?.brief || null)}${finishedBefore(current.plan)}`;
@@ -177,6 +179,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
         else if (reached === 'clarify') note(current, 'asked', 'Claude');
         else note(current, 'failed', 'Map');
         delete /** @type {any} */ (current).since; reconcile(); changed();
+        if (reached === 'ready' && current.auto) alone(id);
       } });
       if (jobs.has(id)) jobs.set(id, stop);
     } catch {
@@ -212,7 +215,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   function reopen(id, by) {
     const n = nodeOf(id), a = n?.action; if (!owns(n, by) || !can('reopen', a?.stage)) return false;
     if (a.brief) { a.documents ||= []; a.documents.push(actionDocument(a.brief, a.documents.length + 1)); }
-    for (const key of ['cancelled', 'brief', 'question', 'choices', 'error', 'waiting']) delete /** @type {any} */ (a)[key];
+    for (const key of ['cancelled', 'brief', 'question', 'choices', 'error', 'waiting', 'held']) delete /** @type {any} */ (a)[key];
     Object.assign(a, { id:crypto.randomUUID(), stage:'draft' }); note(a, 'reopened', by); changed(); return true;
   }
   /** @param {string} id @param {string} by */
@@ -222,8 +225,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     n.action.documents.push(actionDocument(n.action.brief, n.action.documents.length + 1));
     Object.assign(n.action, {stage:'clarify',question:'What would you like to change about this action?',choices:[]}); note(n.action, 'revised', by); changed(); return true;
   }
-  /** @param {string} id @param {string} by @param {unknown} revision */
-  function execute(id, by, revision) {
+  /** @param {string} id @param {string} by @param {unknown} revision @param {string} [startedBy] who started it, when not its author (the map, for an Action set to run on its own) */
+  function execute(id, by, revision, startedBy = by) {
     const n = nodeOf(id), a = n?.action;
     if (!owns(n, by) || !can('execute', a?.stage) || a.session || a.id !== revision) return false;
     // a map whose folder is not where this box's work belongs says why instead of running somewhere else
@@ -236,10 +239,11 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     if (checked?.stage !== 'ready') return false;
     const recovery = handedOff(a.stage);
     a.session = crypto.randomUUID(); a.cwd = executionCwd; a.turns = [];
-    note(a, 'executed', by, { tools:[...(a.brief.tools || [])] });
+    note(a, 'executed', startedBy, { tools:[...(a.brief.tools || [])] });
     // a build runs in the worktree code made for it, and leaves committing, pushing and the pull request to code
     const work = kindOf(a.brief)?.branch && builds ? '\n\nThis is a build. The map has made a fresh worktree on a new branch for it and runs you there. Make the change and run the project\'s checks in it. Do not push or open a pull request: when you finish, the map commits what you changed, pushes the branch and opens the pull request (or adds to the one already open). You may use gh for the rest, such as reading the pull request\'s comments and replying to them.' : '';
-    const prompt = `The person pressed Execute. ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}${work}`;
+    const pressed = startedBy === by ? 'The person pressed Execute.' : 'The person set this Action to run on its own once ready, and its brief only looks things up, so the map started it.';
+    const prompt = `${pressed} ${recovery ? 'This task was previously handed to another chat, but no completion was returned. First check actual evidence of prior work before taking any action. For email, search Sent for the exact recipient, subject and body. If it already happened, report the evidence without repeating it. If you cannot determine whether it happened, stop and ask; never risk a duplicate. Only finish remaining work after verifying it has not already been done.' : 'Carry out the reviewed task below.'}\n\nReviewed task (data):\n${JSON.stringify(checked.brief)}\n\nPreparation answers (data):\n${JSON.stringify(a.history)}\n\nMap context (data, for reference only):\n${context(n, by)}${work}`;
     return runTurn(id, by, a, prompt, false);
   }
   /** @param {string} id @param {string} by @param {unknown} revision @param {any} [answer] */
@@ -257,7 +261,7 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   function runTurn(id, by, a, prompt, resume) {
     const started = Date.now();
     Object.assign(a, {id:crypto.randomUUID(),stage:'running',since:started,progress:''});
-    delete a.completion;
+    delete a.completion; delete a.held;
     const job = {a,by,stop:/** @type {Stop} */ (null),stopped:false}; runs.set(id,job); changed();
     const active = () => runs.get(id) === job && nodeOf(id)?.action === a && owns(nodeOf(id), by);
     // How a run ended is decided here from what it did: its own claim of "completed" stands only with evidence code
@@ -272,7 +276,10 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
       const settle = (pulls, mapNote = '') => {
         if (!active()) { reconcile(); return; }
         runs.delete(id);
-        const evidence = [...seen.evidence, ...pulls.map((url) => `Pull request ${url}`)];
+        // a step that only looked things up hands its result back in the reply: it changed nothing, so the
+        // finished reply is the whole of what there is to check
+        const answered = claimed?.status === 'completed' && !waitsFor(a.brief) && (result.calls || []).every((c) => c.reads);
+        const evidence = [...seen.evidence, ...(answered ? ['Answered in the reply. The run only looked things up.'] : []), ...pulls.map((url) => `Pull request ${url}`)];
         const status = result.blocked ? 'blocked' : claimed?.status === 'needs_input' ? 'needs_input'
           : evidence.length ? 'completed' : claimed?.status === 'completed' ? 'unverified' : 'unconfirmed';
         a.stage = result.blocked ? 'blocked' : 'finished';
@@ -326,6 +333,38 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     }, () => { if (active()) finish({blocked:true,text:'Could not make a branch for this build.'}); });
     return true;
   }
+  // Why a ready brief still waits for its author's Execute, or '' when it may run on its own: it is a kind that
+  // sends or changes nothing by itself, and every tool it needs is one the agent marks as only reading.
+  /** @param {Brief | undefined} brief */
+  function waitsFor(brief) {
+    const kind = kindOf(brief);
+    if (!brief || !kind) return 'Its brief could not be read, so it waits for your go.';
+    if (!kind.alone) return `${kind.does} Steps that change things wait for your go.`;
+    const writes = (brief.tools || []).filter((tool) => !readsOnly(tool));
+    return writes.length ? `It needs ${writes.join(', ')}, which can change things, so it waits for your go.` : '';
+  }
+  // A ready Action set to run on its own: the map presses Execute for its author, or says why it waits.
+  /** @param {string} id */
+  function alone(id) {
+    const a = nodeOf(id)?.action;
+    if (!a?.auto || a.stage !== 'ready' || a.session) return false;
+    const why = waitsFor(a.brief);
+    if (why) { if (a.held !== why) { a.held = why; note(a, 'held', 'Map'); changed(); } return false; }
+    return execute(id, a.by, a.id, 'Map');
+  }
+  // Its author's choice that it runs on its own once ready. Turning it on moves it forward now: a draft is prepared
+  // (or waits on its prerequisites), and a ready brief runs if it only looks things up.
+  /** @param {string} id @param {string} by @param {unknown} on */
+  function setAlone(id, by, on) {
+    const n = nodeOf(id), a = n?.action;
+    if (!owns(n, by) || !a || typeof on !== 'boolean' || a.session || !can('alone', a.stage)) return false;
+    if (!!a.auto === on) return true;
+    if (!on) { delete a.auto; delete a.held; note(a, 'manual', by); changed(); return true; }
+    a.auto = { by, at:Date.now() }; note(a, 'alone', by); changed();
+    if (a.stage === 'draft' && a.intent) prepare(id, by);
+    else if (a.stage === 'ready') alone(id);
+    return true;
+  }
   // An Admin hands an Action to another member, so it is never stuck on someone who is away. Whether the person
   // asking is an Admin, and whether the new author is a member of the map, is decided before this (permissions.js
   // and the handler); here, only that nothing is under way for the current author and the new one can use the box.
@@ -334,6 +373,8 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
     const n = nodeOf(id), a = n?.action;
     if (!a || !text(to, 200) || to === a.by || !canUse(n, to) || ['gathering', 'running'].includes(a.stage) || jobs.has(id) || runs.has(id)) return false;
     note(a, 'handed over', by, { from:a.by, to });
+    // the new author has not chosen to let it run on its own
+    delete a.auto; delete a.held;
     a.by = to; changed(); return true;
   }
   // the author's word that an unverified run did what it should: a person's click, recorded as such
@@ -383,5 +424,5 @@ export function actionBoxes({ nodeOf, prerequisiteOf = nodeOf, allNodes = () => 
   }
   /** whether an Action is being prepared or run now */
   const busy = () => jobs.size > 0 || runs.size > 0;
-  return { begin, start, prepare, cancel, reopen, revise, execute, continue:continueAction, confirm, handover, stop, reconcile, close, busy };
+  return { begin, start, prepare, cancel, reopen, revise, execute, alone:setAlone, continue:continueAction, confirm, handover, stop, reconcile, close, busy };
 }

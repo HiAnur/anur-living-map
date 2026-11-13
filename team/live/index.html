@@ -759,7 +759,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .node.action-node .n{color:var(--text)}
 .node.action-node .s{color:var(--text-2);opacity:1}
 .node.action-node .action-tag{color:var(--action)}
-.ct-r .action-type-toggle{display:inline-flex;align-items:center;gap:8px;padding:4px 0;margin-left:4px;border:0;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+.ct-r .action-type-toggle,.action-chat-head .action-alone{display:inline-flex;align-items:center;gap:8px;padding:4px 0;margin-left:4px;border:0;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
 .action-type-track{display:inline-block;position:relative;width:32px;height:20px;border-radius:999px;background:var(--text-2);flex:none}
 .action-type-track::before{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--card)}
 .action-type-toggle[aria-checked="true"] .action-type-track{background:var(--action)}
@@ -770,6 +770,7 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-handover{position:relative;margin-left:auto}.action-handover summary{cursor:pointer;font-weight:400;color:var(--text-2)}.action-handover div{position:absolute;right:0;top:22px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:6px;background:#fff;border:1px solid var(--rule-2);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .action-history{margin:0 0 6px;font-size:12px;color:var(--text-2)}.action-history summary{cursor:pointer}.action-history ol{margin:6px 0 0;padding-left:18px}.action-history li{margin:3px 0}.action-history small{display:block;color:var(--text-3)}
 .action-chat-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;color:var(--action);font-size:12px;font-weight:500;flex-shrink:0}
+.action-chat-head .action-alone{margin-left:auto;font-weight:400;color:var(--text-2);white-space:nowrap}.action-chat-head .action-alone+.action-handover{margin-left:0}
 .action-plain{border:0;background:none;color:var(--text-2);font-size:12px;cursor:pointer;padding:4px 0}
 .action-result{border:1px solid var(--action-line);border-radius:10px;background:var(--action-tint);padding:14px}
 .action-result h3{font-size:13px;font-weight:500;margin:0 0 10px;color:var(--action)}
@@ -3980,7 +3981,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-back]')){ const to = backTo; backTo = null; selected = null; render(); if (to === 'decisions') $('decs').scrollTop = decsScroll; }
   // the Side Chat tab opens on its newest message, ready to type
   else if (t.dataset.sideTab){ sideTab = t.dataset.sideTab; render(); if (sideTab === 'chat'){ const sm = $('side').querySelector('.sc-msgs'); if (sm) sm.scrollTop = sm.scrollHeight; $('side').querySelector('.side-ask textarea')?.focus(); } }
-  else if (t.closest('[data-box-action]')){ const b = t.closest('[data-box-action]'); runBoxAction(b.dataset.boxAction, b.dataset.actionId, {revision:b.dataset.actionRevision,...(b.dataset.actionTo ? {to:b.dataset.actionTo} : {})}); }
+  else if (t.closest('[data-box-action]')){ const b = t.closest('[data-box-action]'); runBoxAction(b.dataset.boxAction, b.dataset.actionId, {revision:b.dataset.actionRevision,...(b.dataset.actionTo ? {to:b.dataset.actionTo} : {}),...(b.dataset.actionOn ? {on:b.dataset.actionOn === 'true'} : {})}); }
   else if (t.closest('[data-action-choice]')){ const b = t.closest('[data-action-choice]'); runBoxAction('actionanswer', b.dataset.actionId, {answer:b.dataset.actionChoice}); }
   else if (t.closest('[data-auto-plan]')){ autoPlanTopic(t.closest('[data-auto-plan]').dataset.autoPlan); }
   else if (t.closest('[data-hist-more]')){ const id = t.closest('[data-hist-more]').dataset.histMore; histOpen.has(id) ? histOpen.delete(id) : histOpen.add(id); render(); }

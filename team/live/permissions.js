@@ -65,7 +65,7 @@ export const WHO = {
   edit: { standing: 'member', then: 'draw-guard.js: only boxes, lines, removals and questions in their area, never a box\'s Action, maker or area (a whole-map member may set an area), and never a question\'s answer' },
   pr: { standing: 'member', then: 'nothing' },
   // Action boxes
-  ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionconfirm', 'actionexecute', 'actioncontinue', 'actionstop']
+  ...Object.fromEntries(['actionbox', 'actionstart', 'actionretry', 'actionanswer', 'actionrevise', 'actioncancel', 'actionreopen', 'actionconfirm', 'actionalone', 'actionexecute', 'actioncontinue', 'actionstop']
     .map((type) => [type, { standing: /** @type {Standing} */ ('member'), then: 'they are signed in (not Guest, not removed), the box is in their area, and they started its Action' }])),
   actionarchive: { standing: 'member', then: 'the box is in their area, its Action has run, and they started it or are an Admin' },
   actionunarchive: { standing: 'member', then: 'the box is in their area, they started its Action or are an Admin, and its id is free on the map' },
