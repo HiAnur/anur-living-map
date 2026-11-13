@@ -125,6 +125,29 @@ describe('Claude\'s drawing through the map\'s tools', () => {
     expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBeUndefined();
     expect(after.proposals).toHaveLength(1);
   });
+  it('on an old map, still changes the boxes Claude drew before the map recorded who made a box', async () => {
+    // Root and Web carry no maker and no creation date: drawn before either was recorded, when people's boxes
+    // already carried their name
+    const { box, after } = await tool({ nodes: [{ id: 'root', sub: 'The pilot' }, { id: 'web', sub: 'The site' }] });
+    expect([box('root').sub, box('web').sub]).toEqual(['The pilot', 'The site']);
+    expect(after.proposals || []).toEqual([]);
+  });
+  it('offers a change to a box nobody recorded making, and changes one code or a chat drew', async () => {
+    const at = 1_700_000_000_000, s = /** @type {any} */ (linked());
+    s.nodes.push({ id: 'unknown', label: 'Unknown', x: 0, y: 300, createdAt: at }, { id: 'coded', label: 'Coded', x: 0, y: 400, createdAt: at, origin: 'code', source: { kind: 'code' } },
+      { id: 'drawn', label: 'Drawn', x: 0, y: 500, createdAt: at, source: { kind: 'plan' } });
+    const { box, after } = await tool({ nodes: [{ id: 'unknown', sub: 'x' }, { id: 'coded', sub: 'y' }, { id: 'drawn', sub: 'z' }] }, s);
+    expect([box('unknown').sub, box('coded').sub, box('drawn').sub]).toEqual([undefined, 'y', 'z']);
+    expect(after.proposals[0].plan.nodes).toEqual([{ id: 'unknown', sub: 'x' }]);
+  });
+  it('tidies only a map that would be one tree, and says why not; a system map is not checked', async () => {
+    // Mine hangs under nothing
+    const loose = await actOn('tool', { type: 'edit', tidy: true }, linked());
+    expect(loose.status).toBe(400);
+    expect(loose.body.error).toBe('The map was not tidied, and nothing changed: it would not leave one tree: Mine would hang under nothing. Fix which box hangs under which in the same call, or leave out tidy.');
+    expect((await tool({ tidy: true, edges: [{ from: 'root', to: 'mine' }] })).status).toBe(200);
+    expect((await tool({ tidy: true }, { ...linked(), drawing: { status: 'done' } })).status).toBe(200);
+  });
   it('leaves a signed-in person\'s own edit as it was', async () => {
     const { after } = await actOn('Duy', { type: 'edit', nodes: [{ id: 'api', sub: 'By hand' }] }, linked());
     expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBe('By hand');

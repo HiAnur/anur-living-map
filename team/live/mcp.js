@@ -27,7 +27,8 @@ const api = (map, p) => `${BASE}/${map ? `${map}/` : ''}api/${p}`;
 /** @param {string} url @param {RequestInit} [init] */
 async function call(url, init) {
   let r; try { r = await fetch(url, { ...init, signal: AbortSignal.timeout(4000) }); } catch { throw new Error(NOT_RUNNING); }
-  if (!r.ok) throw new Error(`The map said no (${r.status}).`);
+  // the map's own reason for a refusal, when it gives one, is what Claude needs to put the change right
+  if (!r.ok) throw new Error(await r.json().then((/** @type {any} */ b) => typeof b?.error === 'string' && b.error ? b.error : '', () => '') || `The map said no (${r.status}).`);
   return r.json();
 }
 /** @param {string} map */
@@ -101,7 +102,7 @@ const TOOLS = [
   { name: 'living_map_change', run: change,
     description: 'Change a Living Map in one call, shown to everyone at once: add or update any number of boxes, lines, and questions for a teammate. '
       + 'A new box takes a name no box on the map has. To change a box already on the map, give its exact id; a name only finds a box to draw a line to it or hang it under another. '
-      + 'A change to a box a person made or changed, and greying out a box Claude did not make, is not drawn: it becomes a proposal the linked chat\'s owner applies on the map. New boxes find their own place. '
+      + 'A change to a box a person made or changed, or one nobody recorded making, and greying out a box Claude did not make, is not drawn: it becomes a proposal the linked chat\'s owner applies on the map. New boxes find their own place. '
       + 'Mark a to-do with state "todo"; "gone" greys a box out; "new" means planned, not built yet. '
       + 'When the things under one idea have a shape, draw one box with a diagram instead of a box each; double-clicking the box opens it: '
       + 'a timeline for what happened in order (past relationships, jobs, launches, releases), a sequence for who sends what to whom in turn, a Venn for what belongs to which of 2 or 3 groups. '
@@ -132,7 +133,8 @@ const TOOLS = [
       remove_lines: { type: 'array', description: 'Lines to take off the map, by the boxes they join (id or name); the boxes stay.', items: { type: 'object', required: ['from', 'to'], properties: {
         from: { type: 'string' }, to: { type: 'string' } } } },
       tidy: { type: 'boolean', description: 'true lays out the whole map again after this change, every box beside the box it hangs under, boxes people dragged included. '
-        + 'To reorganize the map, fix only which box hangs under which (one box the map starts from, every other box with one line into it, a line turned around when the flow reads better the other way) and set this; never place boxes yourself.' },
+        + 'To reorganize the map, fix only which box hangs under which (one box the map starts from, every other box with one line into it, a line turned around when the flow reads better the other way) and set this; never place boxes yourself. '
+        + 'The map refuses the whole call, and says why, when it would not then be one tree (a box under nothing or under two boxes with no words on their lines, or a loop); a system map is laid out in layers and is not checked.' },
       start: { type: 'string', description: 'The box the map starts from (id or name), drawn in the middle with everything else hanging under it. When no box can hold all the others, add a box for the map\'s subject in this change, with lines to the boxes at the top, and name it here.' },
       questions: { type: 'array', description: 'Questions for a teammate, shown on the box with answer buttons. Yes/no when that is the whole choice; 2 to 4 options when there are real alternatives, your pick first.',
         items: { type: 'object', required: ['box', 'for', 'ask'], properties: {

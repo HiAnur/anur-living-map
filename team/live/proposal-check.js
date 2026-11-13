@@ -5,7 +5,7 @@ import { autoPlanAdditions } from './auto-plan.js';
 import { diagramOf, diagramSaid } from './diagram.js';
 import { BOX_TEXT } from './draw.js';
 import { allLinesOf, graphOfBox, movedUp } from './map-walk.js';
-import { notOneTree } from './one-tree.js';
+import { levelAfter, notOneTree, treeSaid } from './one-tree.js';
 
 // a person's chats with Claude: their own (`@Duy`), the ones they kept (`@Duy#…`) and their side chats (`@Duy>box`)
 /** @param {string} key @param {any} by */
@@ -111,6 +111,27 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       plan.memory.push({ kind, box: box?.id || null, text });
       ops.push(`${kind === 'instruction' ? 'Instruction' : 'Remember'} for ${box ? box.label : 'the whole map'}: ${text}`);
     }
+    // a question for a teammate is asked on Apply, open and unanswered; a box they could not see joins their area
+    // with it, since they could not answer on a box they cannot open
+    const people = getState().people || [], asked = new Set((getState().calls || []).map((/** @type {any} */ c) => c.id));
+    for (const [i, c] of (Array.isArray(p.calls) ? p.calls : []).slice(0, 10).entries()) {
+      const ask = String(c?.ask || c?.text || '').trim().slice(0, 160), on = c?.node ? nodeOf(c.node) || plan.nodes.find((/** @type {any} */ n) => n.id === c.node) : null;
+      const who = people.find((/** @type {any} */ x) => x.id === c?.for);
+      if (!ask || !on || !who) { dropped.push({ text: `the question "${ask || '?'}"`, why: !ask ? 'no question' : !on ? 'no such box' : `no one called ${c?.for} on the map` }); continue; }
+      if (nodeOf(on.id) && !mayTouch(on)) { dropped.push({ text: `the question "${ask}"`, why: 'outside your access' }); continue; }
+      const id = typeof c.id === 'string' && /^[\w-]{1,40}$/.test(c.id) && !asked.has(c.id) ? c.id : `q${Date.now().toString(36)}${i}`;
+      const text = (/** @type {unknown} */ v, /** @type {number} */ n) => String(v ?? '').slice(0, n);
+      const options = (Array.isArray(c.options) ? c.options : []).slice(0, 4).filter((/** @type {any} */ o) => o?.label)
+        .map((/** @type {any} */ o) => ({ id: text(o.id || o.label, 40), label: text(o.label, 60), ...(o.means ? { means: text(o.means, 160) } : {}) }));
+      (plan.calls ||= []).push({ id, node: on.id, for: who.id, from: 'Claude', kind: on.area === 'billing' ? 'Money call' : 'Product call', status: 'open', ask, text: ask,
+        ...(c.plain ? { plain: text(c.plain, 300) } : {}), ...(options.length >= 2 ? { options } : { ...(c.yes ? { yes: text(c.yes, 160) } : {}), ...(c.no ? { no: text(c.no, 160) } : {}) }) });
+      ops.push(`Ask ${who.id} on ${name(on.id)}: ${ask}`);
+      if (who.sees && who.sees !== 'all' && on.area !== who.sees) {
+        const mine = plan.nodes.find((/** @type {any} */ n) => n.id === on.id);
+        if (mine) mine.area = who.sees; else plan.nodes.push({ id: on.id, area: who.sees });
+        ops.push(`Move ${name(on.id)} into area "${who.sees}" so ${who.id} can see it`);
+      }
+    }
     if (p.start) {
       if (typeof p.start === 'string' && there(p.start)) { plan.start = p.start; ops.push(`Start the map from ${name(p.start)}`); }
       else dropped.push({ text: `start from ${p.start}`, why: 'no such box' });
@@ -120,7 +141,7 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
       // a system map is drawn from code in layers, never as one tree, and lays out that way
       const trouble = getState().drawing ? [] : treeTrouble(plan, mayTouch);
       if (trouble.length) return { status: 'dropped', ops: [], plan,
-        dropped: [...dropped, { text: 'Reorganize the map', why: `it would not leave one tree: ${trouble.slice(0, 3).join('; ')}${trouble.length > 3 ? `; and ${trouble.length - 3} more` : ''}` }] };
+        dropped: [...dropped, { text: 'Reorganize the map', why: treeSaid(trouble) }] };
       plan.tidy = true; ops.push('Lay out the whole map again, each box beside the box it hangs under');
     }
     // a new box gets its place now, so the page can show it on the map as proposed and Apply puts it exactly there
@@ -131,14 +152,8 @@ export function proposalChecks({ getState, nodeOf, allNodes, allEdges, seesOf, p
   // may not see are named only as that
   /** @param {any} plan @param {(n: any) => boolean} mayTouch */
   function treeTrouble(plan, mayTouch) {
-    const st = getState(), going = new Set(plan.remove), cut = new Set(plan.unlink.map((/** @type {any} */ e) => `${e.from}>${e.to}`));
-    const nodes = [...(st.nodes || []).filter((/** @type {any} */ n) => !going.has(n.id)).map((/** @type {any} */ n) => ({ ...n, ...plan.nodes.find((/** @type {any} */ m) => m.id === n.id) })),
-      ...plan.nodes.filter((/** @type {any} */ n) => !nodeOf(n.id))];
-    const ids = new Set(nodes.map((n) => n.id));
-    /** @type {any[]} */
-    const edges = (st.edges || []).filter((/** @type {any} */ e) => !cut.has(`${e.from}>${e.to}`)).map((/** @type {any} */ e) => ({ ...e }));
-    for (const e of plan.edges) { const had = edges.find((x) => x.from === e.from && x.to === e.to); if (had) Object.assign(had, e); else edges.push(e); }
-    return notOneTree(nodes, edges.filter((e) => ids.has(e.from) && ids.has(e.to)), plan.start || st.start, (n) => mayTouch(n) ? n.label || n.id : 'a box outside your access');
+    const st = getState(), { nodes, edges } = levelAfter(st, plan, (id) => !!nodeOf(id));
+    return notOneTree(nodes, edges, plan.start || st.start, (n) => mayTouch(n) ? n.label || n.id : 'a box outside your access');
   }
   return { proposal, checkAutoPlan, check };
 }

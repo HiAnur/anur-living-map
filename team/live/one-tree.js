@@ -40,3 +40,24 @@ export function notOneTree(nodes, edges, start, name = (n) => n.label || n.id) {
   }
   return why;
 }
+
+/**
+ * The map's own level (what a tidy lays out) as a change would leave it: boxes taken off and lines cut, boxes and
+ * lines added or changed, new boxes being those not on the map at any depth.
+ * @param {{ nodes?: any[], edges?: any[] }} level the map as it is
+ * @param {{ nodes?: any[], edges?: any[], unlink?: any[], remove?: string[] }} change
+ * @param {(id: string) => boolean} exists whether a box is on the map at any depth
+ */
+export function levelAfter(level, { nodes = [], edges = [], unlink = [], remove = [] }, exists) {
+  const going = new Set(remove), cut = new Set(unlink.map((e) => `${e?.from}>${e?.to}`));
+  const boxes = [...(level.nodes || []).filter((n) => !going.has(n.id)).map((n) => ({ ...n, ...nodes.find((m) => m?.id === n.id) })),
+    ...nodes.filter((n) => n && !exists(n.id))];
+  const ids = new Set(boxes.map((n) => n.id));
+  /** @type {any[]} */
+  const lines = (level.edges || []).filter((e) => !cut.has(`${e.from}>${e.to}`)).map((e) => ({ ...e }));
+  for (const e of edges) { if (!e) continue; const had = lines.find((x) => x.from === e.from && x.to === e.to); if (had) Object.assign(had, e); else lines.push({ ...e }); }
+  return { nodes: boxes, edges: lines.filter((e) => ids.has(e.from) && ids.has(e.to)) };
+}
+
+/** The reasons as one line a person or Claude reads. @param {string[]} trouble */
+export const treeSaid = (trouble) => `it would not leave one tree: ${trouble.slice(0, 3).join('; ')}${trouble.length > 3 ? `; and ${trouble.length - 3} more` : ''}`;

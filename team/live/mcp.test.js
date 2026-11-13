@@ -105,14 +105,14 @@ describe('drawing on a real map through the tool', () => {
 
 // A stand-in map server that records what the tools send, and answers a change as the map would: drawn, or held as
 // a proposal while the chat answers a request from the map's pane.
-/** @param {any} reply what the map answers a change with */
-async function recorder(reply = {}) {
+/** @param {any} reply what the map answers a change with @param {number} [status] */
+async function recorder(reply = {}, status = 200) {
   /** @type {{ url: string, body: any }[]} */ const seen = [];
   const stand = http.createServer((req, res) => {
     let body = ''; req.on('data', (d) => { body += d; });
     req.on('end', () => {
       seen.push({ url: String(req.url), body: body ? JSON.parse(body) : null });
-      res.writeHead(200, { 'content-type': 'application/json' });
+      res.writeHead(req.url?.endsWith('/api/act') ? status : 200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(req.url?.endsWith('/api/act') ? reply : req.url === '/api/maps' ? [{ name: 'other', title: 'Other' }] : { title: 'Demo', nodes: [{ id: 'launch', label: 'Launch' }], edges: [] }));
     });
   });
@@ -161,14 +161,23 @@ describe('the tools pinned to one map, as a chat the map runs itself gets them',
     } finally { await m.close(); }
   });
   it('says a change waits for Apply when the map holds it as a proposal', async () => {
-    const m = await recorder({ proposed: 'p1', ops: ['Add the box Billing (Stripe)'], dropped: [{ text: 'the question "Ship it?"', why: 'ask it once the change is applied' }] });
+    const m = await recorder({ proposed: 'p1', ops: ['Add the box Billing (Stripe)'], dropped: [{ text: 'a line Billing → Launch', why: 'a box it names is not on the map' }] });
     try {
       const s = server(m.origin, undefined, PINNED);
       const text = (await s.ask('tools/call', { name: 'living_map_change', arguments: { boxes: [{ label: 'Billing', sub: 'Stripe' }] } })).result.content[0].text;
       expect(text).toContain('until its owner presses Apply');
       expect(text).toContain('- Add the box Billing (Stripe)');
-      expect(text).toContain('- the question "Ship it?": ask it once the change is applied');
+      expect(text).toContain('- a line Billing → Launch: a box it names is not on the map');
       expect(text).not.toContain('Done on');
+    } finally { await m.close(); }
+  });
+  it('passes on the map\'s own reason when it refuses a change', async () => {
+    const m = await recorder({ error: 'The map was not tidied, and nothing changed: it would not leave one tree: Docs would hang under nothing.' }, 400);
+    try {
+      const s = server(m.origin, undefined, PINNED);
+      const r = (await s.ask('tools/call', { name: 'living_map_change', arguments: { tidy: true } })).result;
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toBe('The map was not tidied, and nothing changed: it would not leave one tree: Docs would hang under nothing.');
     } finally { await m.close(); }
   });
 });

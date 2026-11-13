@@ -68,10 +68,11 @@ describe('a change drawn while answering the pane', () => {
 
       const asked = await send(map, 'tool', edit('pricing'));
       expect(asked.status).toBe(200);
-      expect(asked.body).toMatchObject({ proposed: expect.any(String), ops: ['Add the box Pricing (Asked for)', 'Add a line Launch → Pricing'] });
-      expect(asked.body.dropped).toEqual([{ text: 'the question "Ship it?"', why: 'ask it once the change is applied' }]);
+      expect(asked.body).toMatchObject({ proposed: expect.any(String), ops: ['Add the box Pricing (Asked for)', 'Add a line Launch → Pricing', 'Ask Ana on Launch: Ship it?'] });
+      expect(asked.body.dropped).toEqual([]);
       expect(boxes()).not.toContain('pricing');
-      expect(map.snapshot().calls.map((/** @type {any} */ c) => c.ask)).toEqual(['Ship it?']);
+      // the question waits in the proposal: only the one asked before the pane request is on the map
+      expect(map.snapshot().calls.map((/** @type {any} */ c) => c.id)).toEqual(['q-before']);
       const proposal = map.snapshot().proposals.at(-1);
       expect(proposal).toMatchObject({ id: asked.body.proposed, session: 's1', status: 'pending', note: 'add pricing' });
 
@@ -82,6 +83,7 @@ describe('a change drawn while answering the pane', () => {
       // the owner's Apply draws the proposal
       expect((await send(map, 'Ana', { type: 'apply', proposal: proposal.id })).status).toBe(200);
       expect(boxes()).toContain('pricing');
+      expect(map.snapshot().calls.find((/** @type {any} */ c) => c.id === 'q-pricing')).toMatchObject({ status: 'open', for: 'Ana', node: 'root', ask: 'Ship it?' });
 
       // listening again, the chat has answered: what it draws next lands at once
       const again = await listen(map);
@@ -103,15 +105,27 @@ describe('a change drawn while answering the pane', () => {
       handed.hangUp();
     } finally { close(); }
   });
-  it('says why when nothing in it could be proposed', async () => {
+  it('proposes a question on its own, asked only on Apply', async () => {
     const { map, close } = openTestMap(initial());
     try {
       await send(map, 'Ana', { type: 'say', text: 'Ask Ana' });
       await listen(map);
       const only = await send(map, 'tool', { type: 'edit', by: 'Claude', session: 's1', calls: edit('x').calls });
-      expect(only.status).toBe(400);
-      expect(only.body.error).toContain('a question waits until one is applied');
+      expect(only.status).toBe(200);
+      expect(only.body.ops).toEqual(['Ask Ana on Launch: Ship it?']);
       expect(map.snapshot().calls).toEqual([]);
+      expect((await send(map, 'Ana', { type: 'apply', proposal: only.body.proposed })).status).toBe(200);
+      expect(map.snapshot().calls.map((/** @type {any} */ c) => c.ask)).toEqual(['Ship it?']);
+    } finally { close(); }
+  });
+  it('says why when nothing in it could be proposed', async () => {
+    const { map, close } = openTestMap(initial());
+    try {
+      await send(map, 'Ana', { type: 'say', text: 'Ask Ana' });
+      await listen(map);
+      const none = await send(map, 'tool', { type: 'edit', by: 'Claude', session: 's1', calls: [{ id: 'q', node: 'nowhere', for: 'Ana', ask: 'Ship?' }] });
+      expect(none.status).toBe(400);
+      expect(none.body.error).toContain('a request from the map\'s chat is answered with a proposal');
     } finally { close(); }
   });
   it('takes no word for it from the change itself', async () => {
