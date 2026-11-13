@@ -11,6 +11,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
+// these start real node processes, which take far longer than the default
+// 5 s on a busy machine (the pre-commit hook runs every test file at once)
+const SPAWNS = 30_000;
+
 import { hookCommand, installHook, installSkill } from "./install.ts";
 import {
   pickTarget,
@@ -228,52 +232,60 @@ function installed(home: string) {
   return { skill, settings, data };
 }
 
-test("node skill/uninstall.ts, in a test home: skill and hook gone, data kept unless asked", async () => {
-  const port = await freePort();
-  const home = tmp();
-  const { skill, settings, data } = installed(home);
-  // with no terminal to ask in, the data stays
-  const out = await uninstall(home, port, []);
-  assert.match(out, /Removed the living-map hook/);
-  assert.match(out, /Removed the living-map skill/);
-  assert.match(out, /Kept .*\.living-map/);
-  assert.match(out, /\/anur-living-map/);
-  assert.equal(fs.existsSync(path.dirname(skill)), false);
-  assert.deepEqual(JSON.parse(fs.readFileSync(settings, "utf8")), {
-    mcpServers: { "living-map": { command: "npx" } },
-  });
-  assert.equal(
-    fs.readFileSync(path.join(data, "ledger.db"), "utf8"),
-    "private",
-  );
+test(
+  "node skill/uninstall.ts, in a test home: skill and hook gone, data kept unless asked",
+  async () => {
+    const port = await freePort();
+    const home = tmp();
+    const { skill, settings, data } = installed(home);
+    // with no terminal to ask in, the data stays
+    const out = await uninstall(home, port, []);
+    assert.match(out, /Removed the living-map hook/);
+    assert.match(out, /Removed the living-map skill/);
+    assert.match(out, /Kept .*\.living-map/);
+    assert.match(out, /\/anur-living-map/);
+    assert.equal(fs.existsSync(path.dirname(skill)), false);
+    assert.deepEqual(JSON.parse(fs.readFileSync(settings, "utf8")), {
+      mcpServers: { "living-map": { command: "npx" } },
+    });
+    assert.equal(
+      fs.readFileSync(path.join(data, "ledger.db"), "utf8"),
+      "private",
+    );
 
-  await uninstall(home, port, ["--keep-data"]);
-  assert.ok(fs.existsSync(data));
-  const again = await uninstall(home, port, ["--delete-data"]);
-  assert.match(again, /No living-map hook/);
-  assert.match(again, /Deleted .*\.living-map/);
-  assert.equal(fs.existsSync(data), false);
-});
+    await uninstall(home, port, ["--keep-data"]);
+    assert.ok(fs.existsSync(data));
+    const again = await uninstall(home, port, ["--delete-data"]);
+    assert.match(again, /No living-map hook/);
+    assert.match(again, /Deleted .*\.living-map/);
+    assert.equal(fs.existsSync(data), false);
+  },
+  SPAWNS,
+);
 
-test("a real server on a test port is stopped, and only once it answers as Living Map", async () => {
-  const port = await freePort();
-  const dir = path.join(tmp(), "server");
-  fs.mkdirSync(dir);
-  // a stand-in for the app's server: the same file name, the same answer
-  const file = path.join(dir, "index.ts");
-  fs.writeFileSync(
-    file,
-    `import http from "node:http";
+test(
+  "a real server on a test port is stopped, and only once it answers as Living Map",
+  async () => {
+    const port = await freePort();
+    const dir = path.join(tmp(), "server");
+    fs.mkdirSync(dir);
+    // a stand-in for the app's server: the same file name, the same answer
+    const file = path.join(dir, "index.ts");
+    fs.writeFileSync(
+      file,
+      `import http from "node:http";
 http.createServer((_q, r) => r.end(JSON.stringify({ app: "living-map", ok: true }))).listen(${port}, "127.0.0.1");`,
-  );
-  const child = spawn(process.execPath, [file], { stdio: "ignore" });
-  try {
-    const d = stopDeps(port);
-    for (let i = 0; i < 40 && !(await d.healthy()); i++) await d.pause(100);
-    if (!(await d.listener())) return; // no lsof on this machine
-    assert.equal(await stopServer(d), "stopped");
-    assert.equal(await d.healthy(), false);
-  } finally {
-    child.kill();
-  }
-});
+    );
+    const child = spawn(process.execPath, [file], { stdio: "ignore" });
+    try {
+      const d = stopDeps(port);
+      for (let i = 0; i < 40 && !(await d.healthy()); i++) await d.pause(100);
+      if (!(await d.listener())) return; // no lsof on this machine
+      assert.equal(await stopServer(d), "stopped");
+      assert.equal(await d.healthy(), false);
+    } finally {
+      child.kill();
+    }
+  },
+  SPAWNS,
+);
