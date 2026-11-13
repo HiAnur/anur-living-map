@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE = path.join(APP_DIR, "skill", "SKILL.md");
 // marks a file this app wrote, so one you made yourself is never replaced
-const MARK = "living-map-skill:";
+export const MARK = "living-map-skill:";
 
 const claudeDir = () =>
   process.env.CLAUDE_CONFIG_DIR
@@ -28,12 +28,12 @@ export const settingsFile = () => path.join(claudeDir(), "settings.json");
 
 // the marker at its end says the hook is this app's, whichever copy or port
 // wrote it; no other hook of yours carries it
-const HOOK_MARK = "# living-map-hook";
+export const HOOK_MARK = "# living-map-hook";
 export const hookCommand = (port: number | string) =>
   `node "${path.join(APP_DIR, "skill", "hook.ts")}" ${port} ${HOOK_MARK}`;
 
-type Hook = { type?: string; command?: string; timeout?: number };
-type HookGroup = { matcher?: string; hooks?: Hook[] };
+export type Hook = { type?: string; command?: string; timeout?: number };
+export type HookGroup = { matcher?: string; hooks?: Hook[] };
 
 // Adds the hook to your Claude Code settings, keeping everything else in
 // them as it was; a living-map hook from another copy or port is replaced.
@@ -63,13 +63,17 @@ export function installHook(
     { hooks: [{ type: "command", command, timeout: 10 }] },
   ];
   settings.hooks = hooks;
+  writeSettings(file, settings);
+  return had ? "updated" : "installed";
+}
+
+// Written whole beside it, then moved over it: a write cut short never
+// leaves your settings half there.
+export function writeSettings(file: string, settings: Record<string, unknown>) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  // written whole beside it, then moved over it: a write cut short never
-  // leaves your settings half there
   const tmp = `${file}.living-map-${process.pid}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(settings, null, 2)}\n`);
   fs.renameSync(tmp, file);
-  return had ? "updated" : "installed";
 }
 
 export function skillText(port: number | string): string {
