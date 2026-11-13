@@ -53,6 +53,9 @@ it('reads your words, pictures and Pi\'s replies into the pane, leaving out tool
   await vi.waitFor(() => expect(f.msgs().at(-1).text).toBe('Drawn.'), { timeout: 3000 });
   expect(f.status().working).toBe(false);
   f.stop();
+  // asked, it reads what was written since at once
+  fs.appendFileSync(file, line({ type: 'message', timestamp: '2026-11-12T10:00:06Z', message: { role: 'user', content: 'I\'ll send Dan the pricing' } }));
+  expect(f.readNow().at(-1)).toMatchObject({ who: 'you', text: 'I\'ll send Dan the pricing' });
 });
 
 it('opens a new chat in a terminal in the folder, the skill called the way Pi calls it, and keeps skills where every agent reads them', () => {
