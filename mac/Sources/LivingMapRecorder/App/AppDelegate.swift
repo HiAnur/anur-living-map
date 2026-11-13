@@ -131,6 +131,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
+  func openMapList() async {
+    do {
+      mapWindow.show(url: try await server.client.openMapList(), title: "your maps")
+    } catch {
+      alert("Could not open Living Map", error.localizedDescription)
+    }
+  }
+
   func showImport() {
     importWindow.show { [weak self] title, text in
       guard let self else { return }

@@ -77,6 +77,16 @@ struct ClientTests {
     #expect(body["me"] as? String == "Harshit Khandelwal")
   }
 
+  @Test func mapListAsksForALinkWithoutLaunchingABrowser() async throws {
+    StubProtocol.reset { _ in .json(200, #"{"url":"http://localhost:4999/auth?n=x"}"#) }
+    let url = try await client().openMapList()
+    #expect(url.absoluteString == "http://localhost:4999/auth?n=x")
+    let request = try #require(StubProtocol.requests.last)
+    #expect(request.url?.path == "/api/open")
+    #expect(request.value(forHTTPHeaderField: "X-LM-Token") == "tok-123")
+    #expect(request.jsonBody?["launch"] as? Bool == false)
+  }
+
   @Test func serverErrorsCarryTheirMessage() async throws {
     StubProtocol.reset { _ in .json(404, #"{"error":"no such meeting"}"#) }
     await #expect(throws: LivingMapError.server(status: 404, message: "no such meeting")) {

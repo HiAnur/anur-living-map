@@ -9,9 +9,9 @@ extension AppDelegate: NSMenuDelegate {
     menu.addItem(.separator())
 
     let recent = settings.recent
-    let open = item("Open map", #selector(openCurrentMap))
-    open.isEnabled = session != nil || !recent.isEmpty
-    menu.addItem(open)
+    // with no meeting of this app's yet, it opens the list of every map
+    let hasMeeting = session != nil || !recent.isEmpty
+    menu.addItem(item(hasMeeting ? "Open map" : "Open Living Map", #selector(openCurrentMap)))
     menu.addItem(item("Import transcript…", #selector(importTranscript)))
     let recentItem = NSMenuItem(title: "Recent meetings", action: nil, keyEquivalent: "")
     let submenu = NSMenu()
@@ -107,6 +107,8 @@ extension AppDelegate: NSMenuDelegate {
       Task { await openMap(conv: session.meeting.conv, title: session.meeting.title) }
     } else if let last = settings.recent.first {
       Task { await openMap(conv: last.conv, title: last.title) }
+    } else {
+      Task { await openMapList() }
     }
   }
 

@@ -15,7 +15,7 @@ open "build/Living Map Recorder.app"
 
 An imported transcript is sent with your Mac account's full name, so lines under that name are filed as yours.
 
-The menu: Start or Stop recording (with the elapsed time), Open map, Import transcript… (paste, or a .txt/.md/.vtt/.srt file), Recent meetings, the server's status, Quit. Logs: `log stream --predicate 'subsystem == "com.anur.living-map-recorder"'`.
+The menu: Start or Stop recording (with the elapsed time), Open map (before your first meeting, Open Living Map: the list of every map), Import transcript… (paste, or a .txt/.md/.vtt/.srt file), Recent meetings, the server's status, Quit. Logs: `log stream --predicate 'subsystem == "com.anur.living-map-recorder"'`.
 
 Headless checks, from `mac/` after `swift build`:
 

@@ -51,6 +51,7 @@ struct ImportBody: Encodable {
   var me: String?
 }
 struct EmptyBody: Encodable {}
+struct OpenBody: Encodable { var launch = false }
 struct OkAnswer: Decodable { var ok: Bool? }
 struct CountAnswer: Decodable { var ok: Bool?; var count: Int? }
 struct URLAnswer: Decodable { var url: String }

@@ -80,6 +80,14 @@ public struct LivingMapClient: Sendable {
     return answer.url
   }
 
+  /// A one-time sign-in link to the list of every map: the server only
+  /// returns it (`launch: false`) for this app to show.
+  public func openMapList() async throws -> URL {
+    let answer: URLAnswer = try await post("/api/open", OpenBody())
+    guard let url = URL(string: answer.url) else { throw LivingMapError.badAnswer("bad URL \(answer.url)") }
+    return url
+  }
+
   public func importTranscript(title: String, text: String, me: String? = nil) async throws
     -> MeetingStart
   {
