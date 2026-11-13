@@ -213,9 +213,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     // handed: the chat's listener has taken the message; one written before this was tracked counts as taken
     const said = (state.said?.[l.session] || []).map((/** @type {any} */ s) => ({ who: 'you', text: s.text, at: s.at, map: true, handed: !s.id || !!s.handed, ...(s.imgs ? { imgs: s.imgs } : {}) }));
     const props = (state.proposals || []).filter((/** @type {any} */ p) => p.session === l.session).map((/** @type {any} */ p) => ({ who: 'claude', at: p.made, proposal: p }));
+    // the Action drafts the map made from what the owner said in that chat, each notice with its Undo
+    const notes = (state.itemNotes || []).filter((/** @type {any} */ x) => x.session === l.session).map((/** @type {any} */ x) => ({ who: 'map', at: x.at, drafts: x.made }));
     // listening: the chat's listener is waiting for the map right now, so what is written next reaches it at once
     return { session: l.session, owner: l.owner, model: mirror.f.model(), status: mirror.f.status(), listening: waiters.some((/** @type {any} */ w) => w.who === l.session),
-      msgs: [...mirror.f.msgs(), ...said, ...props].sort((x, y) => x.at - y.at).slice(-300) };
+      msgs: [...mirror.f.msgs(), ...said, ...props, ...notes].sort((x, y) => x.at - y.at).slice(-300) };
   }
   const sendMirror = () => { const v = mirrorView(); if (!v) return; for (const r of clients) if (viewers.get(r) === v.owner) send(r, 'mirror', v); };
   function startMirror() {
@@ -225,6 +227,17 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     if (l && l.file && fs.existsSync(l.file)) mirror = { session: l.session, f: chats.follow(l.file, sendMirror, { anyUser: !!l.built }) };
   }
   if (!memory) startMirror();
+  // A linked chat's own words, read from its transcript when its tool asks for Action drafts (myaction): what its
+  // owner typed, never Claude's replies or what a tool returned. The pane's follower serves the chat it follows;
+  // any other linked chat gets a follower that reads only when asked.
+  const readers = new Map();
+  /** @param {any} l @returns {string[]} */
+  function ownWords(l) {
+    if (!l?.file || !fs.existsSync(l.file)) return [];
+    let f = mirror?.session === l.session ? mirror.f : readers.get(l.session);
+    if (!f) { f = chats.follow(l.file, () => {}); f.stop(); readers.set(l.session, f); }
+    return f.readNow().filter((/** @type {any} */ m) => m.who === 'you' && m.text).map((/** @type {any} */ m) => String(m.text));
+  }
 
   // Maps started from a prompt before new maps opened in the Claude app (build, below) have their chat running
   // here, headless, in the map's folder: the agent's own chat (agent.converse). Its only tools are this map's own,
@@ -576,7 +589,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
   const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
     selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
-    relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror });
+    relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords });
   const ACTS = {
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
     ...chatting,
@@ -703,6 +716,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       // an edit from a program on this Mac, or one naming the chat that sent it, is the map's tools drawing for
       // Claude (mcp.js), and is held to Claude's rules whatever name it gives
       if (a.type === 'edit' && !guest && (!who || a.session)) a.by = 'Claude';
+      // so is a chat's tool asking for Action drafts; whose they are comes from the chat it names, never this name
+      if (a.type === 'myaction' && !guest && !who) a.by = 'Claude';
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -717,7 +732,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (touchesHidden(a, guest ? null : a.by)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That box is in a repo you can\'t read on GitHub.' })); return true; }
       told = null;
       // what a handler says back about the action (edit's proposal, or why it refused) is its own, never the sender's
-      delete a.proposed; delete a.refused;
+      delete a.proposed; delete a.refused; delete a.outcomes;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
@@ -733,7 +748,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
         return done;
       });
       if (result.ok) push();
-      const made = { ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}) };
+      const made = { ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}), ...(a.outcomes ? { items: a.outcomes } : {}) };
       res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(JSON.stringify(result.ok ? made : { error: result.error || 'That change could not be saved.' }));
       return true;
     }

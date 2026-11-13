@@ -6,6 +6,8 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { TASK } from './propose.js';
+
 // The tools server as Claude Code runs it: a process spoken to in JSON lines. It answers without a map server
 // for everything asked here.
 /** @type {import('node:child_process').ChildProcess[]} */
@@ -30,11 +32,11 @@ function server(url = 'http://127.0.0.1:9', file = new URL('./mcp.js', import.me
 }
 
 describe('the map\'s tools, over stdio', () => {
-  it('starts, names itself and lists its four tools', async () => {
+  it('starts, names itself and lists its five tools', async () => {
     const s = server();
     expect((await s.ask('initialize', { protocolVersion: '2025-06-18' })).result.serverInfo.name).toBe('anur-living-map');
     const { tools } = (await s.ask('tools/list')).result;
-    expect(tools.map((t) => t.name)).toEqual(['living_map_catalog', 'living_map_load', 'living_map_read', 'living_map_change']);
+    expect(tools.map((t) => t.name)).toEqual(['living_map_catalog', 'living_map_load', 'living_map_read', 'living_map_change', 'living_map_my_action']);
     expect(tools.every((t) => !('run' in t))).toBe(true);
   });
   it('tells Claude a line needs its label, and a new box its name and second line', async () => {
@@ -44,6 +46,16 @@ describe('the map\'s tools, over stdio', () => {
     expect(lines.description).toContain('"under"');
     expect(boxes.items.properties.label.description).toContain('Required for a new box');
     expect(boxes.items.properties.sub.description).toContain('Required for a new box');
+  });
+  it('takes the user\'s commitments with their quote and the task Ask Claude\'s Actions take, and never whose they are', async () => {
+    const s = server(), { tools } = (await s.ask('tools/list')).result;
+    const tool = tools.find((t) => t.name === 'living_map_my_action'), item = tool.inputSchema.properties.items.items;
+    expect(tool.description).toMatch(/exact words/);
+    expect(tool.description).toMatch(/Never for your own suggestions/);
+    expect(item.required).toEqual(['quote', 'title', 'task']);
+    expect(Object.keys(item.properties)).toEqual(['quote', 'title', 'sub', 'under', 'task']);
+    expect(item.properties.task).toEqual({ ...TASK, description: expect.any(String) });
+    expect(JSON.stringify(tool.inputSchema)).not.toMatch(/owner/);
   });
   it('says so when a change asks for nothing, before it looks for the map', async () => {
     const s = server(), r = (await s.ask('tools/call', { name: 'living_map_change', arguments: {} })).result;
@@ -105,14 +117,14 @@ describe('drawing on a real map through the tool', () => {
 
 // A stand-in map server that records what the tools send, and answers a change as the map would: drawn, or held as
 // a proposal while the chat answers a request from the map's pane.
-/** @param {any} reply what the map answers a change with */
-async function recorder(reply = {}) {
+/** @param {any} reply what the map answers a change with @param {number} [status] */
+async function recorder(reply = {}, status = 200) {
   /** @type {{ url: string, body: any }[]} */ const seen = [];
   const stand = http.createServer((req, res) => {
     let body = ''; req.on('data', (d) => { body += d; });
     req.on('end', () => {
       seen.push({ url: String(req.url), body: body ? JSON.parse(body) : null });
-      res.writeHead(200, { 'content-type': 'application/json' });
+      res.writeHead(req.url?.endsWith('/api/act') ? status : 200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(req.url?.endsWith('/api/act') ? reply : req.url === '/api/maps' ? [{ name: 'other', title: 'Other' }] : { title: 'Demo', nodes: [{ id: 'launch', label: 'Launch' }], edges: [] }));
     });
   });
@@ -123,13 +135,15 @@ async function recorder(reply = {}) {
 const PINNED = { LIVING_MAP_ONLY_MAP: 'demo', LIVING_MAP_SESSION: 'chat-1' };
 
 describe('the tools pinned to one map, as a chat the map runs itself gets them', () => {
-  it('lists only reading and changing the map, with nothing to remember', async () => {
+  it('lists only reading and changing the map, with nothing to remember and no Action drafts', async () => {
     const s = server(undefined, undefined, PINNED), { tools } = (await s.ask('tools/list')).result;
     expect(tools.map((t) => t.name)).toEqual(['living_map_read', 'living_map_change']);
     expect(tools[1].inputSchema.properties.remember).toBeUndefined();
     expect((await s.ask('initialize', {})).result.instructions).toContain('"demo", and no other');
-    const load = await s.ask('tools/call', { name: 'living_map_load', arguments: { id: 'other' } });
-    expect(load.error.message).toContain('No tool');
+    for (const name of ['living_map_load', 'living_map_my_action']) {
+      const r = await s.ask('tools/call', { name, arguments: { id: 'other', items: [{ quote: 'I\'ll do it', title: 'Do it', task: {} }] } });
+      expect(r.error.message, name).toContain('No tool');
+    }
   });
   it('refuses any other map, before it asks the map server anything', async () => {
     const m = await recorder();
@@ -169,6 +183,47 @@ describe('the tools pinned to one map, as a chat the map runs itself gets them',
       expect(text).toContain('- Add the box Billing (Stripe)');
       expect(text).toContain('- the question "Ship it?": ask it once the change is applied');
       expect(text).not.toContain('Done on');
+    } finally { await m.close(); }
+  });
+});
+
+// A Claude Code chat's own session, as Claude Code hands it to the servers it starts.
+const CHAT = { LIVING_MAP_SESSION: '', CLAUDE_CODE_SESSION_ID: 'chat-9', PI_SESSION_ID: '' };
+const pricing = { quote: 'I\'ll send Dan the pricing by Thursday', title: 'Send Dan the pricing', task: { goal: 'Send Dan the pricing' } };
+
+describe('handing the map what the user commits to', () => {
+  it('sends the chat\'s session and the items, and says what the map made, merged and refused', async () => {
+    const m = await recorder({ items: [{ title: 'Send Dan the pricing', made: 'send-dan-the-pricing' }, { title: 'Book the venue', merged: 'venue' },
+      { title: 'Wire Bob', refused: 'The quote is not in Duy\'s own words here.' }] });
+    try {
+      const s = server(m.origin, undefined, CHAT);
+      const r = (await s.ask('tools/call', { name: 'living_map_my_action', arguments: { map: 'demo', items: [pricing] } })).result;
+      expect(r.isError).toBeUndefined();
+      expect(m.seen).toEqual([{ url: '/demo/api/act', body: { type: 'myaction', by: 'Claude', session: 'chat-9', items: [pricing] } }]);
+      const text = r.content[0].text;
+      expect(text).toContain('- Made the Action draft "Send Dan the pricing" (send-dan-the-pricing). The map prepares it now; Execute stays the user\'s click.');
+      expect(text).toContain('- "Book the venue" is already on the map (venue): added these words to it, no second draft.');
+      expect(text).toContain('- Not made: "Wire Bob". The quote is not in Duy\'s own words here.');
+    } finally { await m.close(); }
+  });
+  it('says why when the map refuses the chat', async () => {
+    const m = await recorder({ error: 'This chat is not linked to this map. Open the map from it with /anur-living-map first.' }, 400);
+    try {
+      const r = (await server(m.origin, undefined, CHAT).ask('tools/call', { name: 'living_map_my_action', arguments: { items: [pricing] } })).result;
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toBe('The map made nothing: This chat is not linked to this map. Open the map from it with /anur-living-map first.');
+      expect(m.seen.map((x) => x.url)).toEqual(['/api/act']);
+    } finally { await m.close(); }
+  });
+  it('asks nothing of the map without a session to name the chat, or with nothing to make', async () => {
+    const m = await recorder();
+    try {
+      const none = (await server(m.origin, undefined, { ...CHAT, CLAUDE_CODE_SESSION_ID: '' }).ask('tools/call', { name: 'living_map_my_action', arguments: { items: [pricing] } })).result;
+      expect(none.isError).toBe(true);
+      expect(none.content[0].text).toMatch(/no session id/);
+      const empty = (await server(m.origin, undefined, CHAT).ask('tools/call', { name: 'living_map_my_action', arguments: { items: [] } })).result;
+      expect(empty.content[0].text).toMatch(/Nothing to make/);
+      expect(m.seen).toEqual([]);
     } finally { await m.close(); }
   });
 });

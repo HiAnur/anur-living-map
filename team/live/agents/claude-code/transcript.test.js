@@ -58,3 +58,11 @@ it('counts every user entry as yours in a chat the map started, keeps pictures, 
   await tick();
   expect(plain.msgs()).toEqual([]);
 });
+it('reads what was written since at once when asked, with no tick to wait for', () => {
+  const file = write('now.jsonl', [human('Hi', 1)]);
+  const f = follow(file, () => {}); followed.push(f);
+  f.stop();
+  expect(f.readNow().map((m) => m.text)).toEqual(['Hi']);
+  fs.appendFileSync(file, JSON.stringify(human('I\'ll send Dan the pricing', 2)) + '\n');
+  expect(f.readNow().map((m) => m.text)).toEqual(['Hi', 'I\'ll send Dan the pricing']);
+});
