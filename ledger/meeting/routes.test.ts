@@ -133,6 +133,10 @@ const view = async (conv: string) =>
   (await call("GET", `/api/ledger/view?conv=${conv}`))
     .json as unknown as LedgerView;
 
+// these tests wait on the ledger's own one-second clock through a few
+// seals and model calls: more than a test's default 5 s on a slow runner
+const SLOW = 30_000;
+
 async function until(cond: () => Promise<boolean>, ms = 20_000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -146,103 +150,113 @@ test("without the token the recorder gets nothing", async () => {
   assert.equal((await call("POST", "/api/meetings", {}, null)).status, 401);
 });
 
-test("a live meeting is mapped while it goes on, with the meeting's instructions", async () => {
-  const start = await call("POST", "/api/meetings", {
-    title: "Launch sync",
-    app: "Zoom",
-  });
-  assert.equal(start.status, 200);
-  const conv = start.json.conv as string;
-  assert.match(
-    start.json.url as string,
-    new RegExp(`^/auth\\?n=.+&conv=${conv}$`),
-  );
+test(
+  "a live meeting is mapped while it goes on, with the meeting's instructions",
+  async () => {
+    const start = await call("POST", "/api/meetings", {
+      title: "Launch sync",
+      app: "Zoom",
+    });
+    assert.equal(start.status, 200);
+    const conv = start.json.conv as string;
+    assert.match(
+      start.json.url as string,
+      new RegExp(`^/auth\\?n=.+&conv=${conv}$`),
+    );
 
-  const t = Date.now() - 200_000;
-  const seg = (s: number, text: string, speaker = "others") => ({
-    text,
-    speaker,
-    start: t + s * 1000,
-    end: t + s * 1000 + 900,
-  });
-  // more than a minute of talk: the first turn seals while the meeting goes on
-  let r = await call("POST", `/api/meetings/${conv}/segments`, {
-    segments: [
-      seg(0, "Launch date first.", "you"),
-      seg(20, "Let's decide on Friday the 20th."),
-      seg(65, "Now pricing."),
-    ],
-  });
-  assert.deepEqual(r.json, { ok: true, count: 3 });
-  await until(async () =>
-    (await view(conv)).items?.some((i) => i.type === "decision"),
-  );
-  const v = await view(conv);
-  assert.ok(
-    v.items.some((i) => i.type === "topic" && i.title === "Launch date first."),
-  );
-  assert.equal(calls.at(-1)!.system, MEETING_SYSTEM);
-  assert.equal(
-    v.items.some((i) => i.title === "Now pricing."),
-    false,
-    "the open turn waits",
-  );
-
-  // the end seals the last turn
-  r = await call("POST", `/api/meetings/${conv}/end`, {});
-  assert.deepEqual(r.json, { ok: true });
-  await until(async () =>
-    (await view(conv)).items.some((i) => i.title === "Now pricing."),
-  );
-
-  // read back as text, it says it is a meeting, not what Claude is on
-  const outline = await new Promise<string>((done) =>
-    http.get(
-      {
-        host: "127.0.0.1",
-        port,
-        path: `/api/outline?conv=${conv}`,
-        headers: { host: `localhost:${port}`, "x-lm-token": auth.token },
-      },
-      (res) => {
-        let d = "";
-        res.on("data", (c) => (d += c));
-        res.on("end", () => done(d));
-      },
-    ),
-  );
-  assert.match(outline, /A meeting: filed about once a minute of talk/);
-  assert.doesNotMatch(outline, /Claude isn't on a task/);
-
-  // the map can be opened again later; an ended meeting takes no more words
-  const again = await call("POST", `/api/meetings/${conv}/open`, {});
-  assert.match(again.json.url as string, /^\/auth\?n=/);
-  r = await call("POST", `/api/meetings/${conv}/segments`, {
-    segments: [seg(90, "late")],
-  });
-  assert.equal(r.status, 400);
-});
-
-test("a pasted transcript is filed whole", async () => {
-  const r = await call("POST", "/api/meetings/import", {
-    title: "Yesterday's sync",
-    text: "Priya: Budget review.\nPriya: We decide to cut the ads spend.\nMe: Fine by me.",
-  });
-  assert.equal(r.status, 200);
-  const conv = r.json.conv as string;
-  await until(async () =>
-    (await view(conv)).items?.some((i) => i.type === "decision"),
-  );
-  const v = await view(conv);
-  assert.equal(v.title, "Yesterday's sync");
-  assert.ok(
-    calls.some((c) =>
-      c.message.includes(
-        "Priya: We decide to cut the ads spend.\nYou: Fine by me.",
+    const t = Date.now() - 200_000;
+    const seg = (s: number, text: string, speaker = "others") => ({
+      text,
+      speaker,
+      start: t + s * 1000,
+      end: t + s * 1000 + 900,
+    });
+    // more than a minute of talk: the first turn seals while the meeting goes on
+    let r = await call("POST", `/api/meetings/${conv}/segments`, {
+      segments: [
+        seg(0, "Launch date first.", "you"),
+        seg(20, "Let's decide on Friday the 20th."),
+        seg(65, "Now pricing."),
+      ],
+    });
+    assert.deepEqual(r.json, { ok: true, count: 3 });
+    await until(async () =>
+      (await view(conv)).items?.some((i) => i.type === "decision"),
+    );
+    const v = await view(conv);
+    assert.ok(
+      v.items.some(
+        (i) => i.type === "topic" && i.title === "Launch date first.",
       ),
-    ),
-  );
-});
+    );
+    assert.equal(calls.at(-1)!.system, MEETING_SYSTEM);
+    assert.equal(
+      v.items.some((i) => i.title === "Now pricing."),
+      false,
+      "the open turn waits",
+    );
+
+    // the end seals the last turn
+    r = await call("POST", `/api/meetings/${conv}/end`, {});
+    assert.deepEqual(r.json, { ok: true });
+    await until(async () =>
+      (await view(conv)).items.some((i) => i.title === "Now pricing."),
+    );
+
+    // read back as text, it says it is a meeting, not what Claude is on
+    const outline = await new Promise<string>((done) =>
+      http.get(
+        {
+          host: "127.0.0.1",
+          port,
+          path: `/api/outline?conv=${conv}`,
+          headers: { host: `localhost:${port}`, "x-lm-token": auth.token },
+        },
+        (res) => {
+          let d = "";
+          res.on("data", (c) => (d += c));
+          res.on("end", () => done(d));
+        },
+      ),
+    );
+    assert.match(outline, /A meeting: filed about once a minute of talk/);
+    assert.doesNotMatch(outline, /Claude isn't on a task/);
+
+    // the map can be opened again later; an ended meeting takes no more words
+    const again = await call("POST", `/api/meetings/${conv}/open`, {});
+    assert.match(again.json.url as string, /^\/auth\?n=/);
+    r = await call("POST", `/api/meetings/${conv}/segments`, {
+      segments: [seg(90, "late")],
+    });
+    assert.equal(r.status, 400);
+  },
+  SLOW,
+);
+
+test(
+  "a pasted transcript is filed whole",
+  async () => {
+    const r = await call("POST", "/api/meetings/import", {
+      title: "Yesterday's sync",
+      text: "Priya: Budget review.\nPriya: We decide to cut the ads spend.\nMe: Fine by me.",
+    });
+    assert.equal(r.status, 200);
+    const conv = r.json.conv as string;
+    await until(async () =>
+      (await view(conv)).items?.some((i) => i.type === "decision"),
+    );
+    const v = await view(conv);
+    assert.equal(v.title, "Yesterday's sync");
+    assert.ok(
+      calls.some((c) =>
+        c.message.includes(
+          "Priya: We decide to cut the ads spend.\nYou: Fine by me.",
+        ),
+      ),
+    );
+  },
+  SLOW,
+);
 
 test("unknown meetings and bad bodies are refused plainly", async () => {
   assert.equal(
