@@ -12,13 +12,28 @@ export const BOX_TEXT = { label: 80, sub: 240, desc: 1500 };
 /** The person who last changed a box or made it, if a person did. @param {any} n @returns {string | null} */
 export const personOf = (n) => [n?.updatedBy, n?.by].find((w) => typeof w === 'string' && w && w !== 'Claude') || null;
 /**
+ * Whether Claude or code made a box, as far as it records: Claude's mark, a system map's code (`origin`, a `code`
+ * source), a repo's folders (`file`, `dir`), or a chat's drawing (any source but a person's `map`). A box with no
+ * maker and no creation date is from before the map recorded either, when people's boxes already carried their
+ * name, so Claude or code drew it; one with a date and no maker is treated as a person's.
+ * @param {any} n
+ */
+export function drawnByClaude(n) {
+  if (personOf(n)) return false;
+  if (n?.by === 'Claude' || n?.origin === 'code' || n?.file || n?.dir) return true;
+  if (n?.source?.kind) return n.source.kind !== 'map';
+  return !(Number.isFinite(n?.createdAt) && n.createdAt > 0);
+}
+/**
  * Why Claude may change a box already on the map only through a proposal a person applies, or null when it may
- * change it directly: a person made or changed it, or the change takes off the map a box Claude did not make.
+ * change it directly: a person made or changed it, nobody recorded who made it, or the change takes off the map a
+ * box Claude did not make.
  * @param {any} old the box as it is @param {any} change what Claude would set on it
  */
 export function waitsForApply(old, change) {
   const who = personOf(old);
   if (who) return `${who} ${old.updatedBy === who ? 'last changed' : 'made'} it`;
+  if (!drawnByClaude(old)) return 'nobody recorded who made it';
   if (change?.state === 'gone' && old?.by !== 'Claude') return 'Claude did not make it';
   return null;
 }

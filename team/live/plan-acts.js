@@ -1,6 +1,7 @@
 // What a chat draws and builds on the map: its plan, its pull request, Build the plan and plan.md, quick changes from
 // the map's tools, and the memory people may reword or take away. The map passes in its state and the helpers each needs.
 import { waitsForApply } from './draw.js';
+import { levelAfter, notOneTree, treeSaid } from './one-tree.js';
 
 /**
  * @param {{ getState: () => any, name: string, nodeOf: (id: any) => any, seesOf: (by: any) => string, draw: Function,
@@ -83,29 +84,36 @@ export function planActs({ getState, name, nodeOf, seesOf, draw, stamp, waiters,
       getState().memory.splice(i, 1); return true;
     },
     // A chat answering a request from the map's pane proposes instead of drawing: what was asked there waits for
-    // its owner's Apply. A question for a teammate is no part of a proposal, so it waits until the change is applied.
+    // its owner's Apply, its questions for teammates asked with it.
     /** @param {Act<'edit'> & { proposed?: any, refused?: string }} a */
     edit(a) {
       if (![a.nodes, a.propose, a.edges, a.calls, a.memory, a.unlink].some((x) => Array.isArray(x) && x.length) && a.tidy !== true && !a.start) return false;
-      const marked = Array.isArray(a.propose) ? a.propose : [];
+      const marked = Array.isArray(a.propose) ? a.propose : [], linked = getState().linked || [];
       if (isAnswering(a.session)) {
-        const questions = (a.calls || []).map((/** @type {any} */ c) => ({ text: `the question "${String(c?.ask || '')}"`, why: 'ask it once the change is applied' }));
-        // a box named only to join a teammate's area is the question's, so it goes with the question
+        // a box named only to join a teammate's area is the question's, and the proposal moves it with the question
         const nodes = [...(a.nodes || []), ...marked].filter((/** @type {any} */ n) => Object.keys(n || {}).some((k) => !['id', 'area', 'by'].includes(k)));
-        /** @type {any} */ const asked = { type: 'propose', by: a.by, session: a.session, note: a.note, nodes, edges: a.edges, unlink: a.unlink, memory: a.memory, start: a.start, tidy: a.tidy };
-        if (!proposeFor(asked)) { a.refused = 'Nothing in this change could be proposed: a request from the map\'s chat is answered with a proposal, and a question waits until one is applied.'; return false; }
-        a.proposed = { ...asked.proposed, dropped: [...asked.proposed.dropped, ...questions] };
+        /** @type {any} */ const asked = { type: 'propose', by: a.by, session: a.session, note: a.note, nodes, edges: a.edges, calls: a.calls, unlink: a.unlink, memory: a.memory, start: a.start, tidy: a.tidy };
+        if (!proposeFor(asked)) { a.refused = 'Nothing in this change could be proposed: a request from the map\'s chat is answered with a proposal.'; return false; }
+        a.proposed = asked.proposed;
         return true;
       }
-      // Claude changes a box a person made or changed, or takes off one it did not make, only through a proposal a
-      // person applies: in the pane of the chat that sent it when that chat is linked, else of the chat linked to the
-      // map. Moving a box into the area of someone this edit asks a question is how they get to see it.
+      // a tidy lays out the map again only when it reads as one tree from the start box; a system map lays out in layers
+      if (a.tidy === true && !getState().drawing) {
+        const level = levelAfter(getState(), { nodes: a.nodes || [], edges: a.edges || [], unlink: a.unlink || [] }, (id) => !!nodeOf(id));
+        const trouble = notOneTree(level.nodes, level.edges, typeof a.start === 'string' && level.nodes.some((n) => n.id === a.start) ? a.start : getState().start);
+        if (trouble.length) { a.refused = `The map was not tidied, and nothing changed: ${treeSaid(trouble)}. Fix which box hangs under which in the same call, or leave out tidy.`; return false; }
+      }
+      // Claude changes a box a person made or changed, or one nobody recorded making, or takes off one it did not
+      // make, only through a proposal a person applies, whichever session the edit names: in the pane of the chat
+      // that sent it when that chat is linked, else of the chat linked to the map. A chat cleared since it was linked
+      // sends a session the map cannot tie back to its link, so this holds without one. Moving a box into the area
+      // of someone this edit asks a question is how they get to see it.
       const asks = (/** @type {any} */ n) => Object.keys(n).every((k) => k === 'id' || k === 'area')
         && (a.calls || []).some((/** @type {any} */ c) => c?.node === n.id && c.for && seesOf(c.for) === n.area);
       const waiting = (/** @type {any} */ n) => a.by === 'Claude' && n && typeof n === 'object' && nodeOf(n.id) && !asks(n) && !!waitsForApply(nodeOf(n.id), n);
       const nodes = Array.isArray(a.nodes) ? a.nodes.filter((n) => !waiting(n)) : a.nodes;
       const held = [...marked, ...(Array.isArray(a.nodes) ? a.nodes.filter(waiting) : [])];
-      const linked = getState().linked || [], to = linked.find((/** @type {any} */ l) => l.session === a.session) || linked[0];
+      const to = linked.find((/** @type {any} */ l) => l.session === a.session) || linked[0];
       const offered = held.length > 0 && !!to && proposeFor({ type: 'propose', by: a.by, session: to.session, note: a.note, nodes: held });
       if (offered && !(nodes?.length || a.edges?.length || a.calls?.length || a.memory?.length || a.unlink?.length || a.tidy === true || a.start)) return true;
       if (typeof a.start === 'string' && [...getState().nodes, ...(nodes || [])].some((n) => n?.id === a.start)) getState().start = a.start;
