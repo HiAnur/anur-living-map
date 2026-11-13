@@ -1,8 +1,9 @@
+import { execFileSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { addWords, claudeEnv, killer, readLines } from './process.js';
+import { addWords, claudeEnv, killer, onlyTools, readLines } from './process.js';
 
 /** @returns {any} a stand-in for a child process: streams to write to and a kill to watch */
 function fake(pid) {
@@ -71,5 +72,14 @@ describe('the words of a reply as they stream', () => {
     for (const d of [{ type: 'result', result: 'x' }, { type: 'assistant' }, delta(undefined), delta(7), { type: 'stream_event' }]) expect(addWords('so far', d, (w) => seen.push(w))).toBe('so far');
     expect(seen).toEqual([]);
     expect(addWords('a'.repeat(31_999), delta('bcd'), () => {})).toBe('a'.repeat(31_997) + 'bcd');
+  });
+});
+
+// the hook runs in its own node process, which takes seconds on a busy machine
+describe('the hook that limits a process to some tools', { timeout: 30_000 }, () => {
+  it('says why it refuses in any words, quotes included, since a hook that fails to run refuses nothing', () => {
+    const why = 'This isn\'t yours: "ask" first.';
+    const out = execFileSync('/bin/sh', ['-c', onlyTools(['Read'], why).hooks.PreToolUse[0].hooks[0].command], { input: JSON.stringify({ tool_name: 'Bash' }), encoding: 'utf8' });
+    expect(JSON.parse(out).hookSpecificOutput).toEqual({ hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: why });
   });
 });

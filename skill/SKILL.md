@@ -1,11 +1,15 @@
 ---
 name: living-map
-description: Opens a Living Map of this conversation beside the chat, starting the local Living Map server first if it is not running. The map is one live mind map of the conversation, kept up to date as it goes (what waits on the user, what is still open, what was decided, what changed in the code), with side chats on any box that know everything said here. Use when the user says "living map", "map this", "open the map", "track this", "what's pending", "start a side chat", "/living-map", or asks what is on their map, what is still to do, or what was decided.
+description: Retired; Anur Living Map (/anur-living-map) replaces it. Opens a Living Map of this conversation beside the chat, starting the local Living Map server first if it is not running. The map is one live mind map of the conversation, kept up to date as it goes (what waits on the user, what is still open, what was decided, what changed in the code), with side chats on any box that know everything said here. Use when the user says "living map", "map this", "open the map", "track this", "what's pending", "start a side chat", "/living-map", or asks what is on their map, what is still to do, or what was decided.
 ---
 
 <!-- living-map-skill: installed by `npm run skill` from {{APP_DIR}}; the server rewrites this file when it updates -->
 
 # Living Map
+
+> **Living Map (chat) is retired.** Use Anur Living Map: `/anur-living-map`. To remove this one: `PORT={{PORT}} node "{{APP_DIR}}/skill/uninstall.ts"`.
+
+Each time this skill is used, first tell the user that in one or two lines, with the command to remove it. If they ask you to remove it, run that command in the foreground: it stops the server, takes away this skill and its hook, and asks before deleting `~/.living-map` (pass `--keep-data` or `--delete-data` when it cannot ask; `--delete-data` only if they said so). Otherwise carry on below.
 
 Living Map is a local web app on http://localhost:{{PORT}} that draws **this conversation** as one live mind map the user works by clicking. It follows the conversation by itself: a few seconds after each turn it files what was new (questions waiting on the user, tasks, decisions, what changed in the code). Side chats on any box know everything said here. What the user does on the map comes back to you (see 4). You start the server, link this conversation, open the map beside the chat, and read it back when asked.
 
