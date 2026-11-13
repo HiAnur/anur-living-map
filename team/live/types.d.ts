@@ -127,6 +127,8 @@ type McpServers = Record<string, McpServer>;
 
 // What the team map asks of the agent it works with (agent.js). Each job is the map's: its prompt, its schema,
 // its servers. How the agent is started, named and limited stays in that agent's folder under agents/.
+/** How far a tool reaches (AgentWorker.reach): an Action that reaches no other person may run on its own. */
+type ToolReach = 'reads' | 'files' | 'shell' | 'others';
 interface AgentWorker {
   name: string;
   // the words an answer is replaced by when the agent is signed out, so the page can offer to sign in
@@ -139,8 +141,8 @@ interface AgentWorker {
   prepare(job: PrepareJob): Stop;
   // carries out a reviewed task in a resumable session, limited to `tools`, held to `schema`
   run(job: RunJob): Stop;
-  // whether a tool only reads, so a task that needs only such tools changes nothing by running
-  readsOnly(tool: string): boolean;
+  // how far a tool reaches: it only reads, changes files here, is the shell, or may reach other people
+  reach(tool: string): ToolReach;
   // one turn of a headless chat the map runs itself, resumed by session id
   converse(job: ConverseJob): () => void;
   // one answer held to `schema`, with no tools and nothing read but the prompt (drawing a system map from facts)

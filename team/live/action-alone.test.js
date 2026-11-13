@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { actionBoxes } from './action-box.js';
 
-// An Action its author set to run on its own: the map presses Execute once a brief is ready that only looks things
-// up, holds anything else at Ready with the reason, and a chain of such steps runs through.
+// An Action its author set to run on its own: the map presses Execute once a brief is ready that reaches no other
+// person, holds anything else at Ready with the reason, and a chain of such steps runs through.
 
-const READS = new Set(['WebSearch', 'Read']);
+/** @type {Record<string, ToolReach>} */
+const REACH = { WebSearch: 'reads', Read: 'reads', Write: 'files', Edit: 'files', Bash: 'shell' };
 const research = { kind: 'other', goal: 'List ten places first users gather', target: 'The reply', result: 'A ranked list', steps: ['Search', 'Rank'], tools: ['WebSearch'] };
 const plan = (/** @type {string[]} */ dependsOn = []) => ({ goal: 'Find where first users gather', result: 'A ranked list', inputs: ['The product'], steps: ['Search'], evidence: ['The list'], dependsOn });
 
@@ -14,7 +15,7 @@ function harness() {
   /** @type {any[]} */ const asks = [], runs = [];
   const api = actionBoxes({
     nodeOf: (id) => nodes[id], allNodes: () => Object.values(nodes), canUse: () => true, context: () => '', changed: () => {}, executionCwd: '/p',
-    ask: (r) => { asks.push(r); return () => {}; }, run: (r) => { runs.push(r); return () => {}; }, readsOnly: (tool) => READS.has(tool),
+    ask: (r) => { asks.push(r); return () => {}; }, run: (r) => { runs.push(r); return () => {}; }, reach: (tool) => REACH[tool] || 'others',
   });
   /** the last preparation for a box answers with this brief */
   const ready = (/** @type {string} */ id, chosen = research) => asks.filter((r) => r.box === nodes[id]).at(-1).onDone('', { tools: chosen.tools, denied: [] }, { status: 'ready', brief: chosen });
@@ -23,7 +24,7 @@ function harness() {
 const done = { text: 'Here is the list', completion: { status: 'completed', summary: 'Ranked ten places', evidence: ['The list in the reply'] }, calls: [{ tool: 'WebSearch', input: {}, ok: true, output: '', reads: true }] };
 
 describe('an Action set to run on its own', () => {
-  it('is prepared when turned on, and runs once a brief that only looks things up is ready', () => {
+  it('is prepared when turned on, and runs once a brief that reaches no one is ready', () => {
     const h = harness();
     h.api.begin('a', 'Duy', plan());
     expect(h.api.alone('a', 'Duy', true)).toBe(true);
@@ -34,11 +35,20 @@ describe('an Action set to run on its own', () => {
     expect(h.runs[0].prompt).toContain('set this Action to run on its own');
     expect(h.nodes.a.action.events.filter((/** @type {any} */ e) => e.what === 'executed')).toMatchObject([{ by: 'Map' }]);
   });
-  it('holds anything that sends, changes code or needs a tool that writes, and says why', () => {
+  it('runs a build, and a step that changes files here, with no click', () => {
+    for (const chosen of [{ ...research, kind: 'build', tools: ['Read', 'Edit', 'Bash'] }, { ...research, tools: ['WebSearch', 'Write'] }]) {
+      const h = harness();
+      h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', chosen);
+      expect(h.runs, chosen.kind).toHaveLength(1);
+      expect(h.nodes.a.action.held, chosen.kind).toBeUndefined();
+    }
+  });
+  it('holds anything that reaches another person, and says why', () => {
     const briefs = {
       email: { ...research, kind: 'email', tools: ['WebSearch'], email: { to: 'sam@example.com', subject: 'Hi', body: 'Hello' } },
-      build: { ...research, kind: 'build', tools: ['Read'] },
-      write: { ...research, tools: ['WebSearch', 'mcp__slack__post'] },
+      post: { ...research, tools: ['WebSearch', 'mcp__slack__post'] },
+      // outside a build's own worktree, the shell can reach anyone
+      shell: { ...research, tools: ['Bash'] },
     };
     for (const [name, chosen] of Object.entries(briefs)) {
       const h = harness();
@@ -54,8 +64,8 @@ describe('an Action set to run on its own', () => {
       expect(h.nodes.a.action.held, name).toBeUndefined();
     }
     const h = harness();
-    h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', briefs.write);
-    expect(h.nodes.a.action.held).toContain('mcp__slack__post');
+    h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a', briefs.post);
+    expect(h.nodes.a.action.held).toBe('It needs mcp__slack__post, which can reach other people, so it waits for your go.');
   });
   it('runs a ready brief at once when turned on there, and keeps the choice through a question', () => {
     const h = harness();
@@ -71,15 +81,20 @@ describe('an Action set to run on its own', () => {
     q.api.prepare('a', 'Duy', 'US'); q.ready('a');
     expect(q.runs).toHaveLength(1);
   });
-  it('finishes verified when it only looked things up, and not when it changed something', () => {
+  it('finishes verified when it only read or changed files here, and not when it reached further', () => {
     const h = harness();
     h.api.begin('a', 'Duy', plan()); h.api.alone('a', 'Duy', true); h.ready('a');
     h.runs[0].onDone(done);
     expect(h.nodes.a.action.completion).toMatchObject({ status: 'completed', evidence: ['Answered in the reply. The run only looked things up.'] });
 
+    const e = harness();
+    e.api.begin('a', 'Duy', plan()); e.api.alone('a', 'Duy', true); e.ready('a', { ...research, tools: ['Write'] });
+    e.runs[0].onDone({ ...done, calls: [...done.calls, { tool: 'Write', input: { file_path: '/p/plan.md' }, ok: true, output: '' }] });
+    expect(e.nodes.a.action.completion).toMatchObject({ status: 'completed', evidence: ['Changed only files here, which can be put back: /p/plan.md.'] });
+
     const w = harness();
     w.api.begin('a', 'Duy', plan()); w.api.alone('a', 'Duy', true); w.ready('a');
-    w.runs[0].onDone({ ...done, calls: [...done.calls, { tool: 'Bash', input: {}, ok: true, output: '' }] });
+    w.runs[0].onDone({ ...done, calls: [...done.calls, { tool: 'mcp__slack__post', input: {}, ok: true, output: '' }] });
     expect(w.nodes.a.action.completion.status).toBe('unverified');
   });
   it('runs a chain of such steps through once the first is started', () => {
@@ -122,13 +137,15 @@ describe('an Action set to run on its own', () => {
   });
 });
 
-describe('which tools only read, as each agent marks them', () => {
-  it('lets a lookup run on its own and holds a shell or an edit', async () => {
+describe('how far a tool reaches, as each agent marks it', () => {
+  it('reads and changes files here, runs a shell, or reaches further', async () => {
     const { claudeCode } = await import('./agents/claude-code/index.js');
     const { pi } = await import('./agents/pi/index.js');
-    for (const tool of ['WebSearch', 'WebFetch', 'Read', 'Grep']) expect(claudeCode().readsOnly(tool), tool).toBe(true);
-    for (const tool of ['Bash', 'Edit', 'Write', 'mcp__slack__post']) expect(claudeCode().readsOnly(tool), tool).toBe(false);
-    for (const tool of ['read', 'grep']) expect(pi().readsOnly(tool), tool).toBe(true);
-    for (const tool of ['bash', 'edit', 'write']) expect(pi().readsOnly(tool), tool).toBe(false);
+    /** @type {[AgentWorker, Record<string, ToolReach>][]} */
+    const cases = [
+      [claudeCode(), { WebSearch: 'reads', Read: 'reads', Grep: 'reads', Edit: 'files', Write: 'files', Bash: 'shell', mcp__slack__post: 'others', mcp__gmail__send: 'others' }],
+      [pi(), { read: 'reads', grep: 'reads', edit: 'files', write: 'files', bash: 'shell', mcp__slack__post: 'others' }],
+    ];
+    for (const [agent, marks] of cases) for (const [tool, mark] of Object.entries(marks)) expect(agent.reach(tool), `${agent.name} ${tool}`).toBe(mark);
   });
 });

@@ -6,7 +6,7 @@ import { answer } from './answer.js';
 import { converse } from './converse.js';
 export { claudeCodeChats } from './conversation.js';
 import { prepareAction } from './prepare.js';
-import { READS, runAction } from './run.js';
+import { reach, runAction } from './run.js';
 
 /** @returns {AgentWorker} */
 export const claudeCode = () => ({
@@ -16,7 +16,7 @@ export const claudeCode = () => ({
   ask: streamClaude,
   prepare: (job) => prepareAction({ env: childEnv(), ...job }),
   run: (job) => runAction({ env: childEnv(), ...job }),
-  readsOnly: (tool) => READS.has(tool),
+  reach,
   converse,
   answer: (job) => answer(job),
 });

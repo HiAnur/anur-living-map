@@ -12,6 +12,8 @@ const READ = ['read', 'grep', 'find', 'ls'];
 const MAX = 32_000;
 // tools that only read, so a call to one changed nothing a Continue could repeat
 const READS = new Set([...READ, SUBMIT, 'tool_search']);
+/** @param {string} tool @returns {ToolReach} how far it reaches, as ../claude-code/run.js marks Claude Code's */
+const reach = (tool) => (READS.has(tool) ? 'reads' : tool === 'edit' || tool === 'write' ? 'files' : tool === 'bash' ? 'shell' : 'others');
 // Preparation sees the tools an Execute will have, so a build that needs them can be checked, but only looks up
 const LOOKUPS = [...READ, 'tool_search', 'codemode', 'mcp__map_context__list_maps', 'mcp__map_context__load_map'];
 const BUILT_IN = ['bash', 'edit', 'write'];
@@ -131,4 +133,4 @@ function signIn() {
 }
 
 /** @returns {AgentWorker} */
-export const pi = () => ({ name: 'Pi', signedOut: SIGNED_OUT, signIn, ask, prepare, run, readsOnly: (/** @type {string} */ tool) => READS.has(tool), converse, answer });
+export const pi = () => ({ name: 'Pi', signedOut: SIGNED_OUT, signIn, ask, prepare, run, reach, converse, answer });
