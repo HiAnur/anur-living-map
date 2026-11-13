@@ -20,6 +20,15 @@ describe('planned Action readiness',()=>{
     expect(readPlannedTask({...plan,session:'injected',stage:'ready',by:'Owner'})).toEqual(plan);
     for(const bad of [null,{}, {...plan,dependsOn:['../file']},{...plan,readiness:'execute'},{...plan,steps:{}},{...plan,blockers:[{detail:'Need a file'}]}]) expect(readPlannedTask(bad)).toBeNull();
   });
+  it('never takes a planner\'s "ready": only preparation makes an Action ready',()=>{
+    const said=(readiness,dependsOn)=>readPlannedTask({...plan,readiness,dependsOn})?.readiness;
+    expect(said('ready',[])).toBe('needs_information');
+    expect(said('ready',['research'])).toBe('waiting');
+    expect(said('waiting',[])).toBe('needs_information');
+    expect(said('needs_information',['research'])).toBe('needs_information');
+    const fresh=setup();fresh.nodes.push({id:'solo',label:'Solo'});fresh.api.begin('solo','Duy',{...plan,dependsOn:[],readiness:'ready'});
+    expect(fresh.nodes[2].action).toMatchObject({stage:'draft',plan:{readiness:'needs_information'}});
+  });
   it('waits without a model call, then reuses saved inputs after the prerequisite completes',()=>{
     const h=setup();h.api.reconcile();expect(h.nodes[1].action.stage).toBe('waiting');
     h.api.prepare('report','Duy');expect(h.requests).toHaveLength(0);expect(h.runs).toHaveLength(0);

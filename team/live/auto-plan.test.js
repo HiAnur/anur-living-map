@@ -196,9 +196,23 @@ describe('Auto plan',()=>{
     const h=harness(),task={goal:'Research pilot participants',result:'A shortlist with supporting sources',destination:'Attach to this Action',inputs:['Audience'],steps:['Read the audience notes'],evidence:['Shortlist with sources'],dependsOn:[],readiness:'ready',blockers:[]};
     h.ask();h.calls[0].onDone(...reply({nodes:[{id:'research',label:'Research participants',sub:'What it is',boxType:'action',task,action:{stage:'ready',session:'injected'}},{id:'pilot',label:'Pilot planning',sub:'What it is',boxType:'topic'}],edges:[{from:'launch',to:'pilot'},{from:'pilot',to:'research'}]}));
     expect(h.state.nodes).toHaveLength(3);expect(h.apply()).toBe(true);
-    const n=h.state.nodes.find(n=>n.id==='research');expect(n.boxType).toBe('action');expect(n.action).toMatchObject({by:'Tester',stage:'draft',intent:task.goal,plan:task});expect(n.action.session).toBeUndefined();expect(n.task).toBeUndefined();
+    const n=h.state.nodes.find(n=>n.id==='research');expect(n.boxType).toBe('action');expect(n.action).toMatchObject({by:'Tester',stage:'draft',intent:task.goal,plan:{...task,readiness:'needs_information'}});expect(n.action.session).toBeUndefined();expect(n.task).toBeUndefined();
     expect(h.actionRequests).toHaveLength(0);expect(h.runs).toHaveLength(0);expect(h.state.edges).toContainEqual({from:'pilot',to:'research',state:'new'});
     h.actions.start('research','Tester',n.action.intent);expect(h.actionRequests[0].prompt).toContain(task.result);expect(h.runs).toHaveLength(0);
+  });
+  it('drops a box the whole visible map already has under other words, and says which box covers it',()=>{
+    const existing=[{id:'root',label:'Root'},{id:'other',label:'Elsewhere'},{id:'email',label:'Email Dan the pricing'},{id:'hidden',label:'Budget for the pilot'}];
+    const p=autoPlanAdditions({nodes:[
+      {id:'send',label:'Send Dan pricing options',sub:'s'},{id:'again',label:'email dan the  pricing',sub:'s'},
+      {id:'p3',label:'Pilot 3',sub:'s'},{id:'p4',label:'Pilot 4',sub:'s'},{id:'p4b',label:'Pilots 4',sub:'s'},
+      {id:'budget',label:'Pilot budget',sub:'s'},
+    ]},'root',existing,[{from:'root',to:'other'}],new Set(['root','other','email']));
+    expect(p.nodes.map(n=>n.id)).toEqual(['p3','p4','budget']);
+    expect(p.dropped).toEqual([
+      {text:'Send Dan pricing options',why:'"Email Dan the pricing" already covers it'},
+      {text:'email dan the  pricing',why:'"Email Dan the pricing" is already on the map'},
+      {text:'Pilots 4',why:'"Pilot 4" already covers it'},
+    ]);
   });
   it('drops cyclic, missing or Topic prerequisites and their dependent proposals',()=>{
     const task=(dependsOn)=>({goal:'Do the task',result:'A checked result',steps:['Do the work'],evidence:['Saved result'],dependsOn});

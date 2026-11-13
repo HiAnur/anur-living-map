@@ -123,6 +123,11 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
         Object.assign(pr, checkAutoPlan(pr.plan, a.by, pr.autoPlanAbout));
         if (pr.status !== 'pending') return true;
       }
+      // a reorganize is checked again on the map as it is now: one changed since it was offered may no longer be one tree
+      if (pr.plan.tidy) {
+        const now = check(pr.plan, a.by, 100);
+        if (now.status !== 'pending') { Object.assign(pr, { status: 'dropped', ops: [], dropped: now.dropped }); return true; }
+      }
       if (pr.plan.layout?.some((/** @type {any} */ m) => { const n = nodeOf(m.id); return !n || n.x !== m.fromX || n.y !== m.fromY; })) placeProposed(pr.plan);
       for (const m of pr.plan.layout || []) { const n = nodeOf(m.id); if (n) { n.x = m.x; n.y = m.y; } }
       const touched = [...pr.plan.nodes.map((/** @type {any} */ n) => n.id), ...pr.plan.remove, ...pr.plan.edges.flatMap((/** @type {any} */ e) => [e.from, e.to])].find((id) => nodeOf(id));
