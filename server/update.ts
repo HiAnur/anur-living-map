@@ -1,276 +1,51 @@
-// Keeping a copy up to date: compare the running checkout with the latest
-// GitHub release, and on request move to it, install, build and restart.
+// The chat map is retired, and a copy running this code never updates again:
+// the check always answers that nothing new is out, and an update refuses.
+// Later releases carry only the team map, so they must never reach a copy of
+// the chat map; this version is the last one such a copy takes.
 //
-//   check:  GitHub's latest release ── git fetch ──► commits behind? ──► banner
-//   update: stop moves ► fast-forward to the latest release tag ► npm ci
-//           ► npm run build ► rewrite the installed skill ► restart
-//
-// An update moves only to a release (the v* tag CI puts on a push to main
-// that passed its checks), never to main itself: what lands on main after
-// the last release never reaches a running copy.
+// The check still reports the commit that runs here: a page left open during
+// the update that brought this version reloads once it sees a new commit.
 
 import { execFile } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 
-import type { UpdateInfo, UpdateStep } from "../shared/model.ts";
-import { installSkill } from "../skill/install.ts";
-import {
-  APP_DIR,
-  OWNS_SKILL,
-  PORT,
-  RESTART_CODE,
-  UNDER_LAUNCHER,
-} from "./config.ts";
+import type { UpdateInfo } from "../shared/model.ts";
+import { APP_DIR, UNDER_LAUNCHER } from "./config.ts";
 
-export type Run = (
-  cmd: string,
-  args: string[],
-  cwd?: string,
-  timeoutMs?: number,
-) => Promise<string>;
+export type Run = (cmd: string, args: string[]) => Promise<string>;
 
-const run: Run = (cmd, args, cwd = APP_DIR, timeoutMs = 120_000) =>
+const run: Run = (cmd, args) =>
   new Promise((resolve, reject) => {
-    execFile(
-      cmd,
-      args,
-      { cwd, timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err)
-          reject(
-            new Error(
-              (stderr || stdout || err.message)
-                .trim()
-                .split("\n")
-                .slice(-4)
-                .join("\n"),
-            ),
-          );
-        else resolve(stdout.trim());
-      },
-    );
+    execFile(cmd, args, { cwd: APP_DIR, timeout: 10_000 }, (err, stdout) => {
+      if (err) reject(err);
+      else resolve(stdout.trim());
+    });
   });
 
-// owner/name of the GitHub repository, from package.json's "repository"
-export function repoSlug(pkg: {
-  repository?: { url?: string } | string;
-}): string | null {
-  const url =
-    typeof pkg.repository === "string" ? pkg.repository : pkg.repository?.url;
-  const m = url?.match(/github\.com[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/);
-  return m ? m[1] : null;
-}
+export const RETIRED =
+  "Living Map (chat) is retired and no longer updates. Use Anur Living Map: /anur-living-map. To remove this one: node skill/uninstall.ts";
 
-const pkg = JSON.parse(
-  fs.readFileSync(path.join(APP_DIR, "package.json"), "utf8"),
-);
-const SLUG = repoSlug(pkg);
-// Updates come from the project's own repository, not `origin`: in a fork,
-// `origin` is the contributor's copy and would never carry new releases.
-const UPSTREAM = SLUG ? `https://github.com/${SLUG}.git` : "origin";
-
-export type Release = {
-  tag_name: string;
-  body?: string;
-  html_url: string;
-  published_at: string;
-};
-
-async function latestRelease(): Promise<Release | null> {
-  if (!SLUG) return null;
-  const r = await fetch(
-    `https://api.github.com/repos/${SLUG}/releases/latest`,
-    {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "living-map",
-      },
-      signal: AbortSignal.timeout(10_000),
-    },
-  );
-  if (r.status === 404) return null; // no release published yet
-  if (!r.ok) throw new Error(`GitHub answered ${r.status}`);
-  return (await r.json()) as Release;
-}
-
-// Why a one-click update cannot run in this checkout, or "" when it can.
-async function blocker(git: Run): Promise<string> {
-  try {
-    await git("git", ["rev-parse", "--is-inside-work-tree"]);
-  } catch {
-    return "This copy is not a git checkout, so it cannot update itself. Download the latest release from GitHub.";
-  }
-  const branch = await git("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-  if (branch !== "main")
-    return `This copy is on the branch "${branch}"; updates run on main.`;
-  const changed = (
-    await git("git", ["status", "--porcelain", "--untracked-files=no"])
-  )
-    .split("\n")
-    // npm install rewrites the lockfile; the update resets it, so it is not a change
-    .filter((l) => l.trim() && !l.endsWith("package-lock.json"));
-  if (changed.length)
-    return "This copy has local changes. Commit or stash them, then update.";
-  return "";
-}
-
-let cached: { at: number; info: UpdateInfo } | null = null;
-const FRESH_MS = 30 * 60_000;
-
+// Nothing is ever available. Only the local checkout is asked, never GitHub.
 export async function checkForUpdate({
-  force = false,
   git = run,
-  release = latestRelease,
-}: {
-  force?: boolean;
-  git?: Run;
-  release?: () => Promise<Release | null>;
-} = {}): Promise<UpdateInfo> {
-  if (!force && cached && Date.now() - cached.at < FRESH_MS) return cached.info;
+}: { git?: Run } = {}): Promise<UpdateInfo> {
   const sha = await git("git", ["rev-parse", "HEAD"]).catch(() => "");
-  const reason = sha
-    ? await blocker(git)
-    : "This copy is not a git checkout, so it cannot update itself.";
-  let latest: UpdateInfo["latest"] = null;
-  let behind = 0;
-  try {
-    const rel = await release();
-    if (rel) {
-      latest = {
-        version: rel.tag_name,
-        notes: rel.body ?? "",
-        url: rel.html_url,
-        publishedAt: rel.published_at,
-      };
-      if (sha) {
-        await git(
-          "git",
-          ["fetch", "--quiet", "--tags", UPSTREAM],
-          APP_DIR,
-          30_000,
-        );
-        behind = Number(
-          await git("git", ["rev-list", "--count", `HEAD..${rel.tag_name}`]),
-        );
-      }
-    }
-  } catch {
-    // offline, or GitHub unreachable: report no update rather than fail
-  }
   const version = sha
     ? await git("git", ["describe", "--tags", "--always"]).catch(() =>
         sha.slice(0, 7),
       )
-    : String(pkg.version ?? "");
-  const info: UpdateInfo = {
+    : "";
+  return {
     current: { version, sha },
-    latest,
-    available: behind > 0,
-    behind,
-    canUpdate: !reason,
-    reason,
+    latest: null,
+    available: false,
+    behind: 0,
+    canUpdate: false,
+    reason: RETIRED,
     restarts: UNDER_LAUNCHER,
   };
-  cached = { at: Date.now(), info };
-  return info;
 }
 
-// The newest release on the project's main: its last v* tag. The fetch puts
-// main in FETCH_HEAD and brings the tags with it.
-export async function latestTag(git: Run): Promise<string> {
-  await git(
-    "git",
-    ["fetch", "--quiet", "--tags", UPSTREAM, "main"],
-    APP_DIR,
-    120_000,
-  );
-  const tag = await git("git", [
-    "describe",
-    "--tags",
-    "--abbrev=0",
-    "--match",
-    "v[0-9]*",
-    "FETCH_HEAD",
-  ]).catch(() => "");
-  if (!tag) throw new Error("There is no release to update to yet.");
-  return tag;
-}
-
-let updating = false;
-
-// the installed skill is a copy of skill/SKILL.md, which the update may have
-// changed; the server rewrites it at start too, but a copy not run under the
-// launcher does not restart here, so the update writes it itself
-const refreshSkill = () => (OWNS_SKILL ? installSkill(PORT) : "skipped");
-
-export const SKILL_STEP = "Updating the living-map skill";
-
-// Move to the latest release, install, build, rewrite the skill, then restart
-// (under the launcher). Each step is reported as it runs.
-export async function runUpdate(
-  report: (s: UpdateStep) => void,
-  {
-    git = run,
-    skill = refreshSkill,
-  }: { git?: Run; skill?: () => unknown } = {},
-): Promise<{ ok: boolean; error?: string }> {
-  if (updating) return { ok: false, error: "An update is already running." };
-  updating = true;
-  const step = async (name: string, work: () => Promise<unknown>) => {
-    report({ step: name, state: "running" });
-    try {
-      await work();
-      report({ step: name, state: "done" });
-    } catch (e) {
-      report({ step: name, state: "failed", message: (e as Error).message });
-      throw e;
-    }
-  };
-  try {
-    const reason = await blocker(git);
-    if (reason) throw new Error(reason);
-    await step("Getting the new version", async () => {
-      await git("git", ["checkout", "--", "package-lock.json"]);
-      const tag = await latestTag(git);
-      // a fast-forward moves nothing when it cannot apply, so a copy that
-      // went its own way is left as it was, with nothing to roll back
-      await git("git", ["merge", "--quiet", "--ff-only", tag]);
-    });
-    await step("Installing what it needs", () =>
-      git("npm", ["ci", "--no-audit", "--no-fund"], APP_DIR, 600_000),
-    );
-    await step("Building the app", () =>
-      git("npm", ["run", "build"], APP_DIR, 300_000),
-    );
-    // the new version is in place by now: a skill that cannot be written is
-    // shown, and the update still finishes
-    report({ step: SKILL_STEP, state: "running" });
-    try {
-      skill();
-      report({ step: SKILL_STEP, state: "done" });
-    } catch (e) {
-      report({
-        step: SKILL_STEP,
-        state: "failed",
-        message: `${(e as Error).message}. Run npm run skill to update it by hand.`,
-      });
-    }
-    cached = null;
-    if (UNDER_LAUNCHER) {
-      report({ step: "Restarting", state: "running" });
-      setTimeout(() => process.exit(RESTART_CODE), 300);
-    } else {
-      report({
-        step: "Restart Living Map to finish",
-        state: "done",
-        message: "Stop it in its terminal and run npm start again.",
-      });
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: (e as Error).message };
-  } finally {
-    updating = false;
-  }
+// Refuses, touching nothing: no fetch, no install, no build, no restart.
+export async function runUpdate(): Promise<{ ok: false; error: string }> {
+  return { ok: false, error: RETIRED };
 }

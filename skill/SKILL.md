@@ -1,15 +1,15 @@
 ---
 name: living-map
-description: Retired; Anur Living Map (/anur-living-map) replaces it. Opens a Living Map of this conversation beside the chat, starting the local Living Map server first if it is not running. The map is one live mind map of the conversation, kept up to date as it goes (what waits on the user, what is still open, what was decided, what changed in the code), with side chats on any box that know everything said here. Use when the user says "living map", "map this", "open the map", "track this", "what's pending", "start a side chat", "/living-map", or asks what is on their map, what is still to do, or what was decided.
+description: Retired and no longer updated; Anur Living Map (/anur-living-map) replaces it. Opens a Living Map of this conversation beside the chat, starting the local Living Map server first if it is not running. The map is one live mind map of the conversation, kept up to date as it goes (what waits on the user, what is still open, what was decided, what changed in the code), with side chats on any box that know everything said here. Use when the user says "living map", "map this", "open the map", "track this", "what's pending", "start a side chat", "/living-map", or asks what is on their map, what is still to do, or what was decided.
 ---
 
-<!-- living-map-skill: installed by `npm run skill` from {{APP_DIR}}; the server rewrites this file when it updates -->
+<!-- living-map-skill: installed by `npm run skill` from {{APP_DIR}}; the server rewrites this file when it starts -->
 
 # Living Map
 
-> **Living Map (chat) is retired.** Use Anur Living Map: `/anur-living-map`. To remove this one: `PORT={{PORT}} node "{{APP_DIR}}/skill/uninstall.ts"`.
+> **Living Map (chat) is retired and no longer updates.** Use Anur Living Map: `/anur-living-map`. To remove this one: `PORT={{PORT}} node "{{APP_DIR}}/skill/uninstall.ts"`.
 
-Each time this skill is used, first tell the user that in one or two lines, with the command to remove it. If they ask you to remove it, run that command in the foreground: it stops the server, takes away this skill and its hook, and asks before deleting `~/.living-map` (pass `--keep-data` or `--delete-data` when it cannot ask; `--delete-data` only if they said so). Otherwise carry on below.
+Each time this skill is used, first tell the user that in one or two lines: it gets no more updates or fixes, Anur Living Map replaces it (`/anur-living-map` in a chat inside a repo), and the command above removes this one. If they ask you to remove it, run that command in the foreground: it stops the server, takes away this skill and its hook, and asks before deleting `~/.living-map` (pass `--keep-data` or `--delete-data` when it cannot ask; `--delete-data` only if they said so). If they want to move, remove this one, then use `/anur-living-map`. Otherwise carry on below.
 
 Living Map is a local web app on http://localhost:{{PORT}} that draws **this conversation** as one live mind map the user works by clicking. It follows the conversation by itself: a few seconds after each turn it files what was new (questions waiting on the user, tasks, decisions, what changed in the code). Side chats on any box know everything said here. What the user does on the map comes back to you (see 4). You start the server, link this conversation, open the map beside the chat, and read it back when asked.
 
@@ -63,7 +63,7 @@ It ends the moment the map has something for you, printing it after `FROM YOUR L
 ## 5. Working together
 
 - The map follows this conversation by itself: each time you or the user write here, it files the new turns a few seconds later (a quick, separate call that reads only those turns). You never need to tell it what happened.
-- **What the user does on the map comes back to you.** With the living-map hook installed (`npm run skill -- --hook` in `{{APP_DIR}}`), what the listener has not already brought arrives with the user's next message as a `LIVING MAP:` note: take it into account, as a colleague's answer the user asked for. Without the hook, read it yourself when the user mentions the map or a side chat:
+- **What the user does on the map comes back to you** through the listener (see 4). The living-map hook no longer brings it: it only shows the user, once per chat, how to remove the chat map. What the listener has not brought, read yourself when the user mentions the map or a side chat:
 
   ```bash
   python3 -c 'import json,sys; print(json.dumps({"session": sys.argv[1]}))' "${CLAUDE_SESSION_ID}" \

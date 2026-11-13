@@ -1,9 +1,9 @@
 // What the main chat should hear from its map (an answer you sent, an option
 // you picked, a side chat's finding you applied), kept per chat in
-// ~/.living-map/conversations/<first id>.json. The chat reads it through the
-// living-map hook with your next message (POST /api/inbox), or at once
-// through the listener it keeps running (GET /api/inbox/wait), which wakes
-// for anything marked `wake`.
+// ~/.living-map/conversations/<first id>.json. The chat reads it when it
+// asks (POST /api/inbox), or at once through the listener it keeps running
+// (GET /api/inbox/wait), which wakes for anything marked `wake`. The retired
+// living-map hook no longer asks for it.
 
 import fs from "node:fs";
 import path from "node:path";
