@@ -32,7 +32,7 @@ Team map (`AgentWorker` and `AgentConversation`):
 ## Steps
 
 1. Chat map: add `server/providers/<agent>.ts` implementing `Agent`, and add it to `PROVIDERS` in `server/providers/index.ts`.
-2. Team map: add `team/live/agents/<agent>/index.js` returning an `AgentWorker` and an `AgentConversation`, typed in JSDoc against `team/live/types.d.ts`, and return them from `team/live/agent.js`. Keep it JavaScript with no install: the team package runs on Node 22.
+2. Team map: add `team/live/agents/<agent>/index.js` returning an `AgentWorker` and an `AgentConversation`, typed in JSDoc against `team/live/types.d.ts`, and return them from `team/live/agent.js`. Keep it JavaScript with no install: the team package runs on Node 22.18 or newer (24.2 on Node 24; `team/live/node-version.js`).
 3. Copy the scripted agents in `ledger/agent.test.ts` and `team/live/agent.test.js` into tests of your agent's own parsing and arguments, the way `claude-code.test.ts` and `agents/claude-code/*.test.js` test Claude Code.
 4. If the agent's folder is new, add it to `ADAPTERS` in `server/providers/seam.test.ts`.
 5. Try it on a test server: `LIVING_MAP_HOME=<test home> PORT=<not 4317> LIVING_MAP_PROVIDER=<agent> node server/index.ts`.

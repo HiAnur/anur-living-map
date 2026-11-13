@@ -61,7 +61,7 @@ It ends the moment the map has something for this chat, printing it after `FROM 
 
 **When the arguments carry a request** (`/anur-living-map, plan changing our payment provider to Stripe`), skip this reply: do the request right after step 1's message, as the repo's CLAUDE.md says. Where that CLAUDE.md already gives the plan for the request, draw it from there in the next message, without reading the code, the database or the map first. 
 
-Otherwise, one line, from what step 1 printed: the map is open as it was left (how many versions History holds), or fresh, showing the system as it runs today. If the page landed on the sign-in screen (its address is `/login`), say so instead: sign in beside the chat to see the map, and someone new chooses their password there. Do not describe the boxes and do not plan anything yet; wait for the user's next message. When it asks to build something, follow the repo's CLAUDE.md (in acme: "Before building a feature, draw the plan on the map").
+Otherwise, one line, from what step 1's `map:` line printed: the map is open as it was left (how many versions History holds) or new, and how many boxes it has. When it has no boxes yet, say so plainly, and that the map offers **Draw this repo**, which draws it as a system map from the code in this folder; never call an empty map a picture of the system. If the page landed on the sign-in screen (its address is `/login`), say so instead: sign in beside the chat to see the map, and someone new chooses their password there. Do not describe the boxes and do not plan anything yet; wait for the user's next message. When it asks to build something, follow the repo's CLAUDE.md (in acme: "Before building a feature, draw the plan on the map").
 
 ## Reading it back
 

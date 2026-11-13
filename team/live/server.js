@@ -1,9 +1,9 @@
-// Living Map, live demo: one shared map on a tiny server. Every open window
-// (you, Priyanka, Duy, Sam) sees the same map; a drag, a Confirm or a Dispute
+// Living Map: shared maps on a tiny server. Every open window sees the same map; a drag, a Confirm or a Dispute
 // in one window reaches the others at once. No dependencies.
 //
-//   node server.js [port]              default 4322
-//   GET  /                              the map page
+//   node server.js [port] [--project <repo>]   default 4323
+//   node server.js [port] --demo               the plan-first story (seed.json) at /, for showing the map
+//   GET  /                              the list of maps (the story's map page with --demo)
 //   GET  /api/state                     the whole map (seed + what people did)
 //   GET  /api/events                    server-sent events: state after every change
 //   GET  /api/outbox                    what the chat hears, plain words
@@ -12,7 +12,7 @@
 //                                       call {id, option} or {id, other: "own words"} on a call with options
 //                                       ask {node, text} · cursor {x,y,view} · reset · open
 //
-// Each address is a map of its own: / is the project's map (also at /<project folder>/),
+// Each address is a map of its own: the project's map is at /<project folder>/ (and its API at /api/...),
 // and /<name>/ is a map called <name> with the same page and API under it
 // (/gtm/api/state, /gtm/api/act). A named map starts empty, keeps its state in
 // live/maps/<name>/, and fills from the plans drawn on it.
@@ -71,11 +71,13 @@ import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 const PORT = Number(/^\d+$/.test(process.argv[2] || '') ? process.argv[2] : process.env.PORT || 4323);
 const DIR = import.meta.dirname;
 // --project <folder>: draw that project from its own files, and keep the map's
-// state beside it in <folder>/.living-map/; without it, the fixed demo in seed.json.
-// More code folders join with POST /api/projects {folder}, each at /<folder name>/, and are
-// remembered in projects.json so they are still listed after a restart
+// state beside it in <folder>/.living-map/. More code folders join with POST /api/projects {folder}, each at
+// /<folder name>/, and are remembered in projects.json so they are still listed after a restart.
+// --demo, with no project: the fixed story in seed.json at /, which is only for showing the map; a real install
+// never sees its cast
 const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
+const DEMO = !PROJECT && process.argv.includes('--demo');
 const mapName = (/** @type {any} */ folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
 const PROJECTS = path.join(DIR, 'projects.json');
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
@@ -88,9 +90,11 @@ const chatRules = (/** @type {any} */ base) => { try { return fs.readFileSync(pa
 const PAGE_FILES = PAGE_MODULES.map((f) => `/${f}`);
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
-/** @param {any} options */
-export function openMap({ project = '', name = '', home, initialState, undoState, memory = false, contextMaps = null }) {
+/** @param {any} options `at`: the address a code folder's map answers at, when it is not the folder's own name */
+export function openMap({ project = '', name = '', at = '', home, initialState, undoState, memory = false, contextMaps = null }) {
   if (project) fs.mkdirSync(home, { recursive: true });
+  // this map's address: its name, or its code folder's (map-list.js); none for the story at /
+  const slug = name || at || (project ? mapName(project) : '');
   let closed = false;
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
@@ -168,8 +172,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
     write: (data) => { actingAs('Guest', () => { installCloudData(state, data); save(); }); push(); },
-    notify: () => { for (const r of clients) if (clientAccess.get(r)?.role === 'owner') send(r, 'cloud', cloud.status()); }
+    notify: () => { for (const r of clients) send(r, 'cloud', cloudFor(clientAccess.get(r)?.role)); }
   }) : null;
+  // Everyone's Share says where the map is kept; only an owner, who can publish or delete the online copy, is sent
+  // its link and what went wrong with it.
+  const cloudFor = (/** @type {any} */ role) => {
+    const s = cloud.status();
+    return role === 'owner' ? s : { configured: s.configured, published: s.published, mode: s.mode };
+  };
 
   // The Claude pane, synced: the Claude Code chat linked last (state.linked[0]) is followed through its
   // transcript, and its owner's windows get it as a "mirror" event: that chat's messages, what the owner
@@ -321,7 +331,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // its listener (wait.js) is waiting at /api/wait and wakes the chat. "*" is whichever chat listens.
   const /** @type {any} */ waiters = [];
   // this map's address, for the rules a chat follows
-  const address = () => `http://localhost:${PORT}${name ? `/${name}` : project ? `/${mapName(project)}` : ''}`;
+  const address = () => `http://localhost:${PORT}${slug ? `/${slug}` : ''}`;
   // which version of the rules each chat last got: they go out again only when they are new to that chat,
   // and otherwise one line says where to read them, for a chat that has lost them from view
   const rulesSeen = new Map();
@@ -389,7 +399,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
         if (why) return { error: why };
         const w = await workOf(n, a.by, true);
         if (w && 'error' in w) return w;
-        return openBuild({ project: w?.cwd || project || PROJECT || home, root: path.join(DATA, 'worktrees', name || mapName(project || PROJECT) || 'map'), action: /** @type {any} */ (a), box: n });
+        return openBuild({ project: w?.cwd || project || PROJECT || home, root: path.join(DATA, 'worktrees', slug || mapName(PROJECT) || 'map'), action: /** @type {any} */ (a), box: n });
       },
       close: (a, n) => closeBuild({ build: a.build, title: String(a.brief.goal).slice(0, 120),
         body: [`Opened by an Action on the team map, after ${a.by} pressed Execute.`, '', `**Box:** ${n?.label || ''}`, `**Goal:** ${a.brief.goal}`, `**Expected result:** ${a.brief.result}`, '', '**Steps**', ...a.brief.steps.map((/** @type {string} */ step, /** @type {number} */ i) => `${i + 1}. ${step}`)].join('\n') }),
@@ -545,7 +555,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
   const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
-  const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
+  const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name: slug, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
   // after ACTS, which linking the chat needs
   if (!memory) watchNewChat();
 
@@ -588,7 +598,7 @@ export function openMap({ project = '', name = '', home, initialState, undoState
       const mine = access(who, req);
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
       send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
-      if (mine === 'owner' && cloud) send(res, 'cloud', cloud.status());
+      if (cloud) send(res, 'cloud', cloudFor(mine));
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role: mine, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
       if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
@@ -715,7 +725,7 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename
 const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
 const { MIN, users, recovery } = await import('./users.js');
 const { handleRecovery } = await import('./recovery.js');
-const maps = mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo });
+const maps = mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, demo, DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 
 // a page, with the signed-in person written into it for the page's own script; the list of maps, which has no
@@ -727,8 +737,9 @@ const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.header
 // a person's role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string} */ who) => String(demo().people?.find((/** @type {any} */ p) => p.id === who)?.role || '');
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf: teamRole });
-const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName });
-const systemMaps = systemRoutes({ maps, team: () => demo().people || [] });
+const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO });
+// the team's role book is the story's cast: whom to ask is only those of them with a password here
+const systemMaps = systemRoutes({ maps, team: () => demo().people || [], known: (who) => users.has(who) });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');
@@ -743,10 +754,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/agent-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(401, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
   if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
-  const rootLinkAPI = !PROJECT && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && maps.main.access(who, req);
+  const rootLinkAPI = DEMO && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && maps.main?.access(who, req);
   if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(401, { error: 'Sign in first.' });
-  // with a project, / lists every map to choose from: the project's own, then each named one
-  if (PROJECT && url.pathname === '/') return page(res, 'maps.html', who, 'edit', false, teamRole(who));
+  // / lists every map to choose from: the code folders' own, then each named one; only the demo shows its story there
+  if (!DEMO && url.pathname === '/') return page(res, 'maps.html', who, 'edit', false, teamRole(who));
   if (await mapRoutes(req, res, url, who, json)) return;
   if (await systemMaps(req, res, url, who, json)) return;
   // which code this server runs: the package version, the build (commits in the clone), and whether main holds
@@ -767,7 +778,11 @@ const server = http.createServer(async (req, res) => {
   // /<name>/... is the map called <name>, unless a file of the page has that name
   const [, first, rest] = /** @type {RegExpMatchArray} */ (url.pathname.match(/^\/([^/]*)(.*)$/));
   if (deletedMaps.has(first) || (PROJECT && !first && !maps.main)) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
-  const own = projects.get(first);
+  // a code folder's map that took its title's address answers to its folder's name too: pages move to the address,
+  // and the API answers at both, for listeners and tools that name the map by its folder
+  const alias = maps.aliases.get(first);
+  if (alias && projects.has(alias) && req.method === 'GET' && !rest.startsWith('/api/')) return res.writeHead(302, { location: `/${alias}${rest || '/'}${url.search}` }).end();
+  const own = projects.get(first) || (alias ? projects.get(alias) : undefined);
   const isMap = /^[a-z0-9-]+$/.test(first) && first !== 'api' && (own || !fs.existsSync(path.join(DIR, first)));
   // the page asks its API by relative address, so a map's address ends in a slash
   if (isMap && !rest) return res.writeHead(302, { location: `/${first}/${url.search}` }).end();
@@ -776,9 +791,11 @@ const server = http.createServer(async (req, res) => {
   // the page's own modules are its code, the same for every map and visitor, so they load before any check of who
   // may see this map: a share link's key rides only on the page's own requests, never on the browser's imports
   if (PAGE_FILES.includes(p) && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(fs.readFileSync(path.join(DIR, p.slice(1))));
-  if (!map) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
-  if (await map.handle(req, res, p, who, users.pictureOf)) return;
-  if (p === '/' || p === '/index.html') return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
+  // with neither a project nor the demo, the server's own address holds no map: only the list and its pages
+  const noMain = !isMap && !PROJECT && !DEMO;
+  if (!map && !noMain) return json(410, { error: 'This map is in Trash. Restore it from the home page.' });
+  if (map && await map.handle(req, res, p, who, users.pictureOf)) return;
+  if (map && (p === '/' || p === '/index.html')) return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
   // Private map files and server sources are never browser assets.
   if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
@@ -790,7 +807,7 @@ const server = http.createServer(async (req, res) => {
 const { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening } = selfUpdate(server, () => maps.everyMap().some(([, m]) => m.busy?.()));
 for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
 server.listen(PORT, '127.0.0.1', async () => {
-  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : '  (demo)'}`);
+  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : DEMO ? '  (demo)' : ''}`);
   await whenListening();
 });
 

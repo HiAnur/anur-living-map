@@ -25,6 +25,14 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
   const TOKENS = path.join(dir, 'github'), REPOS = path.join(dir, 'repos');
   /** @type {Map<string, Pending>} the codes people are typing on github.com, by who */
   const pending = new Map();
+  /** @type {Map<string, number>} when someone's code ran out or was turned down on GitHub, so the page says so once */
+  const failed = new Map();
+  /**
+   * Where each person asked to install the app, by who: GitHub only asks an organization's owners to approve the
+   * install of someone who is not one, and says so to no one else, so the map keeps the name to say whom it waits on.
+   * @type {Map<string, { org: string, type: string, at: number }>}
+   */
+  const asked = new Map();
   const file = (/** @type {string} */ who) => path.join(TOKENS, `${encodeURIComponent(who)}.json`);
   /** @returns {Token | null} */
   const saved = (/** @type {string} */ who) => {
@@ -87,12 +95,13 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
    * @param {string} who
    */
   async function link(who) {
+    failed.delete(who);
     const got = await post(`${WEB}/login/device/code`, { client_id: CLIENT_ID });
     if (!got.device_code) throw Object.assign(new Error('GitHub did not start the link. Try again.'), { status: 502 });
     const until = now() + (got.expires_in || 900) * 1000;
     pending.set(who, { code: got.user_code, uri: got.verification_uri, until });
     (async () => {
-      let wait = (got.interval || 5) * second;
+      let wait = (got.interval || 5) * second, linked = false;
       while (pending.get(who)?.code === got.user_code && now() < until) {
         await new Promise((r) => setTimeout(r, wait));
         /** @type {any} */ let t = {};
@@ -105,18 +114,39 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
         save(who, tokenOf(t, String(me.login || '')));
         // what they may read is asked again at once, so a map shows their repos as soon as they link
         readable.delete(who);
+        linked = true;
         break;
       }
-      if (pending.get(who)?.code === got.user_code) pending.delete(who);
-    })().catch((e) => { console.error('[map] github link', e); pending.delete(who); });
+      // the code ran out, or they pressed Cancel on GitHub: the page says so instead of quietly starting over
+      if (pending.get(who)?.code === got.user_code) { pending.delete(who); if (!linked) failed.set(who, now()); }
+    })().catch((e) => { console.error('[map] github link', e); pending.delete(who); failed.set(who, now()); });
     return { code: got.user_code, uri: got.verification_uri, until };
   }
   /** @param {string} who */
-  function unlink(who) { pending.delete(who); fs.rmSync(file(who), { force: true }); }
-  /** Who someone is on GitHub, or the code they are typing, or neither. @param {string} who */
+  function unlink(who) { pending.delete(who); failed.delete(who); asked.delete(who); fs.rmSync(file(who), { force: true }); }
+  /**
+   * Who someone is on GitHub, or the code they are typing, or neither; why their last code did not link them, for
+   * ten minutes; and where they asked to install the app, for a week.
+   * @param {string} who
+   */
   function status(who) {
-    const t = saved(who), p = pending.get(who);
-    return { linked: t ? t.login : null, pending: p && p.until > now() ? p : null };
+    const t = saved(who), p = pending.get(who), f = failed.get(who), a = asked.get(who);
+    return { linked: t ? t.login : null, pending: p && p.until > now() ? p : null,
+      failed: !t && !(p && p.until > now()) && f && now() - f < 10 * 60_000 ? 'The GitHub code expired or was denied — try again.' : null,
+      asking: t && a && now() - a.at < 7 * 86_400_000 ? { org: a.org, type: a.type } : null };
+  }
+  /**
+   * Someone is about to install the app on a GitHub account or organization: the name, as GitHub writes it, is
+   * kept, so while no install there shows up the page can say it waits for that organization's owners.
+   * @param {string} who @param {string} org
+   */
+  async function askInstall(who, org) {
+    if (!/^[\w-]{1,39}$/.test(org)) throw Object.assign(new Error('Not a GitHub account or organization name.'), { status: 400 });
+    const r = await api(who, `/users/${encodeURIComponent(org)}`).catch((e) => { throw /said 404/.test(String(e.message)) ? Object.assign(new Error(`GitHub has no account or organization called ${org}.`), { status: 400 }) : e; });
+    const found = await r.json();
+    const one = { org: String(found.login || org), type: found.type === 'Organization' ? 'Organization' : 'User', at: now() };
+    asked.set(who, one);
+    return { org: one.org, type: one.type };
   }
 
   /** Every repo the person can read where the app is installed, by account, but archived, forked and empty ones. @param {string} who */
@@ -135,7 +165,11 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
         if ((r.repositories || []).length < 100) break;
       }
     }
-    return { installed: (installations || []).map((/** @type {any} */ i) => i.account.login), repos: out };
+    const installed = (installations || []).map((/** @type {any} */ i) => i.account.login);
+    // an install that came through is no longer waited on
+    const a = asked.get(who);
+    if (a && installed.some((/** @type {string} */ x) => x.toLowerCase() === a.org.toLowerCase())) asked.delete(who);
+    return { installed, repos: out };
   }
 
   /**
@@ -209,7 +243,7 @@ export function github({ dir, http = fetch, now = Date.now, run = untar, second 
     }
     return ok ? '' : `You can't push to ${owner}/${name} on GitHub, so this Action can't raise its pull request there. Ask someone with write access to run it.`;
   }
-  return { link, unlink, status, token, repos, fetchRepo, headOf, canRead, whyNoPush };
+  return { link, unlink, status, askInstall, token, repos, fetchRepo, headOf, canRead, whyNoPush };
 }
 
 /** @type {ReturnType<typeof github> | null} */

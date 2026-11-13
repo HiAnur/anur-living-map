@@ -244,9 +244,22 @@ test("someone who may not draw a system map is told whom to ask", async ({
       path: "/",
     },
   ]);
+  // Duy, an Admin, has a map here, so Duy is someone to ask
+  const own = path.join(server.root, "app", "maps", "duy-whom-to-ask");
+  fs.mkdirSync(own, { recursive: true });
+  fs.writeFileSync(
+    path.join(own, "state.json"),
+    JSON.stringify({
+      ...SAMPLE,
+      people: [{ id: "Duy", role: "Admin", sees: "all", joined: "2026-01-01" }],
+    }),
+  );
   await page.goto(`${server.origin}/maps.html`);
   await page.getByRole("button", { name: "New map" }).click();
   await page.getByRole("button", { name: /System map/ }).click();
+  // a folder on this Mac, then GitHub: either way, whom to ask
+  await expect(page.locator("#local-state")).toContainText("Ask Duy");
+  await page.getByRole("button", { name: "On GitHub" }).click();
   await expect(page.locator("#gh-state")).toContainText(
     "Drawing a system map is for Engineers and Admins.",
   );

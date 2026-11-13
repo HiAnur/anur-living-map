@@ -11,10 +11,10 @@ import { localTool } from './sharing.js';
 
 /**
  * @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, DIR: string, PROJECT: string, PROJECTS: string,
- *   mapName: (folder: any) => string }} deps
+ *   mapName: (folder: any) => string, DEMO?: boolean }} deps `DEMO`: the server only plays the story, so adds no code folder
  */
-export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
-  const { deletedMaps, saveDeleted, isPinned, setPinned, connectedMap, projects, folders, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
+export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false }) {
+  const { deletedMaps, saveDeleted, isPinned, setPinned, projects, folders, aliases, nameOf, openFolder, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any, cookie?: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
@@ -75,6 +75,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
         catch (error) { deletedMaps.delete(name); fs.renameSync(archive, dir); throw error; }
       } catch { return json(500, { error: 'Could not move the map to Trash. Try again.' }); }
       map.close(); named.delete(name); projects.delete(name); folders.delete(name);
+      for (const [own, to] of aliases) if (to === name) aliases.delete(own);
       if (map === maps.main) maps.main = null;
       return json(200, { name, trashId: path.basename(archive) });
     }
@@ -104,9 +105,8 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
         if (wasDeleted) { deletedMaps.add(name); saveDeleted(); }
         return json(500, { error: 'The map could not be restored. Try again.' });
       }
-      if (project) {
-        const map = connectedMap({ project, home }); projects.set(name, map); folders.set(name, project); if (project === PROJECT) maps.main = map;
-      } else mapCalled(name);
+      if (project) openFolder(name, project, home);
+      else mapCalled(name);
       return json(200, { name, title: record.title, href: `/${name}/` });
     }
     // Pin a map to the top of your own list, or take the pin off. Only a map you may open can be pinned.
@@ -143,9 +143,9 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
     }
     // a chat opening the map from another code folder adds that folder to the list, and it stays there
-    if (PROJECT && url.pathname === '/api/projects' && req.method === 'POST') {
+    if (!DEMO && url.pathname === '/api/projects' && req.method === 'POST') {
       let /** @type {any} */ a = await jsonBody(req, {});
-      const folder = a.folder ? path.resolve(String(a.folder)) : '', name = mapName(folder);
+      const folder = a.folder ? path.resolve(String(a.folder)) : '', name = folder ? nameOf(folder) : '';
       if (!folder || !addProject(folder, true)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
       if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
       return json(200, { name, href: `/${name}/` });

@@ -67,13 +67,21 @@ it('keeps an upload failure local and asks again on retry', async () => {
 const statusContext={ sharingLocation };
 it('labels storage truthfully before upload, online, and with a revoked link',()=>{
   const label=(s,o)=>statusContext.sharingLocation(s,o).label;
-  expect(label({configured:true,published:false})).toBe('Local only');
+  expect(label({configured:true,published:false})).toBe('Only this Mac can open this link');
   expect(label(null)).toBe('Checking sharing status…');
   expect(label({published:false},{uploading:true})).toBe('Uploading to cloud…');
   expect(label({published:true,mode:'view',error:'Offline'})).toBe('Shared online');
   expect(label({published:true,mode:'restricted'})).toBe('In cloud · link off');
   expect(label(null,{cloud:true})).toBe('Shared online');
   expect(label(null,{file:true})).toBe('Downloaded file');
+});
+it('says plainly who can open a map kept on this Mac, and offers Publish online only where it can happen',()=>{
+  const where=(s,o)=>sharingLocation(s,o);
+  expect(where({configured:false,published:false},{owner:true})).toMatchObject({publish:false,detail:'This map runs on this Mac, so its link opens only here. To share it with someone else, send it as a file.'});
+  expect(where({configured:true,published:false},{owner:true})).toMatchObject({publish:true});
+  expect(where({configured:true,published:false},{owner:true}).detail).toContain('publish it online');
+  expect(where({configured:true,published:false})).toMatchObject({publish:false});
+  expect(where({configured:true,published:false}).detail).toContain('ask an owner to publish it online');
 });
 
 it('confirms online deletion, can cancel, and keeps failures retryable', async () => {
