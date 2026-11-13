@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { guardDrawing } from './draw-guard.js';
-import { act as actOn } from './map.harness.js';
+import { act as actOn, openTestMap, send } from './map.harness.js';
 
 // What a drawing may change, asked of a real map through its API: a box's content, on boxes in the sender's area,
 // never the map's own record of a box, and questions asked but never answered.
@@ -66,6 +66,69 @@ describe('a drawing', () => {
     expect(box('api')).toBeDefined();
     expect(after.edges).toEqual(expect.arrayContaining([{ from: 'root', to: 'api' }, expect.objectContaining({ from: 'web', to: 'blog' })]));
     expect(after.edges.some((/** @type {any} */ e) => e.from === 'api' && e.to === 'blog')).toBe(false);
+  });
+});
+
+// What the map's tools (mcp.js) send is Claude's, whatever name it gives: a change to a box a person made or changed,
+// or greying out a box Claude did not make, waits as a proposal in the linked chat's pane, never drawn.
+describe('Claude\'s drawing through the map\'s tools', () => {
+  const linked = () => ({ ...state(), linked: [{ session: 's1', file: '/x.jsonl', owner: 'Ana', at: 1 }],
+    nodes: [...state().nodes, { id: 'mine', label: 'Mine', by: 'Claude', x: 600, y: 0 }] });
+  /** @param {any} a @param {any} [initial] */
+  const tool = async (a, initial = linked()) => {
+    const { status, after } = await actOn('tool', { type: 'edit', ...a }, initial);
+    return { status, after, box: (/** @type {string} */ id) => /** @type {any} */ (after.nodes.find((/** @type {any} */ n) => n.id === id)) };
+  };
+
+  it('offers a change to a person\'s box for Apply, and draws a change to its own', async () => {
+    const { status, after, box } = await tool({ by: 'Duy', nodes: [{ id: 'api', sub: 'Rewritten' }, { id: 'mine', sub: 'Mine, changed' }] });
+    expect(status).toBe(200);
+    expect(box('api').sub).toBeUndefined();
+    expect(box('mine').sub).toBe('Mine, changed');
+    expect(after.proposals).toHaveLength(1);
+    expect(after.proposals[0]).toMatchObject({ session: 's1', status: 'pending', ops: ['Change Api: second line "Rewritten"'], plan: { nodes: [{ id: 'api', sub: 'Rewritten' }] } });
+  });
+  it('changes the person\'s box once the linked chat\'s owner presses Apply', async () => {
+    const { map, close } = openTestMap(linked());
+    await send(map, 'tool', { type: 'edit', nodes: [{ id: 'api', sub: 'Rewritten' }] });
+    const id = /** @type {any} */ (map.snapshot()).proposals[0].id;
+    expect((await send(map, 'Duy', { type: 'apply', proposal: id })).status).toBe(400);
+    expect((await send(map, 'Ana', { type: 'apply', proposal: id })).status).toBe(200);
+    const after = /** @type {any} */ (map.snapshot());
+    close();
+    expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api')).toMatchObject({ sub: 'Rewritten', by: 'Ana', updatedBy: 'Ana' });
+  });
+  it('offers greying out a box it did not make, and greys out its own', async () => {
+    const { box, after } = await tool({ nodes: [{ id: 'web', state: 'gone' }, { id: 'mine', state: 'gone' }] });
+    expect(box('web').state).toBeUndefined();
+    expect(box('mine').state).toBe('gone');
+    expect(after.proposals[0].plan.nodes).toEqual([{ id: 'web', state: 'gone' }]);
+  });
+  it('holds what the call itself marks for Apply, and draws nothing of it when no chat is linked to hold it', async () => {
+    const { box, after } = await tool({ propose: [{ id: 'mine', sub: 'Asked for Apply' }], edges: [{ from: 'root', to: 'mine', label: 'Starts' }] }, { ...linked(), linked: [] });
+    expect(box('mine').sub).toBeUndefined();
+    expect(after.proposals || []).toEqual([]);
+    expect(after.edges).toContainEqual({ from: 'root', to: 'mine', label: 'Starts' });
+  });
+  it('moves a person\'s box into the area of someone it asks a question on it, and nothing else', async () => {
+    const { box } = await tool({ nodes: [{ id: 'api', area: 'web' }], calls: [{ id: 'q1', node: 'api', for: 'Sam', ask: 'Ship it?', status: 'open' }] });
+    expect(box('api').area).toBe('web');
+  });
+  it('offers it in the pane of the chat that sent it, when that chat is linked', async () => {
+    const two = { ...linked(), linked: [...linked().linked, { session: 's2', file: '/y.jsonl', owner: 'Duy', at: 2 }] };
+    const { after } = await tool({ session: 's2', nodes: [{ id: 'api', sub: 'From the second chat' }] }, two);
+    expect(after.proposals.map((/** @type {any} */ p) => p.session)).toEqual(['s2']);
+    expect((await tool({ session: 'unlinked', nodes: [{ id: 'api', sub: 'x' }] }, two)).after.proposals[0].session).toBe('s1');
+  });
+  it('holds an edit naming a chat to Claude\'s rules, even from someone signed in', async () => {
+    const { after } = await actOn('Duy', { type: 'edit', session: 's1', nodes: [{ id: 'api', sub: 'Through a chat' }] }, linked());
+    expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBeUndefined();
+    expect(after.proposals).toHaveLength(1);
+  });
+  it('leaves a signed-in person\'s own edit as it was', async () => {
+    const { after } = await actOn('Duy', { type: 'edit', nodes: [{ id: 'api', sub: 'By hand' }] }, linked());
+    expect(after.nodes.find((/** @type {any} */ n) => n.id === 'api').sub).toBe('By hand');
+    expect(after.proposals || []).toEqual([]);
   });
 });
 

@@ -666,6 +666,9 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (guest && (!mayAct(state, a, true) || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json'))) return deny();
       // A link cannot impersonate a member or start Claude on this Mac.
       a.by = guest ? 'Guest' : String(who || a.by || 'You').slice(0, 40);
+      // an edit from a program on this Mac, or one naming the chat that sent it, is the map's tools drawing for
+      // Claude (mcp.js), and is held to Claude's rules whatever name it gives
+      if (a.type === 'edit' && !guest && (!who || a.session)) a.by = 'Claude';
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);

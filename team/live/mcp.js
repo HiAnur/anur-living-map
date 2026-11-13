@@ -78,7 +78,7 @@ async function change(args = {}) {
   // a pinned chat sets no instructions or memory: those are for people, or a change they apply
   if (ONLY !== undefined && Array.isArray(args.remember) && args.remember.length) { refused.push('remember: this chat cannot set instructions or memory'); args = { ...args, remember: [] }; }
   if (asksNothing(args)) throw new Error(['Nothing to change: give boxes, lines, remove_lines, questions, start or tidy.', ...refused].join(' '));
-  const s = await stateOf(map), { edit, done, skipped } = planChange(args, s);
+  const s = await stateOf(map), { edit, done, skipped } = planChange({ ...args, session: CHAT }, s);
   const r = await call(api(map, 'act'), { method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ type: 'edit', by: 'Claude', ...(CHAT ? { session: CHAT } : {}), ...edit }) });
   const left = [...refused, ...skipped, ...(r?.proposed ? (r.dropped || []).map((/** @type {any} */ d) => `${d.text}: ${d.why}`) : [])];
@@ -100,7 +100,8 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: { map: MAP } } },
   { name: 'living_map_change', run: change,
     description: 'Change a Living Map in one call, shown to everyone at once: add or update any number of boxes, lines, and questions for a teammate. '
-      + 'Name boxes by id or by their name; a box whose name is already on the map is updated, not doubled. New boxes find their own place. '
+      + 'A new box takes a name no box on the map has. To change a box already on the map, give its exact id; a name only finds a box to draw a line to it or hang it under another. '
+      + 'A change to a box a person made or changed, and greying out a box Claude did not make, is not drawn: it becomes a proposal the linked chat\'s owner applies on the map. New boxes find their own place. '
       + 'Mark a to-do with state "todo"; "gone" greys a box out; "new" means planned, not built yet. '
       + 'When the things under one idea have a shape, draw one box with a diagram instead of a box each; double-clicking the box opens it: '
       + 'a timeline for what happened in order (past relationships, jobs, launches, releases), a sequence for who sends what to whom in turn, a Venn for what belongs to which of 2 or 3 groups. '
@@ -109,11 +110,11 @@ const TOOLS = [
       map: MAP,
       note: { type: 'string', description: 'One line on what this change does, for the map\'s log.' },
       boxes: { type: 'array', description: 'Boxes to add or update.', items: { type: 'object', properties: {
-        label: { type: 'string', description: 'The box\'s name. Required for a new box. Matches an existing box by name to update it.' },
-        id: { type: 'string', description: 'An existing box\'s id to update it; a new box gets one from its name.' },
+        label: { type: 'string', description: 'The box\'s name. Required for a new box. With no id, a name already on the map only finds that box for "under"; give its id to change it.' },
+        id: { type: 'string', description: 'An existing box\'s exact id, to change it (its name too); a new box gets one from its name.' },
         sub: { type: 'string', description: 'Second line under the name: what the box is, in a few words. Required for a new box; a new box without it is left out.' },
         notes: { type: 'string', description: 'What opens with the box: a short first line, then "- " bullets, one point each. Replaces the notes it had.' },
-        state: { type: 'string', enum: STATES, description: 'todo = something to do; new = planned, not built; assumed-gone = the plan assumes it can go; gone = removed.' },
+        state: { type: 'string', enum: STATES, description: 'todo = something to do; new = planned, not built; assumed-gone = the plan assumes it can go; gone = removed (a proposal on a box Claude did not make).' },
         under: { type: 'string', description: 'A box (id or name) this one hangs under: draws a line from it to this one, with no words. Works on a box already on the map too, named by its id.' },
         diagram: { type: 'object', description: 'What the box opens into on a double click. Replaces the one it had; null takes it away.', required: ['kind', 'items'], properties: {
           kind: { type: 'string', enum: KINDS, description: 'timeline: items in order, oldest first, each with when. sequence: items in order, each a step from → to. venn: items, each with the groups it is in.' },
