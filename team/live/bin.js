@@ -3,6 +3,7 @@
 //
 //   anur-living-map [folder] [--port 4323] [--no-open]   start (or join) the map and open it
 //   anur-living-map mcp                                   what Claude Code runs to talk to the map
+//   anur-living-map reset <name> [--port 4323]            print a one-use link to choose a new password
 //
 // It starts the team map server for the folder if none is running, or adds the folder to
 // the server already running; registers the map's MCP server with the agent once (agent.js);
@@ -31,6 +32,9 @@ const args = process.argv.slice(2);
 
 if (args[0] === 'mcp') {
   await import('./mcp.js');
+} else if (args[0] === 'reset') {
+  const { cli } = await import('./users.js');
+  process.exitCode = await cli(args);
 } else {
   /** @param {string} name */
   const flag = (name) => { const i = args.indexOf(name); return i < 0 ? '' : args[i + 1] || 'true'; };

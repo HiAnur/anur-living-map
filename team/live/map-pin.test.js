@@ -36,6 +36,8 @@ it('pins a map for one person only, and keeps the pin across a restart', async (
   for (const name of ['first', 'second']) { fs.mkdirSync(path.join(app, 'maps', name), { recursive: true }); fs.writeFileSync(path.join(app, 'maps', name, 'state.json'), JSON.stringify(state)); }
   const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
   const cookie = (/** @type {string} */ name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
+  // Duy made this install's first account, and so owns it
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js';users.create('Duy','a long password')"], { cwd: app, env });
   const duy = cookie('Duy'), priyanka = cookie('Priyanka');
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let /** @type {any} */ child;
@@ -63,7 +65,7 @@ it('pins a map for one person only, and keeps the pin across a restart', async (
     await stop(); await start();
     expect(await pinned(duy)).toEqual(['primary']);
     expect(await pinned(priyanka)).toEqual([]);
-    // the home page carries your role for its account menu
-    expect(await (await request('/')).text()).toContain('<meta name="lm-role" content="Admin">');
+    // the home page carries your role for its account menu: the owner of this install is its Owner
+    expect(await (await request('/')).text()).toContain('<meta name="lm-role" content="Owner">');
   } finally { await stop(); fs.rmSync(root, { recursive: true, force: true }); }
 }, 15000);
