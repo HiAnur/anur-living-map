@@ -184,13 +184,10 @@ test("a system map starts at a circle for the whole system, every repo hanging o
   const circle = hub(page);
   await expect(circle).toHaveAttribute("aria-label", "Shop system");
   await expect(circle).toHaveText("");
-  // the repos are ordinary boxes, each with a line from the circle
-  for (const repo of ["api", "web"]) {
+  // the repos are ordinary boxes, each with a straight line from the circle
+  for (const repo of ["api", "web"])
     await expect(box(page, repo)).not.toHaveClass(/\bstart\b/);
-    await expect(
-      page.locator(`#edges .hit[data-edge="system>system-${repo}"]`),
-    ).toHaveCount(1);
-  }
+  await expect(page.locator("#edges path.spoke")).toHaveCount(2);
   // the calls between them stay plain lines, never curved cross-links
   await expect(page.locator("#edges path.cross")).toHaveCount(0);
   // a click shows only the repos; another, every box again
