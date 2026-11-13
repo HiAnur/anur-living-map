@@ -1,9 +1,13 @@
 // Keeping a copy up to date: compare the running checkout with the latest
-// GitHub release, and on request pull it, install, build and restart.
+// GitHub release, and on request move to it, install, build and restart.
 //
 //   check:  GitHub's latest release ── git fetch ──► commits behind? ──► banner
-//   update: stop moves ► git pull --rebase ► npm ci ► npm run build
-//           ► rewrite the installed skill ► restart
+//   update: stop moves ► fast-forward to the latest release tag ► npm ci
+//           ► npm run build ► rewrite the installed skill ► restart
+//
+// An update moves only to a release (the v* tag CI puts on a push to main
+// that passed its checks), never to main itself: what lands on main after
+// the last release never reaches a running copy.
 
 import { execFile } from "node:child_process";
 import fs from "node:fs";
@@ -172,18 +176,38 @@ export async function checkForUpdate({
   return info;
 }
 
+// The newest release on the project's main: its last v* tag. The fetch puts
+// main in FETCH_HEAD and brings the tags with it.
+export async function latestTag(git: Run): Promise<string> {
+  await git(
+    "git",
+    ["fetch", "--quiet", "--tags", UPSTREAM, "main"],
+    APP_DIR,
+    120_000,
+  );
+  const tag = await git("git", [
+    "describe",
+    "--tags",
+    "--abbrev=0",
+    "--match",
+    "v[0-9]*",
+    "FETCH_HEAD",
+  ]).catch(() => "");
+  if (!tag) throw new Error("There is no release to update to yet.");
+  return tag;
+}
+
 let updating = false;
 
-// the installed skill is a copy of skill/SKILL.md, which the pull may have
+// the installed skill is a copy of skill/SKILL.md, which the update may have
 // changed; the server rewrites it at start too, but a copy not run under the
 // launcher does not restart here, so the update writes it itself
 const refreshSkill = () => (OWNS_SKILL ? installSkill(PORT) : "skipped");
 
 export const SKILL_STEP = "Updating the living-map skill";
 
-// Pull, install, build, rewrite the skill, then restart (under the launcher).
-// Each step is reported as it runs. A failed pull is rolled back, so the copy
-// is never left half-rebased.
+// Move to the latest release, install, build, rewrite the skill, then restart
+// (under the launcher). Each step is reported as it runs.
 export async function runUpdate(
   report: (s: UpdateStep) => void,
   {
@@ -208,17 +232,10 @@ export async function runUpdate(
     if (reason) throw new Error(reason);
     await step("Getting the new version", async () => {
       await git("git", ["checkout", "--", "package-lock.json"]);
-      try {
-        await git(
-          "git",
-          ["pull", "--rebase", UPSTREAM, "main"],
-          APP_DIR,
-          120_000,
-        );
-      } catch (e) {
-        await git("git", ["rebase", "--abort"]).catch(() => {});
-        throw e;
-      }
+      const tag = await latestTag(git);
+      // a fast-forward moves nothing when it cannot apply, so a copy that
+      // went its own way is left as it was, with nothing to roll back
+      await git("git", ["merge", "--quiet", "--ff-only", tag]);
     });
     await step("Installing what it needs", () =>
       git("npm", ["ci", "--no-audit", "--no-fund"], APP_DIR, 600_000),

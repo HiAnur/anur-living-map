@@ -1,4 +1,18 @@
-# The chat map
+# The chat map (retired)
+
+> **Living Map (chat) is retired.** Use [Anur Living Map](../README.md) instead: `/anur-living-map` in a Claude Code chat inside a repo. The chat map gets no new features; its page and its `/living-map` skill say so too.
+
+## Remove it
+
+In the folder you installed it in (`~/living-map` if you followed the steps below):
+
+```bash
+node skill/uninstall.ts
+```
+
+It stops the chat map's server on port 4317 (only when that port answers as Living Map and runs this app's server; otherwise it tells you to stop it yourself), removes the `living-map` skill from `~/.claude/skills/` (only the copy this app wrote) and the living-map hook from `~/.claude/settings.json` (only entries marked `# living-map-hook`, leaving every other setting, and the team map's `living-map` MCP server, as they are). It then asks before deleting `~/.living-map`, which holds your chat maps and copies of what was said in those chats; `--keep-data` or `--delete-data` answers for it in a script. Then delete the folder itself if you like.
+
+## What it was
 
 <p align="center"><b>See where your Claude Code chat stands, at a glance.</b><br>
 Living Map draws your chat as a mind map while you work: what waits on you, what is still open, what was decided. You answer Claude right on the map.</p>
@@ -24,6 +38,8 @@ When a project gets too big for your head, you draw a mind map. When a Claude ch
 Everything runs on your machine. Living Map talks to the model through your own Claude Code (`claude -p`) and keeps its data in `~/.living-map/`.
 
 ## Install
+
+The chat map is retired: install [Anur Living Map](../README.md) instead. These steps stay for a copy you already have.
 
 You need [Node.js](https://nodejs.org) 23.6 or later, and [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` on your PATH).
 
@@ -66,7 +82,7 @@ npm run skill -- --hook
 ## Updates
 
 Every push to `main` that passes CI publishes a release (`v0.1.<n>`).
-When a newer one is out, the map's top bar shows **New version available**. One click pulls it (`git pull --rebase`), installs (`npm ci`), builds and restarts, and the page reloads into it. The installed skill is rewritten from the new copy as the server starts.
+When a newer one is out, the map's top bar shows **New version available**. One click moves the copy to the latest release (a fast-forward to its tag, never `main` itself), installs (`npm ci`), builds and restarts, and the page reloads into it. The installed skill is rewritten from the new copy as the server starts.
 It runs only on a clean checkout of `main`; otherwise the popover says what is in the way.
 
 ## How it works
