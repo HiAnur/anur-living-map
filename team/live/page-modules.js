@@ -4,7 +4,7 @@
 // declares at its top level is declared by the page's script or another page module: written in place of its
 // import, it is the same code. page-modules.test.js holds these rules.
 
-export const PAGE_MODULES = ['action-stages.js', 'map-walk.js', 'page-action.js', 'page-comments.js', 'page-drawing.js', 'page-history.js', 'page-layout.js', 'page-search.js', 'page-share.js', 'page-words.js'];
+export const PAGE_MODULES = ['action-stages.js', 'map-walk.js', 'page-action.js', 'page-comments.js', 'page-drawing.js', 'page-history.js', 'page-hub.js', 'page-layout.js', 'page-search.js', 'page-share.js', 'page-words.js'];
 
 /** The page with every page module written in place of its import line. @param {string} html @param {(file: string) => string} read */
 export function inlineModules(html, read) {
