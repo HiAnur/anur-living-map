@@ -69,6 +69,10 @@ export const WHO = {
     .map((type) => [type, { standing: /** @type {Standing} */ ('member'), then: 'they are signed in (not Guest, not removed), the box is in their area, and they started its Action' }])),
   actionarchive: { standing: 'member', then: 'the box is in their area, its Action has run, and they started it or are an Admin' },
   actionunarchive: { standing: 'member', then: 'the box is in their area, they started its Action or are an Admin, and its id is free on the map' },
+  // action items (action-items.js)
+  actionnotaction: { standing: 'member', then: 'the box is in their area, its Action was made from their own words and they are its author, and it has not run' },
+  actionnotmine: { standing: 'member', then: 'the box is in their area, its Action was made from their own words and they are its author, it has not run, and it goes to another of the map\'s people or the team' },
+  actiontakeon: { standing: 'member', then: 'the box is in their area, holds a task and no Action, and names them, the team or no one' },
 };
 
 /** The actions a guest with an edit link may take, here and on the cloud copy. */

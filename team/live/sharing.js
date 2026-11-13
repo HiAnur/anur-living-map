@@ -28,7 +28,7 @@ export function changeSharing(state, who, mode) {
 // the actions a guest with an edit link may take: the `link` standing in permissions.js
 export { LINK_EDITS } from './permissions.js';
 /** @type {(nodes: Box[]) => Box[]} */
-export const withoutActions = (nodes) => nodes.map(({ action, task, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
+export const withoutActions = (nodes) => nodes.map(({ action, task, from, ...n }) => ({ ...n, ...(n.inside ? {inside:{...n.inside,nodes:withoutActions(n.inside.nodes)}} : {}) }));
 /**
  * The map as one person receives it: a guest without Actions or anyone's chats, and a member who sees one area
  * with only that area's content (forArea). `who` is the person, unset for a program on this Mac.
@@ -39,7 +39,7 @@ export function sharedState(state, owner = false, guest = false, who = null, hid
   if (guest) {
     result.nodes = withoutActions(state.nodes || []);
   }
-  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], buildsOn: undefined, redraw: undefined, project: undefined });
+  if (guest) Object.assign(result, { archived: [], threads: {}, linked: [], said: {}, proposals: [], memory: [], removedPeople: [], contextMapIds: [], refusedItems: [], itemSources: {}, buildsOn: undefined, redraw: undefined, project: undefined });
   const sees = !guest && who ? state.people?.find((p) => p.id === who)?.sees : undefined;
   return sees && sees !== 'all' ? forArea(result, sees) : result;
 }

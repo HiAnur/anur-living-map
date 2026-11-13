@@ -16,7 +16,7 @@
 - Never commit on `main` or push to it; `.claude/hooks/protect-main.sh` blocks both. Branch first (`git switch -c <branch>`), push the branch, open a PR.
 - Every merge to `main` becomes a dev build that the team's copies (the dev channel) update to within minutes, so `main` only moves through a reviewed PR. Customers get it only when the user has the Release workflow run (see Releases in `AGENTS.md`).
 - Other sessions may share this working tree. Check `git status` and the current branch before you start, and do not switch branches or reset under someone else's changes.
-- After you pull `main` yourself (`git pull`, a rebase), run `npm run skill`: the installed skill is a copy of `skill/SKILL.md`, and the server rewrites it only on its own start or one-click update.
+- After you pull `main` yourself (`git pull`, a rebase), run `npm run skill`: the installed skill is a copy of `skill/SKILL.md`, and the server rewrites it only on its own start.
 
 ## Pull requests
 

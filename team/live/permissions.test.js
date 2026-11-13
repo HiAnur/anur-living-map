@@ -145,6 +145,34 @@ describe('who may take each action', () => {
     expect((await act('Duy', { type: 'actioncancel', id: 'web' }, started())).status).toBe(400);
     expect((await act('Ana', { type: 'actioncancel', id: 'web' }, started())).status).toBe(200);
   });
+  it('only the author of a draft made from their words may say it is not an action, or not theirs, before it runs', async () => {
+    const from = { kind: 'chat', quote: 'I\'ll ship the site', at: 1 };
+    const drafted = (/** @type {any} */ action) => ({ ...state(), nodes: state().nodes.map((n) => n.id === 'web' ? { ...n, boxType: 'action', action } : n) });
+    const ready = () => drafted({ by: 'Sam', stage: 'ready', id: 'r', brief: {}, from });
+    const steps = [{ type: 'actionnotaction', id: 'web' }, { type: 'actionnotmine', id: 'web', to: 'Duy' }];
+    for (const a of steps) {
+      for (const who of /** @type {Persona[]} */ (['Ana', 'Duy', 'tool'])) expect((await act(who, a, ready())).status, `${who} ${a.type}`).toBe(400);
+      expect((await act('edit link', a, ready())).status, a.type).toBe(403);
+      expect((await act('Sam', a, ready())).status, a.type).toBe(200);
+      // once it has run, or when nobody's words made it, it stays an Action
+      expect((await act('Sam', a, drafted({ by: 'Sam', stage: 'finished', id: 'r', session: 's', from }))).status, a.type).toBe(400);
+      expect((await act('Sam', a, drafted({ by: 'Sam', stage: 'draft', id: 'r', from: { kind: 'suggested', at: 1 } }))).status, a.type).toBe(400);
+    }
+    // whose it is: another of the map's people, or the team
+    expect((await act('Sam', { type: 'actionnotmine', id: 'web', to: 'Nobody' }, ready())).status).toBe(400);
+    expect((await act('Sam', { type: 'actionnotmine', id: 'web', to: 'Sam' }, ready())).status).toBe(400);
+    expect((await act('Sam', { type: 'actionnotmine', id: 'web', to: '*' }, ready())).after.nodes.find((/** @type {any} */ n) => n.id === 'web')).toMatchObject({ for: '*' });
+  });
+  it('only the person an item names, or anyone who can see one for the team, may take it on', async () => {
+    // taking one on starts preparing it, so here it is only asked of people who may not (action-items.test.js has the rest)
+    const item = (/** @type {string} */ to) => ({ ...state(), nodes: state().nodes.map((n) => n.id === 'web' ? { ...n, for: to, task: { goal: 'Ship it' } } : n) });
+    for (const who of /** @type {Persona[]} */ (['Ana', 'Duy', 'tool'])) expect((await act(who, { type: 'actiontakeon', id: 'web' }, item('Sam'))).status, who).toBe(400);
+    expect((await act('edit link', { type: 'actiontakeon', id: 'web' }, item('*'))).status).toBe(403);
+    expect((await act('Lee', { type: 'actiontakeon', id: 'web' }, item('Lee'))).status).toBe(403);
+    // a team item outside their area
+    const outside = { ...state(), nodes: state().nodes.map((n) => n.id === 'api' ? { ...n, for: '*', task: { goal: 'Ship it' } } : n) };
+    expect((await act('Sam', { type: 'actiontakeon', id: 'api' }, outside)).status).toBe(400);
+  });
 });
 
 describe('an edit through the cloud copy', () => {

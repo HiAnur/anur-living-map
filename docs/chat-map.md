@@ -1,6 +1,6 @@
 # The chat map (retired)
 
-> **Living Map (chat) is retired.** Use [Anur Living Map](../README.md) instead: `/anur-living-map` in a Claude Code chat inside a repo. The chat map gets no new features; its page and its `/living-map` skill say so too.
+> **Living Map (chat) is retired and no longer updates.** Use [Anur Living Map](../README.md) instead: `/anur-living-map` in a Claude Code chat inside a repo. The chat map gets no new features and no fixes; its page and its `/living-map` skill say so too.
 
 ## Remove it
 
@@ -66,7 +66,7 @@ npm install
 npm run skill -- --hook
 ```
 
-- `npm run skill` installs the `living-map` skill into `~/.claude/skills/`, and the team map's `anur-living-map` skill beside it. `--hook` also adds one `UserPromptSubmit` entry to `~/.claude/settings.json`, leaving the rest as it is: whatever you did on the map comes with your next message, if it has not reached the chat already.
+- `npm run skill` installs the `living-map` skill into `~/.claude/skills/`, and the team map's `anur-living-map` skill beside it. `--hook` also adds one `UserPromptSubmit` entry to `~/.claude/settings.json`, leaving the rest as it is; it now only shows each chat once how to remove the chat map.
 
 ## Using it
 
@@ -81,9 +81,9 @@ npm run skill -- --hook
 
 ## Updates
 
-Every push to `main` that passes CI publishes a release (`v0.1.<n>`).
-When a newer one is out, the map's top bar shows **New version available**. One click moves the copy to the latest release (a fast-forward to its tag, never `main` itself), installs (`npm ci`), builds and restarts, and the page reloads into it. The installed skill is rewritten from the new copy as the server starts.
-It runs only on a clean checkout of `main`; otherwise the popover says what is in the way.
+The chat map no longer updates. A copy that has installed its last release never offers **New version available** again, and an update asked for anyway is refused with the same retired notice. Later releases carry only Anur Living Map, so they never reach a chat-map copy.
+
+Its `/living-map` hook goes quiet too: it shows each chat once how to remove the chat map, then does nothing, and never waits on the server. What you do on the map that wakes the chat still reaches it through its listener; the rest no longer comes with your next message, and the chat reads it only when you ask about the map.
 
 ## How it works
 
@@ -103,7 +103,7 @@ your chat ◄──answers, picks, ticks───────┤◄────�
 | Path            | What it holds                                                                                                                   |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `ledger/`       | the map of your chat: following the transcript, the store, side chats                                                           |
-| `server/`       | routes, the token, the one-click update, the model providers                                                                    |
+| `server/`       | routes, the token, the frozen update check, the model providers                                                                 |
 | `web/map/`      | the map's page                                                                                                                  |
 | `web/brand.css` | every colour and font, by role: restyle the app in one place                                                                    |
 | `skill/`        | the `living-map` skill, its installer, starter, hook and listener                                                               |

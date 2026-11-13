@@ -1,6 +1,7 @@
-// Runs the server and starts it again after a one-click update (the server
-// exits with RESTART_CODE once the new version is installed and built). Any
-// other exit ends the launcher with the same code. `npm start` uses this.
+// Runs the server and starts it again when it exits with RESTART_CODE: an
+// older copy's last one-click update exits that way to start this version,
+// which never updates again. Any other exit ends the launcher with the same
+// code. `npm start` uses this.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";

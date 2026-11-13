@@ -138,7 +138,7 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
         : { kind: 'proposal' };
       draw(pr.plan, 'Claude', source);
       for (const box of pr.plan.nodes) if (box.boxType === 'action' && box.task) {
-        actions.begin(box.id, a.by, box.task, false);
+        actions.begin(box.id, a.by, box.task, { notify: false, from: { kind: 'suggested', at: Date.now() } });
         delete nodeOf(box.id).task;
       }
       if (pr.plan.tidy) relayout();

@@ -1,18 +1,11 @@
-// The updater with a scripted git and GitHub: no real repository or network.
+// The frozen updater, with a scripted git: no real repository or network.
 
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import type { UpdateStep } from "../shared/model.ts";
-import {
-  checkForUpdate,
-  repoSlug,
-  runUpdate,
-  SKILL_STEP,
-  type Run,
-} from "./update.ts";
+import { checkForUpdate, RETIRED, runUpdate, type Run } from "./update.ts";
 
-// a fake git/npm: answers by command line, records what ran
+// a fake git: answers by command line, records what ran
 function fakeGit(answers: Record<string, string | Error>) {
   const ran: string[] = [];
   const git: Run = async (cmd, args) => {
@@ -26,176 +19,57 @@ function fakeGit(answers: Record<string, string | Error>) {
   return { git, ran };
 }
 
-// never the real skill in ~/.claude
-const skill = () => "unchanged";
-
-const CLEAN = {
-  "git rev-parse --is-inside-work-tree": "true",
-  "git rev-parse --abbrev-ref HEAD": "main",
-  "git status --porcelain": "",
-  "git describe --tags --abbrev=0": "v0.1.30",
-};
-
-const FETCH =
-  "git fetch --quiet --tags https://github.com/harshit-pi/living-map.git main";
-const MOVE = "git merge --quiet --ff-only v0.1.30";
-
-const release = async () => ({
-  tag_name: "v0.1.30",
-  body: "## What's Changed\n* Faster checks",
-  html_url: "https://github.com/x/y/releases/tag/v0.1.30",
-  published_at: "2026-10-16T12:00:00Z",
-});
-
-test("the repository is read from package.json", () => {
-  assert.equal(
-    repoSlug({
-      repository: { url: "https://github.com/harshit-pi/living-map.git" },
-    }),
-    "harshit-pi/living-map",
+test("the check never offers an update, and says the chat map is retired and how to remove it", async () => {
+  const { git, ran } = fakeGit({
+    "git rev-parse HEAD": "abc1234def",
+    "git describe": "v0.1.27-3-gabc1234",
+    // what a copy behind a later release would have answered
+    "git rev-list --count": "12",
+  });
+  const info = await checkForUpdate({ git });
+  assert.equal(info.available, false);
+  assert.equal(info.behind, 0);
+  assert.equal(info.latest, null);
+  assert.equal(info.canUpdate, false);
+  assert.equal(info.reason, RETIRED);
+  assert.match(info.reason, /retired and no longer updates/);
+  assert.match(info.reason, /\/anur-living-map/);
+  assert.match(info.reason, /node skill\/uninstall\.ts/);
+  assert.ok(
+    !ran.some((l) => /fetch|pull|merge|rev-list/.test(l)),
+    "nothing is fetched or compared",
   );
-  assert.equal(repoSlug({ repository: "git@github.com:a/b.git" }), "a/b");
-  assert.equal(repoSlug({}), null);
 });
 
-test("a copy behind the latest release is offered the update", async () => {
+test("the check still says which commit runs, so a page open across the last update reloads into it", async () => {
   const { git } = fakeGit({
-    ...CLEAN,
-    "git rev-parse HEAD": "abc123",
-    "git rev-list --count": "3",
+    "git rev-parse HEAD": "abc1234def",
     "git describe": "v0.1.27",
   });
-  const info = await checkForUpdate({ force: true, git, release });
-  assert.equal(info.available, true);
-  assert.equal(info.behind, 3);
-  assert.equal(info.latest?.version, "v0.1.30");
-  assert.equal(info.current.version, "v0.1.27");
-  assert.equal(info.canUpdate, true);
-});
+  const info = await checkForUpdate({ git });
+  assert.deepEqual(info.current, { version: "v0.1.27", sha: "abc1234def" });
 
-test("an up-to-date copy, or one with local changes, is not updated", async () => {
-  const same = fakeGit({
-    ...CLEAN,
-    "git rev-parse HEAD": "abc",
-    "git rev-list --count": "0",
+  const untagged = fakeGit({
+    "git rev-parse HEAD": "abc1234def",
+    "git describe": new Error("No names found"),
   });
   assert.equal(
-    (await checkForUpdate({ force: true, git: same.git, release })).available,
-    false,
+    (await checkForUpdate({ git: untagged.git })).current.version,
+    "abc1234",
   );
-  const dirty = fakeGit({
-    ...CLEAN,
-    "git rev-parse HEAD": "abc",
-    "git rev-list --count": "2",
-    "git status --porcelain": " M app/web/App.tsx",
-  });
-  const info = await checkForUpdate({ force: true, git: dirty.git, release });
-  assert.equal(info.canUpdate, false);
-  assert.match(info.reason, /local changes/);
 });
 
-test("a lockfile rewritten by npm install does not block the update", async () => {
-  const { git, ran } = fakeGit({
-    ...CLEAN,
-    "git status --porcelain": " M app/package-lock.json",
+test("outside a git checkout the check answers the same, with no version", async () => {
+  const { git } = fakeGit({
+    "git rev-parse HEAD": new Error("not a git repository"),
   });
-  const r = await runUpdate(() => {}, { git, skill });
-  assert.deepEqual(r, { ok: true });
-  const reset = ran.indexOf("git checkout -- package-lock.json");
-  assert.ok(reset >= 0 && reset < ran.indexOf(MOVE));
-});
-
-test("being offline means no update, not an error", async () => {
-  const { git } = fakeGit({ ...CLEAN, "git rev-parse HEAD": "abc" });
-  const info = await checkForUpdate({
-    force: true,
-    git,
-    release: async () => {
-      throw new Error("offline");
-    },
-  });
+  const info = await checkForUpdate({ git });
+  assert.deepEqual(info.current, { version: "", sha: "" });
   assert.equal(info.available, false);
-  assert.equal(info.latest, null);
+  assert.equal(info.reason, RETIRED);
 });
 
-test("an update moves to the latest release, installs, builds and rewrites the skill, reporting each step", async () => {
-  const { git, ran } = fakeGit(CLEAN);
-  const steps: UpdateStep[] = [];
-  let skillWritten = 0;
-  const r = await runUpdate((s) => steps.push(s), {
-    git,
-    skill: () => {
-      // after the build: the template on disk is the new one by then
-      assert.ok(ran.includes("npm run build"));
-      skillWritten++;
-      return "updated";
-    },
-  });
-  assert.equal(skillWritten, 1);
-  assert.deepEqual(r, { ok: true });
-  assert.ok(ran.indexOf(FETCH) >= 0);
-  assert.ok(
-    ran.includes("git describe --tags --abbrev=0 --match v[0-9]* FETCH_HEAD"),
-    "the release is the last v* tag on the project's main",
-  );
-  assert.ok(ran.indexOf(FETCH) < ran.indexOf(MOVE));
-  assert.ok(
-    !ran.some((l) => l.startsWith("git pull")),
-    "main itself is never pulled",
-  );
-  assert.ok(ran.some((l) => l.startsWith("npm ci")));
-  assert.ok(ran.includes("npm run build"));
-  assert.deepEqual(
-    steps.filter((s) => s.state === "done").map((s) => s.step),
-    [
-      "Getting the new version",
-      "Installing what it needs",
-      "Building the app",
-      SKILL_STEP,
-      "Restart Living Map to finish",
-    ],
-  );
-});
-
-test("a skill that cannot be written is reported, and the update still finishes", async () => {
-  const { git } = fakeGit(CLEAN);
-  const steps: UpdateStep[] = [];
-  const r = await runUpdate((s) => steps.push(s), {
-    git,
-    skill: () => {
-      throw new Error("EACCES");
-    },
-  });
-  assert.deepEqual(r, { ok: true });
-  const failed = steps.find((s) => s.state === "failed");
-  assert.equal(failed?.step, SKILL_STEP);
-  assert.match(failed?.message ?? "", /EACCES.*npm run skill/);
-  assert.ok(steps.some((s) => s.step === "Restart Living Map to finish"));
-});
-
-test("a copy that cannot fast-forward to the release is left as it was, and nothing is installed", async () => {
-  const { git, ran } = fakeGit({
-    ...CLEAN,
-    "git merge": new Error("fatal: Not possible to fast-forward, aborting."),
-  });
-  const steps: UpdateStep[] = [];
-  const r = await runUpdate((s) => steps.push(s), { git, skill });
-  assert.equal(r.ok, false);
-  assert.match(r.error ?? "", /fast-forward/);
-  assert.ok(
-    !ran.some((l) => l.startsWith("npm")),
-    "nothing installed or built",
-  );
-  assert.equal(steps.at(-1)?.state, "failed");
-});
-
-test("with no release yet there is nothing to update to", async () => {
-  const { git, ran } = fakeGit({
-    ...CLEAN,
-    "git describe --tags --abbrev=0": new Error("No names found"),
-  });
-  const r = await runUpdate(() => {}, { git, skill });
-  assert.equal(r.ok, false);
-  assert.match(r.error ?? "", /no release/);
-  assert.ok(!ran.some((l) => l.startsWith("git merge")));
+test("an update is refused with the same words", async () => {
+  const r = await runUpdate();
+  assert.deepEqual(r, { ok: false, error: RETIRED });
 });
