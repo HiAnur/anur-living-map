@@ -1,9 +1,10 @@
 import AppKit
 import WebKit
 
-/// The map, in a normal resizable window: a WKWebView on the local server,
-/// signed in by the one-time link the server answered. The web view keeps its
-/// cookies (the default data store), so the page stays signed in for reads.
+/// The map, in a normal resizable window: a WKWebView on Anur Living Map. The
+/// first visit redirects to the team sign-in at /login; the web view keeps its
+/// cookies (the default data store), so you sign in once. Pages of the map's
+/// own server, sign-in included, stay in this window.
 @MainActor
 final class MapWindowController: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate {
   private var window: NSWindow?
@@ -91,7 +92,7 @@ final class MapWindowController: NSObject, NSWindowDelegate, WKNavigationDelegat
   func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
     log("map page did not load: \(error.localizedDescription)")
     webView.loadHTMLString(
-      "<body style='font:15px -apple-system;padding:40px;color:#555'>The map did not load: \(error.localizedDescription).<br>Is the Living Map server running?</body>",
+      "<body style='font:15px -apple-system;padding:40px;color:#555'>The map did not load: \(error.localizedDescription).<br>Is Anur Living Map running? Open it with /anur-living-map in Claude Code.</body>",
       baseURL: nil)
   }
 }

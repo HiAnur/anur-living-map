@@ -23,6 +23,9 @@ public struct Backoff: Sendable, Equatable {
 /// Holds finalized segments until the server has them. Segments go out in the
 /// order they were added, in batches, one send at a time; a failed send keeps
 /// its batch at the front for the next try, so nothing is dropped or reordered.
+/// Only a refusal the server will not change its mind on (the meeting has
+/// ended, the map is gone) moves a batch out, to `rejected`, instead of
+/// retrying it forever.
 public actor SegmentQueue {
   public typealias Send = @Sendable ([Segment]) async throws -> Void
   public typealias Sleep = @Sendable (Duration) async throws -> Void
@@ -31,8 +34,10 @@ public actor SegmentQueue {
   public private(set) var sentCount = 0
   public private(set) var failures = 0
   public private(set) var lastError: String?
+  public private(set) var rejected: [Segment] = []
 
   private let send: Send
+  private let isFinal: @Sendable (Error) -> Bool
   private let sleep: Sleep
   private let backoff: Backoff
   private let maxBatch: Int
@@ -45,8 +50,10 @@ public actor SegmentQueue {
     pending: [Segment] = [], maxBatch: Int = 100, backoff: Backoff = Backoff(),
     sleep: @escaping Sleep = { try await Task.sleep(for: $0) },
     onChange: (@Sendable ([Segment]) -> Void)? = nil,
+    isFinal: @escaping @Sendable (Error) -> Bool = SegmentQueue.isRefusal,
     send: @escaping Send
   ) {
+    self.isFinal = isFinal
     self.pending = pending
     self.maxBatch = max(1, maxBatch)
     self.backoff = backoff
@@ -110,14 +117,25 @@ public actor SegmentQueue {
     return pending.count
   }
 
+  /// A Living Map refusal that asking again will not change.
+  public static let isRefusal: @Sendable (Error) -> Bool = { error in
+    (error as? LivingMapError).map { !$0.isRetryable } ?? false
+  }
+
   private func sendAll() async -> Bool {
     while !pending.isEmpty {
       let batch = Array(pending.prefix(maxBatch))
       do {
         try await send(batch)
       } catch {
-        failures += 1
         lastError = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+        if isFinal(error) {
+          pending.removeFirst(batch.count)
+          rejected.append(contentsOf: batch)
+          onChange?(pending)
+          continue
+        }
+        failures += 1
         return false
       }
       // Segments appended during the send sit after this batch, so the front is still it.

@@ -108,6 +108,30 @@ func seg(_ n: Int, _ speaker: Speaker = .you) -> Segment {
     #expect(await server.texts == ["s1"])
   }
 
+  @Test func aMeetingThatHasEndedIsNotRetriedForever() async {
+    let tries = Recorder<[String]>()
+    let queue = SegmentQueue(maxBatch: 2, sleep: noWait) { batch in
+      tries.add(batch.map(\.text))
+      if batch.first?.text == "s1" { throw LivingMapError.server(status: 400, message: "That meeting has ended.") }
+    }
+    for n in 1...3 { await queue.append(seg(n)) }
+    #expect(await queue.flush())
+    #expect(await queue.pending.isEmpty)
+    #expect(await queue.rejected.map(\.text) == ["s1", "s2"])
+    #expect(await queue.sentCount == 1)
+    #expect(await queue.lastError == nil)
+    #expect(await queue.stop(attempts: 3) == 0)
+    #expect(tries.values == [["s1", "s2"], ["s3"]])
+  }
+
+  @Test func refusalsAreFinalButOutagesAreNot() {
+    #expect(SegmentQueue.isRefusal(LivingMapError.server(status: 400, message: "That meeting has ended.")))
+    #expect(SegmentQueue.isRefusal(LivingMapError.server(status: 404, message: "No meeting map with that name.")))
+    #expect(SegmentQueue.isRefusal(LivingMapError.server(status: 503, message: "")) == false)
+    #expect(SegmentQueue.isRefusal(LivingMapError.unreachable("down")) == false)
+    #expect(SegmentQueue.isRefusal(URLError(.timedOut)) == false)
+  }
+
   @Test func periodicLoopFlushesAndStopDrains() async throws {
     let server = FakeServer()
     let ticks = AsyncStream<Void>.makeStream()

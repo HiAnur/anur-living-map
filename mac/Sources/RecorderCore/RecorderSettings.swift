@@ -2,19 +2,20 @@ import Foundation
 
 /// A meeting this Mac recorded or imported, for the Recent meetings menu.
 public struct RecentMeeting: Codable, Equatable, Sendable {
-  public var conv: String
+  /// The map's name; its page is `/<name>/`.
+  public var name: String
   public var title: String
   public var date: Date
 
-  public init(conv: String, title: String, date: Date) {
-    self.conv = conv
+  public init(name: String, title: String, date: Date) {
+    self.name = name
     self.title = title
     self.date = date
   }
 }
 
-/// The recorder's own settings, in UserDefaults. `serverURL` and `appDir` are
-/// hidden: set them with `defaults write com.anur.living-map-recorder serverURL …`.
+/// The recorder's own settings, in UserDefaults. `serverURL` and `yourName` are
+/// hidden: set them with `defaults write com.anur.living-map-recorder yourName Harshit`.
 public final class RecorderSettings: @unchecked Sendable {
   public static let maxRecent = 10
 
@@ -27,9 +28,20 @@ public final class RecorderSettings: @unchecked Sendable {
     set { defaults.set(newValue, forKey: "serverURL") }
   }
 
-  public var appDir: String? {
-    get { defaults.string(forKey: "appDir") }
-    set { defaults.set(newValue, forKey: "appDir") }
+  /// Who is recording, sent as `by`: the map's chat pane is shown only to that
+  /// person, so it must be your team sign-in name. Defaults to your first name.
+  public var yourName: String {
+    get {
+      let set = defaults.string(forKey: "yourName")?.trimmingCharacters(in: .whitespaces) ?? ""
+      return set.isEmpty ? Self.firstName(of: NSFullUserName()) : set
+    }
+    set { defaults.set(newValue, forKey: "yourName") }
+  }
+
+  /// The first word of a full name; the whole of it when it has no space.
+  public static func firstName(of fullName: String) -> String {
+    let words = fullName.split(whereSeparator: \.isWhitespace)
+    return words.first.map(String.init) ?? fullName
   }
 
   /// Offer to record when a meeting starts (on unless turned off).
@@ -46,11 +58,11 @@ public final class RecorderSettings: @unchecked Sendable {
 
   public var recent: [RecentMeeting] {
     get {
-      guard let data = defaults.data(forKey: "recentMeetings") else { return [] }
+      guard let data = defaults.data(forKey: "recentMaps") else { return [] }
       return (try? JSONDecoder().decode([RecentMeeting].self, from: data)) ?? []
     }
     set {
-      defaults.set(try? JSONEncoder().encode(newValue), forKey: "recentMeetings")
+      defaults.set(try? JSONEncoder().encode(newValue), forKey: "recentMaps")
     }
   }
 
@@ -60,7 +72,7 @@ public final class RecorderSettings: @unchecked Sendable {
   }
 
   public static func adding(_ meeting: RecentMeeting, to list: [RecentMeeting]) -> [RecentMeeting] {
-    Array(([meeting] + list.filter { $0.conv != meeting.conv }).prefix(maxRecent))
+    Array(([meeting] + list.filter { $0.name != meeting.name }).prefix(maxRecent))
   }
 }
 

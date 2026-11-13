@@ -7,7 +7,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { checkAnswer } from "../apply.ts";
-import { isMeeting } from "../meeting/file.ts";
 import { planOf } from "../tasks.ts";
 import { emptyTranscript, view as readView, type Turn } from "../transcript.ts";
 import {
@@ -108,8 +107,7 @@ export async function read(ctx: Ctx, f: Follower) {
 function snapChanges(ctx: Ctx, f: Follower) {
   const { db, deps } = ctx;
   const ch = deps.changes;
-  // a meeting changes no code
-  if (!ch || isMeeting(f.s.conv.root)) return;
+  if (!ch) return;
   if (f.shadow === undefined) {
     f.shadow = ch.shadowFor(f.s.conv.cwd);
     if (f.shadow) f.snap = ch.snapshot(f.shadow, "start") ?? undefined;
@@ -175,9 +173,7 @@ function recover(ctx: Ctx, f: Follower) {
 function lateLink(ctx: Ctx, f: Follower) {
   const { db, now } = ctx;
   const { store, conv } = f.s;
-  // a meeting is filed whole, however long: its turns are a minute each
-  const fresh =
-    store.read === 0 && store.items.size === 0 && !isMeeting(conv.root);
+  const fresh = store.read === 0 && store.items.size === 0;
   if (fresh && conv.skipped === 0 && f.sealed > LATE_TURNS) {
     conv.skipped = f.sealed - LATE_TURNS;
     store.read = conv.skipped;

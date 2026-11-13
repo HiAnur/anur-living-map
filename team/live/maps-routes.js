@@ -1,4 +1,4 @@
-// The list of maps, at the server's own /api/...: a new map from a prompt, a map file loaded, Trash (move, list,
+// The list of maps, at the server's own /api/...: a new map from a prompt, a meeting's map (meeting.js), a map file loaded, Trash (move, list,
 // restore), a pin, background from other maps, the maps a person may open, and a code folder added from a chat. Each
 // route answers with the response, and true when it answered.
 import crypto from 'node:crypto';
@@ -39,6 +39,43 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName }) {
       const name = freeName(prompt);
       mapCalled(name).build({ prompt, by: who });
       return json(200, { name, href: `/${name}/` });
+    }
+    // A meeting drawn live, from the Living Map Recorder on this Mac (or a signed-in person): a new map named after
+    // it, drawn by its own chat as what was said arrives. `by` is who records it, whose pane follows that chat;
+    // a signed-in person is always themself.
+    //   POST /api/meetings {title?, app?, by}            → {name, title, href}
+    //   POST /api/meetings/import {title?, text, me?, by} → {name, title, href}, a transcript pasted afterwards
+    //   POST /api/meetings/<name>/segments {segments}    → {ok, count}
+    //   POST /api/meetings/<name>/end                    → {ok}
+    if (url.pathname.startsWith('/api/meetings') && req.method === 'POST') {
+      if (!who && !localTool(req)) return json(401, { error: 'Sign in first.' });
+      const /** @type {any} */ a = await jsonBody(req, {});
+      const by = who || String(a.by || '').trim().slice(0, 60);
+      const parts = url.pathname.split('/').slice(3);
+      if (parts.length === 0 || (parts.length === 1 && parts[0] === 'import')) {
+        if (!by) return json(400, { error: 'Say who is recording the meeting, as "by".' });
+        const app = String(a.app || '').trim().slice(0, 40), imported = parts[0] === 'import';
+        const when = new Date().toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const title = String(a.title || '').trim().slice(0, 120) || `${imported ? 'Imported meeting' : `Meeting${app ? ` on ${app}` : ''}`}, ${when}`;
+        const name = freeName(title);
+        const map = mapCalled(name);
+        if (imported) {
+          const r = map.importMeeting({ title, text: String(a.text || ''), me: String(a.me || ''), by });
+          if (r.error) { map.close(); named.delete(name); return json(400, { error: r.error }); }
+        } else map.startMeeting({ title, app, by });
+        return json(200, { name, title, href: `/${name}/` });
+      }
+      const [name, step] = parts, map = parts.length === 2 && /^[a-z0-9-]+$/.test(name) ? everyMap().find(([n]) => n === name)?.[1] : null;
+      if (!map || !map.meeting || (who && !map.allowed(who, req))) return json(404, { error: 'No meeting map with that name.' });
+      if (step === 'segments') {
+        const r = map.meeting.add(a.segments);
+        return r.error ? json(400, { error: r.error }) : json(200, { ok: true, count: r.count });
+      }
+      if (step === 'end') {
+        const r = map.meeting.end();
+        return r.error ? json(400, { error: r.error }) : json(200, { ok: true });
+      }
+      return json(404, { error: 'No such meeting route.' });
     }
     // Load a map file: the data a shared file carries (Share as a file) becomes a map here, named after its title,
     // exactly as it was saved, and opens

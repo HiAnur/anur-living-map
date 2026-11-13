@@ -16,13 +16,13 @@ public struct PendingStore: Sendable {
   }
 
   public struct Entry: Codable, Equatable, Sendable {
-    public var conv: String
+    public var name: String
     /// True once recording stopped: the meeting still needs its `end` after the send.
     public var ended: Bool
     public var segments: [Segment]
 
-    public init(conv: String, ended: Bool, segments: [Segment]) {
-      self.conv = conv
+    public init(name: String, ended: Bool, segments: [Segment]) {
+      self.name = name
       self.ended = ended
       self.segments = segments
     }
@@ -30,7 +30,7 @@ public struct PendingStore: Sendable {
 
   /// Writes the entry, or removes it when it has nothing left to do.
   public func save(_ entry: Entry) {
-    let file = fileURL(entry.conv)
+    let file = fileURL(entry.name)
     if entry.segments.isEmpty && !entry.ended {
       try? FileManager.default.removeItem(at: file)
       return
@@ -44,8 +44,8 @@ public struct PendingStore: Sendable {
     }
   }
 
-  public func remove(conv: String) {
-    try? FileManager.default.removeItem(at: fileURL(conv))
+  public func remove(name: String) {
+    try? FileManager.default.removeItem(at: fileURL(name))
   }
 
   public func all() -> [Entry] {
@@ -59,8 +59,8 @@ public struct PendingStore: Sendable {
     }
   }
 
-  func fileURL(_ conv: String) -> URL {
-    let safe = conv.unicodeScalars.map {
+  func fileURL(_ name: String) -> URL {
+    let safe = name.unicodeScalars.map {
       CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" ? String($0) : "_"
     }.joined()
     return folder.appendingPathComponent("\(safe).json")

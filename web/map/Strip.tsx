@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
 
-import {
-  isMeetingConv,
-  type LedgerItem,
-  type LedgerView,
-} from "../../shared/ledger.ts";
+import type { LedgerItem, LedgerView } from "../../shared/ledger.ts";
 import { Glyph } from "./Glyph.tsx";
 import type { Snap } from "./since.ts";
 
@@ -113,12 +109,7 @@ export function Strip({
         >
           ◐
         </span>
-        {isMeetingConv(view.conv) ? (
-          // a meeting has no Claude at work: say what the map follows
-          <span className="truncate text-muted">
-            Meeting · filed about once a minute of talk
-          </span>
-        ) : view.strip.doing ? (
+        {view.strip.doing ? (
           <span className="truncate text-body">
             <span className="text-muted">Claude: </span>
             <span data-content>{view.strip.doing}</span>

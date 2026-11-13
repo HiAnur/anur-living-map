@@ -26,10 +26,10 @@ final class RecordingSession {
     self.app = app
     self.client = client
     self.pending = pending
-    let conv = meeting.conv
+    let name = meeting.name
     queue = SegmentQueue(
-      onChange: { segments in pending.save(.init(conv: conv, ended: false, segments: segments)) },
-      send: { batch in try await client.sendSegments(conv: conv, batch) })
+      onChange: { segments in pending.save(.init(name: name, ended: false, segments: segments)) },
+      send: { batch in try await client.sendSegments(name: name, batch) })
   }
 
   /// Starts both sources. The mic must work; the Mac's sound is best effort.
@@ -58,17 +58,24 @@ final class RecordingSession {
     othersStatus = "stopped"
 
     let left = await queue.stop(attempts: 3)
-    let conv = meeting.conv
+    let name = meeting.name
+    let rejected = await queue.rejected.count
+    if rejected > 0 { log("\(name) refused \(rejected) segment(s): \(await queue.lastError ?? "")") }
     if left == 0 {
       do {
-        try await client.endMeeting(conv: conv)
-        pending.remove(conv: conv)
+        try await client.endMeeting(name: name)
+        pending.remove(name: name)
         return 0
       } catch {
-        log("ending \(conv) failed: \(error.localizedDescription)")
+        log("ending \(name) failed: \(error.localizedDescription)")
+        // Already ended, or the map is gone: nothing left to do for it.
+        if SegmentQueue.isRefusal(error) {
+          pending.remove(name: name)
+          return 0
+        }
       }
     }
-    pending.save(.init(conv: conv, ended: true, segments: await queue.pending))
+    pending.save(.init(name: name, ended: true, segments: await queue.pending))
     return left
   }
 

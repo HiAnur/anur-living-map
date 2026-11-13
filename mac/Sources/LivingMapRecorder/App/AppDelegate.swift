@@ -74,28 +74,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       updateStatusItem()
     }
 
-    if !(await server.refresh()) {
-      guard server.appDir != nil, await server.startServer() else {
-        alert(
-          "The Living Map server is not running",
-          "Start it, then try again:\n\n\(server.startCommand)" + (server.lastStartError.map { "\n\n\($0)" } ?? ""))
-        return
-      }
+    guard await server.refresh() else {
+      alert(Self.notRunning(server.config), Self.howToOpen)
+      return
     }
     let client = server.client
     let meeting: MeetingStart
     do {
-      meeting = try await client.startMeeting(title: nil, app: app)
+      meeting = try await client.startMeeting(title: nil, app: app, by: settings.yourName)
     } catch {
       alert("Could not start a meeting map", error.localizedDescription)
       return
     }
-    settings.remember(RecentMeeting(conv: meeting.conv, title: meeting.title, date: Date()))
-    if let url = server.config.absolute(meeting.url) { mapWindow.show(url: url, title: meeting.title) }
+    settings.remember(RecentMeeting(name: meeting.name, title: meeting.title, date: Date()))
+    if let url = server.config.absolute(meeting.href) { mapWindow.show(url: url, title: meeting.title) }
 
     let session = RecordingSession(meeting: meeting, app: app, client: client, pending: pendingStore)
     self.session = session
-    uploader.activeConv = meeting.conv
+    uploader.activeName = meeting.name
     await session.start(captureSystemAudio: settings.captureSystemAudio)
     let clock = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
       MainActor.assumeIsolated { self?.updateStatusItem() }
@@ -112,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     updateStatusItem()
     let left = await session.stop()
     self.session = nil
-    uploader.activeConv = nil
+    uploader.activeName = nil
     busy = false
     if left > 0 {
       note = "\(left) segment(s) wait for the server; they are kept and sent when it is back."
@@ -121,31 +117,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     updateStatusItem()
   }
 
-  func openMap(conv: String, title: String) async {
-    do {
-      let path = try await server.client.openMeeting(conv: conv)
-      guard let url = server.config.absolute(path) else { return }
-      mapWindow.show(url: url, title: title)
-    } catch {
-      alert("Could not open the map", error.localizedDescription)
-    }
+  static func notRunning(_ config: ServerConfig) -> String {
+    "Anur Living Map isn't running on \(config.hostAndPort)"
   }
 
-  func openMapList() async {
-    do {
-      mapWindow.show(url: try await server.client.openMapList(), title: "your maps")
-    } catch {
-      alert("Could not open Living Map", error.localizedDescription)
-    }
+  static let howToOpen = "Open it with /anur-living-map in Claude Code"
+
+  /// A meeting's map, by name; the map redirects to sign-in the first time,
+  /// and the web view keeps the sign-in.
+  func openMap(name: String, title: String) {
+    guard let url = server.config.mapPage(name: name) else { return }
+    mapWindow.show(url: url, title: title)
+  }
+
+  /// The list of every map, for when there is no meeting of this app's yet.
+  func openMapList() {
+    guard let url = server.config.mapsPage else { return }
+    mapWindow.show(url: url, title: "your maps")
   }
 
   func showImport() {
     importWindow.show { [weak self] title, text in
       guard let self else { return }
       let meeting = try await self.server.client.importTranscript(
-        title: title, text: text, me: NSFullUserName())
-      self.settings.remember(RecentMeeting(conv: meeting.conv, title: meeting.title, date: Date()))
-      if let url = self.server.config.absolute(meeting.url) { self.mapWindow.show(url: url, title: meeting.title) }
+        title: title, text: text, me: NSFullUserName(), by: self.settings.yourName)
+      self.settings.remember(RecentMeeting(name: meeting.name, title: meeting.title, date: Date()))
+      if let url = self.server.config.absolute(meeting.href) { self.mapWindow.show(url: url, title: meeting.title) }
     }
   }
 
@@ -154,16 +151,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func updateStatusItem() {
     guard let button = statusItem?.button else { return }
     if let session {
-      button.image = NSImage(systemSymbolName: "record.circle.fill", accessibilityDescription: "Recording")
-      button.contentTintColor = .systemRed
+      button.image = Brand.recording
       button.title = " " + Clock.elapsed(Date().timeIntervalSince(session.started))
     } else {
-      button.image = NSImage(
-        systemSymbolName: busy ? "ellipsis.circle" : "point.3.connected.trianglepath.dotted",
-        accessibilityDescription: "Living Map Recorder")
-      button.contentTintColor = nil
-      button.title = ""
+      button.image = Brand.menuBar
+      button.title = busy ? " …" : ""
     }
+    button.contentTintColor = nil
     button.imagePosition = .imageLeading
   }
 

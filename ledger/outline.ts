@@ -4,11 +4,7 @@
 // lens (?lens=waiting|open|decided) gives one section alone, so "what's
 // pending" costs the chat a few lines, not every item ever filed.
 
-import {
-  isMeetingConv,
-  type LedgerItem,
-  type LedgerView,
-} from "../shared/ledger.ts";
+import type { LedgerItem, LedgerView } from "../shared/ledger.ts";
 
 export const OUTLINE_LENSES = ["waiting", "open", "decided"] as const;
 export type OutlineLens = (typeof OUTLINE_LENSES)[number];
@@ -104,11 +100,9 @@ export function outline(v: LedgerView, lens?: OutlineLens): string {
     `Filed up to turn ${v.read} of ${v.turns}. "Now" is what matters at this point; the whole map follows, settled topics folded to one line each. Ask with ?lens=waiting, open or decided for one section alone.`,
     "",
     "## Now",
-    isMeetingConv(v.conv)
-      ? "A meeting: filed about once a minute of talk."
-      : v.strip.doing
-        ? `Claude is on: ${v.strip.doing}`
-        : "Claude isn't on a task.",
+    v.strip.doing
+      ? `Claude is on: ${v.strip.doing}`
+      : "Claude isn't on a task.",
     "",
     ...sections.waiting(),
     "",

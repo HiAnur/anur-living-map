@@ -1,5 +1,7 @@
 import Foundation
 
+@testable import RecorderCore
+
 /// Answers URLSession requests from a handler the test sets, and records them.
 final class StubProtocol: URLProtocol, @unchecked Sendable {
   struct Reply {
@@ -21,11 +23,8 @@ final class StubProtocol: URLProtocol, @unchecked Sendable {
 
   static var requests: [URLRequest] { lock.withLock { seen } }
 
-  static func session() -> URLSession {
-    let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [StubProtocol.self]
-    return URLSession(configuration: config)
-  }
+  /// The client's own session, answered by this stub.
+  static func session() -> URLSession { LivingMapClient.makeSession(protocolClasses: [StubProtocol.self]) }
 
   override class func canInit(with request: URLRequest) -> Bool { true }
   override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }

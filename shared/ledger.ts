@@ -57,10 +57,6 @@ export type ChatSummary = {
   waiting: number; // items that wait on you
 };
 
-// a meeting the recorder sends, mapped like a chat (ledger/meeting/)
-export const MEETING_PREFIX = "meeting-";
-export const isMeetingConv = (conv: string) => conv.startsWith(MEETING_PREFIX);
-
 export type LedgerView = {
   conv: string;
   title: string;

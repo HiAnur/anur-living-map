@@ -11,6 +11,7 @@ final class MeetingPrompt {
   func show(app: String?, onStart: @escaping () -> Void) {
     hide()
     let view = PromptView(
+      mark: Brand.mark,
       app: app,
       start: { [weak self] in
         self?.hide()
@@ -56,19 +57,26 @@ final class MeetingPrompt {
 }
 
 private struct PromptView: View {
+  let mark: NSImage?
   let app: String?
   let start: () -> Void
   let dismiss: () -> Void
 
   var body: some View {
     HStack(spacing: 12) {
-      Image(systemName: "waveform.circle.fill")
-        .font(.system(size: 22))
-        .foregroundStyle(.tint)
+      if let mark {
+        Image(nsImage: mark)
+          .resizable()
+          .frame(width: 26, height: 26)
+      } else {
+        Image(systemName: "waveform.circle.fill")
+          .font(.system(size: 22))
+          .foregroundStyle(.tint)
+      }
       VStack(alignment: .leading, spacing: 2) {
         Text(app.map { "Meeting in \($0)" } ?? "Meeting started")
           .font(.system(size: 13, weight: .semibold))
-        Text("Map it live with Living Map")
+        Text("Map it live with Anur Living Map")
           .font(.system(size: 11))
           .foregroundStyle(.secondary)
       }

@@ -33,27 +33,34 @@ public struct Segment: Codable, Equatable, Sendable {
 
 /// What `POST /api/meetings` and `POST /api/meetings/import` answer.
 public struct MeetingStart: Codable, Equatable, Sendable {
-  public var conv: String
+  /// The map's name, e.g. `launch-sync`.
+  public var name: String
   public var title: String
-  /// A relative one-time sign-in path (`/auth?n=…&conv=…`).
-  public var url: String
+  /// The map page, relative to the server: `/launch-sync/`.
+  public var href: String
+
+  public init(name: String, title: String, href: String) {
+    self.name = name
+    self.title = title
+    self.href = href
+  }
 }
 
 struct SegmentsBody: Encodable { var segments: [Segment] }
 struct StartBody: Encodable {
   var title: String?
   var app: String?
+  /// Who is recording, by their team sign-in name: the map's chat pane is theirs.
+  var by: String
 }
 struct ImportBody: Encodable {
-  var title: String
+  var title: String?
   var text: String
-  /// your name as the transcript writes it: your lines are filed as yours
+  /// Your name as the transcript writes it: your lines are filed as yours.
   var me: String?
+  var by: String
 }
 struct EmptyBody: Encodable {}
-struct OpenBody: Encodable { var launch = false }
 struct OkAnswer: Decodable { var ok: Bool? }
 struct CountAnswer: Decodable { var ok: Bool?; var count: Int? }
-struct URLAnswer: Decodable { var url: String }
-struct HealthAnswer: Decodable { var app: String?; var ok: Bool? }
 struct ErrorAnswer: Decodable { var error: String }

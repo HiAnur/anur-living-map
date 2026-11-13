@@ -10,8 +10,9 @@ final class ImportWindowController {
   private var window: NSWindow?
   private let model = ImportModel()
 
-  /// `submit` sends the title and text; it throws to show its error in the window.
-  func show(submit: @escaping (String, String) async throws -> Void) {
+  /// `submit` sends the title (nil: the server names it) and text; it throws to
+  /// show its error in the window.
+  func show(submit: @escaping (String?, String) async throws -> Void) {
     model.submit = submit
     model.error = nil
     if window == nil {
@@ -20,7 +21,8 @@ final class ImportWindowController {
         styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
       window.title = "Import transcript"
       window.isReleasedWhenClosed = false
-      window.contentView = NSHostingView(rootView: ImportView(model: model, close: { [weak self] in self?.close() }))
+      window.contentView = NSHostingView(
+        rootView: ImportView(model: model, mark: Brand.mark, close: { [weak self] in self?.close() }))
       window.center()
       self.window = window
     }
@@ -42,7 +44,7 @@ final class ImportModel: ObservableObject {
   @Published var text = ""
   @Published var error: String?
   @Published var busy = false
-  var submit: ((String, String) async throws -> Void)?
+  var submit: ((String?, String) async throws -> Void)?
 
   func chooseFile() {
     let panel = NSOpenPanel()
@@ -71,7 +73,7 @@ final class ImportModel: ObservableObject {
     Task {
       defer { busy = false }
       do {
-        try await submit?(title.isEmpty ? TranscriptImport.defaultTitle() : title, body)
+        try await submit?(title.isEmpty ? nil : title, body)
         close()
       } catch {
         self.error = error.localizedDescription
@@ -82,12 +84,18 @@ final class ImportModel: ObservableObject {
 
 private struct ImportView: View {
   @ObservedObject var model: ImportModel
+  let mark: NSImage?
   let close: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      TextField("Title", text: $model.title)
-        .textFieldStyle(.roundedBorder)
+      HStack(spacing: 10) {
+        if let mark {
+          Image(nsImage: mark).resizable().frame(width: 28, height: 28)
+        }
+        TextField("Title", text: $model.title)
+          .textFieldStyle(.roundedBorder)
+      }
       Text("Paste a meeting transcript (for example from Wispr Flow notes), or choose a file.")
         .font(.callout)
         .foregroundStyle(.secondary)

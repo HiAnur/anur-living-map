@@ -4,65 +4,39 @@ import Testing
 @testable import RecorderCore
 
 @Suite struct ConfigTests {
-  let home = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
-
   @Test func baseURLPrefersEnvThenSettingThenDefault() {
     #expect(
       ServerConfig.baseURL(env: ["LIVING_MAP_URL": "http://127.0.0.1:5000/"], setting: "http://localhost:6000")
         .absoluteString == "http://127.0.0.1:5000")
     #expect(ServerConfig.baseURL(env: [:], setting: "http://localhost:6000").absoluteString == "http://localhost:6000")
     #expect(ServerConfig.baseURL(env: [:], setting: nil) == ServerConfig.defaultURL)
-    #expect(ServerConfig.defaultURL.absoluteString == "http://localhost:4317")
+    #expect(ServerConfig.defaultURL.absoluteString == "http://localhost:4323")
     // Not http(s): skipped, not trusted.
     #expect(ServerConfig.baseURL(env: ["LIVING_MAP_URL": "file:///etc"], setting: "") == ServerConfig.defaultURL)
     #expect(ServerConfig.baseURL(env: ["LIVING_MAP_URL": "nonsense"], setting: nil) == ServerConfig.defaultURL)
+    #expect(ServerConfig.resolve(env: [:], urlSetting: nil).hostAndPort == "localhost:4323")
   }
 
-  @Test func tokenFileFollowsLivingMapHome() {
-    #expect(
-      ServerConfig.resolve(env: [:], urlSetting: nil, home: home).tokenFile.path
-        == "/Users/someone/.living-map/token")
-    #expect(
-      ServerConfig.resolve(env: ["LIVING_MAP_HOME": "/tmp/lm-test"], urlSetting: nil, home: home).tokenFile.path
-        == "/tmp/lm-test/token")
+  @Test func mapPagesJoinTheBase() {
+    let config = ServerConfig(baseURL: URL(string: "http://localhost:4323")!)
+    #expect(config.absolute("/launch-sync/")?.absoluteString == "http://localhost:4323/launch-sync/")
+    #expect(config.mapPage(name: "launch-sync")?.absoluteString == "http://localhost:4323/launch-sync/")
+    #expect(config.mapsPage?.absoluteString == "http://localhost:4323/")
+    let custom = ServerConfig(baseURL: URL(string: "http://localhost:5555/")!)
+    #expect(custom.absolute("api/version")?.absoluteString == "http://localhost:5555/api/version")
+    #expect(custom.hostAndPort == "localhost:5555")
   }
 
-  @Test func tokenIsTrimmedAndMissingIsNil() throws {
-    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: dir) }
-    let file = dir.appendingPathComponent("token")
-    #expect(ServerConfig.readToken(at: file) == nil)
-    try "abc123\n".write(to: file, atomically: true, encoding: .utf8)
-    #expect(ServerConfig.readToken(at: file) == "abc123")
-    try "  \n".write(to: file, atomically: true, encoding: .utf8)
-    #expect(ServerConfig.readToken(at: file) == nil)
-  }
-
-  @Test func signInPathsJoinTheBase() {
-    let config = ServerConfig(baseURL: URL(string: "http://localhost:4317")!, tokenFile: home)
-    #expect(config.absolute("/auth?n=abc&conv=m-1")?.absoluteString == "http://localhost:4317/auth?n=abc&conv=m-1")
-    #expect(config.absolute("auth?n=abc")?.absoluteString == "http://localhost:4317/auth?n=abc")
-    #expect(config.port == 4317)
-    let custom = ServerConfig(baseURL: URL(string: "http://localhost:5555")!, tokenFile: home)
-    #expect(custom.absolute("/api/health")?.absoluteString == "http://localhost:5555/api/health")
-    #expect(custom.port == 5555)
-  }
-
-  @Test func appDirFromEnvSettingOrAKnownClone() {
-    let present: Set<String> = [
-      "/env/dir/skill/start.ts", "/set/dir/skill/start.ts", "/Users/someone/workspace/anur-living-map/skill/start.ts",
-    ]
-    let exists: (String) -> Bool = { present.contains($0) }
-    #expect(
-      AppDirResolver.resolve(env: ["LIVING_MAP_APP_DIR": "/env/dir"], setting: "/set/dir", home: home, exists: exists)
-        == "/env/dir")
-    #expect(AppDirResolver.resolve(env: [:], setting: "/set/dir", home: home, exists: exists) == "/set/dir")
-    #expect(
-      AppDirResolver.resolve(env: [:], setting: "/missing", home: home, exists: exists)
-        == "/Users/someone/workspace/anur-living-map")
-    #expect(AppDirResolver.resolve(env: [:], setting: nil, home: home, exists: { _ in false }) == nil)
-    #expect(AppDirResolver.startCommand(appDir: "/x") == "node /x/skill/start.ts")
+  @Test func yourNameIsTheFirstWordUnlessSet() {
+    #expect(RecorderSettings.firstName(of: "Harshit Khandelwal") == "Harshit")
+    #expect(RecorderSettings.firstName(of: "Priyanka") == "Priyanka")
+    #expect(RecorderSettings.firstName(of: "") == "")
+    let settings = RecorderSettings(defaults: UserDefaults(suiteName: "recorder-tests-\(UUID().uuidString)")!)
+    #expect(settings.yourName == RecorderSettings.firstName(of: NSFullUserName()))
+    settings.yourName = "Duy"
+    #expect(settings.yourName == "Duy")
+    settings.yourName = "  "
+    #expect(settings.yourName == RecorderSettings.firstName(of: NSFullUserName()))
   }
 }
 
@@ -99,13 +73,13 @@ import Testing
   @Test func recentMeetingsAreUniqueNewestFirstAndCapped() {
     let defaults = UserDefaults(suiteName: "recorder-tests-\(UUID().uuidString)")!
     let settings = RecorderSettings(defaults: defaults)
-    for n in 0..<12 { settings.remember(RecentMeeting(conv: "c\(n)", title: "T\(n)", date: Date())) }
-    settings.remember(RecentMeeting(conv: "c5", title: "again", date: Date()))
+    for n in 0..<12 { settings.remember(RecentMeeting(name: "c\(n)", title: "T\(n)", date: Date())) }
+    settings.remember(RecentMeeting(name: "c5", title: "again", date: Date()))
     let list = settings.recent
     #expect(list.count == RecorderSettings.maxRecent)
-    #expect(list.first?.conv == "c5")
+    #expect(list.first?.name == "c5")
     #expect(list.first?.title == "again")
-    #expect(Set(list.map(\.conv)).count == list.count)
+    #expect(Set(list.map(\.name)).count == list.count)
     #expect(settings.detectMeetings)
     settings.detectMeetings = false
     #expect(settings.detectMeetings == false)
@@ -115,14 +89,14 @@ import Testing
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: dir) }
     let store = PendingStore(folder: dir)
-    store.save(.init(conv: "m/1", ended: true, segments: [seg(1), seg(2)]))
-    store.save(.init(conv: "m2", ended: false, segments: [seg(3)]))
-    #expect(store.all().map(\.conv).sorted() == ["m/1", "m2"])
-    #expect(store.all().first { $0.conv == "m/1" }?.segments.map(\.text) == ["s1", "s2"])
+    store.save(.init(name: "m/1", ended: true, segments: [seg(1), seg(2)]))
+    store.save(.init(name: "m2", ended: false, segments: [seg(3)]))
+    #expect(store.all().map(\.name).sorted() == ["m/1", "m2"])
+    #expect(store.all().first { $0.name == "m/1" }?.segments.map(\.text) == ["s1", "s2"])
     // Nothing left and not ended: nothing to keep.
-    store.save(.init(conv: "m2", ended: false, segments: []))
-    #expect(store.all().map(\.conv) == ["m/1"])
-    store.remove(conv: "m/1")
+    store.save(.init(name: "m2", ended: false, segments: []))
+    #expect(store.all().map(\.name) == ["m/1"])
+    store.remove(name: "m/1")
     #expect(store.all().isEmpty)
   }
 
