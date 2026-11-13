@@ -43,6 +43,26 @@ describe('the centre of a system map', () => {
     expect(withCentre(map, map.title)).toBe(false);
   });
 
+  it('leads to no person, and takes away a line it once drew to one, on open', () => {
+    const map = /** @type {any} */ (older());
+    map.nodes.push({ id: 'system-customer', label: 'Customer', kind: 'actor', x: 100, y: 800, origin: 'code' }, { id: 'system-stripe', label: 'Stripe', kind: 'ext', x: 400, y: 800, origin: 'code' });
+    withCentre(map, map.title);
+    expect(map.edges.filter(fromCentre).map((/** @type {any} */ e) => e.to)).toContain('system-stripe');
+    expect(map.edges.filter(fromCentre).map((/** @type {any} */ e) => e.to)).not.toContain('system-customer');
+    // a map that got a line to its person before people were left out loses it when it opens, and only that one
+    map.edges.push({ from: CENTRE, to: 'system-customer', origin: 'code' }, { from: 'system-customer', to: 'system-r0', label: 'uses', origin: 'code' });
+    const home = tmp();
+    fs.writeFileSync(path.join(home, 'state.json'), JSON.stringify(map));
+    openMap({ name: 'with-people', home }).close();
+    const stored = JSON.parse(fs.readFileSync(path.join(home, 'state.json'), 'utf8'));
+    expect(stored.edges.filter(fromCentre).map((/** @type {any} */ e) => e.to)).not.toContain('system-customer');
+    expect(stored.edges.filter(fromCentre)).toHaveLength(21);
+    expect(stored.edges).toContainEqual({ from: 'system-customer', to: 'system-r0', label: 'uses', origin: 'code' });
+    // a line someone draws to a person themselves stays
+    stored.edges.push({ from: CENTRE, to: 'system-customer' });
+    expect(withCentre(stored, stored.title)).toBe(false);
+  });
+
   it('keeps a line someone draws from it to their own box, and the name someone gives it', () => {
     const map = older();
     withCentre(map, map.title);
