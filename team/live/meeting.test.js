@@ -12,7 +12,7 @@ import { agent } from './agent.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
 import { MEETING_ID } from './meeting-draw.js';
-import { CHUNK_MS, meetingJob, parseTranscript, SUMMARY_ID } from './meeting.js';
+import { ACTIONS_SCHEMA, CHUNK_MS, meetingJob, parseTranscript, SUMMARY_ID } from './meeting.js';
 import { openMap } from './server.js';
 
 const T0 = 1_700_000_000_000;
@@ -142,6 +142,41 @@ describe('a meeting on a map', () => {
     j.add([seg(70, 'Next up is pricing.'), seg(70 + CHUNK_MS / 1000, 'Free tier or trial?')]);
     await j.idle();
     expect(asked[1].prompt).not.toContain(SUMMARY_ID);
+    j.close();
+  });
+
+  it('ends by sending only your own words to the action check, which makes the drafts', async () => {
+    /** @type {any[]} */ const checked = [];
+    const { j, state, asked, said } = job({
+      answer: (/** @type {any} */ jb) => (jb.schema === ACTIONS_SCHEMA
+        ? { value: { items: [{ quote: "I'll send Dan the pricing by Thursday", title: 'Send Dan the pricing', task: { goal: 'g', result: 'r', inputs: [], steps: ['s'], evidence: ['e'], dependsOn: [] } }] } }
+        : { value: { summary: '', ops: [] } }),
+      job: { people: () => ['Harshit'], fromWords: (/** @type {any} */ src, /** @type {any} */ items) => { checked.push({ src, items }); return [{ title: items[0].title, made: 'm-draft' }]; } },
+    });
+    j.start({ title: 'Pricing sync', by: 'Harshit' });
+    j.add([seg(0, "I'll send Dan the pricing by Thursday.", 'you'), seg(5, 'Priya will check the contract.')]);
+    j.end();
+    for (let i = 0; i < 30 && !state.meeting.actions; i++) await wait(10);
+    const pass = asked.find((/** @type {any} */ a) => a.schema === ACTIONS_SCHEMA);
+    expect(pass.prompt).toContain("You: I'll send Dan the pricing by Thursday.");
+    expect(pass.prompt).not.toContain('Priya will check the contract');
+    expect(checked).toEqual([{ src: { kind: 'meeting', id: expect.stringContaining('meeting:Pricing sync:'), who: 'Harshit', lines: ["I'll send Dan the pricing by Thursday."], spoken: true }, items: expect.any(Array) }]);
+    expect(state.meeting.actions).toEqual([{ title: 'Send Dan the pricing', made: 'm-draft' }]);
+    expect(said.at(-1).text).toMatch(/^Made 1 Action draft from what you said, now preparing/);
+    j.close();
+  });
+
+  it('makes no drafts when the recorder\'s name is not one of the map\'s people, and says why', async () => {
+    let calls = 0;
+    const { j, state, asked, said } = job({ job: { people: () => ['Priyanka'], fromWords: () => { calls++; return []; } } });
+    j.start({ title: 'M', by: 'Harshit' });
+    j.add([seg(0, "I'll write the notes.", 'you')]);
+    j.end();
+    for (let i = 0; i < 30 && !state.meeting.actionsDone; i++) await wait(10);
+    await wait(20);
+    expect(asked.some((/** @type {any} */ a) => a.schema === ACTIONS_SCHEMA)).toBe(false);
+    expect(calls).toBe(0);
+    expect(said.at(-1).text).toMatch(/"Harshit" is not one of this map's people/);
     j.close();
   });
 

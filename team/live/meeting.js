@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { checkMeetingOps, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt } from './meeting-draw.js';
+import { PROPOSE_SCHEMA } from './propose.js';
 
 export const CHUNK_MS = 60_000;
 export const SUMMARY_ID = 'meeting-summary';
@@ -24,6 +25,36 @@ const IMPORT_WORDS = 900;
 // the end's last pass reads at most this much of the meeting
 const LAST_PASS_CHARS = 60_000;
 const RETRY_MS = 30_000;
+
+// What the end-of-meeting pass may name: things the person recording said they will do. Claude only lists them;
+// action-items.js decides each one (their own words, first person, a valid task, no duplicate) and makes the
+// drafts, which the map then prepares as them.
+const TASK = /** @type {any} */ (PROPOSE_SCHEMA).properties.nodes.items.properties.task;
+export const ACTIONS_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['items'],
+  properties: {
+    items: {
+      type: 'array', maxItems: 10,
+      items: {
+        type: 'object', additionalProperties: false, required: ['quote', 'title', 'task'],
+        properties: {
+          quote: { type: 'string', description: 'Their exact words, from a "You:" line, where they say they will do it.' },
+          title: { type: 'string', description: 'Under 10 words: what they will do.' },
+          sub: { type: 'string', description: 'One short line: by when, or for whom, if said.' },
+          under: { type: 'string', description: 'The id of the meeting box it belongs under, from the list.' },
+          task: TASK,
+        },
+      },
+    },
+  },
+};
+/** @param {string} by @param {string} title @param {{ id: string, label: string }[]} boxes @param {string[]} mine */
+export const actionsPrompt = (by, title, boxes, mine) => [
+  `The meeting "${title}" has ended. List each thing ${by || 'the person recording'} said they themselves will do, with a result someone could check (send, write, book, fix, decide…). Their lines are below, as speech recognition heard them.`,
+  'Only their own commitments, in their own words: never what someone else will do, never a suggestion, and never your own idea. Quote their exact words. Fill in the task from what was said; leave out what was not. Most meetings have none or a few.',
+  `\nTHE MEETING'S BOXES (id · title):\n${boxes.map((b) => `- ${b.id} · ${b.label}`).join('\n') || '(none)'}`,
+  `\nWHAT ${(by || 'they').toUpperCase()} SAID:\n${mine.map((l) => `You: ${l}`).join('\n')}`,
+].join('\n');
 
 /** @typedef {{ speaker: 'you' | 'others', name?: string, text: string, start: number, end: number }} Said */
 
@@ -96,9 +127,10 @@ export function parseTranscript(text, me = '') {
  * @param {{ home: string, memory?: boolean, getState: () => any, save: () => void, push: () => void,
  *   answer: (job: { prompt: string, schema: object }) => Promise<{ value?: unknown, error?: string, cost?: { value: number, unit: string } }>,
  *   draw: (drawing: { nodes: any[], edges: any[] }) => void, say: (to: string, text: string) => void,
+ *   fromWords?: (source: WordsSource, proposed: unknown) => ItemOutcome[],
  *   people?: () => string[], now?: () => number, pauseMs?: number, retryMs?: number }} o
  */
-export function meetingJob({ home, memory = false, getState, save, push, answer, draw, say, people = () => [], now = Date.now, pauseMs = PAUSE_MS, retryMs = RETRY_MS }) {
+export function meetingJob({ home, memory = false, getState, save, push, answer, draw, say, fromWords, people = () => [], now = Date.now, pauseMs = PAUSE_MS, retryMs = RETRY_MS }) {
   const FILE = path.join(home, 'meeting.jsonl');
   /** @type {Said[]} */ let said = [];
   try { if (!memory) said = fs.readFileSync(FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { /* no meeting on this map yet: nothing said */ }
@@ -146,6 +178,31 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     draw({ nodes: [{ id: SUMMARY_ID, label: 'Summary and next steps', sub: `${decided.length} decided · ${todo.length} to do`, desc: desc.slice(0, 1500) }],
       edges: had ? [] : [{ from: MEETING_ID, to: SUMMARY_ID }] });
   };
+
+  // Once the meeting is over: what the person recording said they will do becomes their Action drafts, through
+  // action-items.js. Only their own lines are the source, and only when the name the recorder sends is one of
+  // the map's people; otherwise nothing is made and they are told why.
+  async function actionPass() {
+    const meeting = m();
+    if (!fromWords || !meeting || meeting.actionsDone) return;
+    meeting.actionsDone = true; save();
+    const by = String(meeting.by || ''), mine = said.filter((s) => s.speaker === 'you').map((s) => s.text);
+    if (!mine.length) return;
+    if (!people().includes(by)) {
+      say(by, `No Action drafts from this meeting: "${by}" is not one of this map's people. Set your name in the recorder to match your sign-in.`);
+      return;
+    }
+    const r = await answer({ prompt: actionsPrompt(by, getState().title, ownBoxes(), mine), schema: ACTIONS_SCHEMA });
+    if (closed) return;
+    if (r.cost) meeting.cost = { value: (meeting.cost?.value || 0) + r.cost.value, unit: r.cost.unit };
+    const items = /** @type {any} */ (r.value)?.items;
+    if (!Array.isArray(items) || !items.length) { save(); push(); return; }
+    const out = fromWords({ kind: 'meeting', id: `meeting:${getState().title}:${meeting.at}`, who: by, lines: mine, spoken: true }, items);
+    meeting.actions = out.map((o) => ({ title: o.title, ...('made' in o ? { made: o.made } : 'info' in o ? { for: o.for } : 'merged' in o ? { merged: o.merged } : { refused: o.refused }) }));
+    const made = out.filter((o) => 'made' in o);
+    if (made.length) say(by, `Made ${made.length} Action draft${made.length === 1 ? '' : 's'} from what you said, now preparing (check they're yours): ${made.map((o) => o.title).join('; ')}.`);
+    save(); push();
+  }
 
   /**
    * One answer over `lines` (the new talk) with `before` (shown again), checked and drawn; refused items go back
@@ -208,7 +265,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       for (let i = said.length - 1; i >= 0 && text < LAST_PASS_CHARS; i--) { all.unshift(said[i]); text += said[i].text.length; }
       const ok = all.length ? await ask(all, [], true) : true;
       if (closed) return;
-      if (ok) { meeting.done = true; save(); push(); } else { lastPassDue = true; later(go, retryMs); }
+      if (ok) { meeting.done = true; save(); push(); await actionPass(); } else { lastPassDue = true; later(go, retryMs); }
     }
   }
   function go() {
@@ -276,7 +333,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
           if (!ok) { meeting.error ||= 'Drawing the transcript stopped part way.'; save(); push(); return; }
           meeting.sent = from = to; save(); push();
         }
-        if (!closed && await ask(lines.slice(-400), [], true)) { meeting.done = true; save(); push(); }
+        if (!closed && await ask(lines.slice(-400), [], true)) { meeting.done = true; save(); push(); await actionPass(); }
       })();
       return { count: lines.length };
     },

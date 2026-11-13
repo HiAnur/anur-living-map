@@ -263,6 +263,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     answer: (job) => agent.answer(job),
     draw: (p) => actingAs('Claude', () => draw(p, 'Claude', { kind: 'meeting' })),
     say: (to, text) => { if (!to) return; (state.threads[`@${to}`] ??= []).push({ who: 'Claude', text, at: stamp() }); },
+    fromWords: (source, proposed) => fromWords(source, proposed),
     people: () => (state.people || []).map((/** @type {any} */ p) => p.id) });
   // a meeting's map is owned by whoever records it, as a blank map is by whoever made it
   /** @param {{ title: string, app?: string, by: string }} o */
