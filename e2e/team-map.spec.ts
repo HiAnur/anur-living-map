@@ -5,6 +5,7 @@ import path from "node:path";
 import {
   SAMPLE,
   box,
+  hub,
   openSample,
   server,
   useTeamServer,
@@ -194,6 +195,8 @@ test("a box inside a box inside a box opens level by level, and Back goes up one
   });
   await page.locator('[data-expand="trial"]').click();
   await expect(box(page, "Billing")).toBeVisible();
+  // inside a box, its first box keeps its name: only the map's own centre is a circle
+  await expect(hub(page)).toHaveCount(0);
   await page.locator('[data-expand="billing"]').click();
   await expect(box(page, "Charge card")).toBeVisible();
   // the path shows every level, and each one goes back to it
@@ -279,4 +282,152 @@ test("boxes show titles and reveal descriptions without moving on hover", async 
   await pricing.dblclick();
   await expect(page.locator("#newbox textarea")).toHaveValue("Pricing");
   await page.keyboard.press("Escape");
+});
+
+test("the map starts at an empty circle, with its main topics in orange around it", async ({
+  page,
+}) => {
+  await openSample(page);
+  const circle = hub(page);
+  await expect(circle).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Launch plan" })).toBeVisible();
+  await expect(circle).toHaveText("");
+  const size = await circle.boundingBox();
+  expect(size!.width).toBeLessThan(40);
+  expect(Math.abs(size!.width - size!.height)).toBeLessThan(1);
+  for (const name of ["Pricing", "Audience"])
+    await expect(box(page, name)).toHaveClass(/\bstart\b/);
+  await expect(box(page, "Free trial")).not.toHaveClass(/\bstart\b/);
+  // its lines leave from the circle's edge
+  const ends = await page.evaluate(() => {
+    const c = document.querySelector<HTMLElement>("#nodes .node.hub")!;
+    const [x, y, w] = ["left", "top", "width"].map((k) =>
+      parseFloat(c.style.getPropertyValue(k)),
+    );
+    return ["launch>pricing", "launch>audience"].map((id) => {
+      const d = document
+        .querySelector(`#edges .hit[data-edge="${id}"]`)!
+        .getAttribute("d")!;
+      const [, sx, sy] = d.match(/^M(-?[\d.]+) (-?[\d.]+)/)!.map(Number);
+      return [Math.abs(sx - x) - w / 2, Math.abs(sy - y)];
+    });
+  });
+  expect(ends).toEqual([
+    [0, 0],
+    [0, 0],
+  ]);
+});
+
+test("on a map of several groups, only the start box is the circle", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: [
+      ...SAMPLE.nodes.slice(0, 2),
+      { id: "notes", label: "Notes", x: 0, y: 300 },
+      { id: "idea", label: "An idea", x: 300, y: 300 },
+    ],
+    edges: [
+      { from: "launch", to: "pricing" },
+      { from: "notes", to: "idea" },
+    ],
+  });
+  await expect(hub(page)).toHaveAttribute("aria-label", "Launch plan");
+  await expect(box(page, "Pricing")).toHaveClass(/\bstart\b/);
+  for (const name of ["Notes", "An idea"])
+    await expect(box(page, name)).not.toHaveClass(/\bstart\b|\bhub\b/);
+});
+
+test("a click on the circle shows only the main topics, and another shows every box", async ({
+  page,
+}) => {
+  await openSample(page);
+  await hub(page).click();
+  await expect(box(page, "Free trial")).toHaveCount(0);
+  await expect(box(page, "Pricing")).toBeVisible();
+  await expect(box(page, "Audience")).toBeVisible();
+  await expect(page.locator("#levels")).toContainText("Level 1");
+  await hub(page).click();
+  await expect(box(page, "Free trial")).toBeVisible();
+  await expect(page.locator("#levels")).toContainText("Level 2");
+  // a main topic still opens its card
+  await box(page, "Pricing").click();
+  await expect(page.locator("#side .side-summary")).toHaveText(
+    "Plans and trials",
+  );
+});
+
+test("the arrow keys reach the circle, and Delete asks about it", async ({
+  page,
+}) => {
+  await openSample(page);
+  await box(page, "Pricing").click();
+  await page.keyboard.press("ArrowLeft");
+  await expect(hub(page)).toHaveClass(/\bsel\b/);
+  await page.keyboard.press("ArrowRight");
+  await expect(hub(page)).not.toHaveClass(/\bsel\b/);
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Delete");
+  await expect(hub(page).locator(".delq")).toContainText("Delete this topic");
+  await page.keyboard.press("Escape");
+  await expect(hub(page).locator(".delq")).toHaveCount(0);
+  // F2 renames it as a box, with room for the name, and it is a circle again after
+  await page.keyboard.press("F2");
+  await expect(page.locator("#newbox textarea")).toHaveValue("Launch plan");
+  await expect(hub(page)).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(hub(page)).toHaveCount(1);
+});
+
+test("Tidy up lays out the circle and its topics with no box on another", async ({
+  page,
+}) => {
+  const at = (id: string, x: number, y: number, label = id) => ({
+    id,
+    label,
+    x,
+    y,
+  });
+  const name = await openSample(page, {
+    ...SAMPLE,
+    nodes: [
+      at("launch", 0, 0, "Launch plan"),
+      at("pricing", 40, 20, "Pricing"),
+      at("audience", -30, 10, "Audience"),
+      at("trial", 60, -10, "Free trial"),
+    ],
+  });
+  await page.locator("#tidyb").click();
+  const state = async () =>
+    (await (
+      await page.request.get(`${server.origin}/${name}/api/state`)
+    ).json()) as { nodes: { id: string; x: number; y: number }[] };
+  const gap = async () => {
+    const { nodes } = await state();
+    const [launch, pricing] = ["launch", "pricing"].map((id) =>
+      nodes.find((n) => n.id === id)!,
+    );
+    return Math.abs(pricing.x - launch.x);
+  };
+  // the circle's half, the gap between rings, then half of a main topic
+  await expect.poll(gap).toBe(14 + 70 + 70);
+  await expect(box(page, "Free trial")).toBeVisible();
+  const overlaps = await page.evaluate(() => {
+    const r = [...document.querySelectorAll("#nodes .node")].map((n) =>
+      n.getBoundingClientRect(),
+    );
+    return r.flatMap((a, i) =>
+      r
+        .slice(i + 1)
+        .filter(
+          (b) =>
+            a.left < b.right &&
+            b.left < a.right &&
+            a.top < b.bottom &&
+            b.top < a.bottom,
+        ),
+    ).length;
+  });
+  expect(overlaps).toBe(0);
 });

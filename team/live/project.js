@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { HUB_SIZE, isHub } from './page-hub.js';
 import { height as wordsHeight, width as wordsWidth } from './proposal-layout.js';
 
 const KINDS = ['apps', 'services', 'jobs'];
@@ -190,11 +191,11 @@ const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 // A new box on a topic map goes where Tidy up would put it (on its parent's side, beside the boxes it belongs
 // with, after the box drawn before it), without moving a box already there; on any other map, the free grid
 // spot where its lines cross the fewest boxes and are shortest.
-/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} [start] */
-export function placeNew(nodes, edges, start = null) {
+/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} [start] @param {Map<string, {w: number, h: number}>} [sizes] */
+export function placeNew(nodes, edges, start = null, sizes = new Map()) {
   if (!nodes.some((n) => !placed(n))) return;
   // the tree's new boxes take their places in it; a new box no line joins to the tree takes a free grid spot
-  placeInTree(nodes, edges, start);
+  placeInTree(nodes, edges, start, sizes);
   for (const n of nodes) {
     if (placed(n)) continue;
     const others = nodes.filter((o) => o !== n && placed(o));
@@ -217,23 +218,34 @@ export function placeNew(nodes, edges, start = null) {
   }
 }
 
+/** @param {LayoutBox} n @param {Map<string, {w: number, h: number}>} sizes */
+const sizedW = (n, sizes) => sizes.get(n.id)?.w || BW(n), sizedH = (/** @type {LayoutBox} */ n, /** @type {Map<string, {w: number, h: number}>} */ sizes) => sizes.get(n.id)?.h || BH;
+
+// The page draws a map's start box as a small circle (page-hub.js), so laying out its top level counts it at that
+// size: Tidy up and a new box's place then match the lines the page draws. Empty when the start is drawn as a box.
+/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null | undefined} start @param {boolean} code whether the map is drawn from code */
+export function hubSizes(nodes, edges, start, code) {
+  const root = treeOf(nodes, edges, start)?.root;
+  return new Map(root && isHub(root, { start: root.id, top: true, code }) ? [[root.id, { w: HUB_SIZE, h: HUB_SIZE }]] : []);
+}
+
 // Each new box takes the column and order a tidied copy of the map gives it, at the free height nearest that
 // copy's, kept between the siblings it sits between there, so the next Tidy up keeps its side and its order.
 // Only on a map laid out as a mind map (most boxes already in the copy's columns): a map still on the grid, such
 // as one read from a project's folders, keeps the grid until someone presses Tidy up.
-/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} start */
-function placeInTree(nodes, edges, start) {
+/** @param {LayoutBox[]} nodes @param {Line[]} edges @param {string | null} start @param {Map<string, {w: number, h: number}>} sizes */
+function placeInTree(nodes, edges, start, sizes) {
   const tree = treeOf(nodes, edges, start);
   if (!tree) return false;
   const { root, kids, parent, ring } = tree;
   if (!placed(root) && nodes.some(placed)) return false;
   const twin = new Map(nodes.map((n) => [n.id, { ...n, ...(placed(root) ? {} : n === root ? { x: 90, y: 150 } : {}) }]));
-  tidyTree([...twin.values()], edges, null, placed, start);
+  tidyTree([...twin.values()], edges, null, placed, start, sizes);
   const sat = nodes.filter((n) => n !== root && ring.has(n.id) && placed(n));
   if (sat.filter((n) => n.x === twin.get(n.id).x).length * 2 < sat.length) return false;
   if (!placed(root)) { root.x = 90; root.y = 150; }
   /** @param {LayoutBox} n @param {number} y */
-  const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (BW(o) + BW(n)) / 2 + 20 && Math.abs(o.y - y) < BH + ROW_GAP);
+  const clear = (n, y) => !nodes.some((o) => o !== n && placed(o) && Math.abs(o.x - n.x) < (sizedW(o, sizes) + sizedW(n, sizes)) / 2 + 20 && Math.abs(o.y - y) < (sizedH(o, sizes) + sizedH(n, sizes)) / 2 + ROW_GAP);
   const fresh = nodes.filter((n) => ring.has(n.id) && !placed(n)).sort((a, b) => ring.get(a.id) - ring.get(b.id) || twin.get(a.id).y - twin.get(b.id).y);
   for (const n of fresh) {
     const t = twin.get(n.id), sibs = kids.get(parent.get(n.id)).filter((/** @type {any} */ s) => s !== n && placed(s) && Math.sign(twin.get(s.id).x - root.x) === Math.sign(t.x - root.x));

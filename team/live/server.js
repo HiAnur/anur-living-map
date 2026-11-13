@@ -58,7 +58,7 @@ import { actionActs } from './action-acts.js';
 import { archiveActs } from './archive-acts.js';
 import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
-import { placeNew, readProject, tidy, tidyLayers, tidyTree } from './project.js';
+import { hubSizes, placeNew, readProject, tidy, tidyLayers, tidyTree } from './project.js';
 import { isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
@@ -426,13 +426,14 @@ export function openMap({ project = '', name = '', home, initialState, undoState
     plan.layout = [];
     if (!fresh.length) return;
     plan.layout = appendProposed(state.nodes, state.edges, fresh, plan.edges);
-    placeNew([...state.nodes.map((/** @type {any} */ n) => ({ ...n, ...plan.layout.find((/** @type {any} */ m) => m.id === n.id) })), ...fresh], [...state.edges, ...plan.edges], plan.start || state.start);
+    const nodes = [...state.nodes.map((/** @type {any} */ n) => ({ ...n, ...plan.layout.find((/** @type {any} */ m) => m.id === n.id) })), ...fresh], edges = [...state.edges, ...plan.edges], start = plan.start || state.start;
+    placeNew(nodes, edges, start, hubSizes(nodes, edges, start, !!state.drawing));
     for (const f of fresh) Object.assign(plan.nodes.find((/** @type {any} */ n) => n.id === f.id), { x: f.x, y: f.y });
   }
   // Claude's "tidy": Tidy up as if nobody had dragged a box, so every box is regrouped and rebalanced and the lines
   // read as one tree; the boxes are Claude's to place again until someone drags one
   function relayout() {
-    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start) && !(state.drawing && tidyLayers(state.nodes, state.edges))) tidy(state.nodes, state.edges);
+    if (!tidyTree(state.nodes, state.edges, null, () => false, state.start, hubSizes(state.nodes, state.edges, state.start, !!state.drawing)) && !(state.drawing && tidyLayers(state.nodes, state.edges))) tidy(state.nodes, state.edges);
     for (const n of state.nodes) delete n.moved;
     for (const p of pendingProposals()) placeProposed(p.plan);
   }

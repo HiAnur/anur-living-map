@@ -17,7 +17,7 @@ describe('full topic names',()=>{
 
 describe('topic width',()=>{
   it('includes borders and fractional text widths before wrapping short titles',()=>{
-    const ctx=vm.createContext({document:{documentElement:{},createElement:()=>({getContext:()=>({measureText:s=>({width:s.length*6.2})})})},getComputedStyle:()=>({getPropertyValue:()=>''})});
+    const ctx=vm.createContext({hubbed:()=>false,document:{documentElement:{},createElement:()=>({getContext:()=>({measureText:s=>({width:s.length*6.2})})})},getComputedStyle:()=>({getPropertyValue:()=>''})});
     vm.runInContext(html.slice(html.indexOf('const BASE ='),html.indexOf('document.fonts?.ready'))+'\nthis.width=W;this.lines=nameLines;',ctx);
     for(const label of ['Local rules and money','Partners and people','The 4-slot gifting box']){
       expect(ctx.width({label})-26).toBeGreaterThan(label.length*6.2);
@@ -30,7 +30,7 @@ describe('topic width',()=>{
 
 describe('compact box details', () => {
   it('keeps descriptions out of box sizing and hides restricted summaries', () => {
-    const ctx = vm.createContext({ nameLines: () => 1, locked: n => !!n.locked });
+    const ctx = vm.createContext({ hubbed: () => false, nameLines: () => 1, locked: n => !!n.locked });
     vm.runInContext(html.slice(html.indexOf('const HT ='), html.indexOf('const { fanPts, planTopicInsert')) + '\nthis.height=HT;this.summary=boxSummary;', ctx);
     expect(ctx.height({ label: 'Sign in', sub: 'Long description '.repeat(40) })).toBe(ctx.height({ label: 'Sign in' }));
     expect(ctx.summary({ sub: 'A keeper makes an account' })).toBe('A keeper makes an account');

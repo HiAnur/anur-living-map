@@ -166,6 +166,9 @@ test("Keep the map as it is keeps what code no longer finds", async ({
   await expect(panel).not.toContainText("no longer finds");
   await expect(box(page, "web")).toBeVisible();
   await expect(box(page, "api")).toBeVisible();
+  // a system map starts at a repo people need to read: a named box, not the empty circle
+  await expect(page.locator("#nodes .node.hub")).toHaveCount(0);
+  await expect(box(page, "api")).toHaveClass(/\bstart\b/);
 });
 
 test("the map updating itself from new commits does not pop the panel up", async ({

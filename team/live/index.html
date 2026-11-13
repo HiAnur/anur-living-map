@@ -163,6 +163,11 @@ button,input,textarea{font:inherit;color:inherit}
 .node.start{background:#E8590C;border-color:#E8590C}
 .node.start .n,.node.start .s{color:#fff}
 .node.start .s{opacity:.85}
+/* on a map whose start is the centre circle (page-hub.js), the circle is empty, ringed in the start's orange, and the
+   main topics around it take the orange fill; a state's own colour still fills the circle */
+.node.hub{padding:0;background:var(--box)}
+#nodes .node.hub{border:2.5px solid #E8590C;border-radius:50%}
+#nodes .node.hub.sel{outline-offset:2px}
 /* drawing by hand: the Box tool drags out a box (a click makes one the usual width), the Line tool drags from one
    box to another; what is being drawn shows in blue, and the name or the words on the line are typed in place */
 #canvas.drawing,#canvas.drawing .node{cursor:crosshair}
@@ -644,6 +649,8 @@ a{color:inherit;text-decoration:none}
 #legend i.gone{background:repeating-linear-gradient(90deg,var(--gone) 0 5px,transparent 5px 9px)}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
 #legend i.st{width:22px;height:14px;border-radius:4px;background:#E8590C}
+#legend i.hb{width:12px;height:12px;margin-left:5px;border-radius:50%;border:2px solid #E8590C;background:#fff}
+body:not(.hubbed) #legend .hub-only,body.hubbed #legend .box-start{display:none}
 /* on a map of decisions: amber waits on an answer, green is answered, plain is information; its own legend */
 .node.ask{border:1.5px solid var(--todo);background:#fffaeb}
 .node.done{border:1.5px solid rgba(46,139,87,.55);background:#f2f8f4}
@@ -1060,7 +1067,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
   <button class="tb history-tool" data-map-history="redo" title="Redo (⌘ ⇧ Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l4 4-4 4m4-4H9a5 5 0 00-5 5v3"/></svg><kbd class="tk">⌘ ⇧ Z</kbd></button>
 </div>
-<div id="legend" tabindex="0">Legend<div class="lc"><span><i class="st"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="st"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
+<div id="legend" tabindex="0">Legend<div class="lc"><span class="box-start"><i class="st"></i>Where the map starts</span><span class="hub-only"><i class="hb"></i>Where the map starts</span><span class="hub-only"><i class="st"></i>A main topic</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span class="box-start"><i class="st"></i>Where the map starts</span><span class="hub-only"><i class="hb"></i>Where the map starts</span><span class="hub-only"><i class="st"></i>A main topic</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <button class="tbtn" id="tidyb" aria-keyshortcuts="Meta+Shift+L Control+Shift+L" title="Tidy up (⌘⇧L / Ctrl+Shift+L)">Tidy up<kbd>⌘⇧L</kbd></button>
 <div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Reset zoom" aria-label="Reset zoom"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
@@ -1098,6 +1105,7 @@ import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-wal
 import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
+import { HUB_SIZE, hubHint, hubLevel, isHub } from './page-hub.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1284,6 +1292,7 @@ const cam = { x: 0, y: 0, z: 1 };
 const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
 const W = (n) => {
+  if (hubbed(n)) return HUB_SIZE;
   const key = `w|${n.kind}|${n.icon}|${n.label}`;
   if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 28 + (n.icon === 'db' ? 20 : 0))))); }
   return wraps.get(key);
@@ -1312,7 +1321,7 @@ const nameLines = (n) => {
 };
 document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
 // Only the title determines a box's size; supporting text appears on hover or in its details.
-const HT = (n) => (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + 40 + Math.max(0, nameLines(n) - 1) * 17;
+const HT = (n) => hubbed(n) ? HUB_SIZE : (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + 40 + Math.max(0, nameLines(n) - 1) * 17;
 const boxSummary = (n) => {
   if (locked(n)) return '';
   const summary = String(n.sub || n.desc || '').trim();
@@ -2047,11 +2056,25 @@ function placeWords(labels, lines, nodes){
   });
 }
 
-// the one box where the map starts is drawn in orange; when it carries a colour of its own (a question waiting on it, an
-// answer, something the plan does to it), that colour says more and stays, and an orange rim marks the start instead
-function startLook(n, mine){
-  if (n.id !== fold.start || n.proposed || locked(n)) return '';
+// the start box of a map's top level is drawn as a small empty circle (page-hub.js); while you rename it, as a box,
+// so the name you type has room
+function hubbed(n){
+  return isHub(n, { start: fold.start, top: view === 'system', code: !!S?.drawing }) && naming?.edit !== n.id;
+}
+// the circle, and the boxes right under it, its main topics, in orange; where the start is drawn as a box, that one box
+// in orange. When a box carries a colour of its own (a question waiting on it, an answer, something the plan does to
+// it), that colour says more and stays, and an orange rim marks it instead
+function startLook(n, mine, hub){
+  if (hub && n.id === hub.id) return 'hub';
+  if (n.proposed || locked(n) || (hub ? !fold.kids.get(hub.id)?.includes(n.id) : n.id !== fold.start)) return '';
   return (decisionMap() ? boxDecision(n) : n.state) || mine ? 'start-rim' : 'start';
+}
+// a click on the circle shows only the main topics, or every box again when only they show; it picks the circle
+// without opening its card, so Delete and the arrow keys work from it
+function tapHub(n){
+  clearTimeout(tapTimer); nameSession++;
+  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = true;
+  setLevel(hubLevel(shownLevel(), maxLevel()));
 }
 function render(){
   hideBoxHint();
@@ -2138,24 +2161,27 @@ function render(){
   }
   // boxes
   document.body.classList.toggle('decide', decisionMap());
+  const hub = nodes.find(hubbed), topicsOnly = !!hub && hubLevel(shownLevel(), maxLevel()) !== 1;
+  document.body.classList.toggle('hubbed', !!hub);
   let html = '';
   for (const n of nodes){
+    const isHubBox = n === hub;
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', startLook(n, mine), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
-    html += `<div class="${cls}" data-id="${n.id}" data-box-summary="${esc(boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', startLook(n, mine, hub), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    html += `<div class="${cls}" data-id="${n.id}" ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), topicsOnly) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      <div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>
+      ${isHubBox ? '' : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>`}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
-      ${foldButton(n, byId)}
+      ${isHubBox ? '' : foldButton(n, byId)}
       ${!locked(n) && n.action?.stage === 'ready' && n.action.by === ME && !READ_ONLY && !FILE && !PREVIEW ? `<button class="map-execute" data-box-action="actionexecute" data-action-id="${esc(n.id)}" data-action-revision="${esc(n.action.id)}" aria-label="Execute ${esc(n.label)}">Execute</button>` : ''}
       ${/* a box's Expand or diagram pill sits on its bottom edge, so it has no bottom dot to draw a line from */ ''}
-      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== foldSide(n, byId) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== (isHubBox ? null : foldSide(n, byId)) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>${esc(deleteQuestion('*'))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>${esc(deleteQuestion(n.id))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
@@ -3787,6 +3813,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (nd){
     const n = nodeById(nd.dataset.id);
     // a locked box opens its "no access" card and never moves
+    if ((READ_ONLY || locked(n)) && hubbed(n)){ tapHub(n); return; }
     if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY };
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
@@ -3853,6 +3880,7 @@ const pick = (n) => {
   tapTimer = setTimeout(go, DBL);
 };
 function tapTopic(n, field = null, proposed = false){
+  if (!proposed && hubbed(n)){ tapHub(n); return; }
   const now = Date.now(), twice = lastTap.id === n.id && lastTap.field === field && now - lastTap.at < DBL;
   lastTap = twice ? {id:null,at:0} : { id:n.id, field, at:now };
   if (twice && !locked(n) && !field && (n.inside || n.diagram || (!proposed && diagramChange(n.id)))){

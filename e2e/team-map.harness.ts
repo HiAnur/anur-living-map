@@ -78,8 +78,14 @@ export const openSample = async (page: Page, state: object = SAMPLE) => {
   return name;
 };
 
+// A box by its name; the map's centre circle shows no name, so it is found by its accessible name.
 export const box = (page: Page, name: string) =>
-  page.locator("#nodes .node", { hasText: name });
+  page
+    .locator("#nodes .node", { hasText: name })
+    .or(page.locator(`#nodes .node.hub[aria-label="${name}"]`));
+
+/** The map's centre circle: its start box, drawn empty. */
+export const hub = (page: Page) => page.locator("#nodes .node.hub");
 
 /** Where the server's copy and its maps live, and its address, for tests that need them. */
 export const server = {
