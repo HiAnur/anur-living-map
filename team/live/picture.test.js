@@ -22,7 +22,7 @@ it('keeps the picture Google gave at sign-in for the pages and the map, and drop
   const answers = [good, 'https://example.com/a.png"><script>'];
   const login = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ email: 'priyanka@example.com', name: 'Priyanka', listed: true, picture: answers.shift() })); });
   await new Promise((r) => login.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
-  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (login.address()).port}` };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (login.address()).port}` };
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`;
   const child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env, stdio: 'ignore' });

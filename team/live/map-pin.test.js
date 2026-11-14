@@ -34,7 +34,7 @@ it('pins a map for one person only, and keeps the pin across a restart', async (
   fs.writeFileSync(path.join(primary, '.living-map/state.json'), JSON.stringify(state));
   fs.writeFileSync(path.join(app, 'projects.json'), '[]');
   for (const name of ['first', 'second']) { fs.mkdirSync(path.join(app, 'maps', name), { recursive: true }); fs.writeFileSync(path.join(app, 'maps', name, 'state.json'), JSON.stringify(state)); }
-  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
   const cookie = (/** @type {string} */ name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
   // Duy made this install's first account, and so owns it
   execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js';users.create('Duy','a long password')"], { cwd: app, env });

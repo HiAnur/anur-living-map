@@ -34,7 +34,7 @@ it('shows a signed-in person their own name, role, email and sign-in, and nobody
   fs.writeFileSync(path.join(primary, '.living-map/state.json'), JSON.stringify({ title: 'A map', nodes: [], edges: [], people: [], calls: [], prs: [], log: [], threads: {} }));
   fs.writeFileSync(path.join(app, 'projects.json'), '[]');
   const users = path.join(root, 'users.db');
-  const env = { ...process.env, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
   const run = (/** @type {string} */ code) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: app, env, encoding: 'utf8' }).trim();
   // a users file from before sessions kept an email gets the column, and its sessions still sign in
   run(`import {DatabaseSync} from 'node:sqlite';const db=new DatabaseSync(${JSON.stringify(users)});db.exec("CREATE TABLE sessions (token_hash TEXT PRIMARY KEY, name TEXT NOT NULL, at INTEGER NOT NULL)")`);

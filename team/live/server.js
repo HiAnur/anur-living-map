@@ -15,7 +15,7 @@
 // Each address is a map of its own: the project's map is at /<project folder>/ (and its API at /api/...),
 // and /<name>/ is a map called <name> with the same page and API under it
 // (/gtm/api/state, /gtm/api/act). A named map starts empty, keeps its state in
-// live/maps/<name>/, and fills from the plans drawn on it.
+// maps/<name>/ in the data folder (map-store.js), and fills from the plans drawn on it.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -43,6 +43,7 @@ import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
+import { mapStore, moveMaps } from './map-store.js';
 import { mapsRoutes } from './maps-routes.js';
 import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
@@ -76,14 +77,15 @@ const PORT = Number(/^\d+$/.test(process.argv[2] || '') ? process.argv[2] : proc
 const DIR = import.meta.dirname;
 // --project <folder>: draw that project from its own files, and keep the map's
 // state beside it in <folder>/.living-map/. More code folders join with POST /api/projects {folder}, each at
-// /<folder name>/, and are remembered in projects.json so they are still listed after a restart.
+// /<folder name>/, and are remembered in projects.json so they are still listed after a restart. Named maps and
+// projects.json are kept where map-store.js says: the data folder, or ANUR_LIVING_MAP_MAPS for a test copy.
 // --demo, with no project: the fixed story in seed.json at /, which is only for showing the map; a real install
 // never sees its cast
 const at = process.argv.indexOf('--project');
 const PROJECT = at > 0 ? path.resolve(process.argv[at + 1]) : process.env.LIVING_MAP_PROJECT || '';
 const DEMO = !PROJECT && process.argv.includes('--demo');
 const mapName = (/** @type {any} */ folder) => path.basename(folder).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
-const PROJECTS = path.join(DIR, 'projects.json');
+const STORE = mapStore({ code: DIR, demo: DEMO }), { MAPS, PROJECTS } = STORE;
 const demo = () => JSON.parse(fs.readFileSync(path.join(DIR, 'seed.json'), 'utf8'));
 // how a chat answers what the map sends it, sent with every message, so a chat that started before an update
 // never works from rules the map has outgrown; read each time, so an update reaches chats already running
@@ -160,7 +162,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // A system map drawn before it had a centre gets one now, written down at once, so it shows on first open
   // and its levels, laid out in rows before every level was laid out round its circle, are laid out again, once
   if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
-  // A map is usable as extra context only while it remains checked in Brain.
+  // A map is usable as extra context only while it remains checked in Context.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
@@ -267,10 +269,15 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   function converse(l, text) {
     if (building) { queued.push(text); return; }
     fs.mkdirSync(home, { recursive: true });
-    const first = !l.started; l.started = true; save();
+    const first = !l.started; l.started = true;
+    // the agent keeps a chat by the folder it began in: one begun before named maps moved to the data folder
+    // (map-store.js) goes on from the code folder's maps/, while that copy is there
+    if (first) l.cwd = home;
+    const cwd = [l.cwd, name ? path.join(DIR, 'maps', name) : ''].find((d) => d && fs.existsSync(d)) || home;
+    save();
     answering.set(l.session, Date.now());
     const servers = { living_map: drawServer({ url: `http://localhost:${PORT}`, map: name || (project ? mapName(project) : ''), session: l.session }) };
-    building = agent.converse({ cwd: home, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text, servers,
+    building = agent.converse({ cwd, session: l.session, first, title: `Living Map: ${state.title}`, system: brief(), prompt: text, servers,
       onClose: () => { building = null; answering.delete(l.session); if (queued.length) converse(l, queued.splice(0).join('\n\n')); } });
     // its transcript appears once it starts; the pane follows it from then
     if (!l.file) {
@@ -824,13 +831,18 @@ const removeFailed = (e, what) => { if (e?.code !== 'ENOENT' && e?.code !== 'ENO
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.md': 'text/markdown', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename) {
+// the maps the code folder kept before they lived in the data folder are copied there once, before anything reads
+// or writes a map: a server restarting after an update has already stopped serving from the old folder
+if (STORE.movesIn) {
+  try { moveMaps({ from: DIR, to: STORE.root }); } catch (/** @type {any} */ e) { console.error(`[map] could not copy the maps kept in ${DIR} to ${STORE.root}; they are still there, and the next start tries again: ${e?.message}`); }
+}
 const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
 const { MIN, users, recovery } = await import('./users.js');
 const { handleRecovery, mailReady } = await import('./recovery.js');
 // A map from before maps recorded who made them keeps the story's Admin, where that name has signed in here, and
 // the install's owner. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
 const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.owner()].filter((p) => !!p);
-const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn }), DIR, PROJECT, PROJECTS, mapName,
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn }), DIR, MAPS, PROJECT, PROJECTS, mapName,
   adminsOf: (/** @type {any} */ state, /** @type {string} */ project) => adminsOf(state, { project: !!project, owner: users.owner(), before: before() }), DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 
@@ -845,7 +857,7 @@ const teamRole = (/** @type {string} */ who) => who && who === users.owner() ? '
 // what someone runs on this Mac for a link to choose a new password, when no email can carry one
 const resetCommand = `node "${path.join(DIR, 'users.js')}" reset${PORT === 4323 ? '' : ` --port ${PORT}`}`;
 const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf: teamRole, mailReady, resetCommand });
-const mapRoutes = mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO });
+const mapRoutes = mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO });
 // the install's owner may draw a system map before any map makes them an Admin
 const systemMaps = systemRoutes({ maps, team: () => { const owner = users.owner(); return owner ? [{ id: owner, role: 'Admin' }] : []; } });
 
