@@ -195,8 +195,9 @@ test("a box inside a box inside a box opens level by level, and Back goes up one
   });
   await page.locator('[data-expand="trial"]').click();
   await expect(box(page, "Billing")).toBeVisible();
-  // inside a box, its first box keeps its name: only the map's own centre is a circle
-  await expect(hub(page)).toHaveCount(0);
+  // inside a box, the level starts at a circle standing for the box, its first box an ordinary box beside it
+  await expect(hub(page)).toHaveAttribute("aria-label", "Free trial");
+  await expect(box(page, "Billing")).not.toHaveClass(/\bstart\b|\bhub\b/);
   await page.locator('[data-expand="billing"]').click();
   await expect(box(page, "Charge card")).toBeVisible();
   // the path shows every level, and each one goes back to it

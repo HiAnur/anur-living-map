@@ -4,9 +4,7 @@
 // (`source: { kind: 'code', repo, commit, … }`), keeps its evidence in its notes, and is `origin: 'code'`; what rests
 // only on descriptions carries a warning saying so.
 
-import { HUB_SIZE } from './page-hub.js';
-import { layerPlaces } from './project.js';
-import { width } from './proposal-layout.js';
+import { placeLevel, tidyLevel } from './project.js';
 import { CENTRE, withCentre } from './system-centre.js';
 
 /** @typedef {{ id: string, kind: string, at: string, [said: string]: any }} Fact */
@@ -33,18 +31,15 @@ export function evidence(f, reading = null) {
 }
 
 /**
- * Rows, what calls above what is called: each box one row below the lowest box that leads to it, near the boxes it
- * joins so lines cross less; a long row wraps, and boxes with no lines sit in rows under the rest (layerPlaces, the
- * arrangement Tidy up gives a map drawn from code). A box's room goes by its name, the widest a box grows without one.
- * A box marked `hub` is the system map's centre, drawn as a small circle.
- * @param {{ id: string, name?: string, hub?: boolean }[]} boxes @param {{ from: string, to: string }[]} lines
+ * A level code built, laid out the way every level of every map is (tidyLevel in project.js): round its circle, as
+ * a mind map, with what nothing calls hanging off the circle and the rest under what calls it first. A box no line
+ * joins to the tree gets a free place beside it.
+ * @template {{ nodes: any[], edges: any[] }} L @param {L} level @param {import('./project.js').LevelOf} where @returns {L}
  */
-export function layout(boxes, lines) {
-  const places = layerPlaces(boxes, lines, (b) => (b.hub ? HUB_SIZE : b.name ? width({ id: b.id, label: b.name }) : 220), (b) => (b.hub ? HUB_SIZE : 60));
-  /** @type {Map<string, { x: number, y: number }>} */
-  const pos = new Map();
-  for (const [id, p] of places) pos.set(id, { x: Math.round(20 + p.x), y: Math.round(95 + p.y) });
-  return pos;
+function laidOut(level, where) {
+  tidyLevel(level, where);
+  placeLevel(level, where);
+  return level;
 }
 
 /**
@@ -71,17 +66,16 @@ function components(facts, reading, prefix) {
   for (const f of parts) if (f.kind === 'compose_service') for (const d of f.depends_on || []) link(f, parts.find((p) => p.kind === 'compose_service' && p.name === d && p.at.split(':')[0] === f.at.split(':')[0]), 'depends on');
   for (const f of facts) if (f.kind === 'event_source') for (const fn of f.functions || []) for (const src of f.from || []) link(/** @type {Fact} */ (byLid.get(src)), byLid.get(fn), 'triggers');
   const nodes = parts.map((f) => ({ f, id: idOf(f) }));
-  const pos = layout(nodes, edges);
-  return {
+  return laidOut({
     nodes: nodes.map(({ f, id }) => ({
       id, label: String(evidence(f).replace(/^- [^:]+: /, '').replace(/ \(.*\)$/, '')).slice(0, 60),
       sub: (f.routes?.length ? f.routes.slice(0, 3).join(', ') : f.kind.replace(/_/g, ' ')).slice(0, 80),
-      ...pos.get(id), desc: evidence(f, reading), origin: 'code',
+      desc: evidence(f, reading), origin: 'code',
       source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), path: f.at, facts: [f.id] },
       ...(f.kind === 'table' ? { icon: 'db' } : {}), ...(f.kind === 'outside_function' ? { kind: 'ext' } : {}),
     })),
     edges: edges.filter((e) => e.from !== e.to && nodes.some((n) => n.id === e.from)),
-  };
+  }, { top: false });
 }
 
 /**
@@ -91,12 +85,11 @@ function components(facts, reading, prefix) {
 export function repoMap(drawn, reading) {
   const facts = new Map(reading.facts.map((f) => [f.id, f]));
   const prefix = slug(reading.repo);
-  const pos = layout(drawn.boxes, drawn.lines);
   const nodes = drawn.boxes.map((b) => {
     const cited = b.facts.map((i) => facts.get(i)).filter(/** @returns {f is Fact} */ (f) => !!f);
     const inside = components(cited, reading, `${prefix}-${slug(b.id)}`);
     return {
-      id: `${prefix}-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), ...pos.get(b.id), origin: 'code',
+      id: `${prefix}-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), origin: 'code',
       desc: `${b.description}\n\nShown by:\n${cited.slice(0, 20).map((f) => evidence(f, reading)).join('\n')}`.slice(0, 3000),
       // the facts it stands for, by id in its repo's reading, so a trace starts from them (system-trace.js)
       source: { kind: 'code', repo: reading.repo, ...(reading.head || {}), facts: cited.map((f) => f.id) },
@@ -105,25 +98,22 @@ export function repoMap(drawn, reading) {
     };
   });
   const edges = drawn.lines.map((l) => ({ from: `${prefix}-${slug(l.from)}`, to: `${prefix}-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80), origin: 'code' }));
-  return { nodes, edges };
+  return laidOut({ nodes, edges }, { top: false });
 }
 
 /**
  * The whole system map: the platform's boxes on top, hanging off the system's centre (system-centre.js), and each
- * repo's box holding that repo's map. The centre is laid out with them, in a row of its own above them.
+ * repo's box holding that repo's map, every level laid out round its circle.
  * @param {{ boxes: CheckedBox[], lines: CheckedLine[] }} platform @param {Map<string, Fact>} links
  * @param {{ reading: Reading, drawn: { boxes: CheckedBox[], lines: CheckedLine[] } }[]} repos @param {string} [title] the map's title, the centre's name
  */
 export function systemState(platform, links, repos, title = '') {
-  // the centre's key here is no id an agent can give a box: it only places the centre
-  const hub = '\u0000centre';
-  const pos = layout([{ id: hub, hub: true }, ...platform.boxes], [...platform.boxes.map((b) => ({ from: hub, to: b.id })), ...platform.lines]);
   const byRepo = new Map(repos.map((r) => [r.reading.repo, r]));
   const nodes = platform.boxes.map((b) => {
     const r = b.repo ? byRepo.get(b.repo) : null;
     const cited = b.facts.map((i) => links.get(i)).filter(/** @returns {f is Fact} */ (f) => !!f);
     return {
-      id: `system-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), ...pos.get(b.id), origin: 'code',
+      id: `system-${slug(b.id)}`, label: b.name, sub: b.description.slice(0, 80), origin: 'code',
       desc: `${b.description}${cited.length ? `\n\nShown by:\n${cited.slice(0, 12).map((f) => evidence(f)).join('\n')}` : ''}`.slice(0, 1500),
       ...(r ? { source: { kind: 'code', repo: r.reading.repo, ...(r.reading.head || {}), drawnAt: Date.now() }, inside: repoMap(r.drawn, r.reading) } : {}),
       ...(b.kind === 'person' ? { kind: 'actor' } : b.kind === 'external' ? { kind: 'ext' } : {}),
@@ -133,6 +123,7 @@ export function systemState(platform, links, repos, title = '') {
   const edges = platform.lines.map((l) => ({ from: `system-${slug(l.from)}`, to: `system-${slug(l.to)}`, label: `${l.unconfirmed ? 'unconfirmed: ' : ''}${l.label}`.slice(0, 80), origin: 'code' }));
   /** @type {{ nodes: any[], edges: any[], start?: string }} */
   const state = { nodes, edges, start: nodes[0]?.id };
-  if (nodes.length) { withCentre(state, title); Object.assign(state.nodes[0], pos.get(hub)); }
-  return state;
+  if (!nodes.length) return state;
+  withCentre(state, title);
+  return laidOut(state, { top: true, start: CENTRE, label: title });
 }

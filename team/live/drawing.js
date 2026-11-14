@@ -2,8 +2,8 @@
 // draw-guard.js has cut them to what the sender may draw. The map passes in its state and the helpers it needs.
 import { diagramOf } from './diagram.js';
 import { guardDrawing } from './draw-guard.js';
-import { boxIn, graphOfBox, movedUp } from './map-walk.js';
-import { hubSizes, placeNew } from './project.js';
+import { allBoxesOf, boxIn, graphOfBox, movedUp } from './map-walk.js';
+import { placeLevel } from './project.js';
 
 /** @param {{ getState: () => MapState, nodeOf: (id: any) => any, seesOf: (by: any) => string, unlinkEdge: (from: any, to: any) => boolean }} deps */
 export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
@@ -56,8 +56,8 @@ export function drawing({ getState, nodeOf, seesOf, unlinkEdge }) {
       levels.add(level);
     }
     // a new box with no place goes where its lines cross nothing
-    placeNew(state.nodes, state.edges, state.start, hubSizes(state.nodes, state.edges, state.start));
-    for (const level of levels) if (level !== state) placeNew(level.nodes, level.edges || []);
+    placeLevel(state, { top: true, start: state.start, label: state.title });
+    for (const level of levels) if (level !== state) placeLevel(level, { top: false, label: allBoxesOf(state).find((/** @type {any} */ b) => b.inside === level)?.label || '' });
     for (const c of p.calls || []) { const had = state.calls.find((/** @type {any} */ x) => x.id === c.id); if (had) Object.assign(had, c); else state.calls.push(c); }
     // a box holding an Action leaves only by its author's or an Admin's own hand (action-leave.js), never in a drawing
     // and a box that leaves takes its lines with it; what hung under it and is drawn no new line moves up (movedUp)

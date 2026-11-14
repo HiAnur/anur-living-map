@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { boxActs } from './box-acts.js';
-import { HUB_SIZE } from './page-hub.js';
-import { hubSizes, layerPlaces, placeNew, tidy, tidyLayers, tidyTree } from './project.js';
+import { HUB_SIZE, LEVEL_CENTRE, levelGraph } from './page-hub.js';
+import { hubSizes, placeNew, tidy, tidyLevel, tidyTree } from './project.js';
+import { width as wordsWidth } from './proposal-layout.js';
 
 // a topic map shaped like the GTM map: one start box, ten boxes off it, two of them with boxes under them,
 // laid out the way it was before (sides and order picked by where boxes happened to land)
@@ -42,67 +43,81 @@ describe('a map that is not one tree', () => {
     expect(tidyTree(nodes, edges, null, () => false, 'site')).toBe(false);
   });
 
-  it('tidies into rows, each box below the boxes that lead to it, a loop closing back', () => {
-    const { nodes, edges } = system();
-    expect(tidyLayers(nodes, edges)).toBe(true);
-    const y = (id) => get(nodes, id).y;
-    expect(y('app')).toBe(y('jobs'));
-    expect(y('api')).toBeGreaterThan(y('app'));
-    expect(y('auth')).toBeGreaterThan(y('api'));
-    expect(y('db')).toBe(y('auth'));
-    expect(y('bot')).toBeGreaterThan(y('auth'));
-    expect(y('alone')).toBeGreaterThan(y('bot'));
-    for (const a of nodes) for (const b of nodes) if (a !== b) expect(Math.abs(a.x - b.x) >= 140 || Math.abs(a.y - b.y) >= 50).toBe(true);
+});
+
+// every level of every map lays out the same way: round its circle, as a mind map (tidyLevel)
+describe('a level laid out round its circle', () => {
+  /** no two boxes on one another, the circle the size the page draws it */
+  const apart = (nodes, centre) => {
+    const size = (n) => (n === centre ? { w: HUB_SIZE, h: HUB_SIZE } : { w: wordsWidth(n), h: 50 });
+    for (const a of nodes) for (const b of nodes) if (a !== b)
+      expect(Math.abs(a.x - b.x) >= (size(a).w + size(b).w) / 2 || Math.abs(a.y - b.y) >= (size(a).h + size(b).h) / 2, `${a.id} on ${b.id}`).toBe(true);
+  };
+
+  it('inside a box, hangs what nothing leads to off a circle standing for the box, and the rest under what reaches it first', () => {
+    const level = system();
+    expect(tidyLevel(level, { top: false, label: 'repo' })).toBe(true);
+    const g = levelGraph(level, { top: false, label: 'repo' }), centre = g.nodes[0];
+    expect(centre).toMatchObject({ id: LEVEL_CENTRE, virtual: true, x: level.centre?.x, y: level.centre?.y });
+    // app, jobs and the box with no line hang off the circle; api under app, db under jobs, auth under api, bot under auth
+    expect(g.edges.filter((e) => e.virtual).map((e) => e.to)).toEqual(['app', 'jobs', 'alone']);
+    const ring = (id) => Math.round(Math.abs(get(level.nodes, id).x - centre.x));
+    expect(ring('app')).toBe(ring('jobs'));
+    expect(ring('api')).toBeGreaterThan(ring('app'));
+    expect(ring('auth')).toBeGreaterThan(ring('api'));
+    expect(ring('bot')).toBeGreaterThan(ring('auth'));
+    expect(Math.sign(get(level.nodes, 'db').x - centre.x)).toBe(Math.sign(get(level.nodes, 'jobs').x - centre.x));
+    apart([...level.nodes, centre], centre);
+    // pressed again, nothing moves
+    const once = at(level.nodes);
+    tidyLevel(level, { top: false, label: 'repo' });
+    expect(at(level.nodes)).toEqual(once);
   });
 
-  it('keeps its top left corner and moves nothing on the next press, whatever the boxes measure', () => {
-    for (const sizes of [new Map(), new Map(system().nodes.map((n, i) => [n.id, { w: 141 + i * 7.5, h: 51 + i }]))]) {
-      const { nodes, edges } = system();
-      const size = (n) => sizes.get(n.id) || { w: 140, h: 50 };
-      const corner = () => [Math.min(...nodes.map((n) => n.x - size(n).w / 2)), Math.min(...nodes.map((n) => n.y - size(n).h / 2))];
-      const was = corner();
-      tidyLayers(nodes, edges, null, sizes);
-      expect(Math.abs(corner()[0] - was[0])).toBeLessThanOrEqual(0.5);
-      expect(Math.abs(corner()[1] - was[1])).toBeLessThanOrEqual(0.5);
-      const once = at(nodes); tidyLayers(nodes, edges, null, sizes); expect(at(nodes)).toEqual(once);
-    }
+  it('on a system map, hangs each repo off the centre, an outside system under the repo calling it first, and a person under the repo they use', () => {
+    const box = (id, more = {}) => /** @type {any} */ ({ id, label: id, origin: 'code', ...more });
+    const level = {
+      nodes: [box('system'), box('web', { source: { repo: 'web' } }), box('api', { source: { repo: 'api' } }), box('jobs', { source: { repo: 'jobs' } }), box('Stripe', { kind: 'ext' }), box('Customer', { kind: 'actor' })],
+      edges: [...['web', 'api', 'jobs'].map((to) => ({ from: 'system', to, origin: 'code' })), { from: 'web', to: 'api', label: 'calls' }, { from: 'api', to: 'Stripe', label: 'charges' }, { from: 'jobs', to: 'Stripe', label: 'refunds' }, { from: 'Customer', to: 'web', label: 'uses' }],
+    };
+    level.nodes[0].x = 0; level.nodes[0].y = 0;
+    expect(tidyLevel(level, { top: true, start: 'system', label: 'Shop' })).toBe(true);
+    const g = levelGraph(level, { top: true, start: 'system', label: 'Shop' }), [centre, web, api, jobs, stripe, customer] = level.nodes;
+    expect(g.centre).toBe('system');
+    expect(g.lines).toContainEqual(expect.objectContaining({ from: 'web', to: 'Customer', flip: 'Customer>web' }));
+    const out = (n) => Math.abs(n.x - centre.x);
+    // repos round the circle on both sides, the rest one column further out, beside their parent
+    expect(out(web)).toBe(out(api));
+    expect(new Set([web, api, jobs].map((n) => Math.sign(n.x - centre.x)))).toEqual(new Set([-1, 1]));
+    expect(out(stripe)).toBeGreaterThan(out(api));
+    expect(Math.sign(stripe.x - centre.x)).toBe(Math.sign(api.x - centre.x));
+    expect(Math.sign(customer.x - centre.x)).toBe(Math.sign(web.x - centre.x));
+    expect(out(customer)).toBeGreaterThan(out(web));
+    apart(level.nodes, centre);
   });
 
-  it('moves only the boxes showing, and nothing on a map with no line', () => {
-    const { nodes, edges } = system(), before = at(nodes);
-    tidyLayers(nodes, edges, new Set(['app', 'api', 'auth']));
-    for (const id of ['jobs', 'bot', 'db', 'alone']) expect(at(nodes)[id]).toEqual(before[id]);
-    expect(get(nodes, 'auth').y).toBeGreaterThan(get(nodes, 'api').y);
-    expect(tidyLayers(system().nodes, [])).toBe(false);
-  });
-
-  it('wraps a row longer than eight boxes, and gives the same places whatever order the boxes sat in', () => {
-    const list = [{ id: 'top' }, ...Array.from({ length: 11 }, (_, i) => ({ id: `k${i}` }))];
-    const edges = list.slice(1).map((n) => ({ from: 'top', to: n.id }));
-    const places = layerPlaces(list, edges, () => 140, () => 50);
-    const place = (n) => /** @type {{ x: number, y: number }} */ (places.get(n.id));
-    const rows = [...new Set(list.map((n) => place(n).y))].sort((a, b) => a - b);
-    expect(rows.map((y) => list.filter((n) => place(n).y === y).length)).toEqual([1, 8, 3]);
-    expect(Math.min(...list.map((n) => place(n).x - 70))).toBe(0);
-    expect(layerPlaces(list, edges, () => 140, () => 50)).toEqual(places);
+  it('starts a map\'s top level at its start box when it can be the circle, else at a circle for the map', () => {
+    const { nodes, edges } = gtm();
+    expect(levelGraph({ nodes, edges }, { top: true, label: 'GTM' }).centre).toBe('gtm');
+    /** @type {any[]} */ (nodes)[0] = { ...nodes[0], inside: { nodes: [], edges: [] } };
+    const g = levelGraph({ nodes, edges }, { top: true, label: 'GTM' });
+    expect(g.centre).toBe(LEVEL_CENTRE);
+    expect(g.edges.filter((e) => e.virtual).map((e) => e.to)).toEqual(['gtm']);
   });
 });
 
-describe('Tidy up on a map drawn from code', () => {
+describe('Tidy up inside a box', () => {
   const acts = (state) => boxActs({ getState: () => state, nodeOf: (id) => state.nodes.find((n) => n.id === id), seesOf: () => 'all', sideOf: () => false, tell() {}, pendingProposals: () => [], unlinkEdge: () => false, placeProposed() {} });
   const holding = (drawing) => { const inside = system(); return { state: { nodes: [{ id: 'repo', label: 'repo', x: 90, y: 150, inside }], edges: [], ...(drawing ? { drawing: { status: 'done' } } : {}) }, inside }; };
 
-  it('puts what a box opens into in rows', () => {
-    const { state, inside } = holding(true);
-    acts(state).tidy({ type: 'tidy', view: 'repo', by: 'Duy' });
-    expect(get(inside.nodes, 'api').y).toBeGreaterThan(get(inside.nodes, 'app').y);
-    expect(get(inside.nodes, 'app').y).toBe(get(inside.nodes, 'jobs').y);
-  });
-
-  it('leaves a map made by hand on its grid', () => {
-    const { state, inside } = holding(false), before = at(inside.nodes);
-    acts(state).tidy({ type: 'tidy', view: 'repo', by: 'Duy' });
-    expect(at(inside.nodes)).toEqual(before);
+  it('lays what a box opens into round its circle, on a map drawn from code and on one drawn by hand alike', () => {
+    for (const drawing of [true, false]) {
+      const { state, inside } = holding(drawing);
+      acts(state).tidy({ type: 'tidy', view: 'repo', by: 'Duy' });
+      const centre = /** @type {{ x: number, y: number }} */ (inside.centre);
+      expect(Math.abs(get(inside.nodes, 'api').x - centre.x)).toBeGreaterThan(Math.abs(get(inside.nodes, 'app').x - centre.x));
+      expect(Math.abs(get(inside.nodes, 'app').x - centre.x)).toBe(Math.abs(get(inside.nodes, 'jobs').x - centre.x));
+    }
   });
 });
 
@@ -352,26 +367,6 @@ describe('the centre circle', () => {
     expect([...hubSizes(nodes, edges, 'launch')]).toEqual([['launch', { w: HUB_SIZE, h: HUB_SIZE }]]);
     nodes[0] = { ...nodes[0], inside: { nodes: [], edges: [] } };
     expect([...hubSizes(nodes, edges, null)]).toEqual([]);
-  });
-
-  it('lays a system map\'s centre out in a row of its own, in the middle above the rows of calls', () => {
-    const at = (id, label) => ({ id, label, x: 0, y: 0, origin: 'code' });
-    const nodes = [at('system', 'Shop system'), at('system-web', 'web'), at('system-app', 'app'), at('system-api', 'api'), at('system-pay', 'Payments')];
-    const edges = [...nodes.slice(1).map((n) => ({ from: 'system', to: n.id, origin: 'code' })), { from: 'system-web', to: 'system-api', label: 'calls' }, { from: 'system-app', to: 'system-api', label: 'calls' }, { from: 'system-api', to: 'system-pay', label: 'charges' }];
-    const sizes = hubSizes(nodes, edges, 'system');
-    expect([...sizes]).toEqual([['system', { w: HUB_SIZE, h: HUB_SIZE }]]);
-    expect(tidyLayers(nodes, edges, null, sizes)).toBe(true);
-    const [centre, web, app, api, pay] = nodes;
-    // what calls above what is called, one row each, with the centre on top
-    expect(centre.y).toBeLessThan(web.y);
-    expect(web.y).toBe(app.y);
-    expect(api.y).toBeGreaterThan(web.y);
-    expect(pay.y).toBeGreaterThan(api.y);
-    // the centre over the middle of the boxes it leads to, and its row only as tall as the circle
-    const xs = nodes.slice(1).map((n) => n.x);
-    expect(centre.x).toBeGreaterThan(Math.min(...xs));
-    expect(centre.x).toBeLessThan(Math.max(...xs));
-    expect(web.y - centre.y).toBe(HUB_SIZE / 2 + 150 + 50 / 2);
   });
 
   it('brings the main topics in close to the circle, the next ring keeping its gap from them', () => {
