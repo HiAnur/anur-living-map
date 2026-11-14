@@ -45,6 +45,7 @@ import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapStore, moveMaps } from './map-store.js';
 import { mapsRoutes } from './maps-routes.js';
+import { meetingJob } from './meeting.js';
 import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
@@ -286,6 +287,19 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       }, 500);
     }
   }
+  // A meeting drawn live (meeting.js): what the recorder hears is asked about with no tools, checked by code
+  // (meeting-draw.js) and drawn as Claude; each step's one-line summary goes into the recorder's own chat.
+  const meeting = meetingJob({ home, memory, getState: () => state, save, push,
+    answer: (job) => agent.answer(job),
+    draw: (p) => actingAs('Claude', () => draw(p, 'Claude', { kind: 'meeting' })),
+    say: (to, text) => { if (!to) return; (state.threads[`@${to}`] ??= []).push({ who: 'Claude', text, at: stamp() }); },
+    fromWords: (source, proposed) => fromWords(source, proposed),
+    people: () => (state.people || []).map((/** @type {any} */ p) => p.id) });
+  // a meeting's map is owned by whoever records it, as a blank map is by whoever made it
+  /** @param {{ title: string, app?: string, by: string }} o */
+  function startMeeting(o) { state.admins = [o.by]; meeting.start(o); }
+  /** @param {{ title: string, text: string, me?: string, by: string }} o */
+  function importMeeting(o) { const r = meeting.importText(o); if (!r.error) { state.admins = [o.by]; save(); } return r; }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
   // a system map notices new commits in its repos while nobody has it open
@@ -781,6 +795,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.(); queued.length = 0;
+    meeting.close();
     system.cancel(); stopWatching();
     for (const r of clients) r.end();
   }
@@ -808,7 +823,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     save(); push();
     return out;
   }
-  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy, fromWords,
+  return { handle, summary, build, blank, close, startMeeting, importMeeting, meeting, allowed, access, canDelete, editShared, drawSystem, busy, fromWords,
     /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
     mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,
