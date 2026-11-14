@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { personOf } from './draw.js';
-import { appliedLine, checkMeetingOps, MAX_MEETING_POINTS, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt, namedOnce, pointCount, RECENT_STRETCHES } from './meeting-draw.js';
+import { appliedLine, checkMeetingOps, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt, namedOnce, pointCount, RECENT_STRETCHES } from './meeting-draw.js';
 import { checkTidyOps, TIDY_SCHEMA, TIDY_TARGET, tidyPrompt } from './meeting-tidy.js';
 import { PROPOSE_SCHEMA } from './propose.js';
 
@@ -141,10 +141,10 @@ export function parseTranscript(text, me = '') {
  *   draw: (drawing: { nodes: any[], edges: any[], remove?: string[] }) => void, say: (to: string, text: string) => void,
  *   fromWords?: (source: WordsSource, proposed: unknown) => ItemOutcome[],
  *   people?: () => string[], now?: () => number, pauseMs?: number, retryMs?: number, capUsd?: number,
- *   maxPoints?: number, tidyTarget?: number, layout?: () => void }} o
+ *   tidyTarget?: number, layout?: () => void }} o
  */
 export function meetingJob({ home, memory = false, getState, save, push, answer, draw, say, fromWords, people = () => [], now = Date.now, pauseMs = PAUSE_MS, retryMs = RETRY_MS, capUsd = COST_CAP_USD,
-  maxPoints = MAX_MEETING_POINTS, tidyTarget = TIDY_TARGET, layout = () => {} }) {
+  tidyTarget = TIDY_TARGET, layout = () => {} }) {
   const FILE = path.join(home, 'meeting.jsonl');
   /** @type {Said[]} */ let said = [];
   try { if (!memory) said = fs.readFileSync(FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { /* no meeting on this map yet: nothing said */ }
@@ -303,7 +303,10 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     if (r.cost) meeting.cost = { value: (meeting.cost?.value || 0) + r.cost.value, unit: r.cost.unit };
     const items = /** @type {any} */ (r.value)?.items;
     if (!Array.isArray(items) || !items.length) { save(); push(); return; }
-    const out = fromWords({ kind: 'meeting', id: `meeting:${getState().title}:${meeting.at}`, who: by, lines: mine, spoken: true }, items);
+    // a draft named under a point hangs under that point's topic instead, so the meeting's map stays two levels
+    const topicOf = new Map(ownBoxes().map((b) => [b.id, b.under === MEETING_ID ? b.id : b.under]));
+    const placed = items.map((/** @type {any} */ it) => (it && typeof it === 'object' && topicOf.has(it.under) ? { ...it, under: topicOf.get(it.under) } : it));
+    const out = fromWords({ kind: 'meeting', id: `meeting:${getState().title}:${meeting.at}`, who: by, lines: mine, spoken: true }, placed);
     meeting.actions = out.map((o) => ({ title: o.title, ...('made' in o ? { made: o.made } : 'info' in o ? { for: o.for } : 'merged' in o ? { merged: o.merged } : { refused: o.refused }) }));
     const made = out.filter((o) => 'made' in o);
     if (made.length) say(by, `Made ${made.length} Action draft${made.length === 1 ? '' : 's'} from what you said, now preparing (check they're yours): ${made.map((o) => o.title).join('; ')}.`);
@@ -327,7 +330,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     const meeting = m(), s = getState();
     const talk = chunkText([...before, ...lines]);
     const taken = new Set((s.nodes || []).map((/** @type {any} */ n) => n.id));
-    const ctx = { talk, by: meeting.by, people: people(), taken, maxPoints };
+    const ctx = { talk, by: meeting.by, people: people(), taken };
     const stretch = (meeting.stretches || 0) + 1, touched = meeting.touched || {};
     const full = last ? null : new Set(Object.keys(touched).filter((id) => touched[id] >= stretch - RECENT_STRETCHES));
     const did = { topics: 0, points: 0, notes: 0, updated: 0, answered: 0, removed: 0, refused: 0 };

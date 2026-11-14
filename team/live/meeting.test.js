@@ -382,6 +382,48 @@ describe('a meeting on a map', () => {
     j.close();
   });
 
+  it('hangs a draft named under a point under that point\'s topic, so the map stays two levels', async () => {
+    /** @type {any[]} */ const checked = [];
+    const task = { goal: 'g', result: 'r', inputs: [], steps: ['s'], evidence: ['e'], dependsOn: [] };
+    const { j, state } = job({
+      answer: (/** @type {any} */ jb, /** @type {number} */ n) => {
+        if (jb.schema === ACTIONS_SCHEMA) return { value: { items: [
+          { quote: "I'll send Dan the pricing by Thursday", title: 'Send Dan the pricing', under: 'm-send-pricing', task },
+          { quote: "I'll send Dan the pricing by Thursday", title: 'Again', under: 'm-pricing', task },
+        ] } };
+        if (jb.schema === TIDY_SCHEMA) return { value: { summary: '', ops: [] } };
+        return { value: { summary: '', ops: n > 1 ? [] : [
+          { op: 'add', ref: 't', kind: 'topic', title: 'Pricing', under: MEETING_ID, quote: "I'll send Dan the pricing" },
+          { op: 'add', kind: 'action', title: 'Send pricing', under: 't', owner: 'Harshit', quote: "I'll send Dan the pricing by Thursday" },
+        ] } };
+      },
+      job: { people: () => ['Harshit'], fromWords: (/** @type {any} */ src, /** @type {any} */ items) => { checked.push(items); return []; } },
+    });
+    j.start({ title: 'Pricing sync', by: 'Harshit' });
+    j.add([seg(0, "I'll send Dan the pricing by Thursday.", 'you'), seg(CHUNK_MS / 1000, 'Sounds good.')]);
+    await j.idle();
+    j.end();
+    for (let i = 0; i < 40 && !checked.length; i++) await wait(10);
+    expect(checked[0].map((/** @type {any} */ x) => x.under)).toEqual(['m-pricing', 'm-pricing']);
+    expect(state.meeting.boxes).toEqual(['m-pricing', 'm-send-pricing']);
+    j.close();
+  });
+
+  it('counts a question answered as a decision among what was decided', async () => {
+    const { j, state } = job({ answer: (/** @type {any} */ jb, /** @type {number} */ n) => ({ value: { summary: '', ops: n === 1 ? [
+      { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+      { op: 'add', kind: 'question', title: 'Which day do we launch?', under: 't', quote: 'Launch date first' },
+    ] : n === 2 ? [{ op: 'update', id: 'm-which-day-do-we', sub: 'Tuesday', quote: 'decide on Tuesday', answered: 'decide on Tuesday', as: 'decision' }] : [] } }) });
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, 'Next.')]);
+    await j.idle();
+    j.add([seg(70, "Let's decide on Tuesday."), seg(70 + CHUNK_MS / 1000, 'Done.')]);
+    await j.idle();
+    expect(state.nodes.find((/** @type {any} */ x) => x.id === 'm-which-day-do-we')).toMatchObject({ sub: 'Decided · Tuesday', state: '' });
+    expect(state.nodes.find((/** @type {any} */ x) => x.id === SUMMARY_ID)).toMatchObject({ sub: '1 decided · 0 to do' });
+    j.close();
+  });
+
   it('makes no drafts when the recorder\'s name is not one of the map\'s people, and says why', async () => {
     let calls = 0;
     const { j, state, asked, said } = job({ job: { people: () => ['Priyanka'], fromWords: () => { calls++; return []; } } });

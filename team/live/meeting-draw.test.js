@@ -210,16 +210,42 @@ describe('what a meeting answer may draw', () => {
     expect(r.dropped).toEqual(['ghost']);
   });
 
-  it('holds the meeting to a number of points across all its topics', () => {
-    const t2 = { id: 'm-t2', kind: 'topic', label: 'Pricing', under: MEETING_ID };
-    const points = [{ id: 'm-a', kind: 'fact', label: 'Alpha', under: 'm-launch' }, { id: 'm-b', kind: 'fact', label: 'Beta', under: 'm-t2' }];
+  it('holds only each topic to its points while recording, so a topic late in the meeting still gets its own', () => {
+    // 40 points already, 4 under each of 10 topics: a new topic's first point still lands
+    const topics = Array.from({ length: 10 }, (_, t) => ({ id: `m-t${t}`, kind: 'topic', label: `Topic ${t}`, under: MEETING_ID }));
+    const points = topics.flatMap((t, i) => Array.from({ length: 4 }, (_, k) => ({ id: `m-p${i}-${k}`, kind: 'fact', label: `Point ${i} ${k}`, under: t.id })));
     const r = checkMeetingOps({ ops: [
-      { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 'm-t2', quote: "Let's decide on Tuesday the 23rd" },
-      { op: 'note', id: 'm-t2', text: 'Free tier question', quote: 'keep the free tier' },
-    ] }, { boxes: [topic, t2, ...points], talk, by: 'Harshit', people: [], taken: new Set(), maxPoints: 2 });
-    expect(r.added).toEqual([]);
-    expect(r.noted).toHaveLength(1);
-    expect(r.refused[0].why).toBe('the meeting already has 2 points: update one of them by its id, or add this as a note (op "note") on the closest point or on its topic');
+      { op: 'add', ref: 'late', kind: 'topic', title: 'Pricing', under: MEETING_ID, quote: 'keep the free tier' },
+      { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 'late', quote: "Let's decide on Tuesday the 23rd" },
+    ] }, { boxes: [...topics, ...points], talk, by: 'Harshit', people: [], taken: new Set() });
+    expect(r.refused).toEqual([]);
+    expect(r.added.map((b) => b.label)).toEqual(['Pricing', 'Launch Tuesday']);
+  });
+
+  it('closes an answered question as a decision or a fact, as Claude judges, on words found in the talk', () => {
+    const q = { id: 'm-q', kind: 'question', label: 'Free tier or trial?', sub: 'Open', under: 'm-launch' };
+    const decided = check([{ op: 'update', id: 'm-q', sub: 'Answered: keep the free tier', quote: 'Do we keep the free tier', answered: 'keep the free tier', as: 'decision' }], [topic, q]);
+    expect(decided.changed).toEqual([{ id: 'm-q', sub: 'Decided · keep the free tier', state: '', kind: 'decision' }]);
+    const fact = check([{ op: 'update', id: 'm-q', sub: 'trial is 14 days', quote: 'Do we keep the free tier', answered: 'keep the free tier', as: 'fact' }], [topic, q]);
+    expect(fact.changed).toEqual([{ id: 'm-q', sub: 'Answered · trial is 14 days', state: '', kind: 'fact' }]);
+    const unsaid = check([{ op: 'update', id: 'm-q', quote: 'Do we keep the free tier', answered: 'we decided to drop pricing entirely', as: 'decision' }], [topic, q]);
+    expect(unsaid.changed).toEqual([]);
+  });
+
+  it('cuts a note\'s words near 100 characters, and passes a note for a full point to its topic', () => {
+    const point = { id: 'm-p', kind: 'fact', label: 'Friday risk', under: 'm-launch', desc: `- ${'x'.repeat(1490)}` };
+    const long = 'Friday is too risky because support is out and the release train is frozen for the holiday weekend anyway';
+    const r = check([{ op: 'note', id: 'm-p', text: long, quote: 'Friday is too risky' }], [{ ...topic, desc: '' }, point]);
+    expect(r.refused).toEqual([]);
+    expect(r.noted).toEqual([{ id: 'm-launch', text: `Friday risk: ${long}` }]);
+    expect(r.nodes).toEqual([{ id: 'm-launch', desc: '- Friday risk: Friday is too risky because support is out and the release train is frozen for the… — "Friday is too risky"' }]);
+    const full = check([{ op: 'note', id: 'm-p', text: 'More', quote: 'Friday is too risky' }], [{ ...topic, desc: `- ${'y'.repeat(1490)}` }, point]);
+    expect(full.refused[0].why).toBe('Friday risk\'s notes and its topic\'s are full: update the box instead');
+  });
+
+  it('never takes a day or a month for a name', () => {
+    expect(unsaidNames('Pitch on Monday, demo by Fri and launch in Sept', 'we pitch then', [])).toEqual([]);
+    expect(unsaidNames('Pitch to Acme on Monday', 'we pitch then', [])).toEqual(['Acme']);
   });
 
   it('refuses a name in a box\'s words that was not said, but not a word that starts a sentence', () => {
