@@ -6,12 +6,15 @@
 // prompt, so nobody on a call can make Claude act. meeting-draw.js checks every change against what was said
 // before any of it is drawn, so what the map shows rests on code, not on the model following instructions. The
 // talk counts as sent only once an answer has landed; a failed call is tried again later with the same talk.
+// When the meeting ends, a tidy pass (meeting-tidy.js) merges and folds what the stretches drew, then the
+// recorder's own commitments become their Action drafts.
 
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { personOf } from './draw.js';
 import { checkMeetingOps, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt } from './meeting-draw.js';
+import { checkTidyOps, TIDY_SCHEMA, tidyPrompt } from './meeting-tidy.js';
 import { PROPOSE_SCHEMA } from './propose.js';
 
 export const CHUNK_MS = 60_000;
@@ -134,7 +137,7 @@ export function parseTranscript(text, me = '') {
  * One map's meeting.
  * @param {{ home: string, memory?: boolean, getState: () => any, save: () => void, push: () => void,
  *   answer: (job: { prompt: string, schema: object }) => Promise<{ value?: unknown, error?: string, cost?: { value: number, unit: string } }>,
- *   draw: (drawing: { nodes: any[], edges: any[] }) => void, say: (to: string, text: string) => void,
+ *   draw: (drawing: { nodes: any[], edges: any[], remove?: string[] }) => void, say: (to: string, text: string) => void,
  *   fromWords?: (source: WordsSource, proposed: unknown) => ItemOutcome[],
  *   people?: () => string[], now?: () => number, pauseMs?: number, retryMs?: number, capUsd?: number }} o
  */
@@ -161,12 +164,12 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
   };
 
   // the meeting's boxes as the agent and the checks know them; one a person wrote or changed is theirs
-  /** @returns {{ id: string, label: string, sub: string, kind: string, under: string, locked: boolean }[]} */
+  /** @returns {{ id: string, label: string, sub: string, desc: string, kind: string, under: string, locked: boolean }[]} */
   const ownBoxes = () => {
     const meeting = m(), s = getState(), mine = new Set(meeting?.boxes || []);
     const parent = new Map((s.edges || []).filter((/** @type {any} */ e) => !e.label).map((/** @type {any} */ e) => [e.to, e.from]));
     return (s.nodes || []).filter((/** @type {any} */ n) => mine.has(n.id) && n.state !== 'gone').map((/** @type {any} */ n) => ({
-      id: n.id, label: n.label, sub: n.sub || '', kind: meeting.kinds?.[n.id] || 'topic', under: parent.get(n.id) || MEETING_ID,
+      id: n.id, label: n.label, sub: n.sub || '', desc: n.desc || '', kind: meeting.kinds?.[n.id] || 'topic', under: parent.get(n.id) || MEETING_ID,
       locked: !!personOf(n),
     }));
   };
@@ -204,12 +207,51 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     const rest = (/** @type {string} */ sub, /** @type {string} */ word) => sub.replace(new RegExp(`^${word}(?: · )?`), '');
     const desc = [
       decided.length ? `Decided:\n${decided.map((b) => `- ${b.label}${rest(b.sub, 'Decided') ? ` — ${rest(b.sub, 'Decided')}` : ''}`).join('\n')}` : '',
-      todo.length ? `Next steps:\n${todo.map((b) => `- ${b.label}${rest(b.sub, 'Action') ? ` (${rest(b.sub, 'Action')})` : ''}`).join('\n')}` : '',
+      todo.length ? `Next steps:\n${todo.map((b) => `- ${b.label}${b.sub ? ` (${b.sub})` : ''}`).join('\n')}` : '',
     ].filter(Boolean).join('\n\n');
     const had = (getState().nodes || []).some((/** @type {any} */ n) => n.id === SUMMARY_ID);
     draw({ nodes: [{ id: SUMMARY_ID, label: 'Summary and next steps', sub: `${decided.length} decided · ${todo.length} to do`, desc: desc.slice(0, 1500) }],
       edges: had ? [] : [{ from: MEETING_ID, to: SUMMARY_ID }] });
   };
+
+  // what the map did with an answer besides drawing boxes (a note added, an add turned into a note, a merge or a
+  // fold), kept beside the refusals so the drawing can be tuned from what happened
+  const logged = (/** @type {any[]} */ entries) => {
+    const meeting = m();
+    if (!entries.length) return;
+    (meeting.log ||= []).push(...entries.map((e) => ({ at: now(), ...e })));
+    meeting.log = meeting.log.slice(-200);
+  };
+
+  // Once the last pass is in: one more no-tool answer over the meeting's boxes and notes (no talk) merges boxes
+  // that say the same thing and folds points that settle nothing into their topic's notes. meeting-tidy.js checks
+  // each op; only boxes Claude made move. It runs once, even across a restart, and stops at the spending cap.
+  async function tidyPass() {
+    const meeting = m();
+    if (!meeting || meeting.tidyDone || stopAtCap()) return;
+    meeting.tidyDone = true; save();
+    const boxes = ownBoxes();
+    if (boxes.length < 2) return;
+    const lines = mapContext().lines.filter((/** @type {{ from: string, to: string }} */ l) => l.from !== MEETING_ID && l.to !== MEETING_ID);
+    const r = await answer({ prompt: tidyPrompt({ by: meeting.by, title: getState().title, boxes, lines }), schema: TIDY_SCHEMA });
+    if (closed) return;
+    if (r.cost) meeting.cost = { value: (meeting.cost?.value || 0) + r.cost.value, unit: r.cost.unit };
+    if (!r.value) { meeting.error = r.error || 'The agent did not answer.'; save(); push(); return; }
+    const checked = checkTidyOps(r.value, { boxes: ownBoxes(), lines });
+    if (checked.remove.length) {
+      draw({ nodes: checked.nodes, edges: checked.edges, remove: checked.remove });
+      const gone = new Set(checked.remove);
+      meeting.boxes = (meeting.boxes || []).filter((/** @type {string} */ id) => !gone.has(id));
+      for (const id of gone) delete meeting.kinds?.[id];
+      summarize();
+    }
+    logged([...checked.merged.map((x) => ({ did: 'merged', id: x.id, into: x.into })), ...checked.folded.map((x) => ({ did: 'folded', id: x.id, into: x.into }))]);
+    (meeting.refused ||= []).push(...checked.refused.map((x) => ({ at: now(), why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
+    meeting.refused = meeting.refused.slice(-200);
+    const n = checked.remove.length, summary = String(/** @type {any} */ (r.value).summary || '').slice(0, 200);
+    if (n) say(meeting.by, summary || `Tidied ${n} box${n === 1 ? '' : 'es'} into others.`);
+    save(); push();
+  }
 
   // Once the meeting is over: what the person recording said they will do becomes their Action drafts, through
   // action-items.js. Only their own lines are the source, and only when the name the recorder sends is one of
@@ -259,9 +301,11 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       if (checked.nodes.length || checked.edges.length) {
         draw({ nodes: checked.nodes, edges: checked.edges });
         for (const b of checked.added) { (meeting.boxes ||= []).push(b.id); (meeting.kinds ||= {})[b.id] = b.kind; }
-        for (const b of checked.changed) if (b.id && !b.gone && meeting.kinds) meeting.kinds[b.id] = meeting.kinds[b.id] || 'topic';
+        for (const b of checked.changed) if (b.id && !b.gone) (meeting.kinds ||= {})[b.id] = b.kind || meeting.kinds[b.id] || 'topic';
       }
-      drawn += checked.added.length + checked.changed.length;
+      drawn += checked.added.length + checked.changed.length + checked.noted.length;
+      logged(checked.noted.map((x) => ({ did: 'noted', id: x.id, text: x.text.slice(0, 160) })));
+      logged(checked.moved.map((x) => ({ did: 'moved to notes', why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
       summary = String(/** @type {any} */ (r.value).summary || '').slice(0, 200) || summary;
       (meeting.refused ||= []).push(...checked.refused.map((x) => ({ at: now(), why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
       meeting.refused = meeting.refused.slice(-200);
@@ -301,7 +345,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       for (let i = said.length - 1; i >= 0 && text < LAST_PASS_CHARS; i--) { all.unshift(said[i]); text += said[i].text.length; }
       const ok = all.length ? await ask(all, [], true) : true;
       if (closed) return;
-      if (ok) { meeting.done = true; save(); push(); await actionPass(); } else { lastPassDue = true; if (!stopAtCap()) later(go, retryMs); }
+      if (ok) { await tidyPass(); if (closed) return; meeting.done = true; save(); push(); await actionPass(); } else { lastPassDue = true; if (!stopAtCap()) later(go, retryMs); }
     }
   }
   function go() {

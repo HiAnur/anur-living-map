@@ -12,6 +12,7 @@ import { agent } from './agent.js';
 import { mapList } from './map-list.js';
 import { mapsRoutes } from './maps-routes.js';
 import { MEETING_ID } from './meeting-draw.js';
+import { TIDY_SCHEMA } from './meeting-tidy.js';
 import { ACTIONS_SCHEMA, CHUNK_MS, meetingJob, parseTranscript, STRETCH_WORDS, SUMMARY_ID } from './meeting.js';
 import { openMap } from './server.js';
 
@@ -35,7 +36,14 @@ function job(o = {}) {
   const j = meetingJob({
     home, getState: () => state, save() {}, push() {},
     answer: async (job) => { asked.push(job); return (o.answer || topicAnswer)(job, asked.length); },
-    draw: (p) => { drawn.push(p); for (const n of p.nodes) { const had = state.nodes.find((/** @type {any} */ x) => x.id === n.id); if (had) Object.assign(had, n); else state.nodes.push({ ...n }); } state.edges.push(...p.edges); },
+    draw: (p) => {
+      drawn.push(p);
+      for (const n of p.nodes) { const had = state.nodes.find((/** @type {any} */ x) => x.id === n.id); if (had) Object.assign(had, n); else state.nodes.push({ ...n }); }
+      state.edges.push(...p.edges);
+      const gone = new Set(p.remove || []);
+      state.nodes = state.nodes.filter((/** @type {any} */ n) => !gone.has(n.id));
+      state.edges = state.edges.filter((/** @type {any} */ e) => !gone.has(e.from) && !gone.has(e.to));
+    },
     say: (to, text) => said.push({ to, text }),
     now: () => now, pauseMs: 30, retryMs: 40, ...o.job,
   });
@@ -170,7 +178,7 @@ describe('a meeting on a map', () => {
   });
 
   it('sends what waits after a pause, and at the end the rest and a last pass', async () => {
-    const { j, state, asked } = job({ answer: (/** @type {any} */ jb) => (jb.prompt.includes('LAST PASS') ? { value: { summary: 'Tidied', ops: [] } } : topicAnswer(jb)) });
+    const { j, state, asked } = job({ answer: (/** @type {any} */ jb) => (jb.prompt.includes('LAST PASS') || jb.schema === TIDY_SCHEMA ? { value: { summary: 'Tidied', ops: [] } } : topicAnswer(jb)) });
     j.start({ title: 'Standup', by: 'Harshit' });
     j.add([seg(0, 'Quick one about the deploy.')]);
     await wait(80); await j.idle();
@@ -178,9 +186,11 @@ describe('a meeting on a map', () => {
     j.add([seg(30, 'And the release notes too.')]);
     expect(j.end()).toEqual({});
     await wait(20); await j.idle(); await wait(20); await j.idle();
-    expect(asked).toHaveLength(3);
+    expect(asked).toHaveLength(4);
     expect(asked[1].prompt).toContain('And the release notes too.');
     expect(asked[2].prompt).toContain('LAST PASS');
+    // then the tidy pass, over the two topics drawn
+    expect(asked[3].schema).toBe(TIDY_SCHEMA);
     expect(state.meeting).toMatchObject({ live: false, done: true, sent: 2 });
     expect(j.add([seg(40, 'late')])).toEqual({ error: 'That meeting has ended.' });
   });
@@ -203,6 +213,87 @@ describe('a meeting on a map', () => {
     j.add([seg(70, 'Next up is pricing.'), seg(70 + CHUNK_MS / 1000, 'Free tier or trial?')]);
     await j.idle();
     expect(asked[1].prompt).not.toContain(SUMMARY_ID);
+    j.close();
+  });
+
+  it('keeps finer detail as notes on a point, and logs each one', async () => {
+    const { j, state } = job({ answer: (/** @type {any} */ jb, /** @type {number} */ n) => (n > 1 ? { value: { summary: '', ops: [] } } : { value: { summary: 'Launch', ops: [
+      { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+      { op: 'add', ref: 'd', kind: 'decision', title: 'Launch Tuesday', under: 't', quote: 'decide on Tuesday' },
+      { op: 'add', kind: 'fact', title: 'Friday too risky', under: 'd', quote: 'Friday is too risky' },
+      { op: 'note', id: 't', text: 'Design is ready', quote: 'design is ready' },
+    ] } }) });
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(20, "Let's decide on Tuesday, Friday is too risky."), seg(CHUNK_MS / 1000, 'And design is ready.')]);
+    await j.idle();
+    expect(state.meeting.boxes).toHaveLength(2);
+    const [t, d] = state.meeting.boxes.map((/** @type {string} */ id) => state.nodes.find((/** @type {any} */ n) => n.id === id));
+    expect(d.desc).toBe('"decide on Tuesday"\n- Friday too risky — "Friday is too risky"');
+    expect(t.desc).toBe('"Launch date first"\n- Design is ready — "design is ready"');
+    expect(state.meeting.log.map((/** @type {any} */ x) => x.did)).toEqual(['noted', 'noted', 'moved to notes']);
+    j.close();
+  });
+
+  it('tidies the map once the last pass is in, before the Action drafts: merges and folds what Claude drew, never a person\'s box', async () => {
+    const tidy = { summary: 'Merged the two launch topics, folded one point', ops: [
+      { op: 'merge', id: 'm-launch-plan', into: 'm-launch-date' },
+      { op: 'fold', id: 'm-design-is-ready' },
+      { op: 'fold', id: 'm-launch-tuesday' },
+    ] };
+    const { j, state, asked, said } = job({
+      answer: (/** @type {any} */ jb, /** @type {number} */ n) => {
+        if (jb.schema === TIDY_SCHEMA) return { value: tidy, cost: { value: 0.1, unit: 'usd' } };
+        if (jb.schema === ACTIONS_SCHEMA) return { value: { items: [] } };
+        return { value: { summary: '', ops: n > 1 ? [] : [
+          { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+          { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 't', quote: 'decide on Tuesday' },
+          { op: 'add', kind: 'fact', title: 'Design is ready', under: 't', quote: 'design is ready' },
+          { op: 'add', ref: 'p', kind: 'topic', title: 'Launch plan', under: MEETING_ID, quote: 'Friday is too risky' },
+          { op: 'add', kind: 'fact', title: 'Friday too risky', under: 'p', quote: 'Friday is too risky' },
+        ] } };
+      },
+      job: { people: () => ['Harshit'], fromWords: () => [] },
+    });
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(20, "Let's decide on Tuesday, Friday is too risky."), seg(CHUNK_MS / 1000, 'And design is ready.')]);
+    await j.idle();
+    // a person changed this one: the tidy pass leaves it where it is
+    state.nodes.find((/** @type {any} */ n) => n.id === 'm-launch-tuesday').updatedBy = 'Priyanka';
+    j.end();
+    for (let i = 0; i < 40 && !state.meeting.actionsDone; i++) await wait(10);
+    await j.idle();
+    expect(asked.map((/** @type {any} */ a) => a.schema === TIDY_SCHEMA ? 'tidy' : a.schema === ACTIONS_SCHEMA ? 'actions' : a.prompt.includes('LAST PASS') ? 'last' : 'stretch'))
+      .toEqual(['stretch', 'last', 'tidy', 'actions']);
+    expect(asked[2].prompt).not.toContain('SAID');
+    expect(asked[2].prompt).toContain('- m-launch-plan · topic · Launch plan (under meeting)');
+    const ids = state.nodes.map((/** @type {any} */ n) => n.id);
+    expect(ids).not.toContain('m-launch-plan');
+    expect(ids).not.toContain('m-design-is-ready');
+    expect(ids).toEqual(expect.arrayContaining(['m-launch-tuesday', 'm-friday-too-risky']));
+    expect(state.meeting.boxes).toEqual(['m-launch-date', 'm-launch-tuesday', 'm-friday-too-risky']);
+    // the merged topic's point now hangs under the topic it joined
+    expect(state.edges).toContainEqual({ from: 'm-launch-date', to: 'm-friday-too-risky' });
+    expect(state.nodes.find((/** @type {any} */ n) => n.id === 'm-launch-date').desc).toBe('"Launch date first"\n- Launch plan — "Friday is too risky"\n- Design is ready — "design is ready"');
+    expect(state.meeting.log.filter((/** @type {any} */ x) => x.did === 'merged' || x.did === 'folded').map((/** @type {any} */ x) => [x.did, x.id, x.into]))
+      .toEqual([['merged', 'm-launch-plan', 'm-launch-date'], ['folded', 'm-design-is-ready', 'm-launch-date']]);
+    expect(state.meeting.refused.at(-1).why).toBe('Launch Tuesday was written by a person: the meeting leaves it');
+    expect(state.meeting.cost).toEqual({ value: 0.1, unit: 'usd' });
+    expect(said.map((/** @type {any} */ s) => s.text)).toContain('Merged the two launch topics, folded one point');
+    expect(state.meeting).toMatchObject({ tidyDone: true, done: true });
+    j.close();
+  });
+
+  it('skips the tidy pass once the meeting reached its spending cap', async () => {
+    const { j, state, asked } = job({ answer: (/** @type {any} */ jb) => ({ ...topicAnswer(jb), cost: { value: 0.3, unit: 'usd' } }), job: { capUsd: 0.5 } });
+    j.start({ title: 'M', by: 'Harshit' });
+    j.add([seg(0, 'Pricing first.'), seg(CHUNK_MS / 1000, 'Budget next.')]);
+    await j.idle();
+    j.add([seg(70, 'Hiring first.'), seg(70 + CHUNK_MS / 1000, 'Travel next.')]);
+    await j.idle();
+    j.end();
+    await wait(20); await j.idle();
+    expect(asked.some((/** @type {any} */ a) => a.schema === TIDY_SCHEMA)).toBe(false);
+    expect(state.meeting.capped).toBe(true);
     j.close();
   });
 
@@ -274,12 +365,13 @@ describe('a meeting on a map', () => {
     expect(j.importText({ title: 'Pasted', text: `${long}\nHarshit Khandelwal: I will write the notes.`, me: 'Harshit Khandelwal', by: 'Harshit' })).toEqual({ count: 121 });
     for (let i = 0; i < 50 && !state.meeting.done; i++) await wait(10);
     expect(state.meeting).toMatchObject({ imported: true, live: false, done: true, sent: 121 });
-    const stretches = asked.filter((/** @type {any} */ a) => !a.prompt.includes('LAST PASS'));
+    const stretches = asked.filter((/** @type {any} */ a) => !a.prompt.includes('LAST PASS') && a.schema !== TIDY_SCHEMA);
     expect(stretches.length).toBe(3);
     // each shows what came just before it again, already on the map
     expect(stretches[1].prompt).toMatch(/SAID BEFORE \(already on the map\):\n(Priya: .*\n){20}\nSAID SINCE/);
-    expect(asked.at(-2).prompt).toContain('You: I will write the notes.');
-    expect(asked.at(-1).prompt).toContain('LAST PASS');
+    expect(asked.at(-3).prompt).toContain('You: I will write the notes.');
+    expect(asked.at(-2).prompt).toContain('LAST PASS');
+    expect(asked.at(-1).schema).toBe(TIDY_SCHEMA);
   });
 
   it('keeps a pasted transcript\'s place when a call fails, and goes on from there', async () => {
@@ -358,6 +450,8 @@ describe('the meeting routes', () => {
     for (const t of tooled) expect(t).not.toHaveBeenCalled();
     const s = map.snapshot();
     expect(s.nodes.find((/** @type {any} */ n) => n.label === 'Friday works for design.')).toMatchObject({ by: 'Claude' });
+    // every box the page gets is an info box: a meeting's kinds stay with the meeting, never a type or a look
+    for (const n of s.nodes) for (const k of ['kind', 'boxType', 'type', 'action']) expect(n).not.toHaveProperty(k);
     expect(s.threads['@Harshit'].at(-1)).toMatchObject({ who: 'Claude', text: 'Added "Friday works for design."' });
 
     expect(await post('/api/meetings/launch-sync/end', {})).toEqual({ status: 200, body: { ok: true } });
