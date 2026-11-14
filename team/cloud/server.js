@@ -94,7 +94,8 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         if (!publisher) throw fail(401, 'Publishing requires this Mac\'s sharing key.');
         const a = await body(req), data = mapData(a.data), id = a.id;
         if (!/^[a-f0-9]{32}$/.test(id || '') || !/^[a-f0-9]{64}$/.test(a.ownerKey || '') || !/^[a-f0-9]{64}$/.test(a.linkKey || '') || !['view','edit'].includes(a.mode)) throw fail(400, 'Invalid sharing settings.');
-        // an online copy belongs to the Google account that published it
+        // an online copy belongs to the Google account that published it; a Mac from before Google sign-in sends none
+        if (!req.headers['x-google-id-token']) throw fail(401, 'Publishing online needs a Google sign-in now. Update Living Map on this Mac, then sign in with Google.');
         const who = await google();
         const existing = await store.get(id);
         if (existing) {

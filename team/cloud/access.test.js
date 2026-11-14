@@ -55,7 +55,9 @@ async function cloud({ store = new MemoryStore(), exchange } = {}) {
 describe('publishing', () => {
   it('is refused without a valid Google ID token', async () => {
     const c = await cloud();
-    expect((await c.publish('')).status).toBe(401);
+    // a Mac from before Google sign-in sends no token, and is told to update
+    const old = await c.publish('');
+    expect(old.status).toBe(401); expect((await old.json()).error).toContain('Update Living Map on this Mac');
     expect((await c.publish('not.a.token')).status).toBe(401);
     // signed by a key that is not Google's
     const other = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey;
