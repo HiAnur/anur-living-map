@@ -407,3 +407,45 @@ describe('the centre circle', () => {
     expect(Math.abs(get(state.nodes, 'pricing').x - get(state.nodes, 'launch').x)).toBe(70 + 70 + 70);
   });
 });
+
+// Tidy up and a new box are laid out inside a request, so on a big map that is not one tree (two boxes sharing an id,
+// lines between branches) the search for fewer crossings stops at a fixed amount of work and keeps the best it found:
+// the server answers everyone else meanwhile. Alone each takes about a second; with no bound, minutes.
+describe('a big map that is not one tree', () => {
+  const big = () => {
+    let seed = 11;
+    const rnd = (/** @type {number} */ n) => (seed = (seed * 1103515245 + 12345) % 2 ** 31) % n;
+    /** @type {any[]} */ const nodes = [{ id: 'm', label: 'Meeting', x: 90, y: 150 }];
+    /** @type {any[]} */ const edges = [];
+    for (let i = 1; i < 130; i++) {
+      const parent = i < 12 ? 'm' : `b${1 + rnd(i - 1)}`;
+      // a third of the boxes sit off the grid, where a mind map put them
+      nodes.push({ id: `b${i}`, label: `Box ${i}`, x: 90 + (i % 9) * 340 + (i % 3 ? 0 : 37), y: 150 + Math.floor(i / 9) * 200 + (i % 3 ? 0 : 23) });
+      edges.push({ from: parent, to: `b${i}` });
+    }
+    for (let i = 0; i < 25; i++) edges.push({ from: `b${1 + rnd(129)}`, to: `b${1 + rnd(129)}`, label: 'blocks' });
+    // the same id twice, as an older meeting drew some questions
+    nodes.push({ ...nodes[40], x: nodes[40].x + 340 * 9 });
+    return { nodes, edges };
+  };
+  const cells = (/** @type {any[]} */ nodes) => new Set(nodes.map((n) => `${n.x},${n.y}`)).size;
+
+  it('tidies it in seconds, not minutes, every box on its own cell', () => {
+    const { nodes, edges } = big();
+    const t = Date.now();
+    tidy(nodes, edges);
+    expect(Date.now() - t).toBeLessThan(20_000);
+    expect(cells(nodes)).toBe(nodes.length);
+    for (const n of nodes) expect([Number.isInteger((n.x - 90) / 340), Number.isInteger((n.y - 150) / 200)]).toEqual([true, true]);
+  }, 30_000);
+
+  it('places new boxes on it in seconds, not minutes, each on a free cell', () => {
+    const { nodes, edges } = big();
+    for (let i = 0; i < 20; i++) { nodes.push({ id: `new${i}`, label: `New ${i}` }); edges.push({ from: `b${5 + i}`, to: `new${i}` }); }
+    const t = Date.now();
+    placeNew(nodes, edges, 'm');
+    expect(Date.now() - t).toBeLessThan(20_000);
+    expect(nodes.every((n) => Number.isFinite(n.x) && Number.isFinite(n.y))).toBe(true);
+    expect(cells(nodes.filter((n) => String(n.id).startsWith('new')))).toBe(20);
+  }, 30_000);
+});

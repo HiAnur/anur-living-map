@@ -188,6 +188,11 @@ export function crossings(nodes, edges) {
 /** @param {LayoutBox} n */
 const placed = (n) => Number.isFinite(n.x) && Number.isFinite(n.y);
 
+// The most box-and-line checks one layout spends looking for fewer crossings: about a second on a laptop. Tidy up
+// and a new box are laid out inside a request, and on a big map that is not one tree an unbounded search runs for
+// minutes while no other request is answered; past this the boxes keep the best places found so far.
+export const CROSSING_CHECKS = 4_000_000;
+
 // A new box on a topic map goes where Tidy up would put it (on its parent's side, beside the boxes it belongs
 // with, after the box drawn before it), without moving a box already there; on any other map, the free grid
 // spot where its lines cross the fewest boxes and are shortest.
@@ -196,6 +201,7 @@ export function placeNew(nodes, edges, start = null, sizes = new Map()) {
   if (!nodes.some((n) => !placed(n))) return;
   // the tree's new boxes take their places in it; a new box no line joins to the tree takes a free grid spot
   placeInTree(nodes, edges, start, sizes);
+  let spent = 0;
   for (const n of nodes) {
     if (placed(n)) continue;
     const others = nodes.filter((o) => o !== n && placed(o));
@@ -207,9 +213,14 @@ export function placeNew(nodes, edges, start = null, sizes = new Map()) {
       for (let c = Math.min(...cols) - 1; c <= Math.max(...cols) + 1; c++) {
         const x = 90 + c * COL, y = 150 + r * ROW;
         if (others.some((o) => Math.abs(o.x - x) < COL - 30 && Math.abs(o.y - y) < ROW - 20)) continue;
-        // its own lines through other boxes, and lines already drawn through it, both count
-        const all = [...others, { ...n, x, y }], ids = new Set(all.map((o) => o.id));
-        const cross = crossings(all, edges.filter((e) => ids.has(e.from) && ids.has(e.to)));
+        // its own lines through other boxes, and lines already drawn through it, both count; once the checks are
+        // spent, the free cell with the shortest lines
+        let cross = 0;
+        if (spent < CROSSING_CHECKS) {
+          const all = [...others, { ...n, x, y }], ids = new Set(all.map((o) => o.id)), lines = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
+          spent += all.length * lines.length;
+          cross = crossings(all, lines);
+        }
         const len = links.reduce((l, o) => l + Math.abs(o.x - x) + Math.abs(o.y - y), 0);
         const score = cross * 10000 + len;
         if (!best || score < best.score) best = { x, y, score };
@@ -331,7 +342,8 @@ export function blockClashes(nodes, edges, start = null, sizes = new Map()) {
 // twice moves nothing the second time; a box off the grid goes to the nearest free cell. While most boxes are
 // still off the grid (a map drawn by hand, or laid out on other spacing), the ones off it that sit roughly in one
 // column or row share it, empty rows and columns between them close up, left of stays left of and above stays above. Then no line runs through a box: while one does, of the boxes that were off the
-// grid, the one whose move frees the most lines goes to the nearest free cell that does it. Only the boxes in
+// grid, the one whose move frees the most lines goes to the nearest free cell that does it, until the
+// CROSSING_CHECKS are spent. Only the boxes in
 // `shown` move; the others keep their cells.
 /** @param {LayoutBox[]} nodes @param {Line[]} [edges] */
 export function tidy(nodes, edges = [], /** @type {any} */ shown = null) {
@@ -376,19 +388,24 @@ export function tidy(nodes, edges = [], /** @type {any} */ shown = null) {
   }
   const seen = list.filter(may), ids = new Set(seen.map((n) => n.id));
   const lines = edges.filter((e) => ids.has(e.from) && ids.has(e.to));
-  for (let round = 0; round < 40 && loose.length; round++) {
+  const cost = Math.max(1, seen.length * lines.length);
+  let spent = 0;
+  for (let round = 0; round < 40 && loose.length && spent < CROSSING_CHECKS; round++) {
     const now = crossings(seen, lines);
+    spent += cost;
     if (!now) break;
     const held = new Set(list.map((n) => key(...cell(n))));
     const cs = list.map((n) => cell(n)[0]), rs = list.map((n) => cell(n)[1]);
     let best = null;
-    for (const n of loose) {
+    search: for (const n of loose) {
       const [c, r] = cell(n), was = [n.x, n.y];
       for (let r2 = Math.min(...rs) - 1; r2 <= Math.max(...rs) + 1; r2++)
         for (let c2 = Math.min(...cs) - 1; c2 <= Math.max(...cs) + 1; c2++) {
           if (held.has(key(c2, r2))) continue;
+          if (spent >= CROSSING_CHECKS) { [n.x, n.y] = was; break search; }
           [n.x, n.y] = spot(c2, r2);
           const k = crossings(seen, lines), d = Math.abs(c2 - c) + Math.abs(r2 - r);
+          spent += cost;
           if (k < now && (!best || k < best.k || (k === best.k && d < best.d))) best = { n, c: c2, r: r2, k, d };
         }
       [n.x, n.y] = was;
