@@ -1,6 +1,6 @@
 // The maps this server keeps: each code folder's own (projects.json remembers the ones added), the maps named
 // by address under maps/, the ones moved to Trash, which old addresses and restarts must not bring back, and the
-// ones each person pinned to the top of their own list.
+// ones each person pinned to the top of their own list. Where maps/ and projects.json are is map-store.js's.
 // `main` is the map at the server's own address: the first code folder's, the demo story with --demo, or none.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,16 +8,18 @@ import path from 'node:path';
 import { managesAccess, removedFrom } from './access.js';
 
 /**
- * @param {{ openMap: (options: any) => any, DIR: string, PROJECT: string, PROJECTS: string,
+ * @param {{ openMap: (options: any) => any, DIR: string, MAPS: string, PROJECT: string, PROJECTS: string,
  *   mapName: (folder: any) => string, adminsOf?: (state: any, project: string) => string[], DEMO?: boolean }} deps
+ * `DIR`: the code folder, the story's home with --demo, whose page files no map may take the address of; `MAPS`: where
+ * the named maps, Trash and pins are kept;
  * `adminsOf`: who owns a map, by its state and its code folder ('' for a map with none); `DEMO`: the story is the map at /
  */
-export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, adminsOf = () => [], DEMO = false }) {
-  const DELETED = path.join(DIR, 'maps', '.deleted', 'index.json');
+export function mapList({ openMap, DIR, MAPS, PROJECT, PROJECTS, mapName, adminsOf = () => [], DEMO = false }) {
+  const DELETED = path.join(MAPS, '.deleted', 'index.json');
   const deletedMaps = new Set((() => { try { return JSON.parse(fs.readFileSync(DELETED, 'utf8')); } catch { return []; } })());
   const saveDeleted = () => { fs.mkdirSync(path.dirname(DELETED), { recursive: true }); fs.writeFileSync(`${DELETED}.tmp`, JSON.stringify([...deletedMaps])); fs.renameSync(`${DELETED}.tmp`, DELETED); };
   // The maps each person pinned, by name: a pin is that person's own, so it reorders nobody else's list.
-  const PINNED = path.join(DIR, 'maps', '.pinned.json');
+  const PINNED = path.join(MAPS, '.pinned.json');
   /** @type {Map<string, string[]>} */
   const pinned = new Map((() => { try { return Object.entries(JSON.parse(fs.readFileSync(PINNED, 'utf8'))).filter(([, names]) => Array.isArray(names)); } catch { return []; } })());
   /** @param {any} who @param {string} name */
@@ -52,7 +54,7 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, adminsOf = (
   const named = new Map();
   const remembered = () => { try { return JSON.parse(fs.readFileSync(PROJECTS, 'utf8')); } catch { return []; } };
   /** Whether an address is another map's, a page file's, or the API's. @param {string} n */
-  const taken = (n) => deletedMaps.has(n) || projects.has(n) || aliases.has(n) || named.has(n) || fs.existsSync(path.join(DIR, 'maps', n)) || fs.existsSync(path.join(DIR, n)) || n === 'api'
+  const taken = (n) => deletedMaps.has(n) || projects.has(n) || aliases.has(n) || named.has(n) || fs.existsSync(path.join(MAPS, n)) || fs.existsSync(path.join(DIR, n)) || n === 'api'
     || [...folders.values(), PROJECT].some((f) => f && mapName(f) === n);
   /**
    * A code folder's address. A folder whose name says less than its title (a repo cloned as "repo" whose package is
@@ -100,7 +102,7 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, adminsOf = (
     let name = base; for (let i = 2; taken(name); i++) name = `${base}-${i}`;
     return name;
   }
-  const mapCalled = (/** @type {any} */ name) => named.get(name) ?? named.set(name, connectedMap({ name, home: path.join(DIR, 'maps', name) })).get(name);
+  const mapCalled = (/** @type {any} */ name) => named.get(name) ?? named.set(name, connectedMap({ name, home: path.join(MAPS, name) })).get(name);
   // Existing archives are readable in Trash too, including maps removed before Restore was available.
   const trashRecords = (/** @type {any} */ who) => {
     const bin = path.dirname(DELETED);
@@ -119,9 +121,8 @@ export function mapList({ openMap, DIR, PROJECT, PROJECTS, mapName, adminsOf = (
   };
   // every map to choose from: the code folders' own, then each named one
   const everyMap = () => {
-    const MAPS = path.join(DIR, 'maps');
     const names = fs.existsSync(MAPS) ? fs.readdirSync(MAPS).filter((d) => /^[a-z0-9-]+$/.test(d) && !projects.has(d) && !deletedMaps.has(d)).sort() : [];
     return [...projects, ...names.map((d) => [d, mapCalled(d)])];
   };
-  return Object.assign(maps, { deletedMaps, saveDeleted, isPinned, setPinned, connectedMap, projects, folders, aliases, nameOf, openFolder, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap });
+  return Object.assign(maps, { MAPS, deletedMaps, saveDeleted, isPinned, setPinned, connectedMap, projects, folders, aliases, nameOf, openFolder, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap });
 }

@@ -128,6 +128,8 @@ export function useTeamServer({ agentless = false } = {}) {
     env = {
       ...process.env,
       HOME: path.join(root, "home"),
+      // the maps stay in this copy, where the tests write them, and never reach a real data folder
+      ANUR_LIVING_MAP_MAPS: app,
       LIVING_MAP_USERS: path.join(root, "users.db"),
       LIVING_MAP_LOGIN_URL: "",
       LIVING_MAP_CLOUD_CONFIG: path.join(root, "no-cloud.json"),

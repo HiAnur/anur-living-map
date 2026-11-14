@@ -52,7 +52,7 @@ it('disconnects a removed member and blocks page, APIs, discovery and raw files 
   state.people = [{ id: 'Duy', role: 'Admin', joined: 'test' }, { id: 'Member', joined: 'test' }];
   fs.mkdirSync(path.join(root, 'maps', 'private'), { recursive: true });
   fs.writeFileSync(path.join(root, 'maps', 'private', 'state.json'), JSON.stringify(state));
-  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
   const cookies = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(JSON.stringify([users.start('Duy'),users.start('Member')]))"], { cwd: root, env, encoding: 'utf8' }));
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let child;

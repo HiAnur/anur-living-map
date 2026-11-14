@@ -24,7 +24,7 @@ function install() {
   fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(app, 'agents'), { recursive: true });
   fs.writeFileSync(path.join(app, 'projects.json'), '[]');
   const users = path.join(root, 'users.db');
-  const env = { ...process.env, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
   /** a script against this copy's users file @param {string} code */
   const run = (code) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: app, env, encoding: 'utf8' }).trim();
   /** `node users.js …`, as a script or Claude would run it: no terminal @param {string[]} args @param {string} [input] */
