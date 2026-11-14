@@ -5,7 +5,6 @@ import {
   box,
   openSample,
   server,
-  signIn,
   useTeamServer,
 } from "./team-map.harness.ts";
 
@@ -166,10 +165,7 @@ test("a run the map could not verify waits for its author to confirm it", async 
   ).toBeVisible();
 });
 
-test("an Admin hands an Action to another member", async ({
-  page,
-  browser,
-}) => {
+test("an Admin hands an Action to another member", async ({ page }) => {
   const ready = {
     by: "Duy",
     stage: "ready",
@@ -184,26 +180,14 @@ test("an Admin hands an Action to another member", async ({
       steps: ["Write it"],
     },
   };
+  // a map's people are those who have opened it: Harshit opened it on another Mac, before it came here
   const name = await openSample(page, {
     ...SAMPLE,
+    people: [{ id: "Harshit", sees: "all", joined: "earlier" }],
     nodes: SAMPLE.nodes.map((n) =>
       n.id === "trial" ? { ...n, action: ready, boxType: "action" } : n,
     ),
   });
-  // a map's people are those who have opened it: Harshit opens it once
-  const other = await browser.newContext();
-  await other.addCookies([
-    {
-      name: "lm_session",
-      value: signIn("Harshit"),
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
-  const visit = await other.newPage();
-  await visit.goto(`${server.origin}/${name}/`);
-  await expect(visit.locator("#nodes .node")).toHaveCount(4);
-  await other.close();
   await box(page, "Free trial").click();
   await page.getByText("Hand over").click();
   await page.getByRole("button", { name: "Harshit" }).click();

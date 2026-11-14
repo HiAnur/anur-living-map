@@ -16,12 +16,12 @@ async function serve(args) {
   for (const name of fs.readdirSync(import.meta.dirname)) if (/\.(js|json|html|md)$/.test(name) && name !== 'projects.json' && !fs.lstatSync(path.join(import.meta.dirname, name)).isSymbolicLink()) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(root, name));
   fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(root, 'agents'), { recursive: true });
   const env = { ...process.env, HOME: path.join(root, 'home'), LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), ANUR_LIVING_MAP_NO_UPDATE: '1' };
-  const cookie = execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(users.start('Duy'))"], { cwd: root, env, encoding: 'utf8' }).trim();
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; users.rename('Duy')"], { cwd: root, env });
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`;
   const child = spawn(process.execPath, ['server.js', String(port), ...args], { cwd: root, env, stdio: 'ignore' });
   for (let i = 0; i < 100; i++) { try { if ((await fetch(origin + '/api/version')).ok) break; } catch { /* not listening yet */ } await new Promise((r) => setTimeout(r, 50)); }
-  const get = (/** @type {string} */ p) => fetch(origin + p, { headers: { 'sec-fetch-site': 'same-origin', cookie: `lm_session=${cookie}` }, redirect: 'manual' });
+  const get = (/** @type {string} */ p) => fetch(origin + p, { headers: { 'sec-fetch-site': 'same-origin' }, redirect: 'manual' });
   const post = (/** @type {string} */ p, /** @type {any} */ data) => fetch(origin + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
   return { root, get, post, stop: async () => { if (child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } } };
 }

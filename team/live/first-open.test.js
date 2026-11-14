@@ -13,14 +13,14 @@ it('an Admin opening a map for the first time is not told to reload', async () =
   for (const name of fs.readdirSync(import.meta.dirname)) if (/\.(js|json|html|md)$/.test(name) && !fs.lstatSync(path.join(import.meta.dirname, name)).isSymbolicLink()) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(root, name));
   fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(root, 'agents'), { recursive: true });
   const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
-  const cookie = execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(users.start('Duy'))"], { cwd: root, env, encoding: 'utf8' }).trim();
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; users.rename('Duy')"], { cwd: root, env });
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`;
   const child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env, stdio: 'ignore' });
   /** @type {any} */ let reader;
   try {
     for (let i = 0; i < 60; i++) { try { if ((await fetch(origin + '/api/version')).ok) break; } catch {} await new Promise((r) => setTimeout(r, 50)); }
-    const headers = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', cookie: `lm_session=${cookie}` };
+    const headers = { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' };
     const made = await fetch(origin + '/api/newmap', { method: 'POST', headers: { ...headers, origin, 'content-type': 'application/json' }, body: JSON.stringify({ blank: true }) });
     expect(made.status).toBe(200);
     const { href } = await made.json();

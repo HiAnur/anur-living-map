@@ -63,13 +63,12 @@ import { planActs } from './plan-acts.js';
 import { mineChat, pendingIn, proposalChecks } from './proposal-check.js';
 import { placeLevel, readProject, tidy, tidyLevel } from './project.js';
 import { withCentre, withTreeLayout } from './system-centre.js';
-import { adminsOf, isEngineer, managesAccess, removedFrom } from './access.js';
+import { adminsOf, fromThisMac, isEngineer, managesAccess, removedFrom } from './access.js';
 import { cloudMirror, installCloudData } from './cloud-client.js';
 import { mayAct } from './permissions.js';
 import { linkRole, localTool, permission, sharedState, withoutRepos } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
-import { personNamed } from './person.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 
 // the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
@@ -97,15 +96,13 @@ const PAGE_FILES = PAGE_MODULES.map((f) => `/${f}`);
 const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => SIDES.has(v) ? v : null;
 // one map: its state, the windows following it, and what people can do to it
 /**
- * `installOwner`: who owns this install (users.js), and so every repo's own map. `before`: the Admins a map kept
- * from before maps recorded who made them goes on having, besides the ones it was stored with. `at`: the address a
- * code folder's map answers at, when it is not the folder's own name. `people`: everyone known on this install, and
- * `signedIn`: whoever signed in on this Mac last, who owns a chat linked from this Mac.
+ * `me`: you, the one person on this Mac (users.js), an Admin of every map here and the owner of every chat linked
+ * from it. `before`: the Admins a map kept from before maps recorded who made them goes on having, besides the ones
+ * it was stored with. `at`: the address a code folder's map answers at, when it is not the folder's own name.
  * @param {any} options
  */
 export function openMap({ project = '', name = '', at = '', home, initialState, undoState, memory = false, contextMaps = null,
-  installOwner = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]),
-  people = () => /** @type {string[]} */ ([]), signedIn = () => /** @type {string | null} */ (null),
+  me = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]),
   googleOf = (/** @type {any} */ _req) => /** @type {{ email: string, name: string, idToken: string, needs: string }} */ ({ email: '', name: '', idToken: '', needs: 'signin' }) }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   // this map's address: its name, or its code folder's (map-list.js); none for the story at /
@@ -114,11 +111,10 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const STATE = path.join(home, 'state.json');
   const OUTBOX = path.join(home, 'outbox.md');
   const SAVES = path.join(home, 'saves');
-  // a team map's people are whoever has signed in on it, from the moment they open it; nobody is listed who
-  // never came. Its Admins are whoever made it, and on a repo's own map the owner of this install (adminsOf).
-  // Everyone sees the whole map; only the story keeps its cast, their roles and their areas.
+  // a team map's people are whoever has opened it; nobody is listed who never came. Its Admins are you and whoever
+  // made it (adminsOf). Everyone sees the whole map; only the story keeps its cast, their roles and their areas.
   const roleOf = (/** @type {any} */ id) => !project && !name ? demo().people.find((/** @type {any} */ p) => p.id === id)?.role
-    : adminsOf(state, { project: !!project, owner: installOwner() }).includes(id) ? 'Admin' : undefined;
+    : adminsOf(state, { me: me() }).includes(id) ? 'Admin' : undefined;
   const seed = () => {
     if (!project && !name) return demo();
     const drawn = project ? readProject(project) : { title: name, desc: '', nodes: [], edges: [] };
@@ -213,12 +209,12 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // wrote from the map, and the changes it proposed here, in time order. Nobody else is sent it.
   let /** @type {any} */ mirror = null;
   const linkOf = () => state.linked?.[0] || null;
-  // A chat linked under a name that is no one's (the first word of a Mac account's name, which open-map.sh sends
-  // while nobody has signed in) is the person that name stands for once they sign in (person.js): "Alex" becomes
-  // "Alex Smith". Written down, so the pane and every check after go by the person. True when a link changed.
+  // Every chat linked from this Mac is yours, under the name you go by now: one linked under another name (the
+  // first word of the Mac account's name, an earlier sign-in, the name you had before you changed it) becomes
+  // yours, written down so the pane and every check after go by you. True when a link changed.
   const settleLinks = () => {
-    const known = people(); let changed = false;
-    for (const l of state.linked || []) { const p = personNamed(l.owner, known); if (p && p !== l.owner) { l.owner = p; changed = true; } }
+    const you = me(); let changed = false;
+    for (const l of state.linked || []) if (you && l.owner !== you) { l.owner = you; changed = true; }
     return changed;
   };
   if (settleLinks()) save();
@@ -679,7 +675,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
         if (name && !state.admins?.length) state.admins = [who];
         (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push();
       }
-      // someone new to this install may be whom an older chat's name meant
+      // a chat linked under the name you had before is yours
       if (who && !guest && settleLinks()) { save(); push(); }
       // their Google picture, kept on them as one of the map's people so everyone here sees it on their face
       const one = /** @type {any} */ (who && !guest ? state.people?.find((/** @type {any} */ p) => p.id === who) : null), face = one ? pictureOf(String(who)) : '';
@@ -725,9 +721,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (a.type === 'edit' && !guest && (!who || a.session)) a.by = 'Claude';
       // so is a chat's tool asking for Action drafts; whose they are comes from the chat it names, never this name
       if (a.type === 'myaction' && !guest && !who) a.by = 'Claude';
-      // a chat linked from this Mac is the person signed in on it, whatever name the script sent; before anyone has
-      // signed in, the name it sent stands until someone it names does (settleLinks)
-      if (a.type === 'link' && !guest && !who) a.by = signedIn() || personNamed(a.by, people()) || a.by;
+      // a chat linked from this Mac is yours, whatever name the script sent
+      if (a.type === 'link' && !guest && !who) a.by = me() || a.by;
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -837,49 +832,45 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename
 if (STORE.movesIn) {
   try { moveMaps({ from: DIR, to: STORE.root }); } catch (/** @type {any} */ e) { console.error(`[map] could not copy the maps kept in ${DIR} to ${STORE.root}; they are still there, and the next start tries again: ${e?.message}`); }
 }
-const { googleFinish, googleIdentity, googleOn, googleStart, passwordCheck } = await import('./google.js');
-const { MIN, users, recovery } = await import('./users.js');
-const { handleRecovery, mailReady } = await import('./recovery.js');
-// A map from before maps recorded who made them keeps the story's Admin, where that name has signed in here, and
-// the install's owner. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
-const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.owner()].filter((p) => !!p);
-const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn, googleOf: (/** @type {any} */ r) => googleOf(r) }), DIR, MAPS, PROJECT, PROJECTS, mapName,
-  adminsOf: (/** @type {any} */ state, /** @type {string} */ project) => adminsOf(state, { project: !!project, owner: users.owner(), before: before() }), DEMO });
+const { googleFinish, googleIdentity, googleOn, googleStart } = await import('./google.js');
+const { users } = await import('./users.js');
+// A map from before maps recorded who made them keeps the story's Admin, where that name signed in on an earlier
+// install, and you. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
+const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.me()];
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, me: users.me, before, googleOf: (/** @type {any} */ r) => googleOf(r) }), DIR, MAPS, PROJECT, PROJECTS, mapName,
+  adminsOf: (/** @type {any} */ state) => adminsOf(state, { me: users.me(), before: before() }), DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 
-// a page, with the signed-in person written into it for the page's own script; the list of maps, which has no
-// map to ask, is also told that person's role on the team
+// a page, with you written into it for the page's own script; the list of maps, which has no map to ask, is also
+// told your role on the team
 const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\p{L}\p{N} ._-]/gu, '')}">`,
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
-const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
-// the Google account this browser's person can publish online as: the address their sign-in came with, else this
-// Mac's latest Google sign-in (a Mac kept by one person has no other), with its ID token while fresh
-const googleOf = (/** @type {any} */ req) => googleIdentity(typeof users.emailOf === 'function' ? users.emailOf(cookieOf(req, 'lm_session')) : '');
-// a person's role on the team, which the list of maps and Settings show: no one map is there to ask
-const teamRole = (/** @type {string} */ who) => who && who === users.owner() ? 'Owner' : '';
-// what someone runs on this Mac for a link to choose a new password, when no email can carry one
-const resetCommand = `node "${path.join(DIR, 'users.js')}" reset${PORT === 4323 ? '' : ` --port ${PORT}`}`;
-const signIns = signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, passwordCheck, page, cookieOf, PORT, recovery, roleOf: teamRole, mailReady, resetCommand });
+// your role on the team, which the list of maps and Settings show: no one map is there to ask
+const teamRole = (/** @type {string | null} */ who) => who && who === users.me() ? 'Owner' : '';
+// the Google account you publish online as: the address your Google sign-in kept on this Mac, with the ID token
+// from that sign-in while it is fresh (only in memory, so a restart asks Google again)
+const googleOf = (/** @type {any} */ _req) => googleIdentity(users.googleEmail() || '');
+const signIns = signInRoutes({ users, googleFinish, googleOn, googleStart, page, PORT, roleOf: teamRole });
 const mapRoutes = mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO });
-// the install's owner may draw a system map before any map makes them an Admin
-const systemMaps = systemRoutes({ maps, team: () => { const owner = users.owner(); return owner ? [{ id: owner, role: 'Admin' }] : []; } });
+// you may draw a system map before any map makes you an Admin
+const systemMaps = systemRoutes({ maps, team: () => [{ id: users.me(), role: 'Admin' }] });
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(/** @type {string} */ (req.url), 'http://x');
-  // Signing in. Every page asks who you are; the first person on a new install creates the owner's account, and
-  // everyone after joins by the owner's invite. The API stays open to this Mac's own tools, Claude's plans and the
-  // listeners, since the server only answers on this Mac; a signed-in browser always acts as the person who signed in.
-  const who = users.whoIs(cookieOf(req, 'lm_session'));
-  if (await handleRecovery(req, res, { users, recovery, port: PORT, who })) return;
-  /** @type {(code: any, data: any, cookie?: any) => any} */
-  const json = (code, data, cookie) => res.writeHead(code, { 'content-type': 'application/json', ...(cookie ? { 'set-cookie': cookie } : {}) }).end(JSON.stringify(data));
+  // You, with no sign-in: a page of this map in a browser on this Mac acts as you (fromThisMac). The API stays open
+  // to this Mac's own tools, Claude's plans and the listeners, which act as Claude or as the chat they speak for.
+  // Anything else (another site open in the browser, an address that is not this Mac's) gets nothing but what a
+  // map's share link lets it have.
+  const who = fromThisMac(req) ? users.me() : null;
+  /** @type {(code: any, data: any) => any} */
+  const json = (code, data) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(data));
   if (await signIns(req, res, url, who, json)) return;
-  if (url.pathname === '/api/agent-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(401, { ok: false });
+  if (url.pathname === '/api/agent-login' && req.method === 'POST') return who ? json(200, { ok: await agent.signIn() }) : json(403, { ok: false });
   const isPage = req.method === 'GET' && !url.pathname.includes('/api/') && (url.pathname.endsWith('/') || url.pathname.endsWith('.html'));
-  if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname + url.search)}` }).end();
+  if (isPage && !who && !url.searchParams.has('share')) return res.writeHead(403, { 'content-type': 'text/plain', 'cache-control': 'no-store' }).end('Open Living Map in a browser on this Mac.');
   const rootLinkAPI = DEMO && /^\/api\/(state|events|file|history(?:\/\w+)?|act)$/.test(url.pathname) && maps.main?.access(who, req);
-  if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(401, { error: 'Sign in first.' });
+  if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(403, { error: 'Open Living Map in a browser on this Mac.' });
   // / lists every map to choose from: the code folders' own, then each named one; only the demo shows its story there
   if (!DEMO && url.pathname === '/') return page(res, 'maps.html', who, 'edit', false, teamRole(who));
   if (await mapRoutes(req, res, url, who, json)) return;
@@ -921,7 +912,7 @@ const server = http.createServer(async (req, res) => {
   if (map && await map.handle(req, res, p, who, users.pictureOf)) return;
   if (map && (p === '/' || p === '/index.html')) return page(res, 'index.html', who, map.access(who, req), url.searchParams.has('share') && map.access(who, req) !== 'owner');
   // Private map files and server sources are never browser assets.
-  if (!['/login.html', '/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
+  if (!['/maps.html', '/editing.js'].includes(p)) return res.writeHead(404).end('not here');
   const file = path.join(DIR, p.replace(/^\/+/, ''));
   if (!file.startsWith(DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('not here');
   res.writeHead(200, { 'content-type': /** @type {Record<string, any>} */ (types)[path.extname(file)] || 'application/octet-stream' }).end(fs.readFileSync(file));

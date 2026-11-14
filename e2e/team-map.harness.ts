@@ -6,8 +6,9 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 
-// What the team map's browser tests share: a copy of the team server per worker, with its own maps and sign-ins,
-// a sample topic map, and opening a map of its own for each test. A test file calls useTeamServer() once.
+// What the team map's browser tests share: a copy of the team server per worker, with its own maps and its own
+// person on this Mac, a sample topic map, and opening a map of its own for each test. A test file calls
+// useTeamServer() once.
 
 const LIVE = path.resolve(import.meta.dirname, "../team/live");
 export const SAMPLE = {
@@ -43,36 +44,23 @@ export const SAMPLE = {
 let root = "";
 let app = "";
 let origin = "";
-let session = "";
 let env: NodeJS.ProcessEnv = {};
 let child: ChildProcess | undefined;
 let crashes: string[];
 
-// A sign-in for a person, made the way the server makes one, for its cookie.
-export const signIn = (who: string) =>
+// Names the one person on this copy's Mac, as Settings does: every page here is them, with no sign-in.
+const nameYou = (who: string) =>
   execFileSync(
     process.execPath,
     [
       "--input-type=module",
       "-e",
-      `import {users} from './users.js';console.log(users.start(${JSON.stringify(who)}))`,
-    ],
-    { cwd: app, env, encoding: "utf8" },
-  ).trim();
-
-// Makes someone the owner of this copy, as the first account on it is; it does nothing once there is one.
-export const makeOwner = (who: string) =>
-  execFileSync(
-    process.execPath,
-    [
-      "--input-type=module",
-      "-e",
-      `import {users} from './users.js';users.create(${JSON.stringify(who)},'a long password')`,
+      `import {users} from './users.js';users.rename(${JSON.stringify(who)})`,
     ],
     { cwd: app, env },
   );
 
-// One server per worker, from its own copy, so maps and sign-ins stay apart.
+// One server per worker, from its own copy, so maps and their person stay apart.
 
 // Each test opens a map of its own, named after it, holding the sample.
 export const openSample = async (page: Page, state: object = SAMPLE) => {
@@ -110,7 +98,7 @@ export const server = {
 };
 
 /**
- * Starts the team server for this test file, signs Duy in for each test, and fails a test the page throws in.
+ * Starts the team server for this test file, with Duy as the person on its Mac, and fails a test the page throws in.
  * `agentless` leaves the agent off the server's PATH, for a test whose click starts preparing an Action: the
  * preparation fails at once instead of reaching a real agent. `env` adds to the server's environment, asked once
  * the file's earlier beforeAll hooks have run (a stand-in login service or cloud they started, say).
@@ -140,7 +128,7 @@ export function useTeamServer({
       ...(agentless ? { PATH: "/usr/bin:/bin" } : {}),
       ...more(),
     };
-    session = signIn("Duy");
+    nameYou("Duy");
     const reserve = http.createServer();
     await new Promise<void>((r) => reserve.listen(0, "127.0.0.1", r));
     const port = (reserve.address() as AddressInfo).port;
@@ -167,12 +155,9 @@ export function useTeamServer({
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  test.beforeEach(async ({ context, page }) => {
+  test.beforeEach(({ page }) => {
     crashes = [];
     page.on("pageerror", (e) => crashes.push(String(e)));
-    await context.addCookies([
-      { name: "lm_session", value: session, domain: "localhost", path: "/" },
-    ]);
   });
 
   test.afterEach(() => {
