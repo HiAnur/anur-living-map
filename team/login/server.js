@@ -3,10 +3,11 @@
 // A map sends the browser here, Google says which address it is and what the person is called, the list
 // (Firestore, collection "people", one document per address) may give that address a name of its own, and the
 // browser goes back to the map on localhost with a one-time code. The map trades the code here, with the secret it started with, for the person.
+// The online copy of a map (cloud/server.js) signs its visitors in the same way, at an origin RETURN_ORIGINS lists.
 //
 //   GET  /start?return=http://localhost:4322/auth/done&state=S&challenge=C    → Google
 //   GET  /auth/google/callback                                              → <return>?code=…&state=S
-//   POST /exchange {code, verifier}                                          → {email, name, listed, picture}
+//   POST /exchange {code, verifier}                                          → {email, name, listed, picture, id_token}
 //   POST /password {name, password}                                          → {name}, a sign-in with no Google account
 //
 // The list, from any Mac signed in to gcloud with access to the project:
@@ -15,7 +16,8 @@
 //                                                  (the password is read from stdin and kept scrambled, scrypt)
 //   node login/server.js remove <email or name> | list
 //
-// Env on Cloud Run: PUBLIC_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SEAL_KEY (32 random bytes, base64).
+// Env on Cloud Run: PUBLIC_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, SEAL_KEY (32 random bytes, base64), and
+// RETURN_ORIGINS: the https origins besides a Mac's localhost that may be sent back to, comma-separated.
 // Nothing is kept in memory between requests: what a sign-in carries from step to step is sealed with SEAL_KEY
 // (AES-256-GCM), so any instance can finish it. No packages: Firestore is called over its REST API.
 import { execFileSync } from 'node:child_process';
@@ -105,8 +107,11 @@ function unseal(kind, s, ttl) {
 }
 
 // ── the web side ──
-// only a map on the person's own Mac may be sent back to
+// only a map on the person's own Mac, or an online copy at an origin RETURN_ORIGINS names, may be sent back to
 const BACK = /^http:\/\/(localhost|127\.0\.0\.1)(:\d{1,5})?\/auth\/done$/;
+const ORIGINS = new Set(String(process.env.RETURN_ORIGINS || '').split(',').map((o) => o.trim()).filter((o) => /^https:\/\/[a-z0-9.-]+(:\d{1,5})?$/.test(o)));
+/** @param {string} back */
+const mayReturn = (back) => BACK.test(back) || (back.endsWith('/auth/done') && ORIGINS.has(back.slice(0, -'/auth/done'.length)));
 /** @param {import('node:http').ServerResponse} res @param {string} to */
 const go = (res, to) => res.writeHead(302, { location: to, 'cache-control': 'no-store' }).end();
 /** @param {import('node:http').ServerResponse} res @param {{ back: string, state: string }} f @param {Record<string, string>} q */
@@ -135,7 +140,9 @@ async function google(code, verifier) {
   if (!(c.email_verified === true || c.email_verified === 'true')) throw new Error('Google has not verified that address.');
   // the person's Google picture, only as an address on Google's own picture host, so a map can draw it as it is
   const picture = /^https:\/\/[a-z0-9-]+\.googleusercontent\.com\/[\w\-./=~%]{1,300}$/.test(c.picture) ? String(c.picture) : '';
-  return { email: String(c.email).toLowerCase(), name: String(c.name || '').replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40), picture };
+  // the ID token itself goes on to the map, which hands it to the online copy as proof of who publishes: Google
+  // signed it, so the copy checks it with Google's public keys and needs no secret
+  return { email: String(c.email).toLowerCase(), name: String(c.name || '').replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40), picture, idToken: String(b.id_token) };
 }
 
 http.createServer(async (req, res) => {
@@ -143,7 +150,7 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/start' && req.method === 'GET') {
     /** @type {{ back: string, state: string, challenge: string, verifier?: string }} */
     const f = { back: q.get('return') || '', state: q.get('state') || '', challenge: q.get('challenge') || '' };
-    if (!BACK.test(f.back) || !/^[\w-]{16,100}$/.test(f.state) || !/^[\w-]{43}$/.test(f.challenge)) return text(res, 400, 'This sign-in link is not from a Living Map.');
+    if (!mayReturn(f.back) || !/^[\w-]{16,100}$/.test(f.state) || !/^[\w-]{43}$/.test(f.challenge)) return text(res, 400, 'This sign-in link is not from a Living Map.');
     if (!ID || !SECRET || !KEY) return text(res, 503, 'Google sign-in is not set up here yet.');
     f.verifier = token(32);
     return go(res, `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
@@ -155,11 +162,11 @@ http.createServer(async (req, res) => {
     if (!f) return text(res, 400, 'That sign-in took too long. Go back to the map and sign in again.');
     if (q.get('error')) return back(res, f, { error: q.get('error') === 'access_denied' ? 'Google sign-in was cancelled.' : `Google said: ${q.get('error')}.` });
     // the name the list gives this address, else the name Google has for the person, else the address's first part
-    let email, name, picture;
+    let email, name, picture, idToken;
     let listed = false;
-    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; picture = g.picture; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (/** @type {any} */ e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
-    console.log(`signed in ${email} as ${name}`);
-    return back(res, f, { code: seal('code', { email, name, listed, picture, challenge: f.challenge }) });
+    try { const g = await google(q.get('code') || '', f.verifier); email = g.email; picture = g.picture; idToken = g.idToken; const l = await nameOf(email); listed = !!l; name = l || g.name || email.split('@')[0]; } catch (/** @type {any} */ e) { console.error(e.message); return back(res, f, { error: e.message.startsWith('Firestore') ? 'The sign-in list could not be read. Try again.' : e.message }); }
+    console.log(`signed in as ${name}`);
+    return back(res, f, { code: seal('code', { email, name, listed, picture, idToken, challenge: f.challenge }) });
   }
   if (url.pathname === '/exchange' && req.method === 'POST') {
     /** @type {any} what the map's server sent */
@@ -167,7 +174,7 @@ http.createServer(async (req, res) => {
     const c = KEY && unseal('code', a.code, CODE_TTL);
     if (!c || sha(a.verifier || '') !== c.challenge) return json(res, 400, { error: 'That sign-in code is not good. Sign in again.' });
     // listed: the name is the list's, so the map may seat them as that person; otherwise it is only Google's
-    return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed, picture: c.picture || '' });
+    return json(res, 200, { email: c.email, name: c.name, listed: !!c.listed, picture: c.picture || '', id_token: c.idToken || '' });
   }
   if (url.pathname === '/password' && req.method === 'POST') {
     /** @type {any} what the map's server sent */

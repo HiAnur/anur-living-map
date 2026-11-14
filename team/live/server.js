@@ -102,7 +102,8 @@ const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => 
  * @param {any} options
  */
 export function openMap({ project = '', name = '', at = '', home, initialState, undoState, memory = false, contextMaps = null,
-  me = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]) }) {
+  me = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]),
+  googleOf = (/** @type {any} */ _req) => /** @type {{ email: string, name: string, idToken: string, needs: string }} */ ({ email: '', name: '', idToken: '', needs: 'signin' }) }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   // this map's address: its name, or its code folder's (map-list.js); none for the story at /
   const slug = name || at || (project ? mapName(project) : '');
@@ -630,7 +631,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const allowed = (/** @type {any} */ who, /** @type {any} */ req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
-  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
+  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate(), googleOf });
   const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name: slug, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
   // after ACTS, which linking the chat needs
   if (!memory) watchNewChat();
@@ -831,12 +832,12 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename
 if (STORE.movesIn) {
   try { moveMaps({ from: DIR, to: STORE.root }); } catch (/** @type {any} */ e) { console.error(`[map] could not copy the maps kept in ${DIR} to ${STORE.root}; they are still there, and the next start tries again: ${e?.message}`); }
 }
-const { googleFinish, googleOn, googleStart } = await import('./google.js');
+const { googleFinish, googleIdentity, googleOn, googleStart } = await import('./google.js');
 const { users } = await import('./users.js');
 // A map from before maps recorded who made them keeps the story's Admin, where that name signed in on an earlier
 // install, and you. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
 const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.me()];
-const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, me: users.me, before }), DIR, MAPS, PROJECT, PROJECTS, mapName,
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, me: users.me, before, googleOf: (/** @type {any} */ r) => googleOf(r) }), DIR, MAPS, PROJECT, PROJECTS, mapName,
   adminsOf: (/** @type {any} */ state) => adminsOf(state, { me: users.me(), before: before() }), DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 
@@ -847,6 +848,9 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 // your role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string | null} */ who) => who && who === users.me() ? 'Owner' : '';
+// the Google account you publish online as: the address your Google sign-in kept on this Mac, with the ID token
+// from that sign-in while it is fresh (only in memory, so a restart asks Google again)
+const googleOf = (/** @type {any} */ _req) => googleIdentity(users.googleEmail() || '');
 const signIns = signInRoutes({ users, googleFinish, googleOn, googleStart, page, PORT, roleOf: teamRole });
 const mapRoutes = mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO });
 // you may draw a system map before any map makes you an Admin

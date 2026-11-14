@@ -998,6 +998,24 @@ body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 .sh-face{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;color:#fff;font:500 12px/1 var(--plex)}
 .sh-who{flex:1}.sh-who i{font-style:normal;color:var(--text-3)}
 .sh-role{font-size:13px;color:var(--text-2)}
+/* the online copy's people: add by email, each with Can view or Can edit, and the link's own switch */
+.sh-invite{display:flex;gap:8px;margin:8px 0 6px}
+.sh-invite input{flex:1;min-width:0;height:34px;padding:0 10px;border:1px solid var(--rule-2);border-radius:8px;background:var(--card);font:inherit;font-size:13.5px;color:var(--text)}
+.sh-invite input:focus-visible,.sh-select:focus-visible,.sh-switch:focus-visible{outline:2px solid var(--new);outline-offset:1px}
+.sh-invite .gb{height:34px;padding:0 12px;font-size:13px}
+.sh-select{height:30px;padding:0 6px;border:1px solid var(--rule-2);border-radius:7px;background:var(--card);font:inherit;font-size:13px;color:var(--text)}
+.sh-invite .sh-select{height:34px}
+.sh-email{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sh-empty{font-size:13px;color:var(--text-3);margin:2px 0 6px}
+.sh-note,.sh-old{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0 8px;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;background:var(--canvas);font-size:13px;line-height:1.5;color:var(--text-2)}
+.sh-note span,.sh-old p{flex:1;min-width:180px;margin:0}
+.sh-note a.gb,.sh-storage a.gb,.sh-confirmation a.gb{text-decoration:none;color:var(--text)}
+.sh-confirmation a.sh-publish{color:var(--box)}
+.sh-switch{position:relative;flex-shrink:0;width:34px;height:20px;padding:0;border:0;border-radius:10px;background:var(--rule-2);cursor:pointer;transition:background .15s}
+.sh-switch span{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--card);box-shadow:0 1px 2px var(--rule-2);transition:transform .15s}
+.sh-switch[aria-checked="true"]{background:var(--new)}
+.sh-switch[aria-checked="true"] span{transform:translateX(14px)}
+.sh-switch:disabled,.sh-select:disabled,.sh-invite input:disabled{opacity:.55;cursor:not-allowed}
 body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,body.rec #chat{display:none}
 #toast{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);background:#141413;color:#fff;padding:8px 14px;border-radius:999px;font-size:12.5px;opacity:0;transition:opacity .3s;z-index:60;pointer-events:none}
 #toast.on{opacity:1}
@@ -1106,7 +1124,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <script type="module">
 import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
-import { imageExportSize, sharingLocation } from './page-share.js';
+import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
 import { commentScreens } from './page-comments.js';
@@ -1129,7 +1147,8 @@ let CLOUD_STATUS = null;
 const SHARED = !!document.querySelector('meta[name="lm-shared"]');
 const READ_ONLY = document.querySelector('meta[name="lm-access"]')?.content === 'view';
 const VIEW_SAYS = 'You can view this map. Ask the owner for an edit link to change it.';
-const ME = SHARED ? 'Guest' : SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
+// on the online copy, someone signed in with Google is their Google name; anyone else there is a guest
+const ME = CLOUD && SIGNED_IN ? SIGNED_IN : SHARED ? 'Guest' : SIGNED_IN || new URLSearchParams(location.search).get('as') || 'Duy';
 document.body.classList.toggle('view-only', READ_ONLY);
 document.body.classList.toggle('link-guest', SHARED);
 document.body.classList.toggle('cloud-map', CLOUD);
@@ -2206,6 +2225,72 @@ function render(){
 // Share: copy this map's address, manage access, publish it online, or download it. It says plainly who can open
 // the link: the address is this Mac's own until the map is online.
 let shareOpen = false, peopleOpen = false, linkMenuOpen = false, linkSaving = false, cloudPublishing = false, cloudPublishConfirm = false, cloudDeleting = false, cloudDeleteConfirm = false;
+// the online copy's people: a change on its way, and the address and role being typed, kept across redraws
+let cloudAccessSaving = false, inviteDraft = '', inviteRole = 'view';
+// Google sign-in on this Mac (the server says so), and on the online copy the sign-in for someone viewing by link
+const GOOGLE = !!document.querySelector('meta[name="lm-google"]');
+const CLOUD_SIGNIN = document.querySelector('meta[name="lm-cloud-signin"]')?.content || '';
+// back to this map with Share open, once Google has said who you are
+const googleSignIn = () => `/auth/google?next=${encodeURIComponent(`${location.pathname}${location.search}#share`)}`;
+// what to show in place of a change Google must allow first: the sign-in, or why there is none
+function googleFirst(what){
+  if (!GOOGLE) return `<p class="sh-note">Google sign-in is not set up on this Mac, so you can't ${what} from it.</p>`;
+  if (CLOUD_STATUS?.google?.needs === 'update') return `<p class="sh-note">The sign-in service must be updated before you can ${what}. Ask whoever runs it to deploy the latest version.</p>`;
+  return `<div class="sh-note"><span>Sign in with Google to ${what}.</span><a class="gb" href="${esc(googleSignIn())}" data-google-signin>Sign in with Google</a></div>`;
+}
+const googleReady = () => !CLOUD_STATUS?.google || !!CLOUD_STATUS.google.ready;
+// The online copy's access, for its owner on this Mac: people by email with Can view or Can edit, whether anyone
+// with the link can view, and the link itself. A copy from before Google sign-in says what its old link allows.
+function onlinePanel(){
+  const online = onlineAccess(CLOUD_STATUS), ready = googleReady(), off = !ready || cloudAccessSaving || cloudDeleting || cloudPublishing ? 'disabled' : '';
+  if (!online) return '';
+  if (online.old) return `<div class="sh-h">Who can open it online</div><div class="sh-old"><p>Old link: anyone with it can ${online.mode === 'edit' ? 'edit' : online.mode === 'restricted' ? 'open it once it is on' : 'view'}. Sign in with Google to choose who can open it.</p>${ready ? `<button type="button" class="gb" data-claim-online ${off}>Choose who can open it</button>` : googleFirst('choose who can open it')}</div>`;
+  const role = (r) => `<option value="view" ${r === 'view' ? 'selected' : ''}>Can view</option><option value="edit" ${r === 'edit' ? 'selected' : ''}>Can edit</option>`;
+  return `<div class="sh-h">Who has access online</div>
+    ${ready ? '' : googleFirst('change who has access')}
+    <form class="sh-invite" data-cloud-invite novalidate><input type="text" inputmode="email" id="share-invite" placeholder="Add people by email" aria-label="Email address to add" autocomplete="off" spellcheck="false" maxlength="254" value="${esc(inviteDraft)}" ${off}><select class="sh-select" id="share-invite-role" aria-label="What they can do" ${off}>${role(inviteRole)}</select><button type="submit" class="gb" ${off}>Add</button></form>
+    <div class="sh-row"><span class="sh-face" style="background:${pcol(online.owner.name || ME)}">${esc((online.owner.name || ME)[0])}</span><span class="sh-who" data-content>${esc(online.owner.name || ME)} <i>(you) · ${esc(online.owner.email)}</i></span><span class="sh-role">owner</span></div>
+    ${online.people.map((p) => `<div class="sh-row" data-online-person="${esc(p.email)}"><span class="sh-face" style="background:${pcol(p.email)}">${esc(p.email[0].toUpperCase())}</span><span class="sh-who sh-email" data-content>${esc(p.email)}</span><select class="sh-select" data-person-role="${esc(p.email)}" aria-label="What ${esc(p.email)} can do" ${off}>${role(p.role)}</select><button type="button" class="gb" data-remove-online="${esc(p.email)}" aria-label="Remove ${esc(p.email)}" ${off}>Remove</button></div>`).join('')}
+    ${online.people.length ? '' : '<p class="sh-empty">No one else yet. Add people by email, then send them the link: Living Map sends no email.</p>'}
+    <div class="sh-row"><span class="sh-who">Anyone with the link can view<i> · editing always needs an address on the list</i></span><button type="button" class="sh-switch" role="switch" aria-checked="${online.linkView}" aria-label="Anyone with the link can view" data-link-view ${off}><span></span></button></div>
+    <div class="sh-row"><span class="sh-who">${online.linkOn ? 'The link is on' : 'The link is off: nobody can open it'}</span><button type="button" class="gb" data-online-link="${online.linkOn ? 'restricted' : 'view'}" ${off || (linkSaving ? 'disabled' : '')}>${online.linkOn ? 'Turn off link' : 'Turn on link'}</button></div>`;
+}
+async function changeOnlineAccess(change, done){
+  if (cloudAccessSaving) return false;
+  cloudAccessSaving = true; renderShare();
+  try {
+    const response = await fetch('api/cloud/access', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(change) });
+    const got = await response.json().catch(() => ({}));
+    if (!response.ok){
+      if (got.needs && CLOUD_STATUS) CLOUD_STATUS = { ...CLOUD_STATUS, google: { ...CLOUD_STATUS.google, ready: false, needs: got.needs } };
+      throw new Error(got.error || 'Access could not be changed. Try again.');
+    }
+    CLOUD_STATUS = got.cloud; toast(done); return true;
+  } catch (e) { toast(e.message || 'Access could not be changed. Try again.'); return false; }
+  finally { cloudAccessSaving = false; renderShare(); }
+}
+document.addEventListener('submit', async (e) => {
+  if (!e.target.closest?.('[data-cloud-invite]')) return;
+  e.preventDefault();
+  const email = inviteEmail($('share-invite')?.value);
+  if (!email){ toast('Type a whole email address, like name@example.com.'); $('share-invite')?.focus(); return; }
+  inviteRole = $('share-invite-role')?.value === 'edit' ? 'edit' : 'view';
+  if (await changeOnlineAccess({ person: { email, role: inviteRole } }, `Added ${email}. Copy the link and send it to them.`)){ inviteDraft = ''; renderShare(); $('share-invite')?.focus(); }
+});
+document.addEventListener('input', (e) => { if (e.target.id === 'share-invite') inviteDraft = e.target.value; });
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'share-invite-role') inviteRole = e.target.value === 'edit' ? 'edit' : 'view';
+  const who = e.target.dataset?.personRole;
+  if (who) changeOnlineAccess({ person: { email: who, role: e.target.value === 'edit' ? 'edit' : 'view' } }, `${who} can ${e.target.value === 'edit' ? 'edit' : 'view'} now.`);
+});
+document.addEventListener('click', (e) => {
+  const t = e.target.closest?.('[data-remove-online],[data-link-view],[data-online-link],[data-claim-online]');
+  if (!t || t.disabled) return;
+  if (t.dataset.removeOnline) changeOnlineAccess({ person: { email: t.dataset.removeOnline, role: null } }, `Removed ${t.dataset.removeOnline}.`);
+  else if (t.hasAttribute('data-link-view')){ const on = t.getAttribute('aria-checked') !== 'true'; changeOnlineAccess({ linkView: on }, on ? 'Anyone with the link can view.' : 'Only the people you add can open the link.'); }
+  else if (t.dataset.onlineLink) setLinkRole(t.dataset.onlineLink);
+  else changeOnlineAccess({}, 'Now only the people you add can open it.');
+});
 // the Save menu: Save now, and the Auto-save switch, on unless someone turned it off for this map
 let saveOpen = false;
 function renderSave(){
@@ -2215,6 +2300,13 @@ function renderSave(){
   $('savew').innerHTML = `${redraw ? `<button class="tbtn" data-sd-redraw title="${esc(news.length ? `New commits in ${news.join(', ')}. Draw this system map again from its newest code` : 'Draw this system map again from its newest code')}">Redraw${news.length ? ` · ${news.length} changed` : ''}</button> ` : ''}<button class="tbtn ${saveOpen ? 'on' : ''}" id="saveb" title="Save now, or turn auto-save on or off">Save</button>
     ${saveOpen ? `<div class="pm savem"><div class="pm-row sv" data-savenow>Save now</div>
       <div class="pm-row sv" data-autosave role="switch" aria-checked="${on}">Auto-save<span class="sw ${on ? 'on' : ''}"></span></div></div>` : ''}`;
+}
+// Share opens at once, then asks again where the map is kept and whether Google has said who you are, which
+// only a request from this browser can learn
+function openShare(){
+  shareOpen = true; cloudPublishConfirm = false; cloudDeleteConfirm = false; renderShare();
+  if (CLOUD || FILE || LINK || !SIGNED_IN || !S?.people.some((p) => p.id === ME && p.role === 'Admin')) return;
+  fetch('api/cloud').then((r) => r.ok ? r.json() : null).then((got) => { if (got){ CLOUD_STATUS = got; if (shareOpen) renderShare(); } }).catch(() => { /* Share keeps what it had; Copy link asks again */ });
 }
 function cancelCloudPublish(){
   cloudPublishConfirm = false; renderShare(); document.querySelector('[data-copy-link]')?.focus();
@@ -2229,29 +2321,39 @@ function renderShare(){
   $('share').setAttribute('aria-label', confirming ? confirmTitle : 'Share this map');
   if (confirming){
     $('share').setAttribute('aria-describedby', 'share-confirm-detail');
-    const detail = cloudDeleteConfirm ? 'Your local map stays on this Mac. The shared link will stop working for everyone.' : 'Upload a cloud copy so others can open your link, even when this Mac is off. Your private chats stay on this Mac.';
-    $('share').innerHTML = `<div class="sh-confirmation"><h2>${confirmTitle}</h2><p id="share-confirm-detail">${detail}</p><div class="sh-actions">${cloudDeleteConfirm ? `<button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Cancel</button><button type="button" class="gb sh-delete" data-primary data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : `<button type="button" class="gb" data-keep-local>Keep local</button><button type="button" class="gb sh-publish" data-primary data-confirm-publish>Upload and copy link</button>`}</div></div>`;
+    const detail = cloudDeleteConfirm ? 'Your local map stays on this Mac. The shared link will stop working for everyone.'
+      : `Upload a cloud copy that belongs to your Google account. Only the people you add by email can open it, even when this Mac is off. Your private chats stay on this Mac.${googleReady() ? '' : !GOOGLE ? ' Google sign-in is not set up on this Mac, so you can\'t publish from it.' : CLOUD_STATUS?.google?.needs === 'update' ? ' The sign-in service must be updated before you can publish. Ask whoever runs it to deploy the latest version.' : ' Sign in with Google first.'}`;
+    $('share').innerHTML = `<div class="sh-confirmation"><h2>${confirmTitle}</h2><p id="share-confirm-detail">${detail}</p><div class="sh-actions">${cloudDeleteConfirm ? `<button type="button" class="gb" data-keep-cloud ${cloudDeleting ? 'disabled' : ''}>Cancel</button><button type="button" class="gb sh-delete" data-primary data-confirm-delete-cloud ${cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : `<button type="button" class="gb" data-keep-local>Keep local</button>${googleReady() ? '<button type="button" class="gb sh-publish" data-primary data-confirm-publish>Upload and copy link</button>' : GOOGLE && CLOUD_STATUS?.google?.needs !== 'update' ? `<a class="gb sh-publish" data-primary data-google-signin href="${esc(googleSignIn())}">Sign in with Google to publish</a>` : ''}`}</div></div>`;
     return;
   }
   $('share').removeAttribute('aria-describedby');
   const activePermission = document.activeElement?.closest('.sh-permission') ? document.activeElement : null;
   const restorePermissionFocus = activePermission?.dataset.linkMode ? `[data-link-mode="${activePermission.dataset.linkMode}"]` : activePermission ? '[data-link-menu]' : null;
+  // typing an address survives a redraw from a sync
+  const typingInvite = document.activeElement?.id === 'share-invite';
   const canManage = !CLOUD && !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const storage = sharingLocation(CLOUD_STATUS, {cloud:CLOUD,file:FILE,uploading:cloudPublishing,owner:canManage});
-  const access = (p) => p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
+  const access = (p) => CLOUD ? '' : p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
+  const online = canManage ? onlineAccess(CLOUD_STATUS) : null, listedOnline = !!online && !online.old;
+  // publishing needs Google: before it says who you are, Share offers the sign-in in place of Publish online
+  const publish = storage.publish && !LINK ? (googleReady() ? `<button type="button" class="gb sh-delete" data-publish-online ${cloudPublishing || cloudDeleting ? 'disabled' : ''}>Publish online</button>`
+    : GOOGLE && CLOUD_STATUS?.google?.needs !== 'update' ? `<a class="gb sh-delete" data-google-signin href="${esc(googleSignIn())}">Sign in with Google to publish</a>` : '') : '';
+  const publishNote = storage.publish && !LINK && !googleReady() && !(GOOGLE && CLOUD_STATUS?.google?.needs !== 'update') ? googleFirst('publish online') : '';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${cloudPublishing ? 'Uploading…' : 'Copy link'}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
-      <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${storage.publish && !LINK ? `<button type="button" class="gb sh-delete" data-publish-online ${cloudPublishing || cloudDeleting ? 'disabled' : ''}>Publish online</button>` : ''}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(storage.detail)}</p>${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
+      <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${publish}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(CLOUD ? `${storage.detail} You can ${READ_ONLY ? 'view' : 'edit'} it${SIGNED_IN ? ` as ${SIGNED_IN}` : ''}.` : storage.detail)}</p>${CLOUD && CLOUD_SIGNIN ? `<p>Invited to edit? <a href="${esc(CLOUD_SIGNIN)}" data-cloud-signin>Sign in with Google</a></p>` : ''}${publishNote}${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
-      <div class="sh-h">Who has access</div>
+      ${onlinePanel()}
+      ${CLOUD && !S.people.length ? '' : `<div class="sh-h">${listedOnline ? 'On this Mac' : CLOUD ? 'Here now' : 'Who has access'}</div>`}
       ${S.people.map((p) => `<div class="sh-row"><span class="sh-face" style="background:${pcol(p.id)}">${p.id[0]}</span><span class="sh-who">${p.id}${p.id === ME ? ' <i>(you)</i>' : ''}</span><span class="sh-role">${access(p)}${p.role !== 'Admin' && (p.engineer || /\bengineer\b/i.test(p.role || '')) ? ' · Engineer' : ''}</span>${canManage && p.id !== ME && p.role !== 'Admin' && !/\bengineer\b/i.test(p.role || '') ? `<button class="gb" data-engineer="${esc(p.id)}" data-on="${p.engineer ? '' : '1'}" title="An Engineer may redraw this map from its code">${p.engineer ? 'Not Engineer' : 'Make Engineer'}</button>` : ''}${canManage && p.id !== ME && p.role !== 'Admin' ? `<button class="gb" data-remove-person="${esc(p.id)}" aria-label="Remove ${esc(p.id)} from project">Remove</button>` : ''}</div>`).join('')}
-      ${!FILE && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving || cloudDeleting ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit','restricted'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : mode === 'edit' ? 'Edit' : 'Turn off link'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
+      ${!FILE && !CLOUD && !listedOnline && (canManage || S.linkSharing?.mode && S.linkSharing.mode !== 'restricted') ? `<div class="sh-h">Link access</div><div class="sh-row"><span class="sh-who">Anyone with the link can</span>${canManage ? `<div class="sh-permission"><button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="Anyone with the link can ${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}" ${linkSaving || cloudDeleting ? 'disabled' : ''}><span>${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>${linkMenuOpen ? `<div class="sh-permission-menu" id="link-permission-menu" role="menu" aria-label="Link permission">${['view','edit','restricted'].map((mode) => `<button type="button" role="menuitemradio" aria-checked="${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode}" data-link-mode="${mode}"><span>${mode === 'view' ? 'View' : mode === 'edit' ? 'Edit' : 'Turn off link'}</span>${(S.linkSharing?.mode === 'edit' ? 'edit' : 'view') === mode ? '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10 4 4 8-8"/></svg>' : ''}</button>`).join('')}</div>` : ''}</div>` : `<span class="sh-role">${S.linkSharing?.mode === 'edit' ? 'edit' : 'view'}</span>`}</div>` : ''}
       <div class="sh-h">Send as a file</div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2"/><circle cx="7" cy="7" r="1"/><path d="M3 14l4-4 3 3 3-5 4 6"/></svg></span><span class="sh-who">Export image<i> · the full current view as a PNG</i></span><button class="gb" data-share-image ${imageExportBusy ? 'disabled' : ''}>${imageExportBusy ? 'Exporting…' : 'Download PNG'}</button></div>
       <div class="sh-row"><span class="sh-ic"><svg viewBox="0 0 20 20"><path d="M5 3h7l4 4v10H5z"/><path d="M12 3v4h4M7.5 11h5M7.5 14h5"/></svg></span><span class="sh-who">Share as a file<i> · the map as it is now: opens anywhere, loads back into Living Map exactly</i></span><button class="gb" data-share-file>Download</button></div>
       </div>
     </div>`;
   if (restorePermissionFocus) document.querySelector(restorePermissionFocus)?.focus({ preventScroll: true });
+  if (typingInvite){ const field = $('share-invite'); field?.focus({ preventScroll: true }); field?.setSelectionRange?.(inviteDraft.length, inviteDraft.length); }
 }
 function shareAddress(){
   if (CLOUD_STATUS?.url) return CLOUD_STATUS.url;
@@ -2275,7 +2377,12 @@ async function copyMapLink(confirmed = false){
   try {
     if (!CLOUD && (!S.linkSharing?.token || CLOUD_STATUS?.configured && !CLOUD_STATUS.published) && !LINK && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin')){
       const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: S.linkSharing?.mode === 'edit' ? 'edit' : 'view', publish: confirmed && !!CLOUD_STATUS?.configured }) });
-      if (!response.ok) throw new Error((await response.json()).error || 'The link could not be created.');
+      if (!response.ok){
+        const why = await response.json().catch(() => ({}));
+        // Google must say who you are (again) first: Share offers the sign-in in place of Publish online
+        if (why.needs && CLOUD_STATUS) CLOUD_STATUS = { ...CLOUD_STATUS, google: { ...CLOUD_STATUS.google, ready: false, needs: why.needs } };
+        throw new Error(why.error || 'The link could not be created.');
+      }
       const got = await response.json(); S.linkSharing = got; CLOUD_STATUS = got.cloud || CLOUD_STATUS; renderShare();
     }
     toast(await copyText(shareAddress()) ? 'Link copied.' : 'Could not copy. Try Copy link again.');
@@ -2304,10 +2411,14 @@ async function setLinkRole(mode){
   linkMenuOpen = false; linkSaving = true; renderShare();
   try {
     const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode }) });
-    if (!response.ok) throw new Error();
+    if (!response.ok){
+      const why = await response.json().catch(() => ({}));
+      if (why.needs && CLOUD_STATUS) CLOUD_STATUS = { ...CLOUD_STATUS, google: { ...CLOUD_STATUS.google, ready: false, needs: why.needs } };
+      throw new Error(why.error);
+    }
     const got = await response.json(); S.linkSharing = got; CLOUD_STATUS = got.cloud || CLOUD_STATUS;
-    toast(mode === 'restricted' ? 'Link access turned off.' : `Anyone with the link can ${mode}.`);
-  } catch { toast('Link access could not be changed.'); }
+    toast(mode === 'restricted' ? 'Link access turned off.' : CLOUD_STATUS?.access?.owner ? 'The link is on.' : `Anyone with the link can ${mode}.`);
+  } catch (e) { toast(e?.message || 'Link access could not be changed.'); }
   linkSaving = false; renderShare(); document.querySelector('[data-link-menu]')?.focus();
 }
 function closeLinkMenu(){ linkMenuOpen = false; renderShare(); document.querySelector('[data-link-menu]')?.focus(); }
@@ -2492,7 +2603,7 @@ function renderTop(){
   const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}${facePic(p.id)}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}${facePic(p.id)}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
-      ${SIGNED_IN ? `<a class="pm-row pm-out" href="/settings">Settings</a>` : ''}</div>` : ''}`;
+      ${SIGNED_IN && !CLOUD ? `<a class="pm-row pm-out" href="/settings">Settings</a>` : ''}</div>` : ''}`;
 }
 
 // renaming the map: Enter or clicking away saves the new name for everyone, Esc keeps the old one
@@ -4046,7 +4157,7 @@ document.addEventListener('click', (e) => {
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
-  else if (t.id === 'shareb'){ shareOpen = true; cloudPublishConfirm = false; cloudDeleteConfirm = false; renderShare(); }
+  else if (t.id === 'shareb') openShare();
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; cloudPublishConfirm = false; cloudDeleteConfirm = false; linkMenuOpen = false; renderShare(); }
   else if (t.closest('[data-delete-cloud]')){ deleteOnlineCopy(); }
   else if (t.closest('[data-keep-cloud]')){ cancelCloudDelete(); }
@@ -4374,15 +4485,18 @@ function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHist
 let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); }
 
 function cloudEvents(){
-  const listeners = new Map(); let stopped = false, revision = -1, timer;
+  const listeners = new Map(); let stopped = false, revision = -1, etag = '', timer;
   const es = { addEventListener: (name, fn) => listeners.set(name, fn), close(){ stopped = true; clearTimeout(timer); } };
   const poll = async () => {
     try {
-      const r = await fetch('api/state', { headers: revision < 0 ? {} : { 'if-none-match': `"${revision}"` } });
+      const r = await fetch('api/state', { headers: etag ? { 'if-none-match': etag } : {} });
       if (r.status === 304) { if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 3000); return; }
-      if (r.status === 403 || r.status === 404){ stopped = true; toast('This shared link is no longer available.'); document.body.classList.add('view-only'); return; }
+      if (r.status === 401 || r.status === 403 || r.status === 404){ stopped = true; toast('This shared link is no longer available to you.'); document.body.classList.add('view-only'); return; }
       if (!r.ok) throw new Error();
+      etag = r.headers.get('etag') || '';
       const next = await r.json();
+      // who else has this copy open, by name, for the faces in the top bar
+      if (next.here) listeners.get('here')?.({ data: JSON.stringify(next.here) });
       if (next.linkSharing.mode !== (READ_ONLY ? 'view' : 'edit')){ location.reload(); return; }
       if (revision !== next.cloudRevision){ revision = next.cloudRevision; listeners.get('state')?.({ data: JSON.stringify(next) }); }
     } catch { toast('Reconnecting to the cloud…'); }
@@ -4433,11 +4547,12 @@ function listen(){
     render();
     if (railTab === 'history') fetchHist();
     if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
-    if (firstState){ firstState = false; fit(); openBrainBox(); openNewMap(); }
+    if (firstState){ firstState = false; fit(); openBrainBox(); openNewMap(); if (location.hash === '#share'){ history.replaceState(null, '', location.pathname + location.search); openShare(); } }
     lineHasMap = true;
     if (document.hidden && !CLOUD) dropLine();
   });
-  es.addEventListener('cloud', (m) => { CLOUD_STATUS = JSON.parse(m.data); if (shareOpen) renderShare(); });
+  // the server's push carries no Google sign-in, which only a request from this browser can ask: keep the last one
+  es.addEventListener('cloud', (m) => { CLOUD_STATUS = { ...JSON.parse(m.data), ...(CLOUD_STATUS?.google ? { google: CLOUD_STATUS.google } : {}) }; if (shareOpen) renderShare(); });
   es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
   // your Claude Code chat, synced into the Claude pane; typing in the pane survives the redraw
   es.addEventListener('mirror', (m) => {

@@ -3,7 +3,7 @@ import vm from 'node:vm';
 
 import { expect, it } from 'vitest';
 
-import { sharingLocation } from './page-share.js';
+import { inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('function shareAddress(){'), html.indexOf('async function setLinkRole('));
@@ -100,4 +100,25 @@ it('does not offer deletion to guests or allow sharing during deletion', async (
   const h=harness();h.ctx.CLOUD_STATUS={published:true};h.ctx.CLOUD=true;
   await h.ctx.deleteOnlineCopy();expect(h.calls).toEqual([]);expect(h.ctx.cloudDeleteConfirm).toBe(false);
   h.ctx.CLOUD=false;h.ctx.cloudDeleting=true;await h.ctx.copyMapLink();await h.ctx.deleteOnlineCopy();expect(h.calls).toEqual([]);
+});
+
+it('lists the online copy\'s people for its owner, and says what an old link allows', () => {
+  expect(onlineAccess({ published: false })).toBe(null);
+  expect(onlineAccess({ published: true, mode: 'edit', access: null })).toEqual({ old: true, mode: 'edit' });
+  const access = { owner: { email: 'ana@example.com', name: 'Ana' }, people: { 'zed@example.com': 'view', 'bo@example.com': 'edit', 'odd@example.com': 'admin' }, linkView: true };
+  expect(onlineAccess({ published: true, mode: 'view', access })).toEqual({ old: false, owner: access.owner, linkView: true, linkOn: true,
+    people: [{ email: 'bo@example.com', role: 'edit' }, { email: 'zed@example.com', role: 'view' }] });
+  expect(onlineAccess({ published: true, mode: 'restricted', access })?.linkOn).toBe(false);
+  expect(sharingLocation({ published: true, mode: 'view', access: { ...access, linkView: false } }).detail).toBe('Only the people you add can open its link, even when this Mac is off.');
+  expect(sharingLocation({ published: true, mode: 'view', access }).detail).toContain('Anyone with the link can view it');
+});
+it('takes a whole address, lowercased, and nothing that is not one', () => {
+  expect(inviteEmail('  Bo@Example.COM ')).toBe('bo@example.com');
+  for (const typed of ['', 'bo', 'bo@example', 'bo@@example.com', 'b o@example.com', '<b>@example.com', 'bo@example..com', `${'a'.repeat(250)}@example.com`]) expect(inviteEmail(typed), typed).toBe('');
+});
+it('offers Google sign-in when publishing is refused for want of it', async () => {
+  const h = harness(); h.ctx.CLOUD_STATUS = { configured: true, published: false, google: { ready: true } };
+  h.ctx.fetch = async () => ({ ok: false, json: async () => ({ error: 'Sign in with Google to share this map online.', needs: 'signin' }) });
+  await h.ctx.copyMapLink(true);
+  expect(h.copied).toEqual([]); expect(h.ctx.CLOUD_STATUS.google).toEqual({ ready: false, needs: 'signin' });
 });
