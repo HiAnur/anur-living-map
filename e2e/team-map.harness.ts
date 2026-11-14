@@ -112,9 +112,13 @@ export const server = {
 /**
  * Starts the team server for this test file, signs Duy in for each test, and fails a test the page throws in.
  * `agentless` leaves the agent off the server's PATH, for a test whose click starts preparing an Action: the
- * preparation fails at once instead of reaching a real agent.
+ * preparation fails at once instead of reaching a real agent. `env` adds to the server's environment, asked once
+ * the file's earlier beforeAll hooks have run (a stand-in login service or cloud they started, say).
  */
-export function useTeamServer({ agentless = false } = {}) {
+export function useTeamServer({
+  agentless = false,
+  env: more = () => ({}),
+}: { agentless?: boolean; env?: () => NodeJS.ProcessEnv } = {}) {
   test.beforeAll(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "lm-team-page-"));
     app = path.join(root, "app");
@@ -134,6 +138,7 @@ export function useTeamServer({ agentless = false } = {}) {
       LIVING_MAP_LOGIN_URL: "",
       LIVING_MAP_CLOUD_CONFIG: path.join(root, "no-cloud.json"),
       ...(agentless ? { PATH: "/usr/bin:/bin" } : {}),
+      ...more(),
     };
     session = signIn("Duy");
     const reserve = http.createServer();

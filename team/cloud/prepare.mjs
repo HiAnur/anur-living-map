@@ -13,6 +13,7 @@ for (const name of /** @type {string[]} */ (fs.readdirSync(path.join(live, 'agen
   fs.mkdirSync(path.dirname(path.join(target, 'live', 'agents', name)), { recursive: true });
   fs.copyFileSync(path.join(live, 'agents', name), path.join(target, 'live', 'agents', name));
 }
-for (const name of ['server.js','store.js']) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(target, 'cloud', name));
+// cloud/: its own modules, by the same pattern
+for (const name of fs.readdirSync(import.meta.dirname).filter(code)) fs.copyFileSync(path.join(import.meta.dirname, name), path.join(target, 'cloud', name));
 fs.copyFileSync(path.join(import.meta.dirname, 'Dockerfile'), path.join(target, 'Dockerfile'));
 fs.writeFileSync(path.join(target, 'package.json'), '{"type":"module"}\n');

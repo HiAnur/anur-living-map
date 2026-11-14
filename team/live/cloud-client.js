@@ -29,6 +29,7 @@ export function installCloudData(state, data) {
   Object.assign(state, data, { nodes: graph });
   if (!data.start) delete state.start;
 }
+/** @typedef {{ idToken: string, needs?: string }} Google the Google ID token this Mac's owner signed in with (googleIdentity in google.js) */
 /**
  * @param {{ home: string, read: () => MapState, write: (data: any) => void, notify: () => void,
  *   config?: { url: string, publishKey: string, [more: string]: any } | null }} map
@@ -44,16 +45,25 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
   const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => { /* the caller gets the error from `next`; the queue goes on */ }); return next.finally(() => { queued--; }); };
   const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => config && saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
-  const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error });
-  /** @param {string} route @param {unknown} [data] @param {string} [etag] @param {boolean} [missingOK] */
-  const request = async (route, data, etag, missingOK = false) => {
+  // `access`: who the online copy belongs to and who it is shared with, as the cloud last said; none for a copy
+  // published before Google sign-in, which anyone with its link may open until this Mac claims it
+  const status = () => ({ configured: !!config, published: !!saved?.published, mode: saved?.mode, url: address(), busy: !!busy || queued > 0, error, access: saved?.access || null });
+  /** @param {string} route @param {unknown} [data] @param {string} [etag] @param {boolean} [missingOK] @param {string} [idToken] */
+  const request = async (route, data, etag, missingOK = false, idToken = '') => {
     if (!config) throw new Error('Cloud sharing is not set up on this Mac.');
-    const r = await fetch(config.url + route, { method: data === undefined ? 'GET' : 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${config.publishKey}`, 'x-map-owner': saved?.ownerKey || '', ...(etag ? { 'if-none-match': etag } : {}) }, body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(30000) });
+    const r = await fetch(config.url + route, { method: data === undefined ? 'GET' : 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${config.publishKey}`, 'x-map-owner': saved?.ownerKey || '', ...(etag ? { 'if-none-match': etag } : {}), ...(idToken ? { 'x-google-id-token': idToken } : {}) }, body: data === undefined ? undefined : JSON.stringify(data), signal: AbortSignal.timeout(30000) });
     if (r.status === 304) return null;
     if (missingOK && r.status === 404) return {};
     const got = await r.json();
-    if (!r.ok) throw new Error(got.error || 'Cloud sharing is unavailable. Your local changes are kept.');
+    if (!r.ok) throw Object.assign(new Error(got.error || 'Cloud sharing is unavailable. Your local changes are kept.'), r.status === 401 && idToken ? { needs: 'signin' } : {});
+    if (got.access !== undefined && saved) saved.access = got.access;
     return got;
+  };
+  // A copy with an owner, and every new one, changes only with a fresh Google ID token from this Mac's sign-in.
+  /** @param {Google | undefined} google @param {boolean} required */
+  const proof = (google, required) => {
+    if (google?.idToken || !required) return google?.idToken || '';
+    throw Object.assign(new Error(google?.needs === 'update' ? 'The sign-in service must be updated before you can share online. Ask whoever runs it to deploy the latest version.' : 'Sign in with Google to share this map online.'), { needs: google?.needs || 'signin' });
   };
   async function sync() {
     if (!saved?.published || !config || closed) return;
@@ -78,38 +88,58 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     })();
     return busy;
   }
-  /** @param {string} mode */
-  async function publish(mode) {
+  /** @param {string} mode @param {Google} [google] */
+  async function publish(mode, google) {
     if (closed) throw new Error('This local map is closed.');
     if (!['view','edit','restricted'].includes(mode)) throw new Error('Choose view or edit.');
     if (busy) await busy;
     if (saved?.published) {
-      // Permission changes must remain possible even when map edits conflict.
+      // Permission changes must remain possible even when map edits conflict. A copy from before Google sign-in
+      // is claimed by the first change made while signed in.
+      const idToken = proof(google, !!saved.access?.owner);
       const linkKey = saved.mode === 'restricted' ? crypto.randomBytes(32).toString('hex') : saved.linkKey;
-      await request(`/m/${saved.id}/api/sharing`, { mode, linkKey });
-      saved.mode = mode; saved.linkKey = linkKey; persist(); notify(); return status();
+      const got = await request(`/m/${saved.id}/api/sharing`, { mode, linkKey }, undefined, false, idToken);
+      saved.mode = got.mode || mode; saved.linkKey = linkKey; persist(); notify(); return status();
     }
     if (mode === 'restricted') return status();
+    const idToken = proof(google, true);
     saved ||= { id: crypto.randomBytes(16).toString('hex'), ownerKey: crypto.randomBytes(32).toString('hex'), linkKey: crypto.randomBytes(32).toString('hex') };
     const sent = mapData(read()); saved.base ||= sent; persist();
-    const got = await request('/api/maps', { id: saved.id, ownerKey: saved.ownerKey, linkKey: saved.linkKey, mode, data: sent });
+    const got = await request('/api/maps', { id: saved.id, ownerKey: saved.ownerKey, linkKey: saved.linkKey, mode, data: sent }, undefined, false, idToken);
     if (closed) return status();
     const merged = mergeMap(sent, mapData(read()), got.data);
-    saved = { ...saved, published: true, mode, base: got.data, revision: got.revision }; persist();
+    saved = { ...saved, published: true, mode: got.mode || mode, base: got.data, revision: got.revision, access: got.access ?? null }; persist();
     if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
     error = ''; notify(); return status();
   }
-  async function remove() {
+  // who may open the online copy: one person's access by address ({ email, role }, role null to remove), or
+  // whether anyone with the link can view it; the cloud checks each and answers with the whole list
+  /** @param {{ person?: { email: string, role: string | null }, linkView?: boolean }} change @param {Google} [google] */
+  async function share(change, google) {
+    if (busy) await busy;
+    if (!saved?.published) throw new Error('Publish this map online first.');
+    const idToken = proof(google, true);
+    const got = await request(`/m/${saved.id}/api/sharing`, change, undefined, false, idToken);
+    saved.mode = got.mode || saved.mode; persist(); notify(); return status();
+  }
+  /** @param {Google} [google] */
+  async function remove(google) {
     if (busy) await busy;
     if (!saved?.published) return status();
     try {
       // A lost response can leave the remote copy already deleted; retrying is safe.
-      await request(`/m/${saved.id}/api/delete`, {}, undefined, true);
+      await request(`/m/${saved.id}/api/delete`, {}, undefined, true, proof(google, !!saved.access?.owner));
       saved = null; persist(); error = ''; notify();
       return status();
     } catch (/** @type {any} */ e) { error = e.message; notify(); throw e; }
   }
   // Poll only already-published maps. Each exchange merges changes made while offline.
   const timer = setInterval(() => { void sync(); }, 5000); timer.unref();
-  return { status, publish: (/** @type {string} */ mode) => exclusive(() => publish(mode)), remove: () => exclusive(remove), sync, close() { closed = true; clearInterval(timer); } };
+  return { status,
+    /** @param {string} mode @param {Google} [google] */
+    publish: (mode, google) => exclusive(() => publish(mode, google)),
+    /** @param {any} change @param {Google} [google] */
+    share: (change, google) => exclusive(() => share(change, google)),
+    /** @param {Google} [google] */
+    remove: (google) => exclusive(() => remove(google)), sync, close() { closed = true; clearInterval(timer); } };
 }

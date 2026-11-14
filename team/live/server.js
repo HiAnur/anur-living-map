@@ -105,7 +105,8 @@ const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => 
  */
 export function openMap({ project = '', name = '', at = '', home, initialState, undoState, memory = false, contextMaps = null,
   installOwner = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]),
-  people = () => /** @type {string[]} */ ([]), signedIn = () => /** @type {string | null} */ (null) }) {
+  people = () => /** @type {string[]} */ ([]), signedIn = () => /** @type {string | null} */ (null),
+  googleOf = (/** @type {any} */ _req) => /** @type {{ email: string, name: string, idToken: string, needs: string }} */ ({ email: '', name: '', idToken: '', needs: 'signin' }) }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   // this map's address: its name, or its code folder's (map-list.js); none for the story at /
   const slug = name || at || (project ? mapName(project) : '');
@@ -634,7 +635,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const allowed = (/** @type {any} */ who, /** @type {any} */ req) => !closed && !!access(who, req);
   // Admins can manage an unopened map without first joining its viewer list.
   const canDelete = (/** @type {any} */ who) => !!who && !removedFrom(state, who) && (managesAccess(state, who) || roleOf(who) === 'Admin');
-  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate() });
+  const shared = shareRoutes({ getState: () => state, cloud, save, push, cursors, clients, viewers, send, here, holdsPrivate: () => system.holdsPrivate(), googleOf });
   const reads = readRoutes({ getState: () => state, getHistory: () => history, contextMaps, name: slug, project, mapName, chatRules, address, rulesSeen, OUTBOX, HIST, hiddenFor });
   // after ACTS, which linking the chat needs
   if (!memory) watchNewChat();
@@ -836,13 +837,13 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === import.meta.filename
 if (STORE.movesIn) {
   try { moveMaps({ from: DIR, to: STORE.root }); } catch (/** @type {any} */ e) { console.error(`[map] could not copy the maps kept in ${DIR} to ${STORE.root}; they are still there, and the next start tries again: ${e?.message}`); }
 }
-const { googleFinish, googleOn, googleStart, passwordCheck } = await import('./google.js');
+const { googleFinish, googleIdentity, googleOn, googleStart, passwordCheck } = await import('./google.js');
 const { MIN, users, recovery } = await import('./users.js');
 const { handleRecovery, mailReady } = await import('./recovery.js');
 // A map from before maps recorded who made them keeps the story's Admin, where that name has signed in here, and
 // the install's owner. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
 const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.owner()].filter((p) => !!p);
-const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn }), DIR, MAPS, PROJECT, PROJECTS, mapName,
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn, googleOf: (/** @type {any} */ r) => googleOf(r) }), DIR, MAPS, PROJECT, PROJECTS, mapName,
   adminsOf: (/** @type {any} */ state, /** @type {string} */ project) => adminsOf(state, { project: !!project, owner: users.owner(), before: before() }), DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 
@@ -852,6 +853,9 @@ const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} *
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\p{L}\p{N} ._-]/gu, '')}">`,
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 const cookieOf = (/** @type {any} */ req, /** @type {any} */ key) => (req.headers.cookie || '').split(/;\s*/).map((/** @type {any} */ c) => c.split('=')).find((/** @type {any} */ [k]) => k === key)?.[1] || '';
+// the Google account this browser's person can publish online as: the address their sign-in came with, else this
+// Mac's latest Google sign-in (a Mac kept by one person has no other), with its ID token while fresh
+const googleOf = (/** @type {any} */ req) => googleIdentity(typeof users.emailOf === 'function' ? users.emailOf(cookieOf(req, 'lm_session')) : '');
 // a person's role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string} */ who) => who && who === users.owner() ? 'Owner' : '';
 // what someone runs on this Mac for a link to choose a new password, when no email can carry one

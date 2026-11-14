@@ -37,7 +37,35 @@ export async function googleFinish(params) {
   const d = r ? await r.json().catch(() => ({})) : {};
   if (!r?.ok || !d.name) throw new Error(d.error || 'The sign-in service did not answer. Try again.');
   const name = String(d.name).replace(/[^\p{L}\p{N} .'-]/gu, '').trim().slice(0, 40) || String(d.email || '').split('@')[0] || 'Someone';
-  return { email: d.email, name, listed: d.listed === true, picture: PICTURE.test(d.picture) ? String(d.picture) : '', next: s.next };
+  const idToken = JWT.test(d.id_token || '') ? String(d.id_token) : '';
+  const email = String(d.email || '').toLowerCase();
+  if (email) signedIn.set(email, { name, idToken, expires: idToken ? expiryOf(idToken) : 0, at: Date.now() });
+  return { email: d.email, name, listed: d.listed === true, picture: PICTURE.test(d.picture) ? String(d.picture) : '', idToken, next: s.next };
+}
+
+// Google's ID token from each address's latest sign-in, kept in memory only. Publishing a map online sends it to
+// the cloud as proof of whose copy it is; it lasts about an hour, after which Share sends you through Google again.
+// A login service from before ID tokens sends none: `update` says so, rather than asking you to sign in again.
+const JWT = /^[\w-]{10,2000}\.[\w-]{10,4000}\.[\w-]{10,1000}$/;
+/** @type {Map<string, { name: string, idToken: string, expires: number, at: number }>} */
+const signedIn = new Map();
+/** @param {string} token @returns {number} when it expires, from its own claims (the cloud checks its signature) */
+function expiryOf(token) {
+  try { return Number(JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')).exp) * 1000 || 0; } catch { return 0; }
+}
+/**
+ * The Google identity this Mac can show the cloud for `email`, or for the latest Google sign-in when no address is
+ * given: its address, name and an ID token with at least two minutes left ('' once stale), and `needs`: 'signin'
+ * when you must sign in with Google (again), 'update' when the login service sends no ID token.
+ * @param {string} [email]
+ * @returns {{ email: string, name: string, idToken: string, needs: '' | 'signin' | 'update' }}
+ */
+export function googleIdentity(email = '') {
+  const key = String(email).toLowerCase() || [...signedIn].sort((a, b) => b[1].at - a[1].at)[0]?.[0] || '';
+  const got = signedIn.get(key);
+  if (!got) return { email: key, name: '', idToken: '', needs: 'signin' };
+  const fresh = got.idToken && got.expires - Date.now() > 2 * 60_000 ? got.idToken : '';
+  return { email: key, name: got.name, idToken: fresh, needs: fresh ? '' : got.idToken ? 'signin' : 'update' };
 }
 
 // a name and password kept at Living Map login, for someone with no Google account: the name to sign in as, or null
