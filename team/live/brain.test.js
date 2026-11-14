@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const html = fs.readFileSync(new URL('./maps.html', import.meta.url), 'utf8');
 const ctx = vm.createContext({});
 vm.runInContext(html.slice(html.indexOf('function brainObjects('), html.indexOf('let brainMaps =')), ctx);
-describe('All brain objects', () => {
+describe('Context objects', () => {
   it('omits the share-link credential without modifying stored data', () => {
     const state={title:'Launch',nodes:[],linkSharing:{mode:'edit',token:'private-credential'}};
     expect(ctx.brainObjects(state,'Duy').map.linkSharing).toEqual({mode:'edit'});
@@ -36,7 +36,7 @@ describe('All brain objects', () => {
   });
 });
 
-describe('All brain loading', () => {
+describe('Context loading', () => {
   it('ignores an older map response after another map is chosen', async () => {
     const pending=[];
     const c=vm.createContext({fetch:()=>new Promise(resolve=>pending.push(resolve)),renderBrain(){},fitPane(){}});

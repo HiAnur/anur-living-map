@@ -157,7 +157,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // A system map drawn before it had a centre gets one now, written down at once, so it shows on first open
   // and its levels, laid out in rows before every level was laid out round its circle, are laid out again, once
   if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
-  // A map is usable as extra context only while it remains checked in Brain.
+  // A map is usable as extra context only while it remains checked in Context.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
   // a map stored with the seed's cast, or with guests, keeps only those who joined by signing in; the rest come back the moment they do
