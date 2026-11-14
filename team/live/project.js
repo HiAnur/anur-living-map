@@ -14,8 +14,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { HUB_SIZE, isHub } from './page-hub.js';
-import { height as wordsHeight, width as wordsWidth } from './proposal-layout.js';
+import { HUB_SIZE, isHub, levelGraph } from './page-hub.js';
+import { width as wordsWidth } from './proposal-layout.js';
 
 const KINDS = ['apps', 'services', 'jobs'];
 /** @param {string} f */
@@ -229,6 +229,41 @@ export function hubSizes(nodes, edges, start) {
   return new Map(root && isHub(root, { start: root.id, top: true }) ? [[root.id, { w: HUB_SIZE, h: HUB_SIZE }]] : []);
 }
 
+// Every level of every map lays out the same way: its graph as the page draws it (levelGraph in page-hub.js, with
+// the level's circle and the lines the tree is made of), laid out as a mind map by tidyTree from the circle, each box
+// as big as the page measured it, else as its words make it. Where the circle stands for the level, its place is kept
+// on the level (`centre`), which also marks a level as laid out this way.
+/**
+ * @typedef {{ nodes?: LayoutBox[], edges?: Line[], centre?: { x: number, y: number } }} Level
+ * @typedef {{ top: boolean, start?: string | null, label?: string }} LevelOf where the level is: the map's top level (with its start box), or inside the box named `label`
+ */
+/** @param {LayoutBox[]} nodes @param {Line[]} lines @param {string} centre @param {Map<string, {w: number, h: number}>} [measured] */
+const levelSizes = (nodes, lines, centre, measured = new Map()) =>
+  new Map([...nodes.map((n) => /** @type {[string, {w: number, h: number}]} */ ([n.id, { w: n.w || wordsWidth(n), h: BH }])), ...hubSizes(nodes, lines, centre), ...measured]);
+/**
+ * Tidy up on one level. `only`: the boxes showing in the window that asked; `chosen`: the boxes someone placed by hand,
+ * which keep their side. False when the level has no box.
+ * @param {Level} level @param {LevelOf} where
+ * @param {{ only?: Set<string> | null, chosen?: (n: LayoutBox) => boolean, sizes?: Map<string, {w: number, h: number}> }} [o]
+ */
+export function tidyLevel(level, where, { only = null, chosen = () => false, sizes } = {}) {
+  const g = levelGraph(level, where);
+  if (!g.centre) return false;
+  const done = tidyTree(g.nodes, g.lines, only ? new Set([...only, g.centre]) : null, chosen, g.centre, levelSizes(g.nodes, g.lines, g.centre, sizes));
+  const c = g.nodes.find((n) => n.id === g.centre);
+  if (done && c) level.centre = { x: c.x, y: c.y };
+  return done;
+}
+/** New boxes on one level, without a place yet, where Tidy up would put them. @param {Level} level @param {LevelOf} where */
+export function placeLevel(level, where) {
+  const g = levelGraph(level, where);
+  if (!g.centre) return;
+  placeNew(g.nodes, g.lines, g.centre, levelSizes(g.nodes, g.lines, g.centre));
+  const c = g.nodes.find((n) => n.id === g.centre);
+  // a circle standing for the level keeps the place it was drawn at, so boxes added later do not move it
+  if (c?.virtual && !level.centre) level.centre = { x: c.x, y: c.y };
+}
+
 // Each new box takes the column and order a tidied copy of the map gives it, at the free height nearest that
 // copy's, kept between the siblings it sits between there, so the next Tidy up keeps its side and its order.
 // Only on a map laid out as a mind map (most boxes already in the copy's columns): a map still on the grid, such
@@ -377,129 +412,6 @@ export function treeOf(nodes, edges, start = null) {
     }
   }
   return seen.size === main.length ? { root, by, out, kids, parent, ring, loose: nodes.filter((n) => !by.has(n.id)) } : null;
-}
-
-// A map drawn from code is rarely one tree: several boxes nothing leads to, boxes many others lead to, lines that
-// loop. It reads best in rows, the way a layered system drawing does: each box one row below the lowest box that
-// leads to it (a line that closes a loop left out of that count), so what calls sits above what is called. Within
-// a row the boxes take the order that keeps them nearest the boxes they join, each as near the middle of those
-// boxes as its neighbours leave room for, so most lines run straight down. A row longer than WIDE wraps into more
-// rows, and boxes with no line sit in rows under the rest.
-// The places come from the lines, the sizes and the order the boxes come in, never from where they sit, with the
-// top left corner at 0,0: the same boxes and lines always get the same places.
-const WIDE = 8, ACROSS = 70, DOWN = 150;
-/**
- * @template {{ id: string }} B
- * @param {B[]} list @param {{ from: string, to: string }[]} edges
- * @param {(n: B) => number} w @param {(n: B) => number} h
- * @returns {Map<string, { x: number, y: number }>} each box's middle
- */
-export function layerPlaces(list, edges, w, h) {
-  const by = new Map(list.map((n) => [n.id, n]));
-  const lines = edges.filter((e) => by.has(e.from) && by.has(e.to) && e.from !== e.to);
-  const out = new Map(list.map((n) => [n.id, /** @type {string[]} */ ([])])), into = new Set(lines.map((e) => e.to));
-  for (const e of lines) out.get(e.from)?.push(e.to);
-  // a line back to a box still being walked closes a loop; the walk starts at the boxes nothing leads to
-  const state = new Map(), loop = new Set();
-  /** @param {string} id */
-  const walk = (id) => {
-    state.set(id, 1);
-    for (const t of out.get(id) || []) { if (state.get(t) === 1) loop.add(`${id}>${t}`); else if (!state.has(t)) walk(t); }
-    state.set(id, 2);
-  };
-  for (const n of [...list.filter((m) => !into.has(m.id)), ...list]) if (!state.has(n.id)) walk(n.id);
-  const forward = lines.filter((e) => !loop.has(`${e.from}>${e.to}`)), depth = /** @type {Map<string, number>} */ (new Map(list.map((n) => [n.id, 0])));
-  /** @param {string} id */
-  const d = (id) => depth.get(id) || 0;
-  for (let i = 0; i < list.length; i++) {
-    let grew = false;
-    for (const e of forward) if (d(e.to) < d(e.from) + 1) { depth.set(e.to, d(e.from) + 1); grew = true; }
-    if (!grew) break;
-  }
-  const linked = new Set(lines.flatMap((e) => [e.from, e.to]));
-  /** @type {B[][]} */
-  const layers = [];
-  for (const n of list) if (linked.has(n.id)) (layers[d(n.id)] ||= []).push(n);
-  /** @param {B} n */
-  const joins = (n) => lines.flatMap((e) => (e.from === n.id ? [e.to] : e.to === n.id ? [e.from] : []));
-  // each row in turn takes the order of the boxes its boxes join in the rows above it, then in the rows below
-  const order = /** @type {Map<string, number>} */ (new Map());
-  layers.forEach((l) => l.forEach((n, i) => order.set(n.id, i)));
-  /** @param {B[]} layer @param {number} side */
-  const sort = (layer, side) => {
-    const at = d(layer[0].id);
-    /** @param {B} n */
-    const mid = (n) => {
-      const near = joins(n).filter((id) => Math.sign(d(id) - at) === side).map((id) => order.get(id) || 0);
-      return near.length ? near.reduce((a, b) => a + b, 0) / near.length : order.get(n.id) || 0;
-    };
-    const keys = new Map(layer.map((n) => [n.id, mid(n)]));
-    layer.sort((a, b) => (keys.get(a.id) || 0) - (keys.get(b.id) || 0) || (order.get(a.id) || 0) - (order.get(b.id) || 0));
-    layer.forEach((n, i) => order.set(n.id, i));
-  };
-  for (let pass = 0; pass < 4; pass++) {
-    for (const l of layers) if (l) sort(l, -1);
-    for (const l of [...layers].reverse()) if (l) sort(l, 1);
-  }
-  /** @type {B[][]} */
-  const rows = layers.filter(Boolean).flatMap((l) => Array.from({ length: Math.ceil(l.length / WIDE) }, (_, i) => l.slice(i * WIDE, (i + 1) * WIDE)));
-  const loose = list.filter((n) => !linked.has(n.id));
-  const rowOf = new Map(rows.flatMap((r, i) => r.map((n) => /** @type {[string, number]} */ ([n.id, i]))));
-  const x = /** @type {Map<string, number>} */ (new Map());
-  /** the middle of the boxes a box joins in the rows from `from` up to `to`, once they have places @param {B} n @param {number} from @param {number} to */
-  const middle = (n, from, to) => {
-    const near = joins(n).filter((id) => { const r = rowOf.get(id); return r !== undefined && r >= from && r < to && x.has(id); }).map((id) => x.get(id) || 0);
-    return near.length ? near.reduce((a, b) => a + b, 0) / near.length : null;
-  };
-  rows.forEach((row, r) => {
-    let floor = 0;
-    for (const n of row) {
-      const c = Math.max(floor + w(n) / 2, middle(n, 0, r) ?? -Infinity);
-      x.set(n.id, c); floor = c + w(n) / 2 + ACROSS;
-    }
-  });
-  // back up from the last row, a box with room beside it moves over the boxes it leads to
-  for (let r = rows.length - 2; r >= 0; r--) {
-    let roof = Infinity;
-    for (const n of [...rows[r]].reverse()) {
-      const want = middle(n, r + 1, rows.length), c = x.get(n.id) || 0;
-      const to = want === null ? Math.min(c, roof - w(n) / 2) : Math.min(roof - w(n) / 2, Math.max(c, want));
-      x.set(n.id, to); roof = to - w(n) / 2 - ACROSS;
-    }
-  }
-  const places = new Map();
-  let top = 0;
-  for (const row of rows) {
-    const tall = Math.max(...row.map(h));
-    for (const n of row) places.set(n.id, { x: x.get(n.id) || 0, y: top + tall / 2 });
-    top += tall + DOWN;
-  }
-  for (let i = 0; i < loose.length; i += WIDE) {
-    const row = loose.slice(i, i + WIDE), tall = Math.max(...row.map(h));
-    let left = 0;
-    for (const n of row) { places.set(n.id, { x: left + w(n) / 2, y: top + tall / 2 }); left += w(n) + ACROSS; }
-    top += tall + DOWN;
-  }
-  const edge = Math.min(0, ...list.map((n) => (places.get(n.id)?.x || 0) - w(n) / 2));
-  for (const p of places.values()) p.x -= edge;
-  return places;
-}
-
-// Tidy up on a map drawn from code that is not one tree, and on what any of its boxes opens into: the showing
-// boxes go into rows (layerPlaces) and keep their top left corner, so pressing it twice moves nothing the second
-// time. Only the boxes in `shown` move. False, and nothing moves, when no line joins two showing boxes.
-/** @param {LayoutBox[]} nodes @param {Line[]} edges */
-export function tidyLayers(nodes, edges, /** @type {any} */ shown = null, sizes = new Map()) {
-  const list = nodes.filter((n) => placed(n) && (!shown || shown.has(n.id))), ids = new Set(list.map((n) => n.id));
-  if (!edges.some((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to)) return false;
-  // the page sends each box's measured size; a tidy asked for without the page goes by the box's words
-  /** @param {LayoutBox} n */
-  const w = (n) => sizes.get(n.id)?.w || n.w || wordsWidth(n), /** @param {LayoutBox} n */ h = (n) => sizes.get(n.id)?.h || wordsHeight(n);
-  // the corner as whole pixels: a box's middle is rounded, so its edge may sit half a pixel off where it was put
-  const x0 = Math.ceil(Math.min(...list.map((n) => n.x - w(n) / 2)) - 0.5), y0 = Math.ceil(Math.min(...list.map((n) => n.y - h(n) / 2)) - 0.5);
-  const places = layerPlaces(list, edges, w, h);
-  for (const n of list) { const p = /** @type {{ x: number, y: number }} */ (places.get(n.id)); n.x = Math.round(x0 + p.x); n.y = Math.round(y0 + p.y); }
-  return true;
 }
 
 // Siblings that belong together, from what the map already says: the same area, a line to the same box, or

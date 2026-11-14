@@ -2,7 +2,7 @@
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
-import { hubSizes, tidy, tidyLayers, tidyTree } from './project.js';
+import { tidy, tidyLevel } from './project.js';
 
 
 /**
@@ -132,23 +132,20 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       return true;
     },
     // Tidy up, for everyone, laid out for what the person pressing it can see (a.only: the boxes not folded away
-    // in their window). A topic map lays out as a mind map. A map drawn from code, and what any of its boxes opens
-    // into, lays out in rows, what calls above what is called, its centre in a row of its own on top (its centre makes
-    // its top level one tree, which is still no reason to lay it out as one). Any other map puts its showing boxes
-    // that are off the grid on it, with no line through a box. None moves anything when pressed twice. Boxes
-    // Claude proposed and nobody applied yet find new places around it.
+    // in their window): every level, on every map, as a mind map round its circle (tidyLevel in project.js). A level
+    // that cannot be one puts its showing boxes that are off the grid on it, with no line through a box. None moves
+    // anything when pressed twice. Boxes Claude proposed and nobody applied yet find new places around it.
     /** @param {Act<'tidy'>} a */
     tidy(a) {
-      const inside = a.view && a.view !== 'system' ? nodeOf(a.view)?.inside : null, list = inside ? inside.nodes : getState().nodes;
+      const box = a.view && a.view !== 'system' ? nodeOf(a.view) : null, inside = box?.inside || null, level = inside || getState();
+      const list = level.nodes, edges = level.edges || [], only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
       if (!list?.length) return false;
-      const edges = inside ? inside.edges || [] : getState().edges, only = Array.isArray(a.only) ? new Set(a.only.map(String)) : null;
-      // the top level's start box is the page's small circle, unless the page measured it as a box
-      const code = !!getState().drawing;
-      const sizes = inside ? new Map() : hubSizes(list, edges, getState().start);
+      // each box as big as the page measured it; the circle's size is the layout's own
+      const sizes = new Map();
       for (const s of Array.isArray(a.sizes) ? a.sizes : []) if (s && typeof s.id === 'string' && Number.isFinite(s.w) && s.w >= 60 && s.w <= 800 && Number.isFinite(s.h) && s.h >= 36 && s.h <= 2000) sizes.set(s.id, {w:s.w, h:s.h});
       // a box someone dragged or drew keeps its side and order; every box Claude placed is regrouped and rebalanced
-      const done = code ? tidyLayers(list, edges, only, sizes)
-        : tidyTree(list, edges, only, (n) => Number.isFinite(n.x) && n.moved, inside ? null : getState().start, sizes);
+      const where = inside ? { top: false, label: box.label } : { top: true, start: getState().start, label: getState().title };
+      const done = tidyLevel(level, where, { only, chosen: (n) => Number.isFinite(n.x) && n.moved, sizes });
       if (!done) tidy(list, edges, only);
       if (!inside) for (const p of pendingProposals()) placeProposed(p.plan);
       return true;

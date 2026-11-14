@@ -158,7 +158,6 @@ body.blank-repo #tidyb{display:none}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
 #edges > path{fill:none;stroke-width:1.5;stroke-linecap:round;transition:stroke .3s}
 #edges > path.old{stroke:var(--line);stroke-width:1.2}
-#edges > path.spoke{stroke:var(--line);stroke-width:1;opacity:.5}
 /* what the plan builds is alive: its lines flow toward where they go, its boxes breathe */
 #edges > path.new{stroke:var(--new);stroke-dasharray:7 5;animation:flow .9s linear infinite}
 /* a plan whose questions are all answered stops moving: still blue and dashed, because nothing is built yet */
@@ -173,13 +172,8 @@ body.blank-repo #tidyb{display:none}
 #edges text.assumed-gone{fill:var(--gone)}
 .node{position:absolute;width:140px;height:50px;transform:translate(-50%,-50%);display:flex;flex-direction:column;justify-content:center;padding:0 12px;text-align:center;background:var(--box);border:1px solid var(--box-line);border-radius:6px;cursor:pointer;transition:border-color .3s,background .3s,box-shadow .2s,opacity .3s}
 .node:hover{box-shadow:0 2px 10px rgba(0,0,0,.08)}
-/* where the map starts (the one box no line comes into with the most boxes under it): orange, the way a mind map's centre
-   stands out. What the plan does to a box, or a question on it, still shows in that state's own colour */
-.node.start{background:#E8590C;border-color:#E8590C}
-.node.start .n,.node.start .s{color:#fff}
-.node.start .s{opacity:.85}
-/* on a map whose start is the centre circle (page-hub.js), the circle is empty and ringed in the start's orange; the
-   main topics around it are ordinary boxes, so the ring alone marks where the map starts */
+/* every level starts at its circle (page-hub.js), empty and ringed in orange; the boxes round it are ordinary boxes, so
+   the ring alone marks where the level starts */
 .node.hub{padding:0;background:var(--box)}
 #nodes .node.hub{border:2.5px solid #E8590C;border-radius:50%}
 #nodes .node.hub.sel{outline-offset:2px}
@@ -402,7 +396,7 @@ body.blank-repo #tidyb{display:none}
 .action-spin{display:inline-block;width:12px;height:12px;border:2px solid var(--rule-2);border-top-color:var(--action);border-radius:50%;animation:action-spin .8s linear infinite;flex-shrink:0}
 @keyframes action-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.action-spin{animation-duration:2.4s}}
-.action-tag{font-size:9px;line-height:14px;margin-bottom:3px;color:var(--action);display:flex;justify-content:center;align-items:center;gap:5px}.node.start .action-tag{color:inherit}.action-tag .action-spin{width:9px;height:9px}
+.action-tag{font-size:9px;line-height:14px;margin-bottom:3px;color:var(--action);display:flex;justify-content:center;align-items:center;gap:5px}.action-tag .action-spin{width:9px;height:9px}
 
 #side .ct-r{flex-shrink:0;white-space:nowrap}
 #side .chat-h{white-space:nowrap}
@@ -663,13 +657,10 @@ a{color:inherit;text-decoration:none}
 @keyframes flowx{to{background-position:20px 0}}
 #legend i.gone{background:repeating-linear-gradient(90deg,var(--gone) 0 5px,transparent 5px 9px)}
 #legend i.q{width:auto;height:16px;border-radius:999px;background:var(--claude);color:#fff;font:500 10px/16px var(--plex);padding:0 6px}
-#legend i.st{width:22px;height:14px;border-radius:4px;background:#E8590C}
 #legend i.hb{width:12px;height:12px;margin-left:5px;border-radius:50%;border:2px solid #E8590C;background:#fff}
-body:not(.hubbed) #legend .hub-only,body.hubbed #legend .box-start{display:none}
 /* on a map of decisions: amber waits on an answer, green is answered, plain is information; its own legend */
 .node.ask{border:1.5px solid var(--todo);background:#fffaeb}
 .node.done{border:1.5px solid rgba(46,139,87,.55);background:#f2f8f4}
-.node.start-rim,.node.start-rim.sel{box-shadow:0 0 0 2.5px #E8590C}
 #legend i.ka,#legend i.kd,#legend i.ki{width:22px;height:14px;border-radius:4px}
 #legend i.ka{border:1.5px solid var(--todo);background:#fffaeb}
 #legend i.kd{border:1.5px solid rgba(46,139,87,.55);background:#f2f8f4}
@@ -1082,7 +1073,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
   <button class="tb history-tool" data-map-history="redo" title="Redo (⌘ ⇧ Z)" aria-label="Redo" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l4 4-4 4m4-4H9a5 5 0 00-5 5v3"/></svg><kbd class="tk">⌘ ⇧ Z</kbd></button>
 </div>
-<div id="legend" tabindex="0">Legend<div class="lc"><span class="box-start"><i class="st"></i>Where the map starts</span><span class="hub-only"><i class="hb"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span class="box-start"><i class="st"></i>Where the map starts</span><span class="hub-only"><i class="hb"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
+<div id="legend" tabindex="0">Legend<div class="lc"><span><i class="hb"></i>Where the map starts</span><span><i class="n"></i>Plan adds or changes it</span><span><i class="gone"></i>✕ Plan removes it</span><span><i class="q">Need clarify</i>Waits on your answer</span></div><div class="lc dec"><span><i class="hb"></i>Where the map starts</span><span><i class="ka"></i>Needs an answer</span><span><i class="kd"></i>Answered</span><span><i class="ki"></i>Information</span></div></div>
 <button class="tbtn" id="tidyb" aria-keyshortcuts="Meta+Shift+L Control+Shift+L" title="Tidy up (⌘⇧L / Ctrl+Shift+L)">Tidy up<kbd>⌘⇧L</kbd></button>
 <div id="foot"><span class="zoom levels" id="levels"></span><span class="zoom"><button class="fit" id="fitb" title="Reset zoom" aria-label="Reset zoom"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5v-2a2 2 0 012-2h2M12.5 3.5h2a2 2 0 012 2v2M16.5 12.5v2a2 2 0 01-2 2h-2M7.5 16.5h-2a2 2 0 01-2-2v-2"/></svg></button><button id="zoomout" title="Zoom out" aria-label="Zoom out">−</button><button id="zoomin" title="Zoom in" aria-label="Zoom in">+</button></span></div>
 <div id="plan"></div>
@@ -1121,7 +1112,7 @@ import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-wal
 import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
-import { HUB_SIZE, hubHint, hubLevel, isHub } from './page-hub.js';
+import { HUB_SIZE, LEVEL_CENTRE, hubHint, hubLevel, isHub, levelGraph } from './page-hub.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1203,7 +1194,7 @@ const PCOL = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1
 // who I am on this map, and how far I see: an admin or engineer sees the whole system, the CFO only the billing boxes
 const me = () => (S && S.people.find((p) => p.id === ME)) || { id: ME, sees: 'all' };
 // a box drawn from a repo you may not read on GitHub comes from the server as only "A private repo": locked
-const canSee = (n) => !n.hiddenRepo && (!me().sees || me().sees === 'all' || n.area === me().sees);
+const canSee = (n) => !!n.virtual || !n.hiddenRepo && (!me().sees || me().sees === 'all' || n.area === me().sees);
 const pcol = (who) => PCOL[who] || '#141413';
 // a person's Google picture, to draw over their initial: only an address on Google's own picture host is drawn
 const facePic = (who) => { const u = S?.people?.find((p) => p.id === who)?.picture;
@@ -1418,12 +1409,15 @@ const zoomBy = (f) => { const r = canvas.getBoundingClientRect(), cx = r.width /
 const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [(cx - r.left - cam.x) / cam.z, (cy - r.top - cam.y) / cam.z]; };
 
 /* the view: the system, or the inside of one box */
+// every level as levelGraph (page-hub.js) makes it: its own boxes and lines, and its circle with the circle's lines
 const scope = () => {
-  const all = view === 'system' ? { nodes: S.nodes, edges: S.edges } : (nodeById(view)?.inside || { nodes: [], edges: [] });
+  if (view !== 'system'){
+    const box = nodeById(view);
+    return unfolded(levelGraph(box?.inside || { nodes: [], edges: [] }, { top: false, label: box?.label || '' }));
+  }
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
-  if (view !== 'system') return unfolded(all);
-  const p = proposed();
-  return unfolded(p.nodes.length || p.edges.length ? { nodes: [...all.nodes.map((n) => ({ ...n, ...p.layout.find((m) => m.id === n.id) })), ...p.nodes], edges: [...all.edges, ...p.edges] } : all);
+  const p = proposed(), all = p.nodes.length || p.edges.length ? { nodes: [...S.nodes.map((n) => ({ ...n, ...p.layout.find((m) => m.id === n.id) })), ...p.nodes], edges: [...S.edges, ...p.edges], centre: S.centre } : S;
+  return unfolded(levelGraph(all, { top: true, start: S.start, label: S.title }));
 };
 /* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
    A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
@@ -1434,9 +1428,10 @@ try { folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } ca
 const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); } catch {} };
 // each box's children, and for each folded box the boxes it hides, as of the last drawing
 let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
-function unfolded({ nodes, edges }){
+function unfolded({ nodes, edges, lines = edges, centre = null }){
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
-  for (const e of edges) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
+  // a box's children are what the tree hangs under it, a person under the repo they use among them
+  for (const e of lines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
   const walk = (starts, stop = () => false) => {
     const seen = new Set(starts), q = [...starts];
     while (q.length){ const id = q.shift(); if (stop(id)) continue; for (const k of kids.get(id) || []) if (!seen.has(k)){ seen.add(k); q.push(k); } }
@@ -1449,12 +1444,10 @@ function unfolded({ nodes, edges }){
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
   const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
   while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
-  // the one start box: the box the map was set to start from, else of the boxes no line comes into, the one with the
-  // most boxes under it, the first drawn on a tie, so the first box put on an empty map is the start
-  const tops = [...ids].filter((id) => !into.has(id));
-  const start = ids.has(S.start) ? S.start : tops.map((id) => [id, walk([id]).size]).reduce((b, c) => (c[1] > b[1] ? c : b), [null, 0])[0];
-  fold = { start, kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
-  return shown.size === ids.size ? { nodes, edges } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter((e) => shown.has(e.from) && shown.has(e.to)) };
+  // the level's start: its circle
+  fold = { start: centre, kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  const showing = (e) => shown.has(e.from) && shown.has(e.to);
+  return shown.size === ids.size ? { nodes, edges, lines, centre } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter(showing), lines: lines.filter(showing), centre };
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
 // a box you go to (from a question, a search) comes out from under whatever folded it away
@@ -1977,45 +1970,42 @@ function portsFor(list, nodes, spreadOut = true){
   return ports;
 }
 
-// A topic map (one box everything hangs off) is a tree: each box hangs under the box nearest the first one that
-// has a line to it, as Tidy up lays it out. Its other lines are cross-links, drawn faint, dashed and curved the
-// way XMind draws its relationships, so they read as "related to" and never as part of the tree. The tree is the
-// largest group of boxes that lines join; boxes no line joins to it are loose and never stop it being one, and a
-// group of them that is a tree of its own is drawn as one.
-function crossLinks(){
-  // a map drawn from code reads in rows, what calls above what is called: its centre makes its top level one tree, yet
-  // its calls stay plain lines, never cross-links
-  if (S.drawing) return null;
-  const ids = new Set(S.nodes.map((n) => n.id)), es = S.edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+// Every level is a tree round its circle (levelGraph in page-hub.js): each box hangs under the box nearest the circle
+// that has a line to it, as Tidy up lays it out. Its other lines are cross-links, drawn faint, dashed and curved the
+// way XMind draws its relationships, so they read as "related to" and never as part of the tree. The tree is the group
+// of boxes that lines join to the circle; boxes no line joins to it are loose and never stop it being one, and a group
+// of them that is a tree of its own is drawn as one. A line the tree turns round (a person under the repo they use)
+// is a line of the tree.
+function crossLinks(g){
+  if (!g?.centre) return null;
+  const ids = new Set(g.nodes.map((n) => n.id)), es = g.lines.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
   // the groups of boxes that lines join, a box with no line a group of its own
-  const near = new Map(S.nodes.map((n) => [n.id, []])), groupOf = new Map(), groups = [];
+  const near = new Map(g.nodes.map((n) => [n.id, []])), groupOf = new Map(), groups = [];
   for (const e of es){ near.get(e.from).push(e.to); near.get(e.to).push(e.from); }
-  for (const n of S.nodes){
+  for (const n of g.nodes){
     if (groupOf.has(n.id)) continue;
-    const g = [], q = [n.id]; groups.push(g); groupOf.set(n.id, g);
-    while (q.length) for (const t of near.get(q.shift())) if (!groupOf.has(t)){ groupOf.set(t, g); q.push(t); }
+    const grp = [], q = [n.id]; groups.push(grp); groupOf.set(n.id, grp);
+    while (q.length) for (const t of near.get(q.shift())) if (!groupOf.has(t)){ groupOf.set(t, grp); q.push(t); }
   }
-  for (const n of S.nodes) groupOf.get(n.id).push(n);
+  for (const n of g.nodes) groupOf.get(n.id).push(n);
   const out = new Map(); for (const e of es){ if (!out.has(e.from)) out.set(e.from, []); out.get(e.from).push(e); }
   // one group's tree, from the box given or else its one box no line comes into: lines into the box given are cross-links
   const treeIn = (group, first) => {
     const into = new Set(es.filter((e) => e.to !== first?.id).map((e) => e.to)), roots = first ? [first] : group.filter((n) => !into.has(n.id));
     if (roots.length !== 1) return null;
     const seen = new Set([roots[0].id]), tree = new Set(), q = [roots[0].id];
-    while (q.length) for (const e of out.get(q.shift()) || []) if (!seen.has(e.to)){ seen.add(e.to); tree.add(e); q.push(e.to); }
+    while (q.length) for (const e of out.get(q.shift()) || []) if (!seen.has(e.to)){ seen.add(e.to); tree.add(e.flip || `${e.from}>${e.to}`); q.push(e.to); }
     return seen.size === group.length ? { root: roots[0], tree } : null;
   };
-  // the map's tree is the largest group, the first drawn on a tie; the start box, when one was chosen, heads its own group
-  const start = S.nodes.find((n) => n.id === S.start), heads = (g) => (g.includes(start) ? start : undefined);
-  const main = groups.reduce((b, g) => (g.length > b.length ? g : b), []);
-  const first = treeIn(main, heads(main));
+  const centre = g.nodes.find((n) => n.id === g.centre), main = groupOf.get(g.centre);
+  const first = treeIn(main, centre);
   if (!first) return null;
   const links = new Set(), rootOf = new Map();
-  for (const g of groups){
-    const t = g === main ? first : treeIn(g, heads(g));
+  for (const grp of groups){
+    const t = grp === main ? first : treeIn(grp, undefined);
     if (!t) continue;
-    for (const n of g) rootOf.set(n.id, t.root);
-    for (const e of es) if (groupOf.get(e.from) === g && !t.tree.has(e)) links.add(`${e.from}>${e.to}`);
+    for (const n of grp) rootOf.set(n.id, t.root);
+    for (const e of g.edges) if (groupOf.get(e.from) === grp && ids.has(e.to) && e.from !== e.to && !t.tree.has(`${e.from}>${e.to}`)) links.add(`${e.from}>${e.to}`);
   }
   return { root: first.root, links, rootOf };
 }
@@ -2075,30 +2065,17 @@ function placeWords(labels, lines, nodes){
   });
 }
 
-// the start box of a map's top level is drawn as a small empty circle (page-hub.js); while you rename it, as a box,
-// so the name you type has room
+// every level's circle (page-hub.js): a circle standing for the level, or the start box of a map's top level, drawn as
+// a box while you rename it, so the name you type has room
 function hubbed(n){
   return isHub(n, { start: fold.start, top: view === 'system' }) && naming?.edit !== n.id;
 }
-// a straight line from the circle's edge to the edge of a box, along the line between their middles
-function spokePts(a, b){
-  const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-  const t = Math.min((W(b) / 2 + 2) / (Math.abs(dx) || 1e-9), (HT(b) / 2 + 2) / (Math.abs(dy) || 1e-9));
-  return [[a.x + dx / d * W(a) / 2, a.y + dy / d * HT(a) / 2], [b.x - dx * t, b.y - dy * t]].map((p) => p.map((v) => Math.round(v * 10) / 10));
-}
-// the circle; where the start is drawn as a box, that one box in orange. The main topics around a circle are ordinary
-// boxes. When the start box carries a colour of its own (a question waiting on it, an answer, something the plan
-// does to it), that colour says more and stays, and an orange rim marks it instead
-function startLook(n, mine, hub){
-  if (hub && n.id === hub.id) return 'hub';
-  if (hub || n.proposed || locked(n) || n.id !== fold.start) return '';
-  return (decisionMap() ? boxDecision(n) : n.state) || mine ? 'start-rim' : 'start';
-}
 // a click on the circle shows only the main topics (on a system map, only the circle: page-hub.js), or every box again
-// when only they show; it picks the circle without opening its card, so Delete and the arrow keys work from it
+// when only they show. It picks a start box drawn as the circle without opening its card, so Delete and the arrow keys
+// work from it; a circle standing for the level is no box to pick
 function tapHub(n){
   clearTimeout(tapTimer); nameSession++;
-  selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = true;
+  selected = n.virtual ? null : n.id; pickedLine = null; delAsk = null; keyboardSelection = true;
   setLevel(hubLevel(shownLevel(), maxLevel(), !!S.drawing));
 }
 function render(){
@@ -2110,8 +2087,10 @@ function render(){
   const db = !fb && diagramBox();
   if (db && !db.diagram && !diagramChange(db.id)){ view = 'system'; return render(); }
   if (fb || db){ if (fb) drawFlow(fb); else drawDiagram(db); renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); renderDrawing(); fitPane(); return; }
-  let { nodes, edges } = scope();
-  while ([selected, lit].some((id) => id && reveal(id))) ({ nodes, edges } = scope());
+  let sc = scope();
+  while ([selected, lit].some((id) => id && reveal(id))) sc = scope();
+  let { nodes } = sc;
+  const { edges } = sc;
   if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
   // lines
@@ -2119,16 +2098,13 @@ function render(){
   let svg = '', words = '', hits = '';
   const lines = [], labels = [];
   // a line you may delete: not one Claude only proposed, and not one touching a box outside your reach
-  const canPick = (e, a, b) => !e.proposed && !locked(a) && !locked(b) && !PREVIEW;
+  const canPick = (e, a, b) => !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
   let pickSeen = false;
   const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
-  const seen = new Set(), cross = view === 'system' ? crossLinks() : null;
+  const seen = new Set(), cross = crossLinks(sc);
   const routed = [], dupOf = new Map();
-  // on a system map the centre's own lines are spokes, straight and faint under the boxes: a line to every repo, routed
-  // like the calls between them, would bury those calls
-  const spoke = (e) => !!S.drawing && view === 'system' && e.origin === 'code' && !!byId[e.from] && hubbed(byId[e.from]);
   for (const e of edges){
-    const a = byId[e.from], b = byId[e.to]; if (!a || !b || spoke(e)) continue;
+    const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
     const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
     if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup, e });
   }
@@ -2138,7 +2114,6 @@ function render(){
   const ptsOf = new Map(routed.map((l) => [l.id, fanned.has(l.id) ? fanPts(l.a, l.b, nodes) : l.e.out || l.e.in ? plainPts(l, nodes, routed) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id), routed.slice(0, routed.indexOf(l)).map((o) => plainPts(o, nodes, routed)))]));
   for (const e of edges){
     const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
-    if (spoke(e)){ svg += `<path class="spoke" d="${spokePts(a, b).map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; continue; }
     const dup = dupOf.get(e);
     // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
     const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
@@ -2191,14 +2166,13 @@ function render(){
   // boxes
   document.body.classList.toggle('decide', decisionMap());
   const hub = nodes.find(hubbed), folded = !!hub && hubLevel(shownLevel(), maxLevel(), !!S.drawing) > shownLevel();
-  document.body.classList.toggle('hubbed', !!hub);
   let html = '';
   for (const n of nodes){
     const isHubBox = n === hub;
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', startLook(n, mine, hub), n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
+    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
     html += `<div class="${cls}" data-id="${n.id}" ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
       ${isHubBox ? '' : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>`}
@@ -2210,7 +2184,7 @@ function render(){
       ${isHubBox ? '' : foldButton(n, byId)}
       ${!locked(n) && n.action?.stage === 'ready' && n.action.by === ME && !READ_ONLY && !FILE && !PREVIEW ? `<button class="map-execute" data-box-action="actionexecute" data-action-id="${esc(n.id)}" data-action-revision="${esc(n.action.id)}" aria-label="Execute ${esc(n.label)}">Execute</button>` : ''}
       ${/* a box's Expand or diagram pill sits on its bottom edge, so it has no bottom dot to draw a line from */ ''}
-      ${!locked(n) && !n.proposed && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== (isHubBox ? null : foldSide(n, byId)) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${!locked(n) && !n.proposed && !n.virtual && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== (isHubBox ? null : foldSide(n, byId)) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>${esc(deleteQuestion('*'))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>${esc(deleteQuestion(n.id))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
@@ -3241,7 +3215,7 @@ function deleteBox(id, confirmed = false){
   const n = nodeById(roots[0]), parent = topicParent(n), follow = ids.has(selected);
   delAsk = null; group.clear();
   if (follow){
-    const remaining = scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y));
+    const remaining = scope().nodes.filter((b) => !ids.has(b.id) && !locked(b) && !b.proposed && !b.virtual).sort((a, b) => Math.hypot(a.x - n.x, a.y - n.y) - Math.hypot(b.x - n.x, b.y - n.y));
     // Repeated Delete finishes the children before returning to their parent.
     const sibling = parent && remaining.find((b) => topicParent(b)?.id === parent.id);
     selected = sibling?.id || (parent && !ids.has(parent.id) ? parent.id : null) || remaining[0]?.id || null;
@@ -3461,7 +3435,7 @@ function drawTopicArrow(at){
     const parent = nodeById(id) || [...pendingTopics].find((n) => n.id === id || n.saved === id) || at.link;
     const nodes = [...scope().nodes.filter((n) => n.id !== parent.id), parent, ghost];
     const pts = at.keyboard
-      ? (view === 'system' && crossLinks() ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
+      ? (crossLinks(scope()) ? fanPts(parent, ghost, nodes) : null) || routePts(parent, ghost, null, nodes)
       : [sideAt(parent, sideFacing(parent, [at.x, at.y])), sideAt(ghost, sideFacing(ghost, [parent.x, parent.y]))];
     const path = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('');
     $('rubber').innerHTML = `<path d="${path}" marker-end="url(#a-new)"/>`;
@@ -3572,7 +3546,7 @@ function keyboardNeighbor(n, key){
   const parent = n.link || topicParent(n);
   if (parent && key === (parent.x <= n.x ? 'ArrowLeft' : 'ArrowRight')) return parent;
   const [dx, dy] = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
-  return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed)
+  return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed && !b.virtual)
     .map((b) => { const x = b.x - n.x, y = b.y - n.y; return { b, ahead: x * dx + y * dy, across: Math.abs(x * dy - y * dx) }; })
     .filter((p) => p.ahead > 0).sort((a, b) => (a.ahead + a.across * 3) - (b.ahead + b.across * 3))[0]?.b;
 }
@@ -3580,7 +3554,7 @@ document.addEventListener('keydown', (e) => {
   if (e.defaultPrevented || e.isComposing || (e.metaKey || e.ctrlKey) || e.altKey || e.target.closest('input, textarea, [contenteditable], button, a') || PREVIEW || FILE || READ_ONLY || group.size > 1 || pickedLine || delAsk || view.startsWith('flow:') || view.startsWith('diagram:')) return;
   let n = selected && nodeById(selected);
   if (!n && e.key === 'Tab' && !e.shiftKey){
-    const nodes = scope().nodes.filter((b) => !locked(b) && !b.proposed);
+    const nodes = scope().nodes.filter((b) => !locked(b) && !b.proposed && !b.virtual);
     n = nodes.find((b) => b.id === lastTopics.get(view)) || nodes.find((b) => b.id === fold.start) || nodes[0];
     e.preventDefault(); if (e.repeat) return;
     setTool('select');
@@ -3597,7 +3571,7 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'Enter' && !scope().nodes.length){
     e.preventDefault(); askName({ x: 0, y: 0, keyboard: true, text: 'Topic' });
   } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)){
-    const first = scope().nodes.find((b) => !locked(b) && !b.proposed);
+    const first = scope().nodes.find((b) => !locked(b) && !b.proposed && !b.virtual);
     if (first){ e.preventDefault(); selectTopic(first.id); }
   }
 }, true);
@@ -3733,7 +3707,7 @@ function previewTopicAttach(sx, sy){
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
   let target = null, gap = 40 / cam.z;
   for (const n of scope().nodes){
-    if (ids.has(n.id) || locked(n) || n.proposed) continue;
+    if (ids.has(n.id) || locked(n) || n.proposed || n.virtual) continue;
     const distance = Math.hypot(Math.max(0,Math.abs(sx-n.x)-W(n)/2),Math.max(0,Math.abs(sy-n.y)-HT(n)/2));
     if (distance < gap){ gap = distance; target = n; }
   }
@@ -3849,6 +3823,8 @@ canvas.addEventListener('pointerdown', (e) => {
     if (n && locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
     draft = { x: Math.round(sx), y: Math.round(sy), node: n?.id || null }; openThread = null; render(); return;
   }
+  // a circle standing for the level is no box: a click on it folds the level, and it never moves
+  if (nd?.dataset.id === LEVEL_CENTRE){ const c = scope().nodes.find((m) => m.virtual); if (c) tapHub(c); return; }
   // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);

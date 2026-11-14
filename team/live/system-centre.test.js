@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { openMap } from './server.js';
 import { withoutRepos } from './sharing.js';
-import { CENTRE, fromCentre, isCentre, renameCentre, withCentre } from './system-centre.js';
+import { CENTRE, fromCentre, isCentre, renameCentre, withCentre, withTreeLayout } from './system-centre.js';
 import { systemJob } from './system-job.js';
 import { keepHandEdits, redrawChanges } from './system-merge.js';
 
@@ -122,5 +122,41 @@ describe('the centre of a system map', () => {
     fs.writeFileSync(path.join(home, 'system-facts.json'), JSON.stringify({ readings: [], links: [] }));
     const job = systemJob({ home, getState: () => state, save: () => {}, push: () => {}, agent: { answer: async () => ({ ms: 0 }) } });
     expect(job.trace(CENTRE, 'Duy')).toBeNull();
+  });
+
+  it('leads to an outside system only when nothing calls it, taking away its line to one something calls', () => {
+    const map = /** @type {any} */ (older());
+    map.nodes.push({ id: 'system-stripe', label: 'Stripe', kind: 'ext', x: 0, y: 0, origin: 'code' }, { id: 'system-s3', label: 'S3', kind: 'ext', x: 0, y: 0, origin: 'code' });
+    map.edges.push({ from: 'system-r4', to: 'system-stripe', label: 'charges', origin: 'code' });
+    withCentre(map, map.title);
+    const to = () => map.edges.filter(fromCentre).map((/** @type {any} */ e) => e.to);
+    expect(to()).toContain('system-s3');
+    expect(to()).not.toContain('system-stripe');
+    // drawn before this, with a line to it: it goes, and the repo's call stays
+    map.edges.push({ from: CENTRE, to: 'system-stripe', origin: 'code' });
+    expect(withCentre(map, map.title)).toBe(true);
+    expect(to()).not.toContain('system-stripe');
+    expect(map.edges).toContainEqual({ from: 'system-r4', to: 'system-stripe', label: 'charges', origin: 'code' });
+  });
+
+  it('lays each level of a map drawn in rows out round its circle once, leaving a level someone moved a box on', () => {
+    const map = /** @type {any} */ (older());
+    map.nodes.pop();
+    withCentre(map, map.title);
+    const parts = Array.from({ length: 4 }, (_, i) => ({ id: `p${i}`, label: `part ${i}`, x: 100 + i * 200, y: 100, origin: 'code' }));
+    map.nodes[1].inside = { nodes: parts, edges: [{ from: 'p0', to: 'p1', origin: 'code' }, { from: 'p0', to: 'p2', origin: 'code' }] };
+    map.nodes[2].inside = { nodes: structuredClone(parts).map((/** @type {any} */ p, /** @type {number} */ i) => ({ ...p, ...(i ? {} : { moved: true }) })), edges: [] };
+    const moved = structuredClone(map.nodes[2].inside.nodes);
+    expect(withTreeLayout(map)).toBe(true);
+    // the top level and the first repo's inside, round their circles
+    expect(map.centre).toEqual({ x: map.nodes[0].x, y: map.nodes[0].y });
+    const inside = map.nodes[1].inside, ring = (/** @type {string} */ id) => Math.abs(inside.nodes.find((/** @type {any} */ n) => n.id === id).x - inside.centre.x);
+    expect(ring('p0')).toBe(ring('p3'));
+    expect(ring('p1')).toBeGreaterThan(ring('p0'));
+    // the inside someone moved a box on stays as it was
+    expect(map.nodes[2].inside.nodes).toEqual(moved);
+    expect(map.nodes[2].inside).not.toHaveProperty('centre');
+    // once
+    expect(withTreeLayout(map)).toBe(false);
   });
 });
