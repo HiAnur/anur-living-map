@@ -90,7 +90,10 @@ test("the owner signs in with Google to publish, then shares the online copy by 
   await page.getByRole("button", { name: "Share" }).click();
   const share = page.locator("#share");
 
-  // not published, and Google has not said who you are on this Mac yet
+  // not published: its link opens only on this Mac, so there is no link setting to choose
+  await expect(share.getByText("Link access")).toHaveCount(0);
+  await expect(share.getByText("Anyone with the link can")).toHaveCount(0);
+  // and Google has not said who you are on this Mac yet
   await share
     .getByRole("link", { name: "Sign in with Google to publish" })
     .click();
@@ -101,6 +104,8 @@ test("the owner signs in with Google to publish, then shares the online copy by 
   await share.getByRole("button", { name: "Publish online" }).click();
   await page.getByRole("button", { name: "Upload and copy link" }).click();
   await expect(share.getByText("Who has access online")).toBeVisible();
+  // published by email: the copy's own panel holds the link, never the old setting
+  await expect(share.getByText("Link access")).toHaveCount(0);
   await expect(share).toContainText("duy@example.com");
   await expect(share).toContainText(
     "Only the people you add can open its link",
