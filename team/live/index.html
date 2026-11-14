@@ -1101,7 +1101,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <nav id="rail">
   <button class="ri" data-rail="decisions" title="Every decision made on this map"><svg viewBox="0 0 20 20"><path d="M3 5.5l1.6 1.6L7.5 4.2M3 11.5l1.6 1.6 2.9-2.9M10 6h7M10 12h7M3 16.5h14"/></svg><span>Decisions</span></button>
   <button class="ri" data-rail="comments" title="Every comment on this map"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><span>Comments</span></button>
-  <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Brain</span></button>
+  <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Context</span></button>
   <button class="ri" data-rail="sidechats" title="Your side chats on this map's boxes"><svg viewBox="0 0 20 20"><path d="M3.5 4.5h9v6.5h-5l-3 2.5v-2.5h-1z"/><path d="M14.5 8h2v6.5h-1V17l-3-2.5h-4.5v-1.5"/></svg><span>Side Chats</span></button>
   <button class="ri" data-rail="history" title="Every version of this map"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 101.9-4.6M3.4 3.4v2.8h2.8"/><path d="M10 6.6V10l2.4 1.5"/></svg><span>History</span></button>
   <button id="bot" title="Chat with Claude about this map"><span class="star"></span><span>Chat</span></button>
@@ -3093,7 +3093,7 @@ function renderMem(){
   const description = mapDescriptionEdit
     ? `<form class="map-description-edit" data-map-description><textarea aria-label="Map description" maxlength="12000">${esc(mapDescriptionDraft)}</textarea><button class="gb" type="submit">Save</button> <button class="gb" type="button" data-description-cancel>Cancel</button></form>`
     : `<div class="map-description">${prose(S.desc || S.prompt || 'Add the purpose, scope and background of this map.')}</div>${!READ_ONLY && !CLOUD && !FILE ? '<button class="gb" data-description-edit>Edit description</button>' : ''}`;
-  el.innerHTML = `<div class="ct"><span>Brain</span><span class="x" data-close-rail>×</span></div>
+  el.innerHTML = `<div class="ct"><span>Context</span><span class="x" data-close-rail>×</span></div>
     <div class="mem-h">Map description</div>${description}
     ${!CLOUD && !FILE ? '<details data-context-overview><summary>Description used by other maps</summary><pre class="context-overview">Loading…</pre></details>' : ''}
     ${!CLOUD && !FILE ? `<details class="context-maps" data-open-key="context-maps" ${openSecs.has('context-maps') ? 'open' : ''}><summary>Include other maps</summary><div class="mem-sub">Unchecked by default. Check maps Claude can use as extra context for this map.</div><div data-context-choices>${contextChoicesHTML()}</div></details>` : ''}

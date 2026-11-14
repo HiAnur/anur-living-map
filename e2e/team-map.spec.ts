@@ -142,6 +142,25 @@ test("a comment thread opens from the Comments panel and takes a reply", async (
   await expect(item).toContainText("1 reply");
 });
 
+test("the home page and the map both call what Claude reads Context", async ({
+  page,
+}) => {
+  await openSample(page);
+  const rail = page.locator('#rail [data-rail="memory"]');
+  await expect(rail).toHaveText("Context");
+  await rail.click();
+  await expect(page.locator("#mem .ct")).toContainText("Context");
+  await expect(page.locator("#mem")).toContainText("Include other maps");
+  for (const panel of ["#rail", "#mem"])
+    await expect(page.locator(panel)).not.toContainText(/\bBrain\b/);
+
+  await page.goto(`${server.origin}/`);
+  const home = page.getByRole("complementary", { name: "Context" });
+  await expect(home.locator(".ct")).toHaveText("Context");
+  await expect(home.locator(".brain-map").first()).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(/all brain/i);
+});
+
 test("History shows an earlier version over the map, and goes back to now", async ({
   page,
 }) => {
