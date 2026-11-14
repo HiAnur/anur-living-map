@@ -13,7 +13,7 @@ import { openMap } from './server.js';
 it('creates distinct blank maps without Claude, keeps them after reopening, and allows manual topics', async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-new-'));
   const launch = vi.spyOn(chats, 'openNew').mockImplementation(() => {});
-  const deps = { DIR: home, PROJECT: '', PROJECTS: path.join(home, 'projects.json'), mapName: path.basename };
+  const deps = { DIR: home, MAPS: path.join(home, 'maps'), PROJECT: '', PROJECTS: path.join(home, 'projects.json'), mapName: path.basename };
   const maps = mapList({ ...deps, openMap });
   const routes = mapsRoutes({ ...deps, maps });
   const request = async (data, who = 'Duy') => {

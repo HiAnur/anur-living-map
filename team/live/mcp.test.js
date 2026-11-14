@@ -82,7 +82,7 @@ async function mapServer() {
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
   const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`;
-  const child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env: { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' }, stdio: 'ignore' });
+  const child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env: { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' }, stdio: 'ignore' });
   started.push(child);
   for (let i = 0; ; i++) { try { if ((await fetch(origin + '/api/version')).ok) break; } catch {} if (i > 80) throw new Error('Test server did not start'); await new Promise((r) => setTimeout(r, 50)); }
   return { root, origin, read: async () => (await fetch(origin + '/demo/api/state')).json(), tools: server(origin, path.join(root, 'mcp.js')),

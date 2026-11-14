@@ -280,7 +280,7 @@ describe('the system map routes', () => {
   const repoAt = (/** @type {string} */ made) => { const to = path.join(work, path.basename(made)); fs.mkdirSync(work, { recursive: true }); fs.cpSync(made, to, { recursive: true }); fs.mkdirSync(path.join(to, '.git')); return to; };
   const folders = [repoAt(app()), repoAt(api())];
   fs.mkdirSync(path.join(work, 'notes'));
-  const maps = mapList({ openMap, DIR, PROJECT: '', PROJECTS: path.join(DIR, 'projects.json'), mapName: path.basename });
+  const maps = mapList({ openMap, DIR, MAPS: path.join(DIR, 'maps'), PROJECT: '', PROJECTS: path.join(DIR, 'projects.json'), mapName: path.basename });
   /** @type {any} */
   const linkedAs = { who: '' };
   const gh = /** @type {any} */ ({ status: (/** @type {string} */ who) => ({ linked: who === linkedAs.who ? 'octo' : null, pending: null }) });

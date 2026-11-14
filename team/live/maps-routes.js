@@ -10,11 +10,11 @@ import { body, jsonBody } from './request.js';
 import { localTool } from './sharing.js';
 
 /**
- * @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, DIR: string, PROJECT: string, PROJECTS: string,
+ * @param {{ maps: ReturnType<typeof import('./map-list.js').mapList>, PROJECT: string, PROJECTS: string,
  *   mapName: (folder: any) => string, DEMO?: boolean }} deps `DEMO`: the server only plays the story, so adds no code folder
  */
-export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false }) {
-  const { deletedMaps, saveDeleted, isPinned, setPinned, projects, folders, aliases, nameOf, openFolder, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
+export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
+  const { MAPS, deletedMaps, saveDeleted, isPinned, setPinned, projects, folders, aliases, nameOf, openFolder, remembered, addProject, named, freeName, mapCalled, trashRecords, everyMap } = maps;
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any, cookie?: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
@@ -49,7 +49,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false
       // the map belongs to whoever loads it, whoever the file says made it
       delete s.linkSharing; s.admins = [who];
       const name = freeName(String(s.title || 'map'));
-      const dir = path.join(DIR, 'maps', name);
+      const dir = path.join(MAPS, name);
       fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));
       mapCalled(name);
       return json(200, { name, href: `/${name}/` });
@@ -61,11 +61,11 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false
       let /** @type {any} */ a = await jsonBody(req, {});
       const name = String(a.name || '');
       if (!/^[a-z0-9-]+$/.test(name) || deletedMaps.has(name)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
-      const project = folders.get(name), dir = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
+      const project = folders.get(name), dir = project ? path.join(project, '.living-map') : path.join(MAPS, name);
       if (!projects.has(name) && !fs.existsSync(dir)) return json(404, { error: 'That map is no longer in your list. Check Trash.' });
       const map = projects.get(name) || mapCalled(name);
       if (!map.canDelete(who)) return json(403, { error: 'Only a map owner can move this map to Trash.' });
-      const bin = path.join(DIR, 'maps', '.deleted'), archive = path.join(bin, `${name}-${crypto.randomUUID()}`);
+      const bin = path.join(MAPS, '.deleted'), archive = path.join(bin, `${name}-${crypto.randomUUID()}`);
       try {
         fs.mkdirSync(bin, { recursive: true });
         fs.renameSync(dir, archive);
@@ -90,7 +90,7 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false
       let /** @type {any} */ a = await jsonBody(req, {});
       const record = trashRecords(who).find((r) => r.id === a.id);
       if (!record) return json(404, { error: 'That map is not in your Trash.' });
-      const { name, project, archive } = record, home = project ? path.join(project, '.living-map') : path.join(DIR, 'maps', name);
+      const { name, project, archive } = record, home = project ? path.join(project, '.living-map') : path.join(MAPS, name);
       if (projects.has(name) || (!deletedMaps.has(name) && named.has(name)) || fs.existsSync(path.join(home, 'state.json'))) return json(409, { error: 'A map already uses this address. Your trashed map is kept.' });
       if (project && !fs.statSync(project, { throwIfNoEntry: false })?.isDirectory()) return json(409, { error: 'The code folder is no longer available. Your trashed map is kept.' });
       const files = fs.readdirSync(archive).filter((f) => f !== 'trash.json' && !(f === 'server.log' && fs.existsSync(path.join(home, f))));
@@ -148,7 +148,10 @@ export function mapsRoutes({ maps, DIR, PROJECT, PROJECTS, mapName, DEMO = false
       let /** @type {any} */ a = await jsonBody(req, {});
       const folder = a.folder ? path.resolve(String(a.folder)) : '', name = folder ? nameOf(folder) : '';
       if (!folder || !addProject(folder, true)) return json(400, { error: folders.has(name) ? `Another folder called ${name} is already on this map.` : 'Not a folder this map can draw.' });
-      if (folder !== PROJECT && !remembered().includes(folder)) fs.writeFileSync(PROJECTS, JSON.stringify([...remembered(), folder], null, 1));
+      if (folder !== PROJECT && !remembered().includes(folder)) {
+        fs.mkdirSync(path.dirname(PROJECTS), { recursive: true });
+        fs.writeFileSync(`${PROJECTS}.tmp`, JSON.stringify([...remembered(), folder], null, 1)); fs.renameSync(`${PROJECTS}.tmp`, PROJECTS);
+      }
       return json(200, { name, href: `/${name}/` });
     }
     return false;

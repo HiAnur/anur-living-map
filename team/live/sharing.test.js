@@ -35,7 +35,7 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
   state.threads = { '@Duy': [{ who: 'Duy', text: 'private-chat-marker' }] };
   fs.mkdirSync(path.join(root, 'maps', 'shared'), { recursive: true });
   fs.writeFileSync(path.join(root, 'maps', 'shared', 'state.json'), JSON.stringify(state));
-  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
   const cookie = execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(users.start('Duy'))"], { cwd: root, env, encoding: 'utf8' }).trim();
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let child, reader;

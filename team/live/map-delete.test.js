@@ -23,7 +23,7 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
   fs.writeFileSync(path.join(named, 'state.json'), JSON.stringify(state));
   fs.writeFileSync(path.join(primary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'view',ownerKey:'private-owner',linkKey:'private-link'}));
   fs.writeFileSync(path.join(secondary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'restricted'}));
-  const env = { ...process.env, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
   const cookie = (name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
   const owner = cookie('Duy'), member = cookie('Priyanka');
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
