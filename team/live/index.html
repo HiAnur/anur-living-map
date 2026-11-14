@@ -89,6 +89,8 @@ body.blank-repo #tidyb{display:none}
 #lockwhy{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);width:min(560px,calc(100% - 32px));padding:10px 14px;background:var(--card);border:1px solid var(--rule-2);border-radius:10px;box-shadow:0 4px 16px var(--rule);font-size:13px;color:var(--text-2);z-index:14}
 #lockwhy[hidden]{display:none}#lockwhy b{color:var(--text);font-weight:600}#lockwhy code{font:600 13px var(--mono, monospace);color:var(--text)}#lockwhy .gb{margin-left:6px}#lockwhy a.gb{display:inline-block;text-decoration:none;color:var(--text)}
 .sd-h{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}.sd-h b{font-weight:600}.sd-h span{color:var(--text-2);font-size:13px}
+.sd-h .sd-x{margin-left:auto;width:26px;height:26px;border:0;border-radius:6px;background:none;color:var(--text-2);font-size:14px;line-height:1;cursor:pointer}.sd-h .sd-x:hover{background:var(--rule);color:var(--text)}
+#sysdraw .sd-h{position:sticky;top:-14px;background:var(--card);padding-top:2px;z-index:1}
 .sd-bar{height:6px;margin:10px 0 8px;border-radius:3px;background:var(--rule)}.sd-bar i{display:block;height:100%;border-radius:3px;background:var(--claude);transition:width .4s var(--ease)}
 .sd-r{list-style:none;font-size:13px}.sd-r li{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-top:1px solid var(--rule)}
 .sd-r li span:first-child{font-weight:500}.sd-r li span:last-child{color:var(--text-2);text-align:right}
@@ -4295,7 +4297,7 @@ function renderDrawing(){
   // a redraw waiting for review keeps the panel open until it is applied or dropped; the map updating itself from new
   // commits does it quietly, unless it stops or leaves something to review
   const quiet = d?.auto && d.status !== 'failed' && !S.redraw;
-  if (!d || PREVIEW || quiet || (d.status !== 'running' && !S.redraw && sdClosed() === String(d.at))){ el.hidden = true; return; }
+  if (!d || PREVIEW || quiet || (d.status !== 'running' && !(S.redraw && mayRedraw()) && sdClosed() === String(d.at))){ el.hidden = true; return; }
   el.hidden = false;
   el.innerHTML = drawingPanel(d, { esc, now: Date.now(), mine: mayRedraw(), asking: sdAsking, changed: sdChanged(d), redraw: S.redraw });
 }

@@ -302,3 +302,40 @@ test("a map that builds on a system map points a box at a system box", async ({
   );
   await expect(box(page, "Pricing")).toBeVisible();
 });
+
+test("a finished drawing's panel closes from its top, even with a long list of repos, and stays closed", async ({
+  page,
+}) => {
+  const repos = Array.from({ length: 16 }, (_, i) => `repo-${i + 1}`);
+  const name = openState(
+    systemMap({
+      drawing: {
+        status: "done",
+        at: 1,
+        ms: 74_000,
+        by: "Duy",
+        repos: repos.length,
+        progress: [
+          ...repos.map((repo) => ({
+            repo,
+            stage: "done",
+            boxes: 20,
+            reused: true,
+          })),
+          { repo: "platform", stage: "done", boxes: 5 },
+        ],
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 1400, height: 700 });
+  await page.goto(`${server.origin}/${name}/`);
+  const panel = page.locator("#sysdraw");
+  await expect(panel).toBeVisible();
+  // the list is longer than the panel, and the close stays in view as it scrolls
+  await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await panel.getByRole("button", { name: "Close" }).click();
+  await expect(panel).toBeHidden();
+  await page.reload();
+  await expect(box(page, "api")).toBeVisible();
+  await expect(panel).toBeHidden();
+});
