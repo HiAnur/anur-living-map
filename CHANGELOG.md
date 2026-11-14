@@ -3,19 +3,19 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
-<dt><strong>✨ [New feature] The first person owns the map, and others join by invite</strong></dt>
+<dt><strong>Close a finished system map drawing from its top</strong></dt>
 <dd>
 
-On a new install, the first person to create an account or sign in with Google owns it and invites others from **Settings → Invite someone**, so no one can take a name by typing it first. Whoever makes a map is its Admin, and a forgotten password is reset with a one-use link from `npx anur-living-map reset <name>`, with no email needed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/504 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/521 --> <!-- merged-at: 2026-11-14T00:45:32Z -->
+The **Drawn from code** panel now has a ✕ at its top that stays in view however many repos it lists, so anyone can put it away once the drawing is done. <!-- source: https://github.com/HiAnur/anur-living-map/pull/525 --> <!-- merged-at: 2026-11-14T02:25:21Z -->
 
 </dd>
 </dl>
 
 <dl>
-<dt><strong>Your linked chats show for you, whatever name you sign in with</strong></dt>
+<dt><strong>✨ [New feature] Your map opens with no account</strong></dt>
 <dd>
 
-A Claude Code chat you link to the map now belongs to whoever is signed in on this Mac, so its Claude pane shows for you even when your sign-in name differs from your Mac's account name. <!-- source: https://github.com/HiAnur/anur-living-map/pull/521 --> <!-- merged-at: 2026-11-14T00:45:32Z -->
+On your Mac, Living Map opens straight to your maps, with no account, password or invite, and every map there is yours. Change your name in **Settings**, where you can also sign in with Google to add your email and picture. <!-- source: https://github.com/HiAnur/anur-living-map/pull/504 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/521 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/523 --> <!-- merged-at: 2026-11-14T02:01:05Z -->
 
 </dd>
 </dl>
@@ -180,15 +180,6 @@ Drag a box just above or below another box to place it there at the same level; 
 </dl>
 
 <dl>
-<dt><strong>✨ [New feature] Settings shows who you are and your email</strong></dt>
-<dd>
-
-**Settings**, in the menu under your name, shows your name, your role, the email Living Map has for you and how you sign in; you can add or change your recovery email from there. <!-- source: https://github.com/HiAnur/anur-living-map/pull/440 --> <!-- merged-at: 2026-11-12T01:52:29Z -->
-
-</dd>
-</dl>
-
-<dl>
 <dt><strong>A dropped box grows away from its parent</strong></dt>
 <dd>
 
@@ -221,7 +212,7 @@ When you drag a box somewhere else, the boxes below its old spot move up to fill
 
 On the home page, the pin on the corner of a map's card keeps it at the top of your own list, however the list is sorted. <!-- source: https://github.com/HiAnur/anur-living-map/pull/432 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/440 --> <!-- merged-at: 2026-11-12T01:29:06Z -->
 
-- Your name at the top right of the home page opens your account menu, with Settings, Recovery email and Sign out.
+- Your name at the top right of the home page opens your menu, with Settings.
 - The people menu on a map lists only people; Claude Code is no longer shown in it.
 
 </dd>
@@ -870,15 +861,6 @@ In **Share**, choose **View** or **Edit** and click **Copy link** to control wha
 <dd>
 
 Owners can remove someone’s signed-in project access in **Share**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/120 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/123 --> <!-- merged-at: 2026-11-07T04:44:52Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Password recovery by email</strong></dt>
-<dd>
-
-Once you verify a recovery email, **Forgot password?** on the sign-in page can send you a reset link. <!-- source: https://github.com/HiAnur/anur-living-map/pull/111 --> <!-- merged-at: 2026-11-07T04:38:42Z -->
 
 </dd>
 </dl>
