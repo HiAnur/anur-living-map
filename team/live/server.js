@@ -294,7 +294,9 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     draw: (p) => actingAs('Claude', () => draw(p, 'Claude', { kind: 'meeting' })),
     say: (to, text) => { if (!to) return; (state.threads[`@${to}`] ??= []).push({ who: 'Claude', text, at: stamp() }); },
     fromWords: (source, proposed) => fromWords(source, proposed),
-    people: () => (state.people || []).map((/** @type {any} */ p) => p.id) });
+    people: () => (state.people || []).map((/** @type {any} */ p) => p.id),
+    // once it ends, the meeting's map is laid out the way Tidy up lays it out, keeping where people dragged boxes
+    layout: () => { tidyLevel(state, { top: true, start: state.start, label: state.title }, { chosen: (n) => Number.isFinite(n.x) && !!n.moved }); } });
   // a meeting's map is owned by whoever records it, as a blank map is by whoever made it
   /** @param {{ title: string, app?: string, by: string }} o */
   function startMeeting(o) { state.admins = [o.by]; meeting.start(o); }
