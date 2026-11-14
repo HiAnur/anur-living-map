@@ -3,6 +3,125 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] The first person owns the map, and others join by invite</strong></dt>
+<dd>
+
+On a new install, the first person to create an account or sign in with Google owns it and invites others from **Settings → Invite someone**, so no one can take a name by typing it first. Whoever makes a map is its Admin, and a forgotten password is reset with a one-use link from `npx anur-living-map reset <name>`, with no email needed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/504 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/521 --> <!-- merged-at: 2026-11-14T00:45:32Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Your linked chats show for you, whatever name you sign in with</strong></dt>
+<dd>
+
+A Claude Code chat you link to the map now belongs to whoever is signed in on this Mac, so its Claude pane shows for you even when your sign-in name differs from your Mac's account name. <!-- source: https://github.com/HiAnur/anur-living-map/pull/521 --> <!-- merged-at: 2026-11-14T00:45:32Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Your maps stay put when npx's cache is cleared</strong></dt>
+<dd>
+
+Your maps, Trash and pins are now kept with the rest of your team map data, copied there once when you update, so clearing npx's cache no longer loses them. <!-- source: https://github.com/HiAnur/anur-living-map/pull/520 --> <!-- merged-at: 2026-11-14T00:41:13Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>All brain and Brain are now called Context</strong></dt>
+<dd>
+
+The home page's **All brain** panel and the map's **Brain** panel are now both called **Context**, the name for what Claude reads alongside your map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/519 --> <!-- merged-at: 2026-11-14T00:36:31Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] Every map grows from a circle</strong></dt>
+<dd>
+
+Every level of a map now starts at a small circle ringed in orange, with its boxes laid out as one tree to the left and right, and **Tidy up** and new boxes follow that tree; inside a box, the circle stands for the box you opened. Click the circle to show only the main topics, and click it again to show every box. <!-- source: https://github.com/HiAnur/anur-living-map/pull/505 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/509 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/518 --> <!-- merged-at: 2026-11-14T00:03:39Z -->
+
+<img src="docs/shipping/2026-11-13/map-circle-tree.jpg" alt="A sample map, Spring launch, after Tidy up: an orange-ringed circle in the middle, with Pricing and Audience in a column to its right and Channels and Risks to its left, each with its own boxes further out." width="640">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] A system map starts at a circle for the whole system</strong></dt>
+<dd>
+
+A system map now starts at a circle for the whole system, with its repos in columns either side: an outside system hangs under the first repo that calls it, a person under the repo they use, and other calls show as dashed curved lines. Click the circle to fold the map down to the circle alone; the drawing panel now sits in a corner, clear of it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/511 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/515 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/518 --> <!-- merged-at: 2026-11-14T00:03:39Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Action runs send only what you reviewed</strong></dt>
+<dd>
+
+An email Action can send its reviewed message once, to its one recipient with no one copied, and the run says why when the map stops anything else. A run nobody clicked refuses sends you didn't review and connector tools the map doesn't know, while known tools that only read, like searching mail, now run on their own. <!-- source: https://github.com/HiAnur/anur-living-map/pull/502 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/516 --> <!-- merged-at: 2026-11-13T23:35:28Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Claude's changes to your boxes wait for your Apply</strong></dt>
+<dd>
+
+When Claude changes or removes a box a person made, or makes a change you asked for in the map's Claude pane, it comes as a proposal you **Apply**, with any questions for teammates asked once it's applied. Claude's reorganizing is offered only when it leaves the map one tree, Auto plan skips boxes the map already has, and a map's own background chat can read and change only that map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/500 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/503 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/517 --> <!-- merged-at: 2026-11-13T23:31:53Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] What you commit to becomes your Action draft</strong></dt>
+<dd>
+
+When you tell Claude you'll do something, in a linked chat, Ask Claude or a Side Chat, the map makes it your Action draft from your own words and prepares it up to **Ready to execute**; **Execute** stays your click, and **Undo** on the notice takes it back. On a draft, **Not an action** says no and **Not mine** hands it to a teammate, who picks it up with **Take it on**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/513 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/514 --> <!-- merged-at: 2026-11-13T23:14:06Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>The chat map is retired</strong></dt>
+<dd>
+
+Living Map for a single chat (`/living-map`) now says it is retired and no longer updates; use `/anur-living-map` instead, and remove the old one with `node skill/uninstall.ts`, which asks before deleting its maps. <!-- source: https://github.com/HiAnur/anur-living-map/pull/499 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/512 --> <!-- merged-at: 2026-11-13T22:49:50Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Updates arrive as releases</strong></dt>
+<dd>
+
+Your team map now updates itself only when a new release is published, so changes reach you together rather than one at a time. <!-- source: https://github.com/HiAnur/anur-living-map/pull/510 --> <!-- merged-at: 2026-11-13T22:09:54Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Draw a system map from a folder on this Mac</strong></dt>
+<dd>
+
+A repo's empty map offers **Draw this repo as a system map**, and **New map → System map** asks whether the code is in **A folder on this Mac** or **On GitHub**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/506 --> <!-- merged-at: 2026-11-13T21:50:48Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Clearer first run, Share and GitHub messages</strong></dt>
+<dd>
+
+The team map now opens on your list of maps, **Share** says when only this Mac can open a map and offers owners **Publish online**, and connecting GitHub says when a code expired or an organization's owner still has to approve the install. <!-- source: https://github.com/HiAnur/anur-living-map/pull/506 --> <!-- merged-at: 2026-11-13T21:50:48Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Let an Action run on its own once it's ready</strong></dt>
 <dd>
 
@@ -526,7 +645,7 @@ Review the tools an Action needs before you choose **Execute**. If it needs an a
 <dt><strong>✨ [New feature] Turn plans into reviewed Actions</strong></dt>
 <dd>
 
-**Auto plan** can add Actions with concrete tasks, prerequisites and readiness; review and prepare each Action before choosing **Execute**. The top-right **Info box / Action box** toggle leaves room for the title, status pills show progress, and **Revise** keeps earlier drafts as files in chat. In **Brain → Include other maps**, expand the checklist to choose extra context; other maps start unchecked. <!-- source: https://github.com/HiAnur/anur-living-map/pull/220 --> <!-- merged-at: 2026-11-10T00:20:28Z -->
+**Auto plan** can add Actions with concrete tasks, prerequisites and readiness; review and prepare each Action before choosing **Execute**. The top-right **Info box / Action box** toggle leaves room for the title, status pills show progress, and **Revise** keeps earlier drafts as files in chat. In **Context → Include other maps**, expand the checklist to choose extra context; other maps start unchecked. <!-- source: https://github.com/HiAnur/anur-living-map/pull/220 --> <!-- merged-at: 2026-11-10T00:20:28Z -->
 
 <img src="docs/shipping/2026-11-09/action-box.png" alt="A sample Action box beside its Side Chat, with the compact Action box toggle above the title and an instructions field for preparation." width="660">
 
@@ -546,7 +665,7 @@ Review the tools an Action needs before you choose **Execute**. If it needs an a
 <dt><strong>✨ [New feature] Relevant context from other maps</strong></dt>
 <dd>
 
-Choose which other maps Claude can use in **Brain → Include other maps**. Replies link to the maps they read, so you can check the source. <!-- source: https://github.com/HiAnur/anur-living-map/pull/208 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/214 --> <!-- merged-at: 2026-11-09T02:08:15Z -->
+Choose which other maps Claude can use in **Context → Include other maps**. Replies link to the maps they read, so you can check the source. <!-- source: https://github.com/HiAnur/anur-living-map/pull/208 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/214 --> <!-- merged-at: 2026-11-09T02:08:15Z -->
 
 </dd>
 </dl>
@@ -563,12 +682,12 @@ On the **home page**, right-aligned people and cloud icons show link sharing and
 </dl>
 
 <dl>
-<dt><strong>✨ [New feature] Browse every map in All brain</strong></dt>
+<dt><strong>✨ [New feature] Browse every map in Context</strong></dt>
 <dd>
 
-Browse your maps, decisions and saved context in **home → All brain**. Expand a map to inspect it, or choose **Open map** to work on it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/178 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/183 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/202 --> <!-- merged-at: 2026-11-08T03:30:06Z -->
+Browse your maps, decisions and saved context in **home → Context**. Expand a map to inspect it, or choose **Open map** to work on it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/178 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/183 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/202 --> <!-- merged-at: 2026-11-08T03:30:06Z -->
 
-<img src="docs/shipping/2026-11-07/all-brain-home.png" alt="The home page shows All brain on the right with Map object JSON, Decision object and Memory object downloads, and Open map beside the selected map name." width="760">
+<img src="docs/shipping/2026-11-13/context-home.jpg" alt="The home page with a sample map, Spring launch, selected in Context on the right: Open map beside its name, and Description, Map, Decision and Memory objects, each with Download JSON." width="640">
 
 </dd>
 </dl>
