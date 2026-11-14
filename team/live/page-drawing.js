@@ -1,5 +1,5 @@
 // The panel over a system map while it is drawn from code: a bar, each repo's stage, how long it has taken and
-// about how long is left, and Cancel, Draw again or Close. A page module (see page-modules.js):
+// about how long is left, and Cancel or Draw again; ✕ closes it once drawn. A page module (see page-modules.js):
 // the page hands in the map's `drawing` (system-job.js) and what it needs of the page, as `view`:
 //   esc   how the page writes text into HTML     now   the time it draws at     mine   they may stop or retry it
 //   asking  Draw again was pressed and waits to be confirmed     changed  the repos with newer commits than it read
@@ -48,9 +48,11 @@ export function drawingPanel(d, view){
   const act = !view.mine ? '' : running ? '<button data-sd-cancel>Cancel</button>'
     : review ? '<button data-sd-dismiss>Keep the map as it is</button><button data-sd-apply>Apply the changes</button>'
     : view.asking ? '<button data-sd-nevermind>Keep this map</button><button data-sd-retry>Draw again</button>'
-    : '<button data-sd-ask>Draw again</button><button data-sd-close>Close</button>';
+    : '<button data-sd-ask>Draw again</button>';
   if (view.asking) notes.push('Draw again reads the newest code and draws the repos that changed or could not be drawn; the rest stay as drawn. What people changed stays: boxes they added, their words and moves on drawn boxes, Actions and the lines they drew.');
-  return `<div class="sd-h"><b>${title}</b><span>${esc(facts.join(' · '))}</span></div>
+  // anyone may put a finished drawing's panel away; a redraw waiting for review stays for whoever may apply it
+  const shut = running || (review && view.mine) ? '' : '<button class="sd-x" data-sd-close aria-label="Close" title="Close">✕</button>';
+  return `<div class="sd-h"><b>${title}</b><span>${esc(facts.join(' · '))}</span>${shut}</div>
     <div class="sd-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(share * 100)}"><i style="width:${(share * 100).toFixed(1)}%"></i></div>
     <ol class="sd-r">${[...repos, ...(platform ? [platform] : [])].map((p) => `<li class="sd-${esc(p.stage)}"><span data-content>${esc(p.repo === 'platform' ? 'How the repos connect' : p.repo)}</span><span>${esc(stage(p))}</span></li>`).join('')}</ol>
     ${notes.map((n) => `<p class="sd-n">${esc(n)}</p>`).join('')}${review}

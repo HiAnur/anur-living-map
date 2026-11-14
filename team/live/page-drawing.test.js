@@ -69,3 +69,17 @@ describe('the drawing panel', () => {
     expect(drawingPanel(d, { esc, now, mine: false, redraw })).not.toContain('data-sd-apply');
   });
 });
+
+describe('closing the panel', () => {
+  const done = { status: 'done', at: 0, ms: 1, repos: 1, progress: [{ repo: 'api', stage: 'done', boxes: 3 }] };
+  it('offers a close at the top to anyone once the drawing is done', () => {
+    expect(drawingPanel(done, { esc, now, mine: false })).toMatch(/<div class="sd-h">.*data-sd-close/s);
+    expect(drawingPanel(done, { esc, now, mine: true })).toMatch(/<div class="sd-h">.*data-sd-close/s);
+  });
+  it('offers none while drawing, nor on a redraw waiting for whoever may apply it', () => {
+    expect(drawingPanel({ ...done, status: 'running', at: now }, { esc, now, mine: true })).not.toContain('data-sd-close');
+    const redraw = { count: 1, changes: [{ what: 'gone', kind: 'box', label: 'Old' }] };
+    expect(drawingPanel(done, { esc, now, mine: true, redraw })).not.toContain('data-sd-close');
+    expect(drawingPanel(done, { esc, now, mine: false, redraw })).toContain('data-sd-close');
+  });
+});
