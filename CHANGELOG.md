@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🚀 [Major feature] Share a map online with people by email</strong></dt>
+<dd>
+
+**Share → Publish online** puts your map online, open even while your Mac is off, once you sign in with Google; the online copy is yours, and changes sync both ways. Add people by email as **Can view** or **Can edit**: they sign in with Google to open it, and anyone else sees that they need to ask you. **Anyone with the link can view** is off unless you turn it on, and copies you shared before keep their old link until you choose who can open them. <!-- source: https://github.com/HiAnur/anur-living-map/pull/148 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/524 --> <!-- merged-at: 2026-11-14T02:30:19Z -->
+
+<img src="docs/shipping/2026-11-14/share-by-email.jpg" alt="A sample map's Share dialog, shared online: Duy as owner, teammate@example.com who can edit, the Anyone with the link can view switch off, and Turn off link." width="560">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Close a finished system map drawing from its top</strong></dt>
 <dd>
 
@@ -756,19 +767,6 @@ Proposed topics append after existing children, with the preview showing where A
 Double-click a box’s title to rename it, or its description to edit that text in place. <!-- source: https://github.com/HiAnur/anur-living-map/pull/151 --> <!-- merged-at: 2026-11-07T19:48:37Z -->
 
 <img src="docs/shipping/2026-11-07/canvas-description-edit.png" alt="A connected box on the map with its lower description selected for editing and its title still visible above." width="640">
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>🚀 [Major feature] Cloud sharing</strong></dt>
-<dd>
-
-With cloud sharing configured, **Share → Copy link** publishes your map so people can open it while your Mac is off; **Anyone with the link can** controls View or Edit. <!-- source: https://github.com/HiAnur/anur-living-map/pull/148 --> <!-- merged-at: 2026-11-07T19:35:22Z -->
-
-Changes sync when your Mac reconnects, and **Turn off link** revokes access.
-
-<img src="docs/shipping/2026-11-07/cloud-sharing.png" alt="The Share dialog confirms the sample map is saved in the cloud and shows Anyone with the link can edit." width="640">
 
 </dd>
 </dl>
