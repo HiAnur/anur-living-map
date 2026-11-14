@@ -10,7 +10,7 @@ function harness(){
   const ctx=vm.createContext({
     canvas:{addEventListener(type,handler){up=handler;}},drawing:null,marquee:null,drag:null,panning:null,moved:false,PREVIEW:null,READ_ONLY:false,FILE:false,
     lastTap:{id:null,at:0},DBL:320,tapTimer:null,nameSession:0,naming:null,clearTimeout(){pending=null;},setTimeout(fn){pending=fn;return 1;},Date,selected:null,render(){},keepInView(){},
-    locked:n=>!!n.locked,diagramChange:()=>false,hubbed:()=>false,
+    locked:n=>!!n.locked,diagramChange:()=>false,hubbed:()=>false,LEVEL_CENTRE:"@centre",
     askName:at=>edits.push(at),enter:id=>opened.push(id),openDiagram:id=>opened.push(id),
   });
   ctx.$=()=>({classList:{contains:()=>false}});

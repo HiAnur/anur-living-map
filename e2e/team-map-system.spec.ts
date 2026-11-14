@@ -212,25 +212,40 @@ test("a system map starts at a circle for the whole system, every repo hanging o
       panel!.y + panel!.height <= ring!.y ||
       panel!.y >= ring!.y + ring!.height,
   ).toBe(true);
-  // the repos are ordinary boxes, each with a straight line from the circle; the person gets none
-  for (const repo of ["api", "web"])
+  // the repos are ordinary boxes round the circle, a line from it to each, as on any map; the person gets none and
+  // sits beside the repo they use
+  for (const repo of ["api", "web"]) {
     await expect(box(page, repo)).not.toHaveClass(/\bstart\b/);
-  await expect(page.locator("#edges path.spoke")).toHaveCount(2);
-  // the calls between them stay plain lines, never curved cross-links
-  await expect(page.locator("#edges path.cross")).toHaveCount(0);
-  // a click folds the map to the circle (a person, who no line leads to, stays); another shows every box again
+    await expect(
+      page.locator(`#edges .hit[data-edge="system>system-${repo}"]`),
+    ).toHaveCount(1);
+  }
+  await expect(
+    page.locator('#edges .hit[data-edge="system>system-customer"]'),
+  ).toHaveCount(0);
+  const [web, customer, centre] = await Promise.all(
+    [box(page, "web"), box(page, "Customer"), circle].map((b) =>
+      b.boundingBox(),
+    ),
+  );
+  expect(Math.sign(customer!.x - centre!.x)).toBe(
+    Math.sign(web!.x - centre!.x),
+  );
+  // the call between the repos is a curved cross-link, as on any map
+  await expect(page.locator("#edges path.cross")).toHaveCount(1);
+  // a click folds the map to the circle; another shows every box again
   await circle.click();
   await expect(page.locator("#levels")).toContainText("Level 0");
-  for (const gone of ["api", "web", "My note"])
+  for (const gone of ["api", "web", "My note", "Customer"])
     await expect(box(page, gone)).toHaveCount(0);
-  await expect(box(page, "Customer")).toBeVisible();
   await circle.click();
-  for (const back of ["api", "web", "My note"])
+  for (const back of ["api", "web", "My note", "Customer"])
     await expect(box(page, back)).toBeVisible();
-  // a repo still opens into its own map, whose first box keeps its name
+  // a repo opens into its own map, which starts at a circle standing for the repo, its parts round it
   await page.locator('[data-expand="system-api"]').click();
   await expect(box(page, "Payments")).toBeVisible();
-  await expect(hub(page)).toHaveCount(0);
+  await expect(hub(page)).toHaveAttribute("aria-label", "api");
+  await expect(box(page, "Payments")).not.toHaveClass(/\bstart\b/);
 });
 
 test("the map updating itself from new commits does not pop the panel up", async ({
