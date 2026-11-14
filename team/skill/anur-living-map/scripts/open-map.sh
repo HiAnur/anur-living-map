@@ -134,7 +134,9 @@ elif [ "$how" = front ]; then echo "chrome: already open on the map, brought to 
 else open -a "Google Chrome" "$OPEN" && echo "chrome: opened $OPEN"; fi
 
 # 4. this chat linked to the map, so the map's Claude pane shows it and what is typed there comes here. A Pi chat
-#    names its own transcript; a Claude Code chat's is found by its id.
+#    names its own transcript; a Claude Code chat's is found by its id. The server links it to the person signed in
+#    on this Mac (the one who signed in last); the name sent here (LIVING_MAP_ME, else the first word of the account's
+#    full name) counts only while nobody has signed in, until the person it names does.
 if [ -n "$SID" ]; then
   if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then F=$(ls ~/.claude/projects/*/"$SID".jsonl 2>/dev/null | head -1); else F="${PI_SESSION_FILE:-}"; fi
   curl -s -X POST "${U}api/act" -H 'content-type: application/json' \

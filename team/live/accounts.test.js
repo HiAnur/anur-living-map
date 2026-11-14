@@ -15,7 +15,8 @@ const cleanup = [];
 afterEach(async () => { while (cleanup.length) await /** @type {() => any} */ (cleanup.pop())(); });
 
 // A copy of the team map with a users file of its own and a repo, so nothing here reaches this Mac's real map.
-function install() {
+// `login`: the address of a stand-in for Living Map login, to sign in through Google; none turns Google off.
+function install(login = '') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-accounts-'));
   cleanup.push(() => fs.rmSync(root, { recursive: true, force: true }));
   const app = path.join(root, 'app'), repo = path.join(root, 'shop');
@@ -24,7 +25,7 @@ function install() {
   fs.cpSync(path.join(import.meta.dirname, 'agents'), path.join(app, 'agents'), { recursive: true });
   fs.writeFileSync(path.join(app, 'projects.json'), '[]');
   const users = path.join(root, 'users.db');
-  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
+  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: users, LIVING_MAP_LOGIN_URL: login, LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), LIVING_MAP_MAIL_CONFIG: path.join(root, 'no-mail.json'), RESEND_API_KEY: '' };
   /** a script against this copy's users file @param {string} code */
   const run = (code) => execFileSync(process.execPath, ['--input-type=module', '-e', code], { cwd: app, env, encoding: 'utf8' }).trim();
   /** `node users.js …`, as a script or Claude would run it: no terminal @param {string[]} args @param {string} [input] */
@@ -60,7 +61,47 @@ async function serve(at) {
     await reader.cancel();
     return JSON.parse(text.split('event: state\ndata: ')[1].split('\n')[0]);
   };
-  return { origin, post, get, open };
+  /** signs in through Google, as the person the stand-in login gives for `code` @param {string} code */
+  const google = async (code) => {
+    const start = await fetch(origin + '/auth/google?next=/', { redirect: 'manual' });
+    const state = new URL(/** @type {string} */ (start.headers.get('location'))).searchParams.get('state');
+    const done = await fetch(`${origin}/auth/done?state=${state}&code=${code}`, { redirect: 'manual' });
+    const cookie = /lm_session=([0-9a-f]{64})/.exec(done.headers.get('set-cookie') || '')?.[1] || '';
+    return { cookie, name: cookie ? (await get('/api/me', cookie)).body.name : '' };
+  };
+  return { origin, post, get, open, google };
+}
+
+/**
+ * A stand-in for Living Map login: each code it is handed back is a person Google vouched for.
+ * @param {Record<string, { name: string, email: string, listed?: boolean }>} people
+ */
+async function login(people) {
+  const server = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => {
+      const who = req.url === '/exchange' ? people[JSON.parse(body || '{}').code] : null;
+      res.writeHead(who ? 200 : 404, { 'content-type': 'application/json' }).end(JSON.stringify(who || { error: 'Not known.' }));
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', /** @type {() => void} */ (r)));
+  cleanup.push(() => new Promise((r) => server.close(() => r(undefined))));
+  return `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}`;
+}
+const GOOGLE = {
+  alex: { name: 'Alex Smith', email: 'alex@example.com' },
+  alexAgain: { name: 'Alex S', email: 'ALEX@example.com' },
+  lookalike: { name: 'Alex Smith', email: 'someone@example.net' },
+  sam: { name: 'Sam', email: 'sam@example.com' },
+};
+
+/** A chat in a Claude Code transcript, where the app keeps them. @param {string} root @param {string} session */
+function chatFile(root, session) {
+  const file = path.join(root, '.claude', 'projects', 'shop', `${session}.jsonl`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${JSON.stringify({ type: 'user', origin: { kind: 'human' }, timestamp: new Date(0).toISOString(), message: { role: 'user', content: 'Hello' } })}\n`);
+  return file;
 }
 
 it('makes the first person on a new install its owner, and lets others in only by the owner\'s invite', async () => {
@@ -170,4 +211,49 @@ it('prints a one-use reset link for any account, and never waits for a password 
   const older = /#reset=([0-9a-f]{64})/.exec(printed.stdout)?.[1];
   expect(at.run(`import {recovery, users} from './users.js';const s=users.start('Alex');console.log(recovery.use(${JSON.stringify(older)},'reset','an older choice'), recovery.use(${JSON.stringify(token)},'reset','a new password'), recovery.use(${JSON.stringify(token)},'reset','again and again'), users.whoIs(s), users.check('Alex','a new password'))`))
     .toBe('false true false null Alex');
+}, SPAWNS);
+
+it('makes the first person through Google on a new install its owner, and offers no account to create after', async () => {
+  const at = install(await login(GOOGLE)), map = await serve(at);
+  expect((await map.get('/api/signin')).body.firstRun).toBe(true);
+  const alex = await map.google('alex');
+  expect(alex.name).toBe('Alex Smith');
+  expect((await map.get('/api/me', alex.cookie)).body).toMatchObject({ name: 'Alex Smith', role: 'Owner', owner: true, signIn: 'google' });
+  // the install is owned: no "Create your account", and no account made by typing first
+  expect((await map.get('/api/signin')).body.firstRun).toBe(false);
+  expect((await map.post('/api/first', { name: 'Kim', password: 'a long password' })).body.error).toContain('already has an owner');
+  // the owner comes back by their address, under whatever name Google gives now; a stranger with their name is a guest
+  expect((await map.google('alexAgain')).name).toBe('Alex Smith');
+  expect((await map.google('lookalike')).name).toBe('Alex Smith (guest)');
+  // the next person through Google is a member, and the owner invites like any owner
+  const sam = await map.google('sam');
+  expect((await map.get('/api/me', sam.cookie)).body).toMatchObject({ name: 'Sam', owner: false });
+  expect((await map.post('/api/invite', { name: 'Kim' }, alex.cookie)).status).toBe(200);
+  expect((await map.open('/shop/', alex.cookie)).people).toContainEqual(expect.objectContaining({ id: 'Alex Smith', role: 'Admin' }));
+  expect(at.cli(['list']).stdout).toContain('Alex Smith  (owner)  (signs in through Google)');
+}, SPAWNS);
+
+it('leaves an install with an owner as it was when someone signs in through Google', async () => {
+  const at = install(await login({ ...GOOGLE, alexByName: { name: 'Alex', email: 'alex@example.org' } })), map = await serve(at);
+  const alex = await map.post('/api/first', { name: 'Alex', password: 'a long password' });
+  const sam = await map.google('sam');
+  expect((await map.get('/api/me', sam.cookie)).body).toMatchObject({ name: 'Sam', owner: false });
+  // a Google name that is an account here is still a guest, never that person
+  expect((await map.google('alexByName')).name).toBe('Alex (guest)');
+  expect((await map.get('/api/me', alex.cookie)).body).toMatchObject({ name: 'Alex', owner: true, signIn: 'password' });
+  expect((await map.get('/api/signin')).body.firstRun).toBe(false);
+}, SPAWNS);
+
+it('links a chat opened on this Mac to the person signed in on it last, not to the name the script sends', async () => {
+  const at = install(await login(GOOGLE)), map = await serve(at);
+  // the script's name for this Mac's account ("Alex") is no one's; the chat is whoever signed in on this Mac
+  const link = (/** @type {string} */ session) => fetch(map.origin + '/shop/api/act', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'link', by: 'Alex', session, file: chatFile(at.root, session) }) });
+  const alex = await map.google('alex');
+  expect((await link('chat-0001')).status).toBe(200);
+  expect((await map.open('/shop/', alex.cookie)).linked.map((/** @type {any} */ l) => l.owner)).toEqual(['Alex Smith']);
+  // Sam signs in on the same Mac after: a chat linked now is Sam's, and Alex's stays Alex's
+  const sam = await map.google('sam');
+  expect((await link('chat-0002')).status).toBe(200);
+  expect((await map.open('/shop/', sam.cookie)).linked.map((/** @type {any} */ l) => l.owner)).toEqual(['Sam', 'Alex Smith']);
 }, SPAWNS);

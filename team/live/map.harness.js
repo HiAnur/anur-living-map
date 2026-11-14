@@ -16,10 +16,13 @@ export const TOKEN = 'a'.repeat(64);
  * @typedef {string} Sender
  */
 
-/** A map of its own in a folder of its own, kept in memory. @param {any} initialState */
-export function openTestMap(initialState, name = 'test-map') {
+/**
+ * A map of its own in a folder of its own, kept in memory; `more` is what else openMap is told (who is signed in).
+ * @param {any} initialState @param {any} [more]
+ */
+export function openTestMap(initialState, name = 'test-map', more = {}) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), `lm-${name}-`));
-  const map = openMap({ name, home, memory: true, initialState });
+  const map = openMap({ name, home, memory: true, initialState, ...more });
   return { map, close: () => { map.close(); fs.rmSync(home, { recursive: true, force: true }); } };
 }
 
