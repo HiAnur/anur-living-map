@@ -1,6 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { selfUpdate } from './self-update.js';
+import { bundled, selfUpdate } from './self-update.js';
 
 // Keeping itself current never cuts Claude's work short: while a map is busy, nothing is pulled or restarted.
 
@@ -63,5 +65,35 @@ describe('keeping itself current', () => {
     const s = fakeGit();
     await selfUpdate(server, () => false, { git: s.git, channel: 'stable' }).checkLatest();
     expect(s.calls.some((c) => c.includes('dev-'))).toBe(false);
+  });
+});
+
+// Inside the Mac app, the app brings every update: the server never asks git anything, and says so.
+describe('bundled in another app', () => {
+  it('is turned on by --bundled or ANUR_LIVING_MAP_BUNDLED=1, and nothing else', () => {
+    expect(bundled(['node', 'server.js', '4323', '--bundled'], {})).toBe(true);
+    expect(bundled(['node', 'server.js'], { ANUR_LIVING_MAP_BUNDLED: '1' })).toBe(true);
+    expect(bundled(['node', 'server.js', '4323'], {})).toBe(false);
+    expect(bundled(['node', 'server.js'], { ANUR_LIVING_MAP_BUNDLED: '0' })).toBe(false);
+  });
+  it('never runs git, never pulls or restarts, and reports the package version', async () => {
+    const g = fakeGit();
+    let restarted = false;
+    const u = selfUpdate(/** @type {any} */ ({ closeAllConnections() { restarted = true; }, close() { restarted = true; } }), () => false, { git: g.git, channel: 'stable', bundled: true });
+    await u.whenListening();
+    await u.keepCurrent();
+    expect(await u.checkLatest()).toBe(null);
+    expect(await u.cannotUpdate()).toBe('updates come with the app');
+    expect(await u.pull()).toBe(null);
+    expect(g.calls).toEqual([]);
+    expect(restarted).toBe(false);
+    const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, 'package.json'), 'utf8'));
+    expect(u.VERSION).toMatchObject({ version: pkg.version, bundled: true, build: 0, commit: '', latest: null });
+  });
+  it('is not bundled in a clone, which still looks for updates', async () => {
+    const g = fakeGit();
+    const u = selfUpdate(server, () => false, { git: g.git, channel: 'stable', bundled: false });
+    expect(u.VERSION.bundled).toBeUndefined();
+    expect(await u.checkLatest()).toBe(false);
   });
 });

@@ -7,6 +7,8 @@
 // (npx) is left to npx, which fetches the newest version each run. The commit it runs from goes in
 // server.rev in the data folder (data-dir.js), which /anur-living-map reads to tell a server on older code.
 // ANUR_LIVING_MAP_NO_UPDATE=1 turns the automatic look off; the map's update button still works.
+// Bundled (bundled() below), the server ships inside another app that updates it: it never runs git, never pulls or
+// restarts, and tells the page so, which shows the package version and no update button.
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,16 +20,22 @@ import { copySkill } from './skill-copy.js';
 
 const DIR = import.meta.dirname;
 
+/** Whether another app (the Mac app) started this server from its own copy: `--bundled`, or ANUR_LIVING_MAP_BUNDLED=1. */
+export const bundled = (argv = process.argv, env = process.env) => argv.includes('--bundled') || env.ANUR_LIVING_MAP_BUNDLED === '1';
+
 /**
  * @param {import('node:http').Server} server the server to start again in its place after a pull
  * @param {() => boolean} [busy] whether Claude is at work on a map now, when an update waits
- * @param {{ git?: (...a: any[]) => Promise<string | null>, wait?: number, channel?: import('./channel.js').Channel }} [test] stand-ins for git, the wait and the channel, in tests
+ * @param {{ git?: (...a: any[]) => Promise<string | null>, wait?: number, channel?: import('./channel.js').Channel, bundled?: boolean }} [test] stand-ins for git, the wait, the channel and bundled(), in tests
  */
 export function selfUpdate(server, busy = () => false, test = {}) {
+  const BUNDLED = test.bundled ?? bundled();
   const CHANNEL = test.channel || channelOf(process.env, DATA);
   const REPO = path.resolve(DIR, '..', '..');
   const REV = path.join(DATA, 'server.rev');
-  const git = test.git || ((/** @type {any[]} */ ...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim()))));
+  const run = test.git || ((/** @type {any[]} */ ...a) => new Promise((ok) => execFile('git', ['-C', REPO, ...a], { encoding: 'utf8' }, (e, out) => ok(e ? null : out.trim()))));
+  // a bundled copy is not a clone, even when it sits inside one, so it answers every question as a copy without git does
+  const git = BUNDLED ? async (/** @type {any[]} */ ..._a) => /** @type {string | null} */ (null) : run;
   const EVERY = 10 * 60_000;
   // the skill's copy, refreshed as skill-copy.js makes it
   function refreshSkill() {
@@ -52,6 +60,7 @@ export function selfUpdate(server, busy = () => false, test = {}) {
   }
   // why a pull cannot run: the clone is on another branch or has changes of its own; '' when it can
   async function cannotUpdate() {
+    if (BUNDLED) return 'updates come with the app';
     const branch = await git('branch', '--show-current');
     if (branch !== 'main') return branch ? `this copy is on the branch ${branch}, not main` : 'this copy is a preview, not main';
     // only edits to tracked files block a pull: a map's own .living-map/ folder or any other new file does not
@@ -84,13 +93,13 @@ export function selfUpdate(server, busy = () => false, test = {}) {
     if ((await pull())?.count) restart();
   }
   // build: how many commits the clone's history holds, so every merge moves it; a copy without git has none
-  /** @type {any} */ const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, channel: CHANNEL, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now() };
+  /** @type {any} */ const VERSION = { version: JSON.parse(fs.readFileSync(path.join(DIR, 'package.json'), 'utf8')).version, channel: CHANNEL, build: 0, commit: '', at: '', latest: null, behind: 0, started: Date.now(), ...(BUNDLED ? { bundled: true } : {}) };
   // once the server answers: record the commit it runs from, then look for updates now and every ten minutes
   async function whenListening() {
     const head = await git('rev-parse', 'HEAD');
     if (head) { VERSION.commit = head.slice(0, 7); VERSION.at = (await git('log', '-1', '--format=%cs')) || ''; VERSION.build = Number(await git('rev-list', '--count', 'HEAD')) || 0; }
     if (head) { try { fs.mkdirSync(path.dirname(REV), { recursive: true }); fs.writeFileSync(REV, `${head}\n`); } catch (e) { console.error(`[update] could not record the running revision: ${/** @type {any} */ (e)?.message}`); } }
-    if (process.env.ANUR_LIVING_MAP_NO_UPDATE === '1') return;
+    if (BUNDLED || process.env.ANUR_LIVING_MAP_NO_UPDATE === '1') return;
     keepCurrent(); setInterval(keepCurrent, EVERY).unref();
   }
   return { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening, keepCurrent };

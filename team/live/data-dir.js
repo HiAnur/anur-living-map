@@ -5,9 +5,11 @@ import path from 'node:path';
 // Where the team map keeps what is not in a repo: its users, cloud and mail config, logs and the revision the
 // running server started from. ~/.anur-living-map, apart from the chat map's ~/.living-map; a Mac that already
 // has the old ~/.living-map-2 and not the new folder keeps using it, so its people and sign-ins stay with
-// nothing moved. open-map.sh picks the same folder the same way.
-/** @param {string} [home] */
-export function dataDir(home = os.homedir()) {
+// nothing moved. open-map.sh picks the same folder the same way. ANUR_LIVING_MAP_DATA names another folder, for a
+// program that starts the server itself (the Mac app); a chat never sets it, so the script has no need to read it.
+/** @param {string} [home] @param {NodeJS.ProcessEnv} [env] */
+export function dataDir(home = os.homedir(), env = process.env) {
+  if (env.ANUR_LIVING_MAP_DATA) return path.resolve(env.ANUR_LIVING_MAP_DATA);
   const now = path.join(home, '.anur-living-map'), before = path.join(home, '.living-map-2');
   return !fs.existsSync(now) && fs.existsSync(before) ? before : now;
 }

@@ -26,8 +26,12 @@ describe('the team map\'s data folder', () => {
     ['beside the chat map', ['.living-map'], '.anur-living-map'],
   ])) it(`is ${picked} for ${what}, in the server and the skill alike`, () => {
     const h = home(...folders);
-    expect(dataDir(h)).toBe(path.join(h, picked));
+    expect(dataDir(h, {})).toBe(path.join(h, picked));
     expect(fromScript(h)).toBe(path.join(h, picked));
+  });
+  it('is the folder ANUR_LIVING_MAP_DATA names, for an app that starts the server itself', () => {
+    const h = home('.anur-living-map'), mine = path.join(h, 'app-data');
+    expect(dataDir(h, { ANUR_LIVING_MAP_DATA: mine })).toBe(mine);
   });
   it('is picked by the script in one place', () => expect(pick.split('\n')).toHaveLength(1));
 });
