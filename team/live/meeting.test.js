@@ -216,6 +216,24 @@ describe('a meeting on a map', () => {
     j.close();
   });
 
+  it('never puts a box with no name on the map, even for a question asked and answered in one answer', async () => {
+    const { j, state, drawn } = job({ answer: (/** @type {any} */ jb, /** @type {number} */ n) => (n > 1 ? { value: { summary: '', ops: [] } } : { value: { summary: '', ops: [
+      { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+      { op: 'add', ref: 'q', kind: 'question', title: 'Which day do we launch?', sub: 'Answered: Tuesday', under: 't', quote: 'Launch date first' },
+      { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 't', quote: 'decide on Tuesday', link: { rel: 'answers', to: 'q' } },
+    ] } }) });
+    j.start({ title: 'Launch sync', by: 'Harshit' });
+    j.add([seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, "Let's decide on Tuesday.")]);
+    await j.idle();
+    // what the map was asked to draw: one entry per box, every new one named
+    for (const p of drawn) expect(new Set(p.nodes.map((/** @type {any} */ x) => x.id)).size).toBe(p.nodes.length);
+    const ids = state.nodes.map((/** @type {any} */ x) => x.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const box of state.nodes) expect(box.label).toBeTruthy();
+    expect(state.nodes.find((/** @type {any} */ x) => x.id === 'm-which-day-do-we')).toMatchObject({ sub: 'Answered · Tuesday', state: '' });
+    j.close();
+  });
+
   it('keeps finer detail as notes on a point, and logs each one', async () => {
     const { j, state } = job({ answer: (/** @type {any} */ jb, /** @type {number} */ n) => (n > 1 ? { value: { summary: '', ops: [] } } : { value: { summary: 'Launch', ops: [
       { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
@@ -476,7 +494,7 @@ describe('the meeting routes', () => {
       await routes(req, {}, new URL(`http://localhost${p}`), who, (/** @type {number} */ status, /** @type {any} */ body) => { result = { status, body }; return true; });
       return result;
     };
-    return { maps, post, asked, tooled };
+    return { maps, post, asked, tooled, answer };
   }
 
   it('makes a meeting\'s map, and the recorder\'s words are drawn on it with no chat and no tools', async () => {
@@ -505,6 +523,23 @@ describe('the meeting routes', () => {
     expect(asked.at(-1).prompt).toContain('LAST PASS');
     for (const t of tooled) expect(t).not.toHaveBeenCalled();
     expect((await post('/api/meetings/launch-sync/segments', words)).status).toBe(400);
+  });
+
+  it('draws a question asked and answered in one answer as one named box on the real map', async () => {
+    const { maps, post, answer } = server();
+    answer.mockImplementation(async () => ({ ms: 1, value: { summary: '', ops: [
+      { op: 'add', ref: 't', kind: 'topic', title: 'Launch date', under: MEETING_ID, quote: 'Launch date first' },
+      { op: 'add', ref: 'q', kind: 'question', title: 'Which day do we launch?', sub: 'Answered: Tuesday', under: 't', quote: 'Launch date first' },
+      { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 't', quote: 'decide on Tuesday', link: { rel: 'answers', to: 'q' } },
+    ] } }));
+    await post('/api/meetings', { title: 'Launch sync', by: 'Harshit' });
+    await post('/api/meetings/launch-sync/segments', { segments: [seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, "Let's decide on Tuesday.")] });
+    const map = maps.mapCalled('launch-sync');
+    await map.meeting.idle();
+    const nodes = map.snapshot().nodes, ids = nodes.map((/** @type {any} */ n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const n of nodes) expect(n.label).toBeTruthy();
+    expect(nodes.find((/** @type {any} */ n) => n.id === 'm-which-day-do-we')).toMatchObject({ label: 'Which day do we launch?', sub: 'Answered · Tuesday' });
   });
 
   it('names an untitled meeting after its app and time, and a person signed in records as themself', async () => {

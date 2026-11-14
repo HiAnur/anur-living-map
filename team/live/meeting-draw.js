@@ -192,6 +192,21 @@ export function withNotes(desc, more) {
   const out = [String(desc || '').trim(), ...more].filter(Boolean).join('\n');
   return out.length > BOX_TEXT.desc ? null : out;
 }
+/**
+ * A drawing's boxes as the map may take them: one entry per id (later entries merged into the first, since the map
+ * adds each entry for an id it does not hold as a box of its own), and no new box without a title. `onMap` says
+ * whether a box with that id is already on the map. Returns the boxes kept and the ids dropped.
+ * @param {any[]} nodes @param {(id: string) => boolean} onMap
+ * @returns {{ nodes: any[], dropped: string[] }}
+ */
+export function namedOnce(nodes, onMap) {
+  /** @type {Map<string, any>} */ const by = new Map();
+  for (const n of nodes) if (n?.id) by.set(n.id, { ...by.get(n.id), ...n });
+  /** @type {string[]} */ const dropped = [];
+  const kept = [...by.values()].filter((n) => (onMap(n.id) || String(n.label || '').trim() ? true : (dropped.push(n.id), false)));
+  return { nodes: kept, dropped };
+}
+
 /** How many points (boxes under a topic) a set of meeting boxes holds. @param {Iterable<any>} boxes */
 export const pointCount = (boxes) => [...boxes].filter((b) => b.under && b.under !== MEETING_ID).length;
 

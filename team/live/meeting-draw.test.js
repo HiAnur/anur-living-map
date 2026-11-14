@@ -3,7 +3,7 @@
 // hands off what a person wrote. Then the tidy pass: merges and folds, checked the same way.
 import { describe, expect, it } from 'vitest';
 
-import { alike, appliedLine, checkMeetingOps, lineOf, MAX_POINTS, MEETING_ID, meetingInstructions, meetingPrompt, notesOf, quoted, shortQuote, unsaidNames } from './meeting-draw.js';
+import { alike, appliedLine, checkMeetingOps, lineOf, MAX_POINTS, MEETING_ID, meetingInstructions, meetingPrompt, namedOnce, notesOf, quoted, shortQuote, unsaidNames } from './meeting-draw.js';
 import { checkTidyOps, tidyPrompt } from './meeting-tidy.js';
 
 const talk = [
@@ -163,6 +163,30 @@ describe('what a meeting answer may draw', () => {
     // once answered it is no longer open, so it cannot be answered again
     const again = check([{ op: 'update', id: 'm-q', quote: 'keep the free tier', answered: 'keep the free tier' }], [topic, { ...q, kind: 'fact', sub: 'Answered · keep it' }]);
     expect(again.refused[0].why).toBe('Free tier or trial? is not an open question');
+  });
+
+  it('draws a question asked and answered in the same answer as one named box, saying "Answered" once', () => {
+    // as on a real call: a question added, then a box that answers it, both in one answer
+    const r = check([
+      { op: 'add', ref: 'q1', kind: 'question', title: 'Free tier or trial?', sub: 'Answered: keep the free tier', under: 'm-launch', quote: 'Do we keep the free tier or move to a trial' },
+      { op: 'add', kind: 'decision', title: 'Keep the free tier', under: 'm-launch', quote: 'keep the free tier', link: { rel: 'answers', to: 'q1' } },
+    ], [topic]);
+    const ids = r.nodes.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const n of r.nodes.filter((x) => r.added.some((b) => b.id === x.id))) expect(n.label).toBeTruthy();
+    expect(r.nodes[0]).toMatchObject({ label: 'Free tier or trial?', sub: 'Answered · keep the free tier', state: '' });
+    expect(lineOf('answered', 'Answered · Answered · Answered: the reviewer files them')).toBe('Answered · the reviewer files them');
+  });
+
+  it('sends each box once and never a new box without a title', () => {
+    const r = namedOnce([
+      { id: 'q', label: 'Which day?', sub: 'Open' },
+      { id: 'q', sub: 'Answered', state: '' },
+      { id: 'old', sub: 'Changed' },
+      { id: 'ghost', sub: 'Answered · yes' },
+    ], (id) => id === 'old');
+    expect(r.nodes).toEqual([{ id: 'q', label: 'Which day?', sub: 'Answered', state: '' }, { id: 'old', sub: 'Changed' }]);
+    expect(r.dropped).toEqual(['ghost']);
   });
 
   it('holds the meeting to a number of points across all its topics', () => {

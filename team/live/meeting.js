@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { personOf } from './draw.js';
-import { appliedLine, checkMeetingOps, MAX_MEETING_POINTS, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt, pointCount, RECENT_STRETCHES } from './meeting-draw.js';
+import { appliedLine, checkMeetingOps, MAX_MEETING_POINTS, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt, namedOnce, pointCount, RECENT_STRETCHES } from './meeting-draw.js';
 import { checkTidyOps, TIDY_SCHEMA, TIDY_TARGET, tidyPrompt } from './meeting-tidy.js';
 import { PROPOSE_SCHEMA } from './propose.js';
 
@@ -225,6 +225,19 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     (meeting.log ||= []).push(...entries.map((e) => ({ at: now(), ...e })));
     meeting.log = meeting.log.slice(-200);
   };
+  // Every drawing goes out with one entry per box and no new box without a title: the map adds each entry for an id
+  // it does not hold as a box of its own, so a second entry for a box added in the same answer would land as a
+  // box with no name. What cannot be drawn is refused and logged, with its lines.
+  const drawNamed = (/** @type {{ nodes: any[], edges: any[], remove?: string[] }} */ p) => {
+    const onMap = new Set((getState().nodes || []).map((/** @type {any} */ n) => n.id));
+    const { nodes, dropped } = namedOnce(p.nodes, (id) => onMap.has(id));
+    if (dropped.length) {
+      const meeting = m();
+      (meeting.refused ||= []).push(...dropped.map((id) => ({ at: now(), why: 'a new box with no title is never drawn', op: JSON.stringify({ id }) })));
+    }
+    const gone = new Set(dropped);
+    draw({ ...p, nodes, edges: p.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to)) });
+  };
 
   // Once the last pass is in: one more no-tool answer over the meeting's boxes and notes (no talk) merges boxes
   // that say the same thing, folds points that settle nothing into their topic's notes and promotes a note that
@@ -250,7 +263,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       if (!r.value) { meeting.error = r.error || 'The agent did not answer.'; break; }
       const checked = checkTidyOps(r.value, { boxes, lines, transcript, taken, known, target: tidyTarget });
       if (checked.nodes.length || checked.remove.length) {
-        draw({ nodes: checked.nodes, edges: checked.edges, remove: checked.remove });
+        drawNamed({ nodes: checked.nodes, edges: checked.edges, remove: checked.remove });
         const gone = new Set(checked.remove);
         meeting.boxes = [...(meeting.boxes || []).filter((/** @type {string} */ id) => !gone.has(id)), ...checked.added.map((b) => b.id)];
         for (const id of gone) delete meeting.kinds?.[id];
@@ -329,7 +342,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       if (!r.value) { meeting.error = r.error || 'The agent did not answer.'; return round > 0; }
       const checked = checkMeetingOps(r.value, { ...ctx, boxes: ownBoxes() });
       if (checked.nodes.length || checked.edges.length) {
-        draw({ nodes: checked.nodes, edges: checked.edges });
+        drawNamed({ nodes: checked.nodes, edges: checked.edges });
         for (const b of checked.added) { (meeting.boxes ||= []).push(b.id); (meeting.kinds ||= {})[b.id] = b.kind; }
         for (const b of checked.changed) if (b.id && !b.gone) (meeting.kinds ||= {})[b.id] = b.kind || meeting.kinds[b.id] || 'topic';
       }
