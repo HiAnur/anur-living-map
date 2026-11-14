@@ -34,7 +34,8 @@ export const RULES = `Draw a system map for an engineer, from the facts below an
 export function compact(facts, budget = 90_000) {
   const order = ['outside_function', 'function', 'construct', 'table', 'queue', 'topic', 'bucket', 'api', 'http_route', 'state_machine', 'schedule', 'event_source',
     'user_pool', 'secret', 'parameter', 'stream', 'grant', 'link', 'policy', 'invokes_by_name', 'screens', 'api_call', 'state_slice', 'imports_sdks', 'amplify_resource',
-    'compose_service', 'container', 'api_spec', 'package', 'aws_client', 'aws_call', 'url', 'doc', 'module', 'env_read', 'amplify_envs', 'import'];
+    'compose_service', 'container', 'api_spec', 'server_routes', 'apple_app', 'swift_target', 'site', 'page', 'deploy_target', 'package', 'links_to', 'pulls_package',
+    'release_signing', 'entitlements', 'aws_client', 'aws_call', 'url', 'doc', 'module', 'env_read', 'amplify_envs', 'import'];
   /** @type {(v: unknown) => unknown} */
   const trim = (v) => typeof v === 'string' ? v.slice(0, 200) : Array.isArray(v) ? v.slice(0, 20).map(trim) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).slice(0, 20).map(([k, x]) => [k, trim(x)])) : v;
   const out = [];
@@ -92,7 +93,9 @@ export async function drawSystem({ folders, agent, onProgress = () => {}, model,
     const t = Date.now();
     tell({ repo: r.repo, stage: 'drawing' });
     const { facts, cut } = compact(r.facts);
-    const kinds = r.kinds.includes('app') ? '\nThis repo is an app: its boxes are its main areas (screen groups), its state, its client for each backend, and the outside services and SDKs that matter. Group backend calls by area, naming the paths in descriptions.\n' : '';
+    const kinds = r.kinds.includes('app') ? '\nThis repo is an app: its boxes are its main areas (screen groups), its state, its client for each backend, and the outside services and SDKs that matter. Group backend calls by area, naming the paths in descriptions.\n'
+      : r.kinds.includes('apple-app') ? '\nThis repo is an Apple app: its boxes are its targets and main areas, its client for each server it calls, where it is released and updated from, and the outside services it uses.\n'
+        : r.kinds.includes('site') ? '\nThis repo is a website: its boxes are its pages or groups of pages, where it is hosted, and the repos, packages and services it links to or reads from.\n' : '';
     const earlier = before(r.repo);
     const prompt = `${RULES}\n${kinds}\nThe repo is ${r.repo}.${cut ? ' Its facts were cut to the most structural ones to fit.' : ''}\n${earlierBoxes(earlier)}\nFacts (one JSON object per line):\n${facts.join('\n')}\n`;
     const a = await agent.answer({ prompt, schema: drawingSchema(false), model, signal });
