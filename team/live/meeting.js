@@ -8,7 +8,7 @@
 // talk counts as sent only once an answer has landed; a failed call is tried again later with the same talk.
 // When the meeting ends, a tidy pass (meeting-tidy.js) merges, folds and promotes to bring the points under a
 // target, code lays the map out once the way Tidy up does, then the recorder's own commitments become their
-// Action drafts.
+// Action drafts, unless every voice came through their microphone.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -293,7 +293,11 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
 
   // Once the meeting is over: what the person recording said they will do becomes their Action drafts, through
   // action-items.js. Only their own lines are the source, and only when the name the recorder sends is one of
-  // the map's people; otherwise nothing is made and they are told why.
+  // the map's people; otherwise nothing is made and they are told why. The recorder calls its microphone "you"
+  // and the Mac's sound "others", so a recorded meeting with no "others" line at all was most likely held in a
+  // room, or a call played on another device, where every voice reached the microphone: then "you" is not only
+  // them, so no drafts are made and the reason is kept in `meeting.noDrafts`. A pasted transcript names each
+  // speaker, so it is not held to this.
   async function actionPass() {
     const meeting = m();
     if (!fromWords || !meeting || meeting.actionsDone || stopAtCap()) return;
@@ -302,6 +306,12 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     if (!mine.length) return;
     if (!people().includes(by)) {
       say(by, `No Action drafts from this meeting: "${by}" is not one of this map's people. Set your name in the recorder to match your sign-in.`);
+      return;
+    }
+    if (!meeting.imported && mine.length === said.length) {
+      meeting.noDrafts = 'one-microphone';
+      say(by, "No Action drafts from this meeting: every voice came through your microphone, so I can't tell what you said from what others said. Make an Action yourself from any box.");
+      save(); push();
       return;
     }
     const r = await answer({ prompt: actionsPrompt(by, getState().title, ownBoxes(), mine), schema: ACTIONS_SCHEMA });

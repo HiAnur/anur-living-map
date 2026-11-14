@@ -48,4 +48,23 @@ describe('the end of a meeting on a real map', () => {
       close();
     }
   });
+
+  it('makes no drafts when every voice came through the microphone, and tells the recorder in their chat', async () => {
+    const { map, close } = openTestMap({ title: 'Untitled', people: [{ id: 'Duy', sees: 'all' }], nodes: [], edges: [], calls: [], threads: {}, log: [] }, 'meeting-room');
+    try {
+      jobs.length = 0;
+      map.startMeeting({ title: 'Room sync', by: 'Duy' });
+      map.meeting.add([seg(0, "Sure. I'll send Dan the pricing by Thursday.", 'you'), seg(4, "I'll check the contract.", 'you')]);
+      map.meeting.end();
+      for (let i = 0; i < 100 && !map.snapshot().meeting?.noDrafts; i++) await wait(10);
+      const s = map.snapshot();
+      expect(s.meeting.noDrafts).toBe('one-microphone');
+      expect(s.meeting.actions).toBeUndefined();
+      expect(jobs.some((j) => j.kind === 'answer' && j.job.schema?.properties?.items)).toBe(false);
+      expect(jobs.filter((j) => j.kind === 'prepare')).toHaveLength(0);
+      expect(s.threads['@Duy'].at(-1).text).toMatch(/^No Action drafts from this meeting: every voice came through your microphone/);
+    } finally {
+      close();
+    }
+  });
 });

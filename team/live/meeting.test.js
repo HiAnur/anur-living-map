@@ -378,7 +378,38 @@ describe('a meeting on a map', () => {
     expect(pass.prompt).not.toContain('Priya will check the contract');
     expect(checked).toEqual([{ src: { kind: 'meeting', id: expect.stringContaining('meeting:Pricing sync:'), who: 'Harshit', lines: ["I'll send Dan the pricing by Thursday."], spoken: true }, items: expect.any(Array) }]);
     expect(state.meeting.actions).toEqual([{ title: 'Send Dan the pricing', made: 'm-draft' }]);
+    expect(state.meeting.noDrafts).toBeUndefined();
     expect(said.at(-1).text).toMatch(/^Made 1 Action draft from what you said, now preparing/);
+    j.close();
+  });
+
+  it('makes no drafts when every voice came through your microphone, as in a room, and says why', async () => {
+    let calls = 0;
+    const { j, state, asked, said } = job({ job: { people: () => ['Harshit'], fromWords: () => { calls++; return []; } } });
+    j.start({ title: 'Room sync', by: 'Harshit' });
+    j.add([seg(0, "I'll write the notes.", 'you'), seg(5, "I'll check the contract.", 'you')]);
+    j.end();
+    for (let i = 0; i < 30 && !state.meeting.actionsDone; i++) await wait(10);
+    await wait(20);
+    expect(asked.some((/** @type {any} */ a) => a.schema === ACTIONS_SCHEMA)).toBe(false);
+    expect(calls).toBe(0);
+    expect(state.meeting.noDrafts).toBe('one-microphone');
+    expect(state.meeting.actions).toBeUndefined();
+    expect(said.at(-1)).toEqual({ to: 'Harshit', text: expect.stringMatching(/^No Action drafts from this meeting: every voice came through your microphone/) });
+    j.close();
+  });
+
+  it('still makes drafts from a pasted transcript where every line is yours, since it names who speaks', async () => {
+    /** @type {any[]} */ const checked = [];
+    const { j, state, asked } = job({
+      answer: (/** @type {any} */ jb) => (jb.schema === ACTIONS_SCHEMA ? { value: { items: [{ quote: "I'll write the notes", title: 'Write the notes', task: {} }] } } : { value: { summary: '', ops: [] } }),
+      job: { people: () => ['Harshit'], fromWords: (/** @type {any} */ src, /** @type {any} */ items) => { checked.push(items); return []; } },
+    });
+    j.importText({ title: 'Notes', text: "Harshit: I'll write the notes.", me: 'Harshit', by: 'Harshit' });
+    for (let i = 0; i < 30 && !checked.length; i++) await wait(10);
+    expect(asked.some((/** @type {any} */ a) => a.schema === ACTIONS_SCHEMA)).toBe(true);
+    expect(checked).toHaveLength(1);
+    expect(state.meeting.noDrafts).toBeUndefined();
     j.close();
   });
 
