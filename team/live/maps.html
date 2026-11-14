@@ -198,7 +198,7 @@ a.map:hover{border-color:var(--text)}
   <section id="trash-panel" hidden aria-label="Trash"><div class="head"><h1>Trash</h1><button id="trash-back" type="button" class="trash-button">Back to maps</button></div><p>Restore a map to put it back in your list. Code files and online copies are kept.</p><div id="trash-list"></div></section>
   <div id="trash-status" role="status" hidden></div>
 </main>
-<aside id="brain" aria-label="All brain"></aside>
+<aside id="brain" aria-label="Context"></aside>
 <dialog id="newmap" aria-labelledby="nm-title">
   <div class="nm-head"><h2 id="nm-title">New map</h2><button type="button" class="nm-x" data-nm-close aria-label="Close">×</button></div>
   <div id="nm-choose">
@@ -600,7 +600,7 @@ async function loadBrain(map = null){
 }
 function renderBrain(){
   const el = $('brain');
-  const heading = '<div class="ct"><span>All brain</span></div>';
+  const heading = '<div class="ct"><span>Context</span></div>';
   const back = brainMap ? '<button class="brain-back" data-brain-back>‹ All maps</button>' : '';
   if (brainLoading){ el.innerHTML = heading + back + '<p class="brain-empty" role="status">Loading…</p>'; return; }
   if (brainError){ el.innerHTML = heading + back + `<p role="alert">${esc(brainError)}</p><button class="gb" data-brain-retry>Try again</button>`; return; }
