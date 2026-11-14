@@ -148,6 +148,11 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
   const FILE = path.join(home, 'meeting.jsonl');
   /** @type {Said[]} */ let said = [];
   try { if (!memory) said = fs.readFileSync(FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { /* no meeting on this map yet: nothing said */ }
+  // every line already kept, by who said it, when and what: the recorder sends a batch again when its answer
+  // was lost (the server was slow, the connection dropped), and the second copy must add nothing
+  /** @param {Said} s */
+  const keyOf = (s) => JSON.stringify([s.speaker, s.start, s.end, s.text]);
+  const heard = new Set(said.map(keyOf));
   /** @type {ReturnType<typeof setTimeout> | null} */ let timer = null;
   /** @type {Promise<void> | null} */ let running = null;
   let closed = false, lastPassDue = false;
@@ -156,6 +161,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
   /** @param {Said[]} lines */
   const keep = (lines) => {
     said.push(...lines);
+    for (const l of lines) heard.add(keyOf(l));
     if (memory || !lines.length) return;
     fs.mkdirSync(home, { recursive: true });
     fs.appendFileSync(FILE, lines.map((l) => `${JSON.stringify(l)}\n`).join(''));
@@ -431,18 +437,28 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       s.start = MEETING_ID;
       save(); push();
     },
-    /** @param {unknown} segments @returns {{ count?: number, error?: string }} */
+    /**
+     * What the recorder heard; a line the map already has is left out. `count` is how many were new.
+     * @param {unknown} segments @returns {{ count?: number, repeated?: number, error?: string }}
+     */
     add(segments) {
       const meeting = m();
       if (!meeting) return { error: 'This map is not a meeting.' };
       if (!meeting.live) return { error: 'That meeting has ended.' };
       const lines = checkSegments(segments, now());
       if (!lines) return { error: `Send "segments" as a list of at most ${MAX_SEGMENTS}.` };
-      keep(lines);
+      const batch = new Set(), fresh = lines.filter((l) => {
+        const k = keyOf(l), had = heard.has(k) || batch.has(k);
+        batch.add(k);
+        return !had;
+      });
+      // only a repeat: nothing new waits, so the pause before the next call is left as it was
+      if (!fresh.length) return { count: 0, repeated: lines.length };
+      keep(fresh);
       const waiting = said.slice(meeting.sent), last = waiting.at(-1);
       if (last && (last.end - waiting[0].start >= CHUNK_MS || wordsIn(waiting) >= CHUNK_WORDS)) { ready = said.length; go(); }
       else if (waiting.length) later(() => { ready = said.length; go(); }, pauseMs);
-      return { count: lines.length };
+      return { count: fresh.length, repeated: lines.length - fresh.length };
     },
     // the rest goes, then a last pass over the meeting
     end() {

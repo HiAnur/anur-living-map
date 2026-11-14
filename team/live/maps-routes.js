@@ -45,7 +45,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     // each step; a signed-in person is always themself.
     //   POST /api/meetings {title?, app?, by}            → {name, title, href}
     //   POST /api/meetings/import {title?, text, me?, by} → {name, title, href}, a transcript pasted afterwards
-    //   POST /api/meetings/<name>/segments {segments}    → {ok, count}
+    //   POST /api/meetings/<name>/segments {segments}    → {ok, count, repeated}: count new, repeated already kept
     //   POST /api/meetings/<name>/end                    → {ok}
     if (url.pathname.startsWith('/api/meetings') && req.method === 'POST') {
       if (!who && !localTool(req)) return json(401, { error: 'Sign in first.' });
@@ -69,7 +69,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       if (!map || !map.meeting || (who && !map.allowed(who, req))) return json(404, { error: 'No meeting map with that name.' });
       if (step === 'segments') {
         const r = map.meeting.add(a.segments);
-        return r.error ? json(400, { error: r.error }) : json(200, { ok: true, count: r.count });
+        return r.error ? json(400, { error: r.error }) : json(200, { ok: true, count: r.count, repeated: r.repeated });
       }
       if (step === 'end') {
         const r = map.meeting.end();

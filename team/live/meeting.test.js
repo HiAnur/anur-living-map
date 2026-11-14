@@ -443,9 +443,28 @@ describe('a meeting on a map', () => {
     expect(j.add([seg(0, 'hi')]).error).toBe('This map is not a meeting.');
     j.start({ title: 'M', by: 'Harshit' });
     expect(j.add('words').error).toMatch(/list/);
-    expect(j.add([{ text: '  ' }, 'nonsense', { text: 'kept', speaker: 'someone', start: -4 }])).toEqual({ count: 1 });
+    expect(j.add([{ text: '  ' }, 'nonsense', { text: 'kept', speaker: 'someone', start: -4 }])).toEqual({ count: 1, repeated: 0 });
     expect(j.said()[0]).toMatchObject({ speaker: 'others', text: 'kept', start: T0 });
     j.close();
+  });
+
+  it('keeps a line sent again once, so a recorder that retries after a lost answer adds nothing', () => {
+    const first = job({ job: { memory: false } });
+    first.j.start({ title: 'M', by: 'Harshit' });
+    const words = [seg(0, 'Okay.', 'you'), seg(1, 'Okay.', 'you'), seg(2, 'Friday works.')];
+    expect(first.j.add(words)).toEqual({ count: 3, repeated: 0 });
+    // the same batch again, then again with what came after it: only the new line is kept
+    expect(first.j.add(words)).toEqual({ count: 0, repeated: 3 });
+    expect(first.j.add([...words, seg(3, 'Then pricing.')])).toEqual({ count: 1, repeated: 3 });
+    // a line said twice in one batch is one line; the same words at another time are another
+    expect(first.j.add([seg(4, 'Right.'), seg(4, 'Right.'), { ...seg(4, 'Right.'), end: T0 + 9000 }])).toEqual({ count: 2, repeated: 1 });
+    expect(first.j.said().map((s) => s.text)).toEqual(['Okay.', 'Okay.', 'Friday works.', 'Then pricing.', 'Right.', 'Right.']);
+    first.j.close();
+    // after a restart the map still knows what it has
+    const again = meetingJob({ home: first.home, getState: () => first.state, save() {}, push() {}, draw() {}, say() {}, answer: async () => ({}) });
+    expect(again.add([seg(3, 'Then pricing.')])).toEqual({ count: 0, repeated: 1 });
+    expect(fs.readFileSync(path.join(first.home, 'meeting.jsonl'), 'utf8').trim().split('\n')).toHaveLength(6);
+    again.close();
   });
 
   it('keeps what was said in the map\'s folder, and sends what was waiting after a restart', async () => {
@@ -548,7 +567,10 @@ describe('the meeting routes', () => {
     expect(map.snapshot()).toMatchObject({ title: 'Launch sync', start: MEETING_ID, admins: ['Harshit'], meeting: { by: 'Harshit', live: true } });
 
     const words = { segments: [seg(0, 'Launch date first.', 'you'), seg(CHUNK_MS / 1000, 'Friday works for design.')] };
-    expect(await post('/api/meetings/launch-sync/segments', words)).toEqual({ status: 200, body: { ok: true, count: 2 } });
+    expect(await post('/api/meetings/launch-sync/segments', words)).toEqual({ status: 200, body: { ok: true, count: 2, repeated: 0 } });
+    // a retry of a post whose answer never arrived stores nothing twice
+    expect(await post('/api/meetings/launch-sync/segments', words)).toEqual({ status: 200, body: { ok: true, count: 0, repeated: 2 } });
+    expect(map.meeting.said()).toHaveLength(2);
     await map.meeting.idle();
     expect(asked).toHaveLength(1);
     // one no-tool answer (agent.answer: no tools, settings or connectors), handed nothing but its prompt and shape
