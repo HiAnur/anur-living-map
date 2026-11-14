@@ -242,7 +242,10 @@ export function checkMeetingOps(answer, { boxes, talk, by, people = [], taken, m
   /** @type {Map<string, string>} */ const refs = new Map();
   const resolve = (/** @type {unknown} */ x) => { const s = String(x ?? '').trim(); return refs.get(s) || s; };
   const depthOf = (/** @type {string} */ id) => { let d = 0; for (let b = all.get(id); b && b.under; b = all.get(b.under)) if (++d > 10) break; return d; };
-  const refuse = (/** @type {any} */ op, /** @type {string} */ why) => refused.push({ op, why });
+  // a ref whose add was refused: what names it later in the answer is told why, so the retry can place it elsewhere
+  /** @type {Map<string, string>} */ const lost = new Map();
+  const refuse = (/** @type {any} */ op, /** @type {string} */ why) => { refused.push({ op, why }); if (op?.op === 'add' && op.ref) lost.set(String(op.ref), why); };
+  const missing = (/** @type {unknown} */ name) => (lost.has(String(name)) ? `the box it names (${name}) was refused (${lost.get(String(name))}): put this on a box already on the map` : `"${name}" is not one of the meeting's boxes`);
   // one node per box in a drawing: a box added and then noted or answered in the same answer stays one new box
   /** @type {Map<string, any>} */ const drawn = new Map();
   const put = (/** @type {any} */ n) => { const had = drawn.get(n.id); if (had) Object.assign(had, n); else { drawn.set(n.id, n); nodes.push(n); } };
@@ -289,7 +292,7 @@ export function checkMeetingOps(answer, { boxes, talk, by, people = [], taken, m
       if (!kind) { refuse(op, `kind must be one of ${KINDS.join(', ')}`); continue; }
       if (!title) { refuse(op, 'a new box needs a title'); continue; }
       let under = resolve(op.under || (kind === 'topic' ? MEETING_ID : ''));
-      if (!all.has(under)) { refuse(op, `"${op.under}" is not one of the meeting's boxes`); continue; }
+      if (!all.has(under)) { refuse(op, missing(op.under)); continue; }
       if (kind === 'topic') under = MEETING_ID;
       else if (under === MEETING_ID) { refuse(op, 'only a topic goes straight under the meeting; put it under its topic'); continue; }
       // aimed under a point: the detail lands as a note on that point, not a third level
@@ -325,7 +328,7 @@ export function checkMeetingOps(answer, { boxes, talk, by, people = [], taken, m
       continue;
     }
     const id = resolve(op.id), had = all.get(id);
-    if (!had || id === MEETING_ID || had.kind === 'meeting') { refuse(op, `"${op.id}" is not one of the meeting's boxes`); continue; }
+    if (!had || id === MEETING_ID || had.kind === 'meeting') { refuse(op, id === MEETING_ID ? `"${op.id}" is not one of the meeting's boxes` : missing(op.id)); continue; }
     if (had.locked) { refuse(op, `${had.label} was written by a person: the meeting leaves it`); continue; }
     if (op.op === 'note') {
       const why = note(op, id, String(op.text || op.title || '').trim());
@@ -370,6 +373,8 @@ export function checkMeetingOps(answer, { boxes, talk, by, people = [], taken, m
     // the box itself landed: only its link is dropped
     if (!RELS.includes(op.link.rel)) refuse({ op: 'link', from: id, ...op.link }, `drawn, but its link was dropped: the relation must be one of ${RELS.join(', ')}`);
     else if (!all.has(to) || to === id || to === MEETING_ID) refuse({ op: 'link', from: id, ...op.link }, `drawn, but its link was dropped: "${op.link.to}" is not another of the meeting's boxes`);
+    // a box and the one it sits under already share their one line, which a link would take over
+    else if (all.get(to).under === id || all.get(id)?.under === to) refuse({ op: 'link', from: id, ...op.link }, `drawn, but its link was dropped: "${op.link.to}" already sits under it or over it`);
     else {
       edges.push({ from: id, to, label: op.link.rel });
       // a question something answers stops waiting, and says so: the answering box's quote is the evidence

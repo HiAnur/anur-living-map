@@ -178,6 +178,27 @@ describe('what a meeting answer may draw', () => {
     expect(lineOf('answered', 'Answered · Answered · Answered: the reviewer files them')).toBe('Answered · the reviewer files them');
   });
 
+  it('never links a box to the one it sits under or over, so their own line stays the tree\'s', () => {
+    const point = { id: 'm-p', kind: 'fact', label: 'Ship both versions', under: 'm-launch' };
+    const r = check([
+      { op: 'update', id: 'm-launch', quote: 'Launch date first', link: { rel: 'blocks', to: 'm-p' } },
+      { op: 'update', id: 'm-p', quote: 'Launch date first', link: { rel: 'blocks', to: 'm-launch' } },
+    ], [topic, point]);
+    expect(r.edges).toEqual([]);
+    expect(r.refused.map((x) => x.why)).toEqual([
+      'drawn, but its link was dropped: "m-p" already sits under it or over it',
+      'drawn, but its link was dropped: "m-launch" already sits under it or over it',
+    ]);
+  });
+
+  it('tells a note on a box that was refused in the same answer why, so the retry can place it', () => {
+    const r = check([
+      { op: 'add', ref: 'new1', kind: 'fact', title: 'Launch with Acme', under: 'm-launch', quote: 'Launch date first' },
+      { op: 'note', id: 'new1', text: 'Friday is too risky', quote: 'Friday is too risky' },
+    ], [topic]);
+    expect(r.refused[1].why).toBe('the box it names (new1) was refused ("Acme" is not in its quote: use words that were said (in sentence case), or quote where the name is said): put this on a box already on the map');
+  });
+
   it('sends each box once and never a new box without a title', () => {
     const r = namedOnce([
       { id: 'q', label: 'Which day?', sub: 'Open' },
