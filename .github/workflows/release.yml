@@ -23,6 +23,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - name: Only a maintainer may release
         env:
@@ -36,6 +38,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Release the build
+        id: release
         env:
           GH_TOKEN: ${{ github.token }}
           # read from the environment, never pasted into the script: the input is text anyone running it typed
@@ -59,4 +62,34 @@ jobs:
             echo "::error::$build is not newer than the current release $prev."; exit 1
           fi
           gh release create "$tag" --target "$sha" --title "Living Map $tag" --generate-notes ${prev:+--notes-start-tag "$prev"}
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Released $build as $tag."
+
+  # The same release on npm as anur-living-map <version>: the Mac app carries one exact version of it, so every
+  # release it may pin has to be there. A job of its own, so a failed publish never undoes the GitHub release:
+  # once npm is fixed, re-run only this failed job from the run's page (the release step refuses a released build).
+  # Trusted publishing: npm takes this workflow's GitHub identity in place of a token, once the package's settings
+  # on npmjs.com name this repository and release.yml, and adds provenance by itself.
+  npm:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # trusted publishing needs npm 11.5.1 or newer
+      - run: npm install -g npm@^11.5.1
+      - name: Publish anur-living-map
+        working-directory: team/live
+        env:
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          npm version --no-git-tag-version "${TAG#v}"
+          npm publish --access public
