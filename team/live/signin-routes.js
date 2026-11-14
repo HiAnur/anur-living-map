@@ -38,11 +38,15 @@ export function signInRoutes({ users, MIN, googleFinish, googleOn, googleStart, 
     }
     if (url.pathname === '/auth/done' && req.method === 'GET') {
       let got; try { got = await googleFinish(url.searchParams); } catch (/** @type {any} */ e) { return signInError(e.message); }
-      // one of this map's people only when the login's list says so (an address, not a name, proves who someone is);
-      // anyone else is a guest under their Google name, never seated as a person who happens to share it
-      const name = got.listed ? users.person(got.name) || got.name : users.person(got.name) ? `${got.name} (guest)` : got.name;
+      // one of this map's people only when the login's list says so, or, for an owner who signed in through Google,
+      // by the address they did it with (an address, not a name, proves who someone is); anyone else is a guest under
+      // their Google name, never seated as a person who happens to share it
+      const email = validEmail(got.email) ? got.email : null;
+      const name = users.ownerBy(email) || (got.listed ? users.person(got.name) || got.name : users.taken(got.name) ? `${got.name} (guest)` : got.name);
+      // on a new install, the first person through Google owns it, as a first account would
+      users.claim(name, email);
       users.setPicture(name, got.picture);
-      return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name, validEmail(got.email) ? got.email : null)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
+      return res.writeHead(302, { location: got.next, 'set-cookie': `lm_session=${users.start(name, email)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${users.maxAge}` }).end();
     }
     // Settings: your name, your role on the team, the email the map has for you and how you sign in. The email is
     // the one Google gave for this browser's sign-in, else the recovery email verified for a password kept here.

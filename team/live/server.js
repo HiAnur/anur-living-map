@@ -68,6 +68,7 @@ import { mayAct } from './permissions.js';
 import { linkRole, localTool, permission, sharedState, withoutRepos } from './sharing.js';
 import { boxDates, editHistory, editSnapshot } from './editing.js';
 import { withDefaults } from './stored.js';
+import { personNamed } from './person.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 
 // the port is the first argument when it is a number (`node server.js 4323 --project <repo>`); 4323 is what the skill, mcp.js and wait.js expect
@@ -96,11 +97,13 @@ const SIDES = new Set(['t', 'r', 'b', 'l']), sideOf = (/** @type {any} */ v) => 
 /**
  * `installOwner`: who owns this install (users.js), and so every repo's own map. `before`: the Admins a map kept
  * from before maps recorded who made them goes on having, besides the ones it was stored with. `at`: the address a
- * code folder's map answers at, when it is not the folder's own name.
+ * code folder's map answers at, when it is not the folder's own name. `people`: everyone known on this install, and
+ * `signedIn`: whoever signed in on this Mac last, who owns a chat linked from this Mac.
  * @param {any} options
  */
 export function openMap({ project = '', name = '', at = '', home, initialState, undoState, memory = false, contextMaps = null,
-  installOwner = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]) }) {
+  installOwner = () => /** @type {string | null} */ (null), before = () => /** @type {string[]} */ ([]),
+  people = () => /** @type {string[]} */ ([]), signedIn = () => /** @type {string | null} */ (null) }) {
   if (project) fs.mkdirSync(home, { recursive: true });
   // this map's address: its name, or its code folder's (map-list.js); none for the story at /
   const slug = name || at || (project ? mapName(project) : '');
@@ -206,6 +209,15 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // wrote from the map, and the changes it proposed here, in time order. Nobody else is sent it.
   let /** @type {any} */ mirror = null;
   const linkOf = () => state.linked?.[0] || null;
+  // A chat linked under a name that is no one's (the first word of a Mac account's name, which open-map.sh sends
+  // while nobody has signed in) is the person that name stands for once they sign in (person.js): "Alex" becomes
+  // "Alex Smith". Written down, so the pane and every check after go by the person. True when a link changed.
+  const settleLinks = () => {
+    const known = people(); let changed = false;
+    for (const l of state.linked || []) { const p = personNamed(l.owner, known); if (p && p !== l.owner) { l.owner = p; changed = true; } }
+    return changed;
+  };
+  if (settleLinks()) save();
   const ownsChat = (/** @type {any} */ session, /** @type {any} */ by) => (state.linked || []).some((/** @type {any} */ l) => l.session === session && l.owner === by);
   function mirrorView() {
     const l = linkOf(); if (!l || !mirror || mirror.session !== l.session) return null;
@@ -660,6 +672,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
         if (name && !state.admins?.length) state.admins = [who];
         (state.people ||= []).push({ id: who, role: roleOf(who), sees: 'all', joined: new Date().toISOString() }); save(); push();
       }
+      // someone new to this install may be whom an older chat's name meant
+      if (who && !guest && settleLinks()) { save(); push(); }
       // their Google picture, kept on them as one of the map's people so everyone here sees it on their face
       const one = /** @type {any} */ (who && !guest ? state.people?.find((/** @type {any} */ p) => p.id === who) : null), face = one ? pictureOf(String(who)) : '';
       if (one && (one.picture || '') !== face) { if (face) one.picture = face; else delete one.picture; save(); push(); }
@@ -704,6 +718,9 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (a.type === 'edit' && !guest && (!who || a.session)) a.by = 'Claude';
       // so is a chat's tool asking for Action drafts; whose they are comes from the chat it names, never this name
       if (a.type === 'myaction' && !guest && !who) a.by = 'Claude';
+      // a chat linked from this Mac is the person signed in on it, whatever name the script sent; before anyone has
+      // signed in, the name it sent stands until someone it names does (settleLinks)
+      if (a.type === 'link' && !guest && !who) a.by = signedIn() || personNamed(a.by, people()) || a.by;
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
         if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
         for (const r of clients) send(r, 'cursors', cursors);
@@ -814,7 +831,7 @@ const { handleRecovery, mailReady } = await import('./recovery.js');
 // A map from before maps recorded who made them keeps the story's Admin, where that name has signed in here, and
 // the install's owner. An Admin's name nobody has used stays nobody's, so taking it later gives nothing.
 const before = () => [...demo().people.filter((/** @type {any} */ p) => p.role === 'Admin' && users.known(p.id)).map((/** @type {any} */ p) => String(p.id)), users.owner()].filter((p) => !!p);
-const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before }), DIR, PROJECT, PROJECTS, mapName,
+const maps = mapList({ openMap: (/** @type {any} */ o) => openMap({ ...o, installOwner: users.owner, before, people: users.people, signedIn: users.signedIn }), DIR, PROJECT, PROJECTS, mapName,
   adminsOf: (/** @type {any} */ state, /** @type {string} */ project) => adminsOf(state, { project: !!project, owner: users.owner(), before: before() }), DEMO });
 const { deletedMaps, projects, mapCalled } = maps;
 

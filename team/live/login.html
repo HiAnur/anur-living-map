@@ -92,9 +92,10 @@ const recoveryText = {
   verify: ['Verify your recovery email', 'Confirm this email address for password recovery.', 'Verify email'],
   reset: ['Choose a new password', 'Use at least 8 characters. Your other signed-in browsers will be signed out.', 'Reset password'],
 };
-// the form for a password chosen here: typed twice, under a name typed here or fixed by an invite
-function choosing(heading, sub, button, fixedName) {
-  $('f').classList.add('first'); $('f').classList.remove('google');
+// the form for a password chosen here: typed twice, under a name typed here or fixed by an invite. Google stays
+// offered only on a new install, where signing in through it makes you the owner just the same.
+function choosing(heading, sub, button, fixedName, google = false) {
+  $('f').classList.add('first'); if (!google) $('f').classList.remove('google');
   $('h').textContent = heading; $('sub').textContent = sub; $('go').textContent = button;
   $('pw').autocomplete = 'new-password'; $('pw2').required = true; $('pw').minLength = min;
   $('forgot').hidden = true; $('setup-email').hidden = true;
@@ -153,7 +154,11 @@ async function setUp() {
     if (r?.ok) { mode = 'join'; inviter = d.by; choosing(`Welcome, ${d.name}`, `${d.by} invited you. Choose your password, at least ${min} characters.`, 'Set password and sign in', d.name); return; }
     invite = ''; $('err').textContent = d?.error || 'The map server is not answering.';
   }
-  if (offer.firstRun) { mode = 'create'; choosing('Create your account', `You are the first one here, so this map is yours to run. Use any name, and a password of at least ${min} characters.`, 'Create account'); return; }
+  if (offer.firstRun) {
+    const google = $('f').classList.contains('google');
+    mode = 'create'; choosing('Create your account', `You are the first one here, so this map is yours to run. ${google ? 'Sign in with Google, or use' : 'Use'} any name and a password of at least ${min} characters.`, 'Create account', '', google);
+    return;
+  }
   if (q.get('recovery') === 'email') showRecovery(mail ? 'email' : 'nomail');
 }
 setUp();

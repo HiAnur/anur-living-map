@@ -1,15 +1,16 @@
 // Who may sign in to the team map: an account (any name and a password, kept scrambled with scrypt) in one SQLite
-// file outside the repo, users.db in the team map's data folder (data-dir.js). The first account on an install is
-// its owner; everyone after joins with a one-use invite the owner made, so nobody can take a name by typing it
-// first. A forgotten password is reset with a one-use link: by a verified email where mail is set up, else printed
-// by `users.js reset` on this Mac. Signing in gives the browser a cookie; the session behind it is kept in the same
-// file, so a server restart keeps you in. Both scrypt and SQLite are built into Node: nothing to install.
+// file outside the repo, users.db in the team map's data folder (data-dir.js). The first account on an install, or
+// the first person to sign in through Google there, is its owner; everyone after joins with a one-use invite the
+// owner made, so nobody can take a name by typing it first. A forgotten password is reset with a one-use link: by a
+// verified email where mail is set up, else printed by `users.js reset` on this Mac. Signing in gives the browser a
+// cookie; the session behind it is kept in the same file, so a server restart keeps you in. Both scrypt and SQLite
+// are built into Node: nothing to install.
 //
 //   node users.js reset <name> [--port 4323]   print a one-use link where that person chooses a new password
 //   node users.js set <name>                   set or change a password (asks twice; needs a terminal)
 //   node users.js set <name> --password-stdin  the same for a script, the password on the first line of stdin
 //   node users.js list                         who has an account, and who owns this install
-//   node users.js owner <name>                 make that person the owner of this install
+//   node users.js owner <name>                 make that person (an account, or someone who signed in here) the owner
 //   node users.js remove <name>                take their account away and sign them out
 
 import crypto from 'node:crypto';
@@ -49,8 +50,22 @@ const accounts = () => db.prepare('SELECT name FROM users ORDER BY rowid').all()
 const person = (name) => { const want = String(name || '').trim().toLowerCase(); return want ? accounts().find((p) => p.toLowerCase() === want) || null : null; };
 /** @returns {string | null} */
 const owner = () => /** @type {any} */ (db.prepare("SELECT value FROM settings WHERE key = 'owner'").get())?.value || null;
-/** @param {string} who */
-const setOwner = (who) => { db.prepare("INSERT INTO settings (key, value) VALUES ('owner', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(who); };
+/** @param {string} key @param {string} value */
+const setSetting = (key, value) => { db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value); };
+// An owner who signed in through Google has their address kept too: it, not their name, is what seats them as the
+// owner again, so a stranger whose Google name is the same comes in as a guest.
+/** @param {string} who @param {string | null} [email] */
+const setOwner = (who, email = null) => {
+  setSetting('owner', who);
+  if (email) setSetting('owner_email', email.toLowerCase()); else db.prepare("DELETE FROM settings WHERE key = 'owner_email'").run();
+};
+/** @returns {string} */
+const ownerEmail = () => /** @type {any} */ (db.prepare("SELECT value FROM settings WHERE key = 'owner_email'").get())?.value || '';
+// someone who signed in through Google under a name that is one of this map's people, but not by its address
+/** @param {string} name */
+const isGuest = (name) => / \(guest\)$/.test(name);
+/** @returns {string[]} the owner, everyone with an account and everyone signed in here, guests left out */
+const people = () => [...new Set([owner() || '', ...accounts(), ...db.prepare('SELECT name FROM sessions ORDER BY at').all().map((r) => String(r.name))])].filter((n) => n && !isGuest(n));
 
 // Names the map itself speaks as, and so no person may take.
 const TAKEN = new Set(['claude', 'guest', 'you']);
@@ -110,8 +125,32 @@ export const users = {
   // whether this name has ever signed in here, with a password or through Google
   /** @param {string} who */
   known: (who) => users.has(who) || !!db.prepare('SELECT 1 FROM sessions WHERE name = ?').get(who),
-  // nobody has an account yet: the first person to come creates the owner's
+  // nobody has an account or owns the install yet: the first person to come creates the owner's
   firstRun: () => !owner() && !accounts().length,
+  people,
+  /**
+   * The first person on a new install who signs in through Google owns it, as a first account would. Refused once
+   * anyone owns it, and for a guest or a name the map speaks as. @param {string} name @param {string | null} email
+   */
+  claim: (name, email) => alone(() => {
+    if (!users.firstRun() || isGuest(name) || TAKEN.has(name.toLowerCase())) return false;
+    setOwner(name, email);
+    return true;
+  }),
+  // the owner's name when this address is the one they signed in through Google with, else null
+  /** @param {unknown} email @returns {string | null} */
+  ownerBy: (email) => (ownerEmail() && String(email || '').toLowerCase() === ownerEmail() && owner()) || null,
+  // whether a stranger signing in through Google under this name would pass as someone here: an account, or the
+  // owner who signed in through Google
+  /** @param {string} name */
+  taken: (name) => !!person(name) || name.toLowerCase() === String(owner() || '').toLowerCase(),
+  // The person signed in on this Mac, as the server only answers on this Mac: of everyone signed in, the one who
+  // signed in last. A Claude Code chat opening the map is theirs. Guests are left out.
+  /** @returns {string | null} */
+  signedIn() {
+    const rows = db.prepare('SELECT name FROM sessions WHERE at > ? ORDER BY at DESC').all(Date.now() - DAYS * 86_400_000);
+    return rows.map((r) => String(r.name)).find((n) => !isGuest(n)) || null;
+  },
   /**
    * The first account on an install, which owns it. Refused once anyone has an account.
    * @param {unknown} name @param {unknown} password @returns {{ name: string } | { error: string }}
@@ -216,11 +255,22 @@ export async function cli(args, io = {}) {
   const words = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--port');
   const [cmd, typed = ''] = words, who = person(typed);
   if (cmd === 'list') {
-    const rows = db.prepare('SELECT name, set_at FROM users ORDER BY rowid').all();
-    console.log(rows.length ? rows.map((r) => `${r.name}${r.name === owner() ? '  (owner)' : ''}  (password set ${r.set_at} UTC)`).join('\n') : 'No one has an account yet. The first person to open the map creates the owner\'s.');
+    const rows = db.prepare('SELECT name, set_at FROM users ORDER BY rowid').all(), boss = owner();
+    // an owner who signs in through Google has no password here, and is listed all the same
+    const lines = [...(boss && !users.has(boss) ? [`${boss}  (owner)  (signs in through Google)`] : []), ...rows.map((r) => `${r.name}${r.name === boss ? '  (owner)' : ''}  (password set ${r.set_at} UTC)`)];
+    console.log(lines.length ? lines.join('\n') : 'No one has an account yet. The first person to open the map creates the owner\'s.');
     return 0;
   }
-  if (['reset', 'remove', 'owner'].includes(cmd) && !who) {
+  // the install can go to anyone who has signed in here, with a password or through Google
+  if (cmd === 'owner') {
+    const to = who || people().find((p) => p.toLowerCase() === typed.trim().toLowerCase());
+    if (!to) { console.log(typed ? `No one called ${typed} has signed in here. node users.js list shows who has an account.` : USAGE); return 1; }
+    const google = users.has(to) ? null : /** @type {any} */ (db.prepare('SELECT email FROM sessions WHERE name = ? AND email IS NOT NULL ORDER BY at DESC').get(to))?.email || null;
+    setOwner(to, google);
+    console.log(`${to} owns this map server now.`);
+    return 0;
+  }
+  if (['reset', 'remove'].includes(cmd) && !who) {
     console.log(typed ? `No one called ${typed} has an account here. node users.js list shows who does.` : USAGE);
     return 1;
   }
@@ -230,11 +280,6 @@ export async function cli(args, io = {}) {
     if (!Number.isInteger(port) || port < 1 || port > 65535) { console.log('Give --port a port number, like 4323.'); return 1; }
     const token = recovery.issue(who, '', 'reset');
     console.log(`Open this link on this Mac within 15 minutes, and ${who} chooses a new password there. It works once.\n\nhttp://localhost:${port}/login#reset=${token}`);
-    return 0;
-  }
-  if (cmd === 'owner' && who) {
-    setOwner(who);
-    console.log(`${who} owns this map server now.`);
     return 0;
   }
   if (cmd === 'remove' && who) {
