@@ -9,6 +9,7 @@ type Who = string | null | undefined;
 /** A request as the access rules read it: its address and its headers. */
 interface Req {
   url?: string;
+  method?: string;
   headers: Record<string, string | string[] | undefined>;
 }
 

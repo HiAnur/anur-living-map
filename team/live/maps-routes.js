@@ -20,7 +20,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     // a new map from a prompt on the list of maps: a blank canvas named after the prompt, and a new Claude Code
     // session in the Claude app drawing it, for the person who asked, signed in
     if (url.pathname === '/api/newmap' && req.method === 'POST') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       let /** @type {any} */ a = await jsonBody(req, {});
       if (a.blank === true) {
         // a map that builds on a system map: one the asker may open, drawn from code
@@ -43,7 +43,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     // Load a map file: the data a shared file carries (Share as a file) becomes a map here, named after its title,
     // exactly as it was saved, and opens
     if (url.pathname === '/api/maps/load' && req.method === 'POST') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch { /* not a map file: s stays null and the answer says so */ }
       if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
       // the map belongs to whoever loads it, whoever the file says made it
@@ -56,7 +56,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     }
     // Archive only the map data, never its code folder. A tombstone also prevents old URLs and restarts recreating it.
     if (['/api/maps/trash', '/api/maps/delete'].includes(url.pathname) && req.method === 'POST') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to move a map to Trash.' });
       let /** @type {any} */ a = await jsonBody(req, {});
       const name = String(a.name || '');
@@ -81,11 +81,11 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       return json(200, { name, trashId: path.basename(archive) });
     }
     if (url.pathname === '/api/maps/trash' && req.method === 'GET') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       return json(200, trashRecords(who).map(({ id, name, title, at }) => ({ id, name, title, at })));
     }
     if (url.pathname === '/api/maps/restore' && req.method === 'POST') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to restore a map.' });
       let /** @type {any} */ a = await jsonBody(req, {});
       const record = trashRecords(who).find((r) => r.id === a.id);
@@ -112,7 +112,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     }
     // Pin a map to the top of your own list, or take the pin off. Only a map you may open can be pinned.
     if (url.pathname === '/api/maps/pin' && req.method === 'POST') {
-      if (!who) return json(401, { error: 'Sign in first.' });
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
       if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to pin a map.' });
       let /** @type {any} */ a = await jsonBody(req, {});
       const name = String(a.name || ''), on = a.pinned === true, map = everyMap().find(([n]) => n === name)?.[1];
@@ -121,7 +121,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       return json(200, { name, pinned: on });
     }
     if (url.pathname === '/api/map-context' && req.method === 'GET') {
-      if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
+      if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Open Living Map in a browser on this Mac to see its other maps.' });
       const read = contextReader({ who, maps: () => everyMap().map(([id, map]) => ({ id, allowed: () => map.allowed(who, req), snapshot: () => map.snapshotFor ? map.snapshotFor(who || null) : map.snapshot() })) });
       try {
         return json(200, read(url.searchParams.get('tool') || 'list_maps', { id: url.searchParams.get('id'), query: url.searchParams.get('query') || '', offset: Number(url.searchParams.get('offset') || 0),
@@ -130,7 +130,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
     }
     // a chat opening the map from a clone finds the system map drawn from that repo, and the repo's box on it
     if (url.pathname === '/api/maps/system-of' && req.method === 'GET') {
-      if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Sign in to discover other maps.' });
+      if ((!who && !localTool(req)) || url.searchParams.has('share')) return json(403, { error: 'Open Living Map in a browser on this Mac to see its other maps.' });
       const folder = path.resolve(String(url.searchParams.get('folder') || '/'));
       for (const [name, m] of everyMap()) {
         if (!m.allowed(who, req)) continue;

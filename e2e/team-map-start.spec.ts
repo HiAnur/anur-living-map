@@ -2,13 +2,7 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  makeOwner,
-  openSample,
-  signIn,
-  server,
-  useTeamServer,
-} from "./team-map.harness.ts";
+import { openSample, server, useTeamServer } from "./team-map.harness.ts";
 
 // The first run: the list of maps with nothing on it yet, a repo's blank map that offers to draw the repo, and Share
 // saying plainly who can open what.
@@ -30,19 +24,9 @@ test("with no maps yet, the first screen says to make one and New map opens", as
 });
 
 test("a repo's blank map offers to draw the repo, and New map offers its folder", async ({
-  context,
   page,
 }) => {
-  // Duy owns this install, so Duy may draw; making the account signs Duy out, so Duy signs in again
-  makeOwner("Duy");
-  await context.addCookies([
-    {
-      name: "lm_session",
-      value: signIn("Duy"),
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
+  // Duy is the person on this Mac, an Admin of every map here, so Duy may draw
   const repo = path.join(server.root, "home", "code", "shop-api");
   fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
   const added = await fetch(`${server.origin}/api/projects`, {

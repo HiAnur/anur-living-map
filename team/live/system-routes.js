@@ -34,7 +34,7 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
   /** @param {any} req @param {any} res @param {URL} url @param {any} who @param {(code: any, data: any) => any} json */
   const answer = async (req, res, url, who, json) => {
     if (!url.pathname.startsWith('/api/systemmap')) return false;
-    if (!who) return json(401, { error: 'Sign in first.' });
+    if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
     if (!onThisMac(req)) return json(403, { error: 'Open Living Map on this Mac to draw a system map.' });
     // your GitHub link: who you are there, or the code to type at github.com while linking; never the token
     if (url.pathname === '/api/systemmap/github' && req.method === 'GET') return json(200, github().status(who));

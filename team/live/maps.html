@@ -20,7 +20,7 @@ body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top .brand i::before{content:'';width:9px;height:9px;border-radius:2px;background:#f8f6f1;transform:rotate(45deg)}
 #top .brand > span{color:var(--text-2);font-weight:400}
 .home{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,32%);min-height:calc(100vh - 44px)}
-/* you, at the top right, as on a map: the button opens who you are, your recovery email and Sign out */
+/* you, at the top right, as on a map: the button opens who you are and Settings */
 #account{position:relative;margin-left:auto;font-size:13px}
 #account[hidden]{display:none}
 #account-button{display:flex;align-items:center;gap:8px;height:36px;padding:0 6px 0 4px;border:0;border-radius:999px;background:none;font:500 13px var(--plex);color:var(--text);cursor:pointer}
@@ -183,7 +183,7 @@ a.map:hover{border-color:var(--text)}
 </head>
 <body>
 <div id="top"><span class="brand"><i aria-hidden="true"></i>Anur <span>Living Map</span></span><div id="account" hidden><button id="account-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu"><span id="account-avatar" aria-hidden="true"></span><span id="account-name"></span><svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 8l4 4 4-4"/></svg></button>
-  <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/settings">Settings</a><a class="am-row am-out" href="/login?recovery=email">Recovery email</a><button type="button" class="am-row am-out" id="account-out">Sign out</button></div></div></div>
+  <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/settings">Settings</a></div></div></div>
 <div class="home">
 <main>
   <div class="head"><h1>Start a new map</h1><div class="head-actions"><label id="load-map" title="Open a map someone sent you as a file"><input type="file" accept=".html,text/html" hidden>Load a map file</label><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
@@ -225,7 +225,7 @@ const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
 const ME = SIGNED_IN || new URLSearchParams(location.search).get('as') || 'You';
 if (SIGNED_IN){
   $('account').hidden = false;
-  $('account-button').title = `Signed in as ${SIGNED_IN}`;
+  $('account-button').title = `You, ${SIGNED_IN}, on this Mac`;
   $('account-name').textContent = $('account-me').textContent = SIGNED_IN;
   $('account-avatar').textContent = document.querySelector('.am-face').textContent = Array.from(SIGNED_IN.trim())[0]?.toUpperCase() || '';
   const picture = document.querySelector('meta[name="lm-picture"]')?.content;
@@ -237,7 +237,6 @@ if (SIGNED_IN){
   $('account-button').addEventListener('click', () => openAccount($('account-menu').hidden));
   document.addEventListener('click', (e) => { if (!e.target.closest('#account')) openAccount(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('account-menu').hidden){ openAccount(false); $('account-button').focus(); } });
-  $('account-out').addEventListener('click', () => { fetch('/api/logout', { method: 'POST' }).finally(() => { location.href = `/login?next=${encodeURIComponent(location.pathname)}`; }); });
   const color = {Harshit:'#1E7A5A', Priyanka:'#7C3AED', Duy:'#0E7490', You:'#1E7A5A', Sam:'#B45309'}[SIGNED_IN];
   if (color) $('account').style.setProperty('--profile', color);
 }
@@ -540,7 +539,7 @@ function list(){
   const sorted = ordered(maps, sortBy);
   el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a><button type="button" class="pin${m.pinned ? ' on' : ''}" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}" title="${m.pinned ? 'Unpin' : 'Pin to the top'}" aria-label="${m.pinned ? `Unpin ${esc(titleOf(m))}` : `Pin ${esc(titleOf(m))} to the top`}">${pinIcon}</button>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
 }
-// a pin is saved for you on the server, so it is there in any browser you sign in from
+// a pin is saved for you on the server, so it is there in any browser on this Mac
 async function togglePin(name, button){
   const map = maps.find((m) => m.name === name); if (!map) return;
   button.disabled = true;

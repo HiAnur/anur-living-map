@@ -2,18 +2,10 @@ import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  SAMPLE,
-  box,
-  hub,
-  makeOwner,
-  server,
-  signIn,
-  useTeamServer,
-} from "./team-map.harness.ts";
+import { SAMPLE, box, hub, server, useTeamServer } from "./team-map.harness.ts";
 
 // A system map's page, driven as people use it: locked repos say why, a redraw waits for review, a default map builds
-// on a system map and its boxes point at the system's, and someone who may not draw a system map is told whom to ask.
+// on a system map and its boxes point at the system's.
 
 useTeamServer();
 
@@ -309,36 +301,4 @@ test("a map that builds on a system map points a box at a system box", async ({
     `/${base}/?brain-box=api-payments`,
   );
   await expect(box(page, "Pricing")).toBeVisible();
-});
-
-test("someone who may not draw a system map is told whom to ask", async ({
-  context,
-  page,
-}) => {
-  // the install's owner is whom to ask
-  makeOwner("Duy");
-  await context.clearCookies();
-  await context.addCookies([
-    {
-      name: "lm_session",
-      value: signIn("Priyanka"),
-      domain: "localhost",
-      path: "/",
-    },
-  ]);
-  await page.goto(`${server.origin}/maps.html`);
-  await page.locator("#new-map").click();
-  await page.getByRole("button", { name: /System map/ }).click();
-  // a folder on this Mac, then GitHub: either way, whom to ask
-  await expect(page.locator("#local-state")).toContainText("Ask Duy");
-  await page.getByRole("button", { name: "On GitHub" }).click();
-  await expect(page.locator("#gh-state")).toContainText(
-    "Drawing a system map is for Engineers and Admins.",
-  );
-  await expect(page.locator("#gh-state")).toContainText("Duy");
-  await expect(
-    page.getByRole("button", { name: "Copy a request to send them" }),
-  ).toBeVisible();
-  // no repos to choose, and nothing to draw with
-  await expect(page.locator("#code-pick")).toBeHidden();
 });

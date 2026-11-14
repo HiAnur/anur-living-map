@@ -37,15 +37,7 @@ Opening keeps the map as it was left: every change saves itself, and History, on
 
 The script already brought the map up in Chrome. If you have a browser pane (tools named `mcp__Claude_Browser__*`), open the map there as well (`http://localhost:4323/<map name>/`), in the same message as the script, so it sits beside the chat.
 
-The map asks who you are: a browser that has not signed in lands on `localhost:4323/login`. On a new install the first person creates their account there and owns the map; everyone else joins from an invite link the owner makes in Settings. Never type a password for the user, and never set one with `users.js set`; signing in is theirs.
-
-When the user forgot their password, run this for them and give them the link it prints; they choose the new password on that page, so it never passes through the chat:
-
-```bash
-node "${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}/team/live/users.js" reset <their name>
-```
-
-Installed with `npx`, it is `npx anur-living-map reset <their name>`. Add `--port <port>` for a map not on 4323. The link works once, for 15 minutes, on this Mac.
+The map needs no sign-in on this Mac: it opens straight onto the user's maps, as them. Their name and the optional **Sign in with Google** are in Settings (`localhost:4323/settings`); signing in with Google is theirs to do, never yours.
 
 ## 3. Listen to the map
 
@@ -61,7 +53,7 @@ node "${ANUR_LIVING_MAP_HOME:-${LIVING_MAP_HOME:-$HOME/anur-living-map}}/team/li
 
 The second argument is the map: this repo's folder name for its own map (the listener lowercases it as the server does), `gtm` for `localhost:4323/gtm/`. Start one listener for each map this chat draws on.
 
-The script links this chat to the map, so the map's Claude pane shows this conversation, live, and what is typed there comes here. It links as the person signed in to the map on this Mac (with several, the one who signed in last): only their signed-in browser is shown this chat. Before anyone has signed in, it links under the first word of the Mac account's full name (or `LIVING_MAP_ME`), and the chat becomes theirs once the person whose name begins that way signs in ("Alex" finds "Alex Smith" when no one else could be meant). The chat linked last is the one the pane follows.
+The script links this chat to the map, so the map's Claude pane shows this conversation, live, and what is typed there comes here. It links to the user, the one person on this Mac, whatever name the script sends. The chat linked last is the one the pane follows.
 
 It ends the moment the map has something for this chat, printing it after `FROM YOUR LIVING MAP`, and its ending wakes you. When the rules for answering are new to this chat, they come under it after `HOW TO ANSWER IT`, from the server itself (otherwise one line says they are unchanged since you last got them): how to say it back, how to propose a change so it waits for Apply, how to reorganize the map, what Build the plan means, how a plan is drawn. Follow them; they are always as current as the map, and they win over anything read earlier. `open-map.sh` prints the same rules when it opens the map (after `RULES FROM THE MAP`), so plans this chat draws follow them too. Then, in Claude Code, start the listener again right away, the same way (Pi's keeps listening).
 
@@ -71,7 +63,7 @@ While the map is open, when the user commits to doing something themselves with 
 
 **When the arguments carry a request** (`/anur-living-map, plan changing our payment provider to Stripe`), skip this reply: do the request right after step 1's message, as the repo's CLAUDE.md says. Where that CLAUDE.md already gives the plan for the request, draw it from there in the next message, without reading the code, the database or the map first. 
 
-Otherwise, one line, from what step 1's `map:` line printed: the map is open as it was left (how many versions History holds) or new, and how many boxes it has. When it has no boxes yet, say so plainly, and that the map offers **Draw this repo**, which draws it as a system map from the code in this folder; never call an empty map a picture of the system. If the page landed on the sign-in screen (its address is `/login`), say so instead: sign in beside the chat to see the map; on a new install, the first person creates their account there. Do not describe the boxes and do not plan anything yet; wait for the user's next message. When it asks to build something, follow the repo's CLAUDE.md (in acme: "Before building a feature, draw the plan on the map").
+Otherwise, one line, from what step 1's `map:` line printed: the map is open as it was left (how many versions History holds) or new, and how many boxes it has. When it has no boxes yet, say so plainly, and that the map offers **Draw this repo**, which draws it as a system map from the code in this folder; never call an empty map a picture of the system. Do not describe the boxes and do not plan anything yet; wait for the user's next message. When it asks to build something, follow the repo's CLAUDE.md (in acme: "Before building a feature, draw the plan on the map").
 
 ## Reading it back
 

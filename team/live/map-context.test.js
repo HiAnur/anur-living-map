@@ -115,7 +115,7 @@ console.log(JSON.stringify({type:'result',result:'Reference: ['+selected.name+']
     expect((await act({type:'describemap',description:'Background: serve small design teams. Decide what to charge.'})).status).toBe(200);
     expect((await (await fetch(base+'/current/api/context-description')).json()).description).toContain('small design teams');
     const catalog=await (await fetch(base+'/api/map-context')).json();expect(catalog.maps.some(m=>m.id==='pricing')).toBe(true);
-    expect((await fetch(base+'/api/map-context',{headers:{'sec-fetch-site':'same-origin'}})).status).toBe(401);
+    expect((await fetch(base+'/api/map-context',{headers:{'sec-fetch-site':'cross-site',origin:'https://elsewhere.example'}})).status).toBe(403);
     const objects=await (await fetch(base+'/api/map-context?tool=load_map&id=pricing&sections=map')).json();expect(objects.map.title).toBe('Pilot pricing');expect(objects.memory).toBeUndefined();
     const ask=async()=>{
       expect((await act({type:'ask',text:'How should we price this feature?'})).status).toBe(200);

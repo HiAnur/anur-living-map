@@ -1,17 +1,18 @@
-import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
-import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 
 import { expect, it } from 'vitest';
 
-import { adminsOf, canAccess, changeAccess, isEngineer, localTool, setEngineer } from './access.js';
+import { adminsOf, canAccess, changeAccess, fromThisMac, isEngineer, localTool, setEngineer } from './access.js';
+import { openTestMap, read, send } from './map.harness.js';
 
-it('makes whoever made a map its Admin, the install\'s owner Admin of a repo\'s own map, and keeps an older map\'s Admins', () => {
-  expect(adminsOf({ admins: ['Sam'], people: [{ id: 'Duy', role: 'Admin' }] }, { owner: 'Alex', before: ['Duy'] })).toEqual(['Sam']);
-  expect(adminsOf({ admins: ['Sam'] }, { project: true, owner: 'Alex' })).toEqual(['Alex', 'Sam']);
-  expect(adminsOf({ admins: [] }, { project: true, owner: null })).toEqual([]);
+it('makes you an Admin of every map on this Mac, keeps whoever made a map its Admin, and keeps an older map\'s Admins', () => {
+  expect(adminsOf({ admins: ['Sam'], people: [{ id: 'Duy', role: 'Admin' }] }, { before: ['Duy'] })).toEqual(['Sam']);
+  expect(adminsOf({ admins: ['Sam'] }, { me: 'Alex' })).toEqual(['Alex', 'Sam']);
+  expect(adminsOf({ admins: [] }, { me: null })).toEqual([]);
+  // a map made under the name you had before is still yours under the name you have now
+  expect(adminsOf({ admins: ['Harshit'] }, { me: 'Harshit Khandelwal' })).toEqual(['Harshit Khandelwal', 'Harshit']);
   // a map from before maps recorded it: the Admins it was stored with, and the ones it is given
   expect(adminsOf({ people: [{ id: 'Duy', role: 'Admin' }, { id: 'Kim', role: 'CFO' }] }, { before: ['Alex', 'Duy'] })).toEqual(['Duy', 'Alex']);
 });
@@ -43,48 +44,60 @@ it('takes a request from Node fetch or curl as a local tool, never one from a br
   expect(localTool(headers({ 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }))).toBe(false);
 });
 
-it('disconnects a removed member and blocks page, APIs, discovery and raw files after restart', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-access-'));
-  const source = import.meta.dirname;
-  for (const name of fs.readdirSync(source)) if (/\.(js|json|html|md)$/.test(name) && fs.statSync(path.join(source, name)).isFile()) fs.copyFileSync(path.join(source, name), path.join(root, name));
-  fs.cpSync(path.join(source, 'agents'), path.join(root, 'agents'), { recursive: true });
-  const state = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(source, 'seed.json'), 'utf8')));
+it('takes a page of this map on this Mac as you, and never another site or another address', () => {
+  const req = (/** @type {Record<string, string>} */ headers, method = 'GET', url = '/shop/api/state') => ({ method, url, headers: { host: 'localhost:4323', ...headers } });
+  // the page's own reads and posts, and a typed address
+  expect(fromThisMac(req({ 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' }))).toBe(true);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'same-origin', origin: 'http://localhost:4323', 'content-type': 'application/json' }, 'POST', '/shop/api/act'))).toBe(true);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate' }, 'GET', '/shop/'))).toBe(true);
+  expect(fromThisMac({ ...req({ 'sec-fetch-site': 'same-origin' }), headers: { host: '127.0.0.1:4323', 'sec-fetch-site': 'same-origin' } })).toBe(true);
+  // another site open in the same browser: its reads, its posts, and a page on another port of this Mac
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors', origin: 'https://elsewhere.example' }))).toBe(false);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'no-cors' }))).toBe(false);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', origin: 'https://elsewhere.example', 'content-type': 'text/plain' }, 'POST', '/shop/api/act'))).toBe(false);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'same-site', 'sec-fetch-mode': 'cors', origin: 'http://localhost:5173' }))).toBe(false);
+  expect(fromThisMac(req({ origin: 'https://elsewhere.example', 'content-type': 'application/json' }, 'POST', '/api/me'))).toBe(false);
+  // a link from another site opens a page it cannot read, but no API and no sign-in
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }, 'GET', '/shop/'))).toBe(true);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }, 'GET', '/shop/api/state'))).toBe(false);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }, 'GET', '/auth/google'))).toBe(false);
+  expect(fromThisMac(req({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate' }, 'POST', '/shop/'))).toBe(false);
+  // an address that only resolves to this Mac, as a rebinding site uses, is never you
+  expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'evil.example:4323', 'sec-fetch-site': 'same-origin' } })).toBe(false);
+  expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'localhost.evil.example:4323', 'sec-fetch-site': 'same-origin' } })).toBe(false);
+  // a program on this Mac is a tool, not a page: it acts as Claude or as the chat it speaks for
+  expect(fromThisMac(req({ 'sec-fetch-mode': 'cors', 'user-agent': 'node' }))).toBe(false);
+});
+
+it('disconnects a removed member and blocks their page, APIs and stream, and keeps them out after a restart', async () => {
+  const state = JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(import.meta.dirname, 'seed.json'), 'utf8')));
   state.people = [{ id: 'Duy', role: 'Admin', joined: 'test' }, { id: 'Member', joined: 'test' }];
-  fs.mkdirSync(path.join(root, 'maps', 'private'), { recursive: true });
-  fs.writeFileSync(path.join(root, 'maps', 'private', 'state.json'), JSON.stringify(state));
-  const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
-  const cookies = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(JSON.stringify([users.start('Duy'),users.start('Member')]))"], { cwd: root, env, encoding: 'utf8' }));
-  const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
-  const origin = `http://localhost:${port}`; let child;
-  const start = async () => {
-    child = spawn(process.execPath, ['server.js', String(port)], { cwd: root, env, stdio: 'ignore' });
-    for (let i = 0; i < 60; i++) { try { if ((await fetch(origin + '/api/version')).ok) return; } catch {} await new Promise((r) => setTimeout(r, 50)); }
-    throw new Error('Test server did not start');
-  };
-  const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
-  const get = (route, /** @type {any} */ actor = 1, headers = {}) => fetch(origin + route, { headers: { ...(actor === null ? {} : { cookie: `lm_session=${cookies[actor]}` }), ...headers }, redirect: 'manual' });
-  const access = (actor, data) => fetch(origin + '/private/api/access', { method: 'POST', headers: { cookie: `lm_session=${cookies[actor]}`, origin, 'content-type': 'application/json' }, body: JSON.stringify(data) });
-  /** @type {any} */ let reader;
+  const { map, close } = openTestMap(state, 'access');
   try {
-    await start();
-    expect((await access(1, { person: 'Duy' })).status).toBe(403);
-    expect((await access(0, null)).status).toBe(400);
-    const stream = await get('/private/api/events'); reader = /** @type {any} */ (stream.body).getReader(); await reader.read();
-    expect((await access(0, { person: 'Member' })).status).toBe(200);
-    let events = ''; for (;;) { const chunk = await reader.read(); if (chunk.done) break; events += new TextDecoder().decode(chunk.value); }
-    expect(events).toContain('event: access-removed');
-    for (const route of ['/private/', '/private/api/state', '/private/api/events', '/private/api/file', '/private/api/history', '/private/api/outbox']) expect((await get(route)).status).toBe(403);
-    expect((await get('/private/api/state', null, { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors' })).status).toBe(403);
-    expect((await get('/private/api/state', null)).status).toBe(200);
-    expect((await get('/maps/private/state.json')).status).toBe(404);
-    expect((await (await get('/api/maps')).json()).some((m) => m.name === 'private')).toBe(false);
-    expect((await get('/private/api/state', 0)).status).toBe(200);
-    await stop(); await start();
-    expect((await get('/private/api/state')).status).toBe(403);
-    expect((await access(0, { person: 'Member', restore: true })).status).toBe(200);
-    expect((await get('/private/api/state')).status).toBe(200);
-  } finally { await reader?.cancel().catch(() => {}); await stop(); fs.rmSync(root, { recursive: true, force: true }); }
-}, 15000);
+    expect((await send(map, 'Member', { person: 'Duy' }, '/api/access')).status).toBe(403);
+    expect((await send(map, 'Duy', null, '/api/access')).status).toBe(400);
+    // Member's window is following the map when Duy removes them
+    let streamed = '';
+    const res = { writeHead() { return res; }, write(/** @type {string} */ t) { streamed += t; return true; }, end(/** @type {string} */ t = '') { streamed += t; return res; }, setHeader() {}, on() {} };
+    await map.handle(Object.assign(Readable.from([]), { method: 'GET', url: '/api/events', headers: { host: 'localhost', cookie: 'lm_session=x' }, on() {} }), res, '/api/events', /** @type {any} */ ('Member'));
+    expect((await send(map, 'Duy', { person: 'Member' }, '/api/access')).status).toBe(200);
+    expect(streamed).toContain('event: access-removed');
+    for (const route of ['/', '/api/state', '/api/events', '/api/file', '/api/history', '/api/outbox']) expect((await read(map, 'Member', route)).status).toBe(403);
+    // a browser page that is no one (another site) is kept out too, while a program on this Mac still reads
+    const asNobody = async (/** @type {Record<string, string>} */ headers) => { let status = 0; const r = { writeHead(/** @type {number} */ s) { status = s; return r; }, end() { return r; }, write() { return true; }, setHeader() {}, on() {} };
+      await map.handle(Object.assign(Readable.from([]), { method: 'GET', url: '/api/state', headers: { host: 'localhost', ...headers }, on() {} }), r, '/api/state', null); return status; };
+    expect(await asNobody({ 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'cors' })).toBe(403);
+    expect(await asNobody({})).toBe(200);
+    expect((await read(map, 'Duy', '/api/state')).status).toBe(200);
+    // the removal is kept with the map, and only an Admin brings them back
+    const kept = openTestMap(map.snapshot(), 'access-again');
+    try {
+      expect((await read(kept.map, 'Member', '/api/state')).status).toBe(403);
+      expect((await send(kept.map, 'Duy', { person: 'Member', restore: true }, '/api/access')).status).toBe(200);
+      expect((await read(kept.map, 'Member', '/api/state')).status).toBe(200);
+    } finally { kept.close(); }
+  } finally { close(); }
+});
 
 it('counts an Admin, a member marked Engineer, and a role that says so as Engineers, and lets only an Admin mark one', () => {
   const state = /** @type {any} */ ({ people: [{ id: 'Duy', role: 'Admin' }, { id: 'Harshit', role: 'Engineer, runs Claude Code' }, { id: 'Priyanka', role: 'CFO' }, { id: 'Sam' }] });

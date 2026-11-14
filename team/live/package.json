@@ -11,7 +11,7 @@
     "postpack": "node -e \"require('fs').rmSync('skill', { recursive: true, force: true })\""
   },
   "engines": { "node": "^22.18.0 || >=24.2.0" },
-  "files": ["*.js", "system_facts.py", "agents/**/*.js", "skill/**", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "login.html", "maps.html", "settings.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
+  "files": ["*.js", "system_facts.py", "agents/**/*.js", "skill/**", "!*.test.js", "!**/*.test.js", "!*.harness.js", "index.html", "maps.html", "settings.html", "chat-rules.md", "seed.json", "plan.json", "README.md"],
   "repository": { "type": "git", "url": "git+https://github.com/HiAnur/anur-living-map.git", "directory": "team/live" },
   "homepage": "https://hianur.com",
   "license": "MIT",

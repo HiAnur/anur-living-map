@@ -1,5 +1,5 @@
 // The Node the team map needs. Its store is node:sqlite, built into Node without a flag from 22.13 (23.4 on 23),
-// and `node users.js` (setting a password) runs only where import.meta.main is set: 22.18 on 22, 24.2 from 24, never
+// and `node users.js` runs only where import.meta.main is set: 22.18 on 22, 24.2 from 24, never
 // 23. Older Node starts the server and then fails with errors that say nothing about Node, so bin.js asks first.
 
 export const NODE_NEEDED = 'Node 22.18 or newer on Node 22, or 24.2 or newer';
