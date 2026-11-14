@@ -3,6 +3,24 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] System maps draw Mac apps and websites</strong></dt>
+<dd>
+
+**Draw this repo** now reads Mac apps (their Swift package, app settings, permissions and the servers they call) and websites (their pages, what they link to and where they are published), and links them to the other repos they call or use. Test files are no longer read, so sample code from tests never shows up as part of your system. <!-- source: https://github.com/HiAnur/anur-living-map/pull/541 --> <!-- merged-at: 2026-11-14T08:33:53Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Tidy up stays quick on large maps</strong></dt>
+<dd>
+
+**Tidy up**, and placing new boxes, now finish in about a second even on a large, tangled map, where they could freeze the map before. <!-- source: https://github.com/HiAnur/anur-living-map/pull/539 --> <!-- merged-at: 2026-11-14T07:42:30Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] Share a map online with people by email</strong></dt>
 <dd>
 
