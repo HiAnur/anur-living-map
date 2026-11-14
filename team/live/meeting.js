@@ -6,15 +6,16 @@
 // prompt, so nobody on a call can make Claude act. meeting-draw.js checks every change against what was said
 // before any of it is drawn, so what the map shows rests on code, not on the model following instructions. The
 // talk counts as sent only once an answer has landed; a failed call is tried again later with the same talk.
-// When the meeting ends, a tidy pass (meeting-tidy.js) merges and folds what the stretches drew, then the
-// recorder's own commitments become their Action drafts.
+// When the meeting ends, a tidy pass (meeting-tidy.js) merges, folds and promotes to bring the points under a
+// target, code lays the map out once the way Tidy up does, then the recorder's own commitments become their
+// Action drafts.
 
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { personOf } from './draw.js';
-import { checkMeetingOps, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt } from './meeting-draw.js';
-import { checkTidyOps, TIDY_SCHEMA, tidyPrompt } from './meeting-tidy.js';
+import { appliedLine, checkMeetingOps, MAX_MEETING_POINTS, MEETING_ID, MEETING_SCHEMA, meetingInstructions, meetingPrompt, pointCount, RECENT_STRETCHES } from './meeting-draw.js';
+import { checkTidyOps, TIDY_SCHEMA, TIDY_TARGET, tidyPrompt } from './meeting-tidy.js';
 import { PROPOSE_SCHEMA } from './propose.js';
 
 export const CHUNK_MS = 60_000;
@@ -139,9 +140,11 @@ export function parseTranscript(text, me = '') {
  *   answer: (job: { prompt: string, schema: object }) => Promise<{ value?: unknown, error?: string, cost?: { value: number, unit: string } }>,
  *   draw: (drawing: { nodes: any[], edges: any[], remove?: string[] }) => void, say: (to: string, text: string) => void,
  *   fromWords?: (source: WordsSource, proposed: unknown) => ItemOutcome[],
- *   people?: () => string[], now?: () => number, pauseMs?: number, retryMs?: number, capUsd?: number }} o
+ *   people?: () => string[], now?: () => number, pauseMs?: number, retryMs?: number, capUsd?: number,
+ *   maxPoints?: number, tidyTarget?: number, layout?: () => void }} o
  */
-export function meetingJob({ home, memory = false, getState, save, push, answer, draw, say, fromWords, people = () => [], now = Date.now, pauseMs = PAUSE_MS, retryMs = RETRY_MS, capUsd = COST_CAP_USD }) {
+export function meetingJob({ home, memory = false, getState, save, push, answer, draw, say, fromWords, people = () => [], now = Date.now, pauseMs = PAUSE_MS, retryMs = RETRY_MS, capUsd = COST_CAP_USD,
+  maxPoints = MAX_MEETING_POINTS, tidyTarget = TIDY_TARGET, layout = () => {} }) {
   const FILE = path.join(home, 'meeting.jsonl');
   /** @type {Said[]} */ let said = [];
   try { if (!memory) said = fs.readFileSync(FILE, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)); } catch { /* no meeting on this map yet: nothing said */ }
@@ -224,32 +227,48 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
   };
 
   // Once the last pass is in: one more no-tool answer over the meeting's boxes and notes (no talk) merges boxes
-  // that say the same thing and folds points that settle nothing into their topic's notes. meeting-tidy.js checks
-  // each op; only boxes Claude made move. It runs once, even across a restart, and stops at the spending cap.
+  // that say the same thing, folds points that settle nothing into their topic's notes and promotes a note that
+  // matters later, to bring the meeting's points under a target. meeting-tidy.js checks each op (a promoted note's
+  // words against the whole transcript); only boxes Claude made move. Still over the target after one answer, it is
+  // asked once more with the refusals; what is left over is said. It runs once, even across a restart, and stops at
+  // the spending cap.
   async function tidyPass() {
     const meeting = m();
     if (!meeting || meeting.tidyDone || stopAtCap()) return;
     meeting.tidyDone = true; save();
-    const boxes = ownBoxes();
-    if (boxes.length < 2) return;
-    const lines = mapContext().lines.filter((/** @type {{ from: string, to: string }} */ l) => l.from !== MEETING_ID && l.to !== MEETING_ID);
-    const r = await answer({ prompt: tidyPrompt({ by: meeting.by, title: getState().title, boxes, lines }), schema: TIDY_SCHEMA });
-    if (closed) return;
-    if (r.cost) meeting.cost = { value: (meeting.cost?.value || 0) + r.cost.value, unit: r.cost.unit };
-    if (!r.value) { meeting.error = r.error || 'The agent did not answer.'; save(); push(); return; }
-    const checked = checkTidyOps(r.value, { boxes: ownBoxes(), lines });
-    if (checked.remove.length) {
-      draw({ nodes: checked.nodes, edges: checked.edges, remove: checked.remove });
-      const gone = new Set(checked.remove);
-      meeting.boxes = (meeting.boxes || []).filter((/** @type {string} */ id) => !gone.has(id));
-      for (const id of gone) delete meeting.kinds?.[id];
-      summarize();
+    if (ownBoxes().length < 2) return;
+    const transcript = said.map(lineOf).join('\n'), known = [...people(), meeting.by];
+    const taken = new Set((getState().nodes || []).map((/** @type {any} */ n) => n.id));
+    const did = { merged: 0, folded: 0, promoted: 0, refused: 0 };
+    let retry = '', points = pointCount(ownBoxes());
+    for (let round = 0; round < 2; round++) {
+      if (capped()) break;
+      const boxes = ownBoxes(), lines = mapContext().lines.filter((/** @type {{ from: string, to: string }} */ l) => l.from !== MEETING_ID && l.to !== MEETING_ID);
+      const r = await answer({ prompt: tidyPrompt({ by: meeting.by, title: getState().title, boxes, lines, target: tidyTarget, retry }), schema: TIDY_SCHEMA });
+      if (closed) return;
+      if (r.cost) meeting.cost = { value: (meeting.cost?.value || 0) + r.cost.value, unit: r.cost.unit };
+      if (!r.value) { meeting.error = r.error || 'The agent did not answer.'; break; }
+      const checked = checkTidyOps(r.value, { boxes, lines, transcript, taken, known, target: tidyTarget });
+      if (checked.nodes.length || checked.remove.length) {
+        draw({ nodes: checked.nodes, edges: checked.edges, remove: checked.remove });
+        const gone = new Set(checked.remove);
+        meeting.boxes = [...(meeting.boxes || []).filter((/** @type {string} */ id) => !gone.has(id)), ...checked.added.map((b) => b.id)];
+        for (const id of gone) delete meeting.kinds?.[id];
+        for (const b of checked.added) (meeting.kinds ||= {})[b.id] = b.kind;
+      }
+      logged([...checked.merged.map((x) => ({ did: 'merged', id: x.id, into: x.into })), ...checked.folded.map((x) => ({ did: 'folded', id: x.id, into: x.into })),
+        ...checked.promoted.map((x) => ({ did: 'promoted', id: x.id, from: x.from }))]);
+      (meeting.refused ||= []).push(...checked.refused.map((x) => ({ at: now(), why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
+      meeting.refused = meeting.refused.slice(-200);
+      did.merged += checked.merged.length; did.folded += checked.folded.length; did.promoted += checked.promoted.length; did.refused += checked.refused.length;
+      points = checked.points;
+      if (points <= tidyTarget) break;
+      retry = checked.refused.map((x) => `- ${JSON.stringify(x.op).slice(0, 300)}: ${x.why}`).join('\n') || '(nothing was refused: propose more)';
     }
-    logged([...checked.merged.map((x) => ({ did: 'merged', id: x.id, into: x.into })), ...checked.folded.map((x) => ({ did: 'folded', id: x.id, into: x.into }))]);
-    (meeting.refused ||= []).push(...checked.refused.map((x) => ({ at: now(), why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
-    meeting.refused = meeting.refused.slice(-200);
-    const n = checked.remove.length, summary = String(/** @type {any} */ (r.value).summary || '').slice(0, 200);
-    if (n) say(meeting.by, summary || `Tidied ${n} box${n === 1 ? '' : 'es'} into others.`);
+    summarize();
+    meeting.tidy = { ...did, points, target: tidyTarget, reached: points <= tidyTarget };
+    const parts = [did.merged ? `merged ${did.merged}` : '', did.folded ? `folded ${did.folded}` : '', did.promoted ? `promoted ${did.promoted}` : ''].filter(Boolean);
+    say(meeting.by, `Tidied: ${parts.join(', ') || 'nothing changed'}${did.refused ? ` (${did.refused} refused)` : ''}. ${points} point${points === 1 ? '' : 's'} left, ${points <= tidyTarget ? 'within' : 'over'} the target of ${tidyTarget}.`);
     save(); push();
   }
 
@@ -278,20 +297,31 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
     save(); push();
   }
 
+  // The topics some boxes belong to: a topic is its own; a point, the topic it sits under.
+  const topicsOf = (/** @type {string[]} */ ids) => {
+    const boxes = new Map(ownBoxes().map((b) => [b.id, b]));
+    return ids.map((id) => boxes.get(id)).filter((b) => !!b).map((b) => (b.under === MEETING_ID ? b.id : b.under));
+  };
+
   /**
    * One answer over `lines` (the new talk) with `before` (shown again), checked and drawn; refused items go back
-   * once with the reasons. True when an answer landed.
+   * once with the reasons. Topics touched in the latest stretches are shown in full and the rest by their titles
+   * (all in full on the last pass), so a call costs about the same late in a meeting as early. What landed is said
+   * in the recorder's chat as code counted it, never in the model's words. True when an answer landed.
    * @param {Said[]} lines @param {Said[]} before @param {boolean} last
    */
   async function ask(lines, before, last) {
     const meeting = m(), s = getState();
     const talk = chunkText([...before, ...lines]);
     const taken = new Set((s.nodes || []).map((/** @type {any} */ n) => n.id));
-    const ctx = { talk, by: meeting.by, people: people(), taken };
-    let retry = '', drawn = 0, summary = '';
+    const ctx = { talk, by: meeting.by, people: people(), taken, maxPoints };
+    const stretch = (meeting.stretches || 0) + 1, touched = meeting.touched || {};
+    const full = last ? null : new Set(Object.keys(touched).filter((id) => touched[id] >= stretch - RECENT_STRETCHES));
+    const did = { topics: 0, points: 0, notes: 0, updated: 0, answered: 0, removed: 0, refused: 0 };
+    let retry = '', drawn = 0;
     for (let round = 0; round < 2; round++) {
       if (capped()) return round > 0;
-      const shown = { ...mapContext(), boxes: ownBoxes(), before: before.length ? chunkText(before) : '', now: chunkText(lines), last, retry };
+      const shown = { ...mapContext(), boxes: ownBoxes(), before: before.length ? chunkText(before) : '', now: chunkText(lines), last, retry, full };
       const prompt = `${meetingInstructions(meeting.by, s.title)}\n\n${meetingPrompt(shown)}`;
       const r = await answer({ prompt, schema: MEETING_SCHEMA });
       if (closed) return false;
@@ -303,20 +333,31 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
         for (const b of checked.added) { (meeting.boxes ||= []).push(b.id); (meeting.kinds ||= {})[b.id] = b.kind; }
         for (const b of checked.changed) if (b.id && !b.gone) (meeting.kinds ||= {})[b.id] = b.kind || meeting.kinds[b.id] || 'topic';
       }
+      const ids = [...checked.added.map((b) => b.id), ...checked.changed.filter((b) => !b.gone).map((b) => b.id), ...checked.noted.map((x) => x.id)];
+      for (const t of topicsOf(ids)) (meeting.touched ||= {})[t] = stretch;
       drawn += checked.added.length + checked.changed.length + checked.noted.length;
+      const answered = new Set(checked.answered);
+      did.topics += checked.added.filter((b) => b.kind === 'topic').length;
+      did.points += checked.added.filter((b) => b.kind !== 'topic').length;
+      did.notes += checked.noted.length;
+      did.answered += answered.size;
+      did.removed += checked.changed.filter((b) => b.gone).length;
+      did.updated += new Set(checked.changed.filter((b) => !b.gone && !answered.has(b.id)).map((b) => b.id)).size;
       logged(checked.noted.map((x) => ({ did: 'noted', id: x.id, text: x.text.slice(0, 160) })));
       logged(checked.moved.map((x) => ({ did: 'moved to notes', why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
-      summary = String(/** @type {any} */ (r.value).summary || '').slice(0, 200) || summary;
       (meeting.refused ||= []).push(...checked.refused.map((x) => ({ at: now(), why: x.why, op: JSON.stringify(x.op).slice(0, 400) })));
       meeting.refused = meeting.refused.slice(-200);
-      // only a box that never landed is worth a second try
+      // only a box that never landed is worth a second try; what is refused again stays refused
       const again = checked.refused.filter((x) => x.op?.op !== 'link');
+      if (round === 1 || !again.length) did.refused += again.length;
       if (!again.length) break;
       retry = again.map((x) => `- ${JSON.stringify(x.op).slice(0, 300)}: ${x.why}`).join('\n');
     }
+    meeting.stretches = stretch;
     delete meeting.error;
     if (drawn) summarize();
-    if (summary || drawn) say(meeting.by, `${summary || `Updated ${drawn} box${drawn === 1 ? '' : 'es'}.`}`);
+    const line = appliedLine(did);
+    if (line) say(meeting.by, line);
     return true;
   }
 
@@ -345,7 +386,7 @@ export function meetingJob({ home, memory = false, getState, save, push, answer,
       for (let i = said.length - 1; i >= 0 && text < LAST_PASS_CHARS; i--) { all.unshift(said[i]); text += said[i].text.length; }
       const ok = all.length ? await ask(all, [], true) : true;
       if (closed) return;
-      if (ok) { await tidyPass(); if (closed) return; meeting.done = true; save(); push(); await actionPass(); } else { lastPassDue = true; if (!stopAtCap()) later(go, retryMs); }
+      if (ok) { await tidyPass(); if (closed) return; layout(); meeting.done = true; save(); push(); await actionPass(); } else { lastPassDue = true; if (!stopAtCap()) later(go, retryMs); }
     }
   }
   function go() {

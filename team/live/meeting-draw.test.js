@@ -3,7 +3,7 @@
 // hands off what a person wrote. Then the tidy pass: merges and folds, checked the same way.
 import { describe, expect, it } from 'vitest';
 
-import { alike, checkMeetingOps, lineOf, MAX_POINTS, MEETING_ID, meetingInstructions, meetingPrompt, notesOf, quoted } from './meeting-draw.js';
+import { alike, appliedLine, checkMeetingOps, lineOf, MAX_POINTS, MEETING_ID, meetingInstructions, meetingPrompt, notesOf, quoted, shortQuote, unsaidNames } from './meeting-draw.js';
 import { checkTidyOps, tidyPrompt } from './meeting-tidy.js';
 
 const talk = [
@@ -133,21 +133,89 @@ describe('what a meeting answer may draw', () => {
     expect(r.added).toHaveLength(2);
     expect(r.edges.filter((e) => e.label)).toEqual([{ from: r.added[0].id, to: 'm-q', label: 'answers' }]);
     // the question it answers stops waiting
-    expect(r.changed).toEqual([{ id: 'm-q', sub: 'Answered', state: '' }]);
+    expect(r.changed).toEqual([{ id: 'm-q', sub: 'Answered', state: '', kind: 'fact' }]);
+    expect(r.answered).toEqual(['m-q']);
     expect(r.refused[0].why).toMatch(/^drawn, but its link was dropped/);
   });
 
   it('changes the meeting\'s own boxes by id, never one a person wrote, and nothing it does not know', () => {
-    const q = { id: 'm-q', kind: 'question', label: 'Free tier or trial?', under: 'm-launch' };
+    const d = { id: 'm-d', kind: 'action', label: 'Free tier or trial', under: 'm-launch' };
     const theirs = { id: 'm-p', kind: 'fact', label: 'Pricing notes', under: 'm-launch', locked: true };
     const r = check([
-      { op: 'update', id: 'm-q', kind: 'decision', sub: 'keep it', quote: 'keep the free tier' },
+      { op: 'update', id: 'm-d', kind: 'decision', sub: 'keep it', quote: 'keep the free tier' },
       { op: 'update', id: 'm-p', title: 'Changed', quote: 'keep the free tier' },
       { op: 'remove', id: 'pricing', quote: 'keep the free tier' },
       { op: 'remove', id: MEETING_ID, quote: 'keep the free tier' },
-    ], [topic, q, theirs]);
-    expect(r.changed).toEqual([{ id: 'm-q', sub: 'Decided · keep it', state: '', kind: 'decision' }]);
+    ], [topic, d, theirs]);
+    expect(r.changed).toEqual([{ id: 'm-d', sub: 'Decided · keep it', state: '', kind: 'decision' }]);
     expect(r.refused.map((x) => x.why)).toEqual(['Pricing notes was written by a person: the meeting leaves it', '"pricing" is not one of the meeting\'s boxes', `"${MEETING_ID}" is not one of the meeting's boxes`]);
+  });
+
+  it('closes an open question only on words that answer it; without them it stays open', () => {
+    const q = { id: 'm-q', kind: 'question', label: 'Free tier or trial?', sub: 'Open · pricing call', under: 'm-launch' };
+    const stays = check([{ op: 'update', id: 'm-q', kind: 'decision', sub: 'keep it', quote: 'keep the free tier' }], [topic, q]);
+    expect(stays.changed).toEqual([{ id: 'm-q', sub: 'Open · keep it', kind: 'question' }]);
+    const unsaid = check([{ op: 'update', id: 'm-q', quote: 'keep the free tier', answered: 'we decided to drop pricing entirely' }], [topic, q]);
+    expect(unsaid.refused[0].why).toBe('its answered quote is not in what was said');
+    const r = check([{ op: 'update', id: 'm-q', sub: 'keep the free tier', quote: 'Do we keep the free tier', answered: 'keep the free tier' }], [topic, q]);
+    expect(r.changed).toEqual([{ id: 'm-q', sub: 'Answered · keep the free tier', state: '', kind: 'fact' }]);
+    expect(r.answered).toEqual(['m-q']);
+    // once answered it is no longer open, so it cannot be answered again
+    const again = check([{ op: 'update', id: 'm-q', quote: 'keep the free tier', answered: 'keep the free tier' }], [topic, { ...q, kind: 'fact', sub: 'Answered · keep it' }]);
+    expect(again.refused[0].why).toBe('Free tier or trial? is not an open question');
+  });
+
+  it('holds the meeting to a number of points across all its topics', () => {
+    const t2 = { id: 'm-t2', kind: 'topic', label: 'Pricing', under: MEETING_ID };
+    const points = [{ id: 'm-a', kind: 'fact', label: 'Alpha', under: 'm-launch' }, { id: 'm-b', kind: 'fact', label: 'Beta', under: 'm-t2' }];
+    const r = checkMeetingOps({ ops: [
+      { op: 'add', kind: 'decision', title: 'Launch Tuesday', under: 'm-t2', quote: "Let's decide on Tuesday the 23rd" },
+      { op: 'note', id: 'm-t2', text: 'Free tier question', quote: 'keep the free tier' },
+    ] }, { boxes: [topic, t2, ...points], talk, by: 'Harshit', people: [], taken: new Set(), maxPoints: 2 });
+    expect(r.added).toEqual([]);
+    expect(r.noted).toHaveLength(1);
+    expect(r.refused[0].why).toBe('the meeting already has 2 points: update one of them by its id, or add this as a note (op "note") on the closest point or on its topic');
+  });
+
+  it('refuses a name in a box\'s words that was not said, but not a word that starts a sentence', () => {
+    const r = checkMeetingOps({ ops: [
+      { op: 'add', kind: 'fact', title: 'Claude Code team ships Tuesday', under: 'm-launch', quote: "Let's decide on Tuesday the 23rd" },
+      { op: 'add', kind: 'action', title: 'Priya reviews onboarding', sub: 'Screens by Monday', under: 'm-launch', quote: 'Priya will review the onboarding screens by Monday' },
+      { op: 'add', kind: 'fact', title: 'Risky: Friday. Tuesday is safer', under: 'm-launch', quote: 'Friday is too risky' },
+      { op: 'add', kind: 'fact', title: 'Launch with Dan from Acme', under: 'm-launch', quote: 'Launch date first' },
+    ] }, { boxes: [topic], talk, by: 'Harshit', people: ['Dan'], taken: new Set() });
+    expect(r.added.map((b) => b.label)).toEqual(['Priya reviews onboarding', 'Risky: Friday. Tuesday is safer']);
+    expect(r.refused.map((x) => x.why)).toEqual([
+      '"Code" is not in its quote: use words that were said (in sentence case), or quote where the name is said',
+      '"Acme" is not in its quote: use words that were said (in sentence case), or quote where the name is said',
+    ]);
+    expect(unsaidNames('Ship it with Frida and Peter', 'Frida said ship it', ['Peter'])).toEqual([]);
+    expect(unsaidNames('Review: Anthropic PR volume', 'they make 3000 PRs a day', [])).toEqual([]);
+    expect(unsaidNames('PRs from the Anthropic team', 'they make 3000 PRs a day', [])).toEqual(['Anthropic']);
+  });
+
+  it('keeps a short quote on a note, cut at a word once checked in full, so a box holds many notes', () => {
+    const long = 'Others: we interviewed two product managers and three or four technical people over the last two weeks in total';
+    const r = checkMeetingOps({ ops: [{ op: 'note', id: 'm-launch', text: 'Who was interviewed', quote: 'we interviewed two product managers and three or four technical people over the last two weeks' }] },
+      { boxes: [topic], talk: long, by: 'Harshit', taken: new Set() });
+    expect(r.nodes[0].desc).toBe('- Who was interviewed — "we interviewed two product managers and three or four technical people over the…"');
+    expect(shortQuote('short words')).toBe('short words');
+  });
+
+  it('says what code applied, never the model\'s words', () => {
+    expect(appliedLine({ topics: 1, points: 2, notes: 3, updated: 1, refused: 2 })).toBe('Added 1 topic, 2 points, 3 notes; updated 1 (2 refused).');
+    expect(appliedLine({ answered: 1 })).toBe('Answered 1.');
+    expect(appliedLine({ refused: 3 })).toBe('');
+  });
+
+  it('shows topics talked about lately in full and the rest by their titles', () => {
+    const t2 = { id: 'm-t2', kind: 'topic', label: 'Pricing', sub: 'Plans', desc: '- Old note — "x"', under: MEETING_ID };
+    const p2 = { id: 'm-p2', kind: 'fact', label: 'Trial is 14 days', sub: 'From sales', desc: '- Detail — "y"', under: 'm-t2' };
+    const p = meetingPrompt({ boxes: [{ ...topic, sub: 'When', desc: '- Recent — "z"' }, t2, p2], before: '', now: 'x', full: new Set(['m-launch']) });
+    expect(p).toContain('- m-launch · topic · Launch date · When (under meeting)\n    - Recent');
+    expect(p).toContain('- m-t2 · topic · Pricing (under meeting)\n- m-p2 · fact · Trial is 14 days (under m-t2)');
+    expect(p).not.toContain('Old note');
+    expect(p).toMatch(/titles only/);
   });
 
   it('mints ids that clash with nothing on the map', () => {
@@ -186,6 +254,13 @@ describe('what the agent is told and shown', () => {
     expect(lineOf('action', 'send the deck', 'Priya', 'Monday')).toBe('Priya · Monday · send the deck');
     expect(lineOf('decision', 'cheaper')).toBe('Decided · cheaper');
     expect(lineOf('fact', 'from finance')).toBe('from finance');
+  });
+  it('never says the kind twice, whatever the line already starts with', () => {
+    expect(lineOf('question', 'Open: match format to request')).toBe('Open · match format to request');
+    expect(lineOf('question', 'open · Open — deferred')).toBe('Open · deferred');
+    expect(lineOf('decision', 'Decided: gather data first')).toBe('Decided · gather data first');
+    expect(lineOf('decision', 'Open · keep it')).toBe('Decided · keep it');
+    expect(lineOf('fact', 'Opened in May')).toBe('Opened in May');
   });
 });
 
@@ -241,10 +316,37 @@ describe('the tidy pass when the meeting ends', () => {
     expect(full.refused[0].why).toBe(`Launch plan would have more than ${MAX_POINTS} points: fold some first`);
   });
 
-  it('is shown the boxes and their notes, never the talk', () => {
-    const p = tidyPrompt({ by: 'Harshit', title: 'Launch sync', boxes: [t1, fact], lines });
-    expect(p).toContain('- f1 · fact · Friday is busy · support is out (under t1)\n    - Two people out');
+  it('is shown the boxes and their numbered notes and the target, never the talk', () => {
+    const p = tidyPrompt({ by: 'Harshit', title: 'Launch sync', boxes: [t1, fact, dec], lines, target: 1 });
+    expect(p).toContain('- f1 · fact · Friday is busy · support is out (under t1)\n    1. Two people out');
     expect(p).toContain('LINES BETWEEN THEM:\n- d2 answers q1');
+    expect(p).toContain('It has 2 points; the target is at most 1. Propose enough merges and folds to remove at least 1.');
     expect(p).not.toMatch(/SAID/);
+  });
+
+  it('promotes a note to a point only on words that were said, under the limits, and never as a near copy', () => {
+    const transcript = 'Others: we will ship on Tuesday the 23rd\nYou: two people are out that week';
+    const holder = { ...t1, desc: '- Ship on Tuesday the 23rd — "we will ship on Tuesday the 23rd"\n- Made up — "nobody said this at all"\n- Launch Tuesday again — "ship on Tuesday"' };
+    const ctx = { boxes: [holder, dec], lines: [], transcript, taken: new Set(['m-ship-on-tuesday']), target: 3 };
+    const r = checkTidyOps({ ops: [
+      { op: 'promote', id: 't1', note: 1, title: 'Ship on Tuesday', kind: 'decision' },
+      { op: 'promote', id: 't1', note: 2, title: 'Something', kind: 'fact' },
+      { op: 'promote', id: 't1', note: 9, title: 'Nothing', kind: 'fact' },
+      { op: 'promote', id: 't1', note: 3, title: 'Launch on Tuesday', kind: 'decision' },
+    ] }, ctx);
+    expect(r.promoted).toEqual([{ id: 'm-ship-on-tuesday-2', from: 't1' }]);
+    expect(r.added[0]).toMatchObject({ kind: 'decision', label: 'Ship on Tuesday', sub: 'Decided · Ship on Tuesday the 23rd', under: 't1', desc: '"we will ship on Tuesday the 23rd"' });
+    expect(r.edges).toEqual([{ from: 't1', to: 'm-ship-on-tuesday-2' }]);
+    expect(notesOf(r.nodes.find((n) => n.id === 't1').desc)).toEqual(['- Made up — "nobody said this at all"', '- Launch Tuesday again — "ship on Tuesday"']);
+    expect(r.refused.map((x) => x.why)).toEqual(['its note\'s words are not in what was said', 'Launch has no note 9', 'near copy of "Launch Tuesday" (d1)']);
+    expect(r.points).toBe(2);
+    const full = checkTidyOps({ ops: [{ op: 'promote', id: 't1', note: 1, title: 'Ship on Tuesday', kind: 'decision' }] }, { ...ctx, target: 1 });
+    expect(full.refused[0].why).toBe('the meeting already has 1 points');
+  });
+
+  it('reports how many points are left, so a target missed is said', () => {
+    const r = checkTidyOps({ ops: [{ op: 'fold', id: 'f1' }, { op: 'fold', id: 'd1' }] }, { boxes: [t1, fact, dec], lines: [], target: 0 });
+    expect(r.points).toBe(1);
+    expect(r.refused.map((x) => x.why)).toEqual(['Launch Tuesday is a decision: it stays a box']);
   });
 });
