@@ -154,11 +154,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // later never becomes one. A new map starts with none: whoever makes it, or else first opens it, is its Admin.
   if ((project || name) && !Array.isArray(state.admins)) {
     state.admins = existed ? adminsOf(state, { before: before() }) : [];
-    if (existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
+    if (existed && !memory) writeWhole(STATE, JSON.stringify(state));
   }
   // A system map drawn before it had a centre gets one now, written down at once, so it shows on first open
   // and its levels, laid out in rows before every level was laid out round its circle, are laid out again, once
-  if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
+  if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) writeWhole(STATE, JSON.stringify(state));
   // A map is usable as extra context only while it remains checked in Context.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
@@ -184,7 +184,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   /** @param {string} by @param {() => any} change */
   const actingAs = (by, change) => { const was = acting; acting = by; try { return change(); } finally { acting = was; } };
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); };
   const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -536,7 +536,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
     history = [v, ...history.filter((/** @type {any} */ h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
     for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch (e) { removeFailed(e, 'an old version'); }
-    fs.writeFileSync(HIST_LIST, JSON.stringify(history));
+    writeWhole(HIST_LIST, JSON.stringify(history));
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
@@ -821,6 +821,10 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     snapshotFor: (who) => withoutRepos(structuredClone(state), hiddenFor(who)) };
 }
 
+// A map's state is written beside it and moved into place, so a stop at any moment (the app quitting, a kill, a
+// crash) leaves the last whole version, never half of one.
+/** @param {string} file @param {string} text */
+function writeWhole(file, text) { fs.writeFileSync(`${file}.tmp`, text); fs.renameSync(`${file}.tmp`, file); }
 // A file to remove that is already gone is fine; anything else (permissions, a full disk) is said once.
 /** @param {any} e @param {string} what */
 const removeFailed = (e, what) => { if (e?.code !== 'ENOENT' && e?.code !== 'ENOTEMPTY') console.error(`[map] could not remove ${what}: ${e?.message}`); };
@@ -882,7 +886,7 @@ const server = http.createServer(async (req, res) => {
   // to main. The answer comes once the download is done, so the page can show each step; then the server restarts
   if (url.pathname === '/api/update' && req.method === 'POST') {
     const send = (/** @type {any} */ a) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(a));
-    const why = (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
+    const why = VERSION.bundled ? 'updates come with the app' : (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
     if (why) return send({ ok: false, why });
     const got = await pull();
     if (!got) return send({ ok: false, why: 'GitHub could not be reached' });
@@ -920,9 +924,20 @@ const server = http.createServer(async (req, res) => {
 
 // an update waits while Claude is at work on any map, so a restart never cuts a reply, an Action or a drawing short
 const { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening } = selfUpdate(server, () => maps.everyMap().some(([, m]) => m.busy?.()));
-for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
+// SIGTERM (the Mac app quitting, a kill) or Ctrl-C: no new requests, the pages' live connections end, then it exits.
+// Every change is already on disk, whole (writeWhole), so nothing waits to be saved.
+for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => {
+  server.close(() => process.exit(0)); server.closeAllConnections();
+  setTimeout(() => process.exit(0), 2000).unref();
+});
+// a port already taken is another Living Map (a clone's, or the Mac app's) or another program: this one says so and
+// stops, so there is never a second server on the same maps
+server.on('error', (/** @type {any} */ e) => {
+  console.error(e?.code === 'EADDRINUSE' ? `Port ${PORT} is taken: another Living Map, or another program, is already running there. Open http://localhost:${PORT}/ or pick another port.` : `[map] the server could not start: ${e?.message}`);
+  process.exit(1);
+});
 server.listen(PORT, '127.0.0.1', async () => {
-  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : DEMO ? '  (demo)' : ''}`);
+  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : DEMO ? '  (demo)' : ''}${VERSION.bundled ? '  (bundled: updates come with the app)' : ''}`);
   await whenListening();
 });
 

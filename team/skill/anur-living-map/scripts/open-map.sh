@@ -1,7 +1,8 @@
 #!/bin/bash
 # Opens a team map in one go and does nothing that is already done: the latest code (cloned, pulled, the skill's
 # copy refreshed), the server (started when it is not answering, restarted when its code is older), this repo on its list of maps, the map in Chrome (the tab already showing it comes to
-# the front, or a new tab opens), and this chat linked to the map. One line per step.
+# the front, or a new tab opens), and this chat linked to the map. One line per step. When the Living Map app's own
+# server is the one answering, it is used as it is: the app brings its updates, so no clone is made, pulled or started.
 #
 #   open-map.sh          this repo's own map, at localhost:4323/<folder name>/
 #   open-map.sh gtm      another map on the same server, at localhost:4323/gtm/
@@ -26,39 +27,44 @@ D="$HOME/.anur-living-map"; [ ! -d "$D" ] && [ -d "$HOME/.living-map-2" ] && D="
 # ANUR_LIVING_MAP_CHANNEL or a channel file in the data folder says dev (every build that passed CI)
 CH=$(printf %s "${ANUR_LIVING_MAP_CHANNEL:-$(cat "$D/channel" 2>/dev/null)}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'); [ "$CH" = dev ] || CH=stable
 REV="$D/server.rev"   # the commit the running server was started from
+# the Living Map app's server (started with --bundled) says so in /api/version: it is never stopped, restarted or
+# updated from here, and no clone is needed beside it
+APP=""; case "$(curl -sf "localhost:$P/api/version" 2>/dev/null)" in *'"bundled":true'*) APP=1;; esac
 
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, moved to the newest build its
 #    channel follows ($CH above: a release, or on the dev channel any build that passed CI; never main itself, so a
 #    fresh clone, which holds main, starts from that build too) when it is on main with no changes
 #    of its own (a few seconds at most; offline it gives up after a moment and says so), and the skill's copy this
 #    script runs from (~/.claude/skills, ~/.agents/skills) follows, for the next time it is read. ANUR_LIVING_MAP_NO_UPDATE=1 leaves the clone as it is.
-# the newest tag on origin's main that this copy's channel moves to
-newest() { if [ "$CH" = dev ]; then git -C "$H" describe --tags --abbrev=0 --match 'dev-[0-9]*' --match 'v[0-9]*' origin/main; else git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main; fi 2>/dev/null; }
-if [ ! -e "$H/.git" ]; then
-  git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
-  first=$(newest) && git -C "$H" reset -q --hard "$first" && echo "install: on $first ($CH)"
-fi
-[ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
-was=$(git -C "$H" rev-parse HEAD); br=$(git -C "$H" branch --show-current)
-if [ "${ANUR_LIVING_MAP_NO_UPDATE:-}" = 1 ]; then echo "update: skipped, ANUR_LIVING_MAP_NO_UPDATE is set"
-elif [ "$br" != main ]; then echo "update: skipped, $H is on $br"
-elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
-elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin main 2>/dev/null \
-  && rel=$(newest) \
-  && git -C "$H" merge -q --ff-only "$rel" 2>/dev/null; then
-  now=$(git -C "$H" rev-parse HEAD)
-  if [ "$now" = "$was" ]; then echo "update: already the latest ($CH)"
-  else
-    echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled: $(git -C "$H" log -1 --format=%s)"
+if [ -n "$APP" ]; then echo "update: comes with the Living Map app"; else
+  # the newest tag on origin's main that this copy's channel moves to
+  newest() { if [ "$CH" = dev ]; then git -C "$H" describe --tags --abbrev=0 --match 'dev-[0-9]*' --match 'v[0-9]*' origin/main; else git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main; fi 2>/dev/null; }
+  if [ ! -e "$H/.git" ]; then
+    git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
+    first=$(newest) && git -C "$H" reset -q --hard "$first" && echo "install: on $first ($CH)"
   fi
-else echo "update: could not reach GitHub, staying with what is here"; fi
-# the skill's copy this script runs from always matches the clone, however the clone got its latest (this pull,
-# the server's own, a pull by hand). Each file is replaced through a rename, never written in place: bash reads
-# this very script by offset while it runs, so writing over it would tear it mid-line.
-SK="$H/team/skill/anur-living-map"; SD="$(cd "$(dirname "$0")/.." && pwd)"
-if [ "$(cd "$SK" && pwd)" != "$SD" ] && ! diff -rq "$SK" "$SD" >/dev/null 2>&1; then
-  (cd "$SK" && find . -type f) | while read -r f; do mkdir -p "$(dirname "$SD/$f")"; cp "$SK/$f" "$SD/$f.new" && mv -f "$SD/$f.new" "$SD/$f"; done
-  echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
+  [ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
+  was=$(git -C "$H" rev-parse HEAD); br=$(git -C "$H" branch --show-current)
+  if [ "${ANUR_LIVING_MAP_NO_UPDATE:-}" = 1 ]; then echo "update: skipped, ANUR_LIVING_MAP_NO_UPDATE is set"
+  elif [ "$br" != main ]; then echo "update: skipped, $H is on $br"
+  elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
+  elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin main 2>/dev/null \
+    && rel=$(newest) \
+    && git -C "$H" merge -q --ff-only "$rel" 2>/dev/null; then
+    now=$(git -C "$H" rev-parse HEAD)
+    if [ "$now" = "$was" ]; then echo "update: already the latest ($CH)"
+    else
+      echo "update: $(git -C "$H" rev-list --count "$was..$now") new commits pulled: $(git -C "$H" log -1 --format=%s)"
+    fi
+  else echo "update: could not reach GitHub, staying with what is here"; fi
+  # the skill's copy this script runs from always matches the clone, however the clone got its latest (this pull,
+  # the server's own, a pull by hand). Each file is replaced through a rename, never written in place: bash reads
+  # this very script by offset while it runs, so writing over it would tear it mid-line.
+  SK="$H/team/skill/anur-living-map"; SD="$(cd "$(dirname "$0")/.." && pwd)"
+  if [ "$(cd "$SK" && pwd)" != "$SD" ] && ! diff -rq "$SK" "$SD" >/dev/null 2>&1; then
+    (cd "$SK" && find . -type f) | while read -r f; do mkdir -p "$(dirname "$SD/$f")"; cp "$SK/$f" "$SD/$f.new" && mv -f "$SD/$f.new" "$SD/$f"; done
+    echo "skill: copy refreshed from the clone, read from the next /anur-living-map on"
+  fi
 fi
 
 # 1. the server. Running older code than the clone, it is restarted on the new code (the list of maps and every
@@ -69,7 +75,8 @@ start_server() {
   nohup node "$S" "$P" --project "$R" > "$R/.living-map/server.log" 2>&1 &
   for _ in 1 2 3 4 5 6 7 8 9 10; do sleep 0.3; curl -sf localhost:$P/api/maps >/dev/null && break; done
 }
-if curl -sf localhost:$P/api/maps >/dev/null; then
+if [ -n "$APP" ]; then echo "server: the Living Map app's, already running"
+elif curl -sf localhost:$P/api/maps >/dev/null; then
   if [ "$(cat "$REV" 2>/dev/null)" = "$(git -C "$H" rev-parse HEAD)" ]; then echo "server: already running"
   else
     kill $(lsof -ti tcp:"$P" -sTCP:LISTEN) 2>/dev/null

@@ -139,6 +139,8 @@ body.blank-repo #tidyb{display:none}
 .tbtn.ver{display:inline-flex;align-items:center;gap:6px}
 .tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
+/* inside the Mac app the pill is only the version: the app brings updates, so there is nothing to check or click */
+.tbtn.ver.app::before{display:none}
 .tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
 .tbtn.ver.due:disabled{opacity:.75;cursor:progress}
 .tbtn.ver.no{color:var(--text-2);border-color:var(--rule-2);background:#f3f2ee}
@@ -1171,7 +1173,8 @@ function reloadWhenIdle(){
   location.reload();
 }
 function renderVer(){
-  const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
+  const b = $('verb'); b.hidden = !VER || VER.latest === null && !VER.bundled; if (b.hidden) return;
+  if (VER.bundled){ b.textContent = `v${VER.version}`; b.className = 'tbtn ver ok app'; b.dataset.tip = `Living Map ${VER.version}\nUpdates come with the app`; return; }
   const line = `Living Map ${VER.version} · build ${VER.build}${VER.commit ? ` · ${VER.commit}` : ''}`;
   if (VER.latest){
     // just after an update the pill says so for a few seconds, then settles on Latest
@@ -1190,7 +1193,7 @@ async function loadVer(check){
 // the server's last answer shows at once; the fresh check (a round trip to GitHub) replaces it when it lands
 loadVer(false).then(() => loadVer(true)); setInterval(() => loadVer(false), 60_000);
 $('verb').onclick = async () => {
-  if (!VER || VER.latest) return;
+  if (!VER || VER.latest || VER.bundled) return;
   const b = $('verb'), was = VER.started;
   // each step shows on the button: the download, the restart on the new code, then the page reloads to Latest
   const fail = (why) => {
