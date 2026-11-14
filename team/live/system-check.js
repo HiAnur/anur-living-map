@@ -22,7 +22,7 @@ import { shared, wordsOf } from './name-words.js';
 const WORDS_ONLY = new Set(['doc', 'module']);
 export const STRUCTURAL = new Set(['function', 'outside_function', 'table', 'queue', 'topic', 'bucket', 'api', 'http_route', 'state_machine', 'schedule',
   'event_source', 'user_pool', 'stream', 'construct', 'grant', 'link', 'aws_call', 'api_call', 'screens', 'state_slice', 'invokes_by_name', 'amplify_resource',
-  'container', 'compose_service', 'api_spec']);
+  'container', 'compose_service', 'api_spec', 'server_routes', 'apple_app', 'swift_target', 'site', 'page', 'deploy_target']);
 
 // Words that say what kind of thing a name is rather than which one, so `self.allow_list_table` and
 // `BotAllowListDynamoDB` both come down to the thing's own name.

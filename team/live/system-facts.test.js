@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readRepo } from './system-facts.js';
+import { isTestFile, readRepo } from './system-facts.js';
 import { linkRepos } from './system-links.js';
 import { api, app, repo, trading } from './system.harness.js';
 
@@ -61,6 +61,35 @@ describe('reading a repo', () => {
     expect(r.unread).toEqual([expect.stringContaining('CDK in TypeScript')]);
     expect((await readRepo(api())).unread).toEqual([]);
     expect((await readRepo(trading())).unread).toEqual([]);
+  });
+});
+
+describe('leaving tests out', () => {
+  it('reads a call in the code, and nothing from tests, fixtures or harnesses that make the same call', async () => {
+    const call = (/** @type {string} */ host) => `export const ip = () => fetch('https://${host}.example.com');\n`;
+    const py = (/** @type {string} */ host) => `import os\nURL = "https://${host}.example.com"\nSTAGE = os.environ.get("${host.toUpperCase().replace(/-/g, '_')}")\n`;
+    const r = await readRepo(repo('tested-app', {
+      'package.json': JSON.stringify({ dependencies: { react: '1' } }),
+      'src/ip.ts': call('checkip'),
+      'src/ip.test.ts': call('in-test'), 'src/ip.spec.tsx': call('in-spec'), 'src/__tests__/ip.ts': call('in-tests-folder'),
+      'e2e/ip.ts': call('in-e2e'), 'test/fixtures/app/ip.ts': call('in-fixture'), 'src/sample.harness.js': call('in-harness'), 'src/__mocks__/ip.ts': call('in-mock'),
+      'lambdas/handler.py': py('real-py'), 'tests/test_handler.py': py('py-tests'), 'lambdas/test_handler.py': py('py-test-file'),
+      'lambdas/handler_test.py': py('py-test-suffix'), 'conftest.py': py('py-conftest'),
+      'Tests/AppTests/ClientTests.swift': 'let p = "/api/in-swift-tests"\n',
+    }));
+    const said = JSON.stringify(r.facts);
+    expect(r.facts.find((f) => f.kind === 'api_call')).toMatchObject({ path: 'https://checkip.example.com', at: 'src/ip.ts:1' });
+    expect(said).toContain('real-py');
+    for (const t of ['in-test', 'in-spec', 'in-tests-folder', 'in-e2e', 'in-fixture', 'in-harness', 'in-mock', 'py-tests', 'py-test-file', 'py-test-suffix', 'py-conftest', 'in-swift-tests']) expect(said).not.toContain(t);
+  });
+  it('knows a test, a fixture and a harness by its path, and code by its own', () => {
+    for (const f of ['a.test.js', 'web/x.spec.tsx', 'team/live/system.harness.js', 'e2e/map.ts', 'ledger/fixtures/x.txt', 'Tests/CoreTests/A.swift', 'test_x.py', 'pkg/x_test.go', 'conftest.py']) expect(isTestFile(f), f).toBe(true);
+    for (const f of ['src/attest.ts', 'app/(app)/(tabs)/account/brokerageProfile/index.tsx', 'latest/index.js', 'contest.py', 'protest/x.ts']) expect(isTestFile(f), f).toBe(false);
+  });
+  it('reads the routes an Express server serves', async () => {
+    const r = await readRepo(repo('express-api', { 'server.ts': "const app = express();\napp.get('/users/:id', h);\nrouter.post('/orders', h);\napp.all('/health', h);\naxios.get('/not-a-route');\n" }));
+    expect(r.kinds).toEqual(['server']);
+    expect(r.facts).toEqual([expect.objectContaining({ kind: 'server_routes', at: 'server.ts:2', routes: ['GET /users/{id}', 'POST /orders', 'ANY /health'] })]);
   });
 });
 
