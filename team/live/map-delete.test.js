@@ -24,8 +24,7 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
   fs.writeFileSync(path.join(primary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'view',ownerKey:'private-owner',linkKey:'private-link'}));
   fs.writeFileSync(path.join(secondary, '.living-map/cloud.json'), JSON.stringify({published:true,mode:'restricted'}));
   const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
-  const cookie = (name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
-  const owner = cookie('Duy'), member = cookie('Priyanka');
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js';users.rename('Duy')"], { cwd: app, env });
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let child;
   const start = async () => {
@@ -34,7 +33,9 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
     throw new Error('Server did not start');
   };
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
-  const request = (route, /** @type {any} */ { token = owner, data, from = origin } = {}) => fetch(origin + route, { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { cookie: `lm_session=${token}`, 'sec-fetch-site': 'same-origin', ...(data ? { origin: from, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  // a page on this Mac, which is Duy; another site the browser has open says it is cross-site
+  const request = (route, /** @type {any} */ { site = 'same-origin', data, from = origin } = {}) => fetch(origin + route, { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { 'sec-fetch-site': site, ...(data ? { origin: from, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  const elsewhere = { site: 'cross-site', from: 'https://elsewhere.example' };
   const remove = (name, options = {}) => request('/api/maps/trash', { ...options, data: { name } });
   try {
     await start();
@@ -42,8 +43,8 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
     expect(list.map((m) => [m.name, m.shared, m.cloud]).sort()).toEqual([['primary',true,true],['secondary',false,true],['unopened',false,false]]);
     expect(JSON.stringify(list)).not.toMatch(/private-owner|private-link|ownerKey|linkKey/);
     expect(list.map((m) => [m.name, m.deletable]).sort()).toEqual([['primary', true], ['secondary', true], ['unopened', true]]);
-    expect((await (await request('/api/maps', { token: member })).json()).every((m) => !m.deletable)).toBe(true);
-    expect((await remove('unopened', { token: member })).status).toBe(403);
+    expect((await request('/api/maps', elsewhere)).status).toBe(403);
+    expect((await remove('unopened', elsewhere)).status).toBe(403);
     expect((await remove('unopened', { from: 'https://elsewhere.example' })).status).toBe(403);
     expect((await remove('../primary')).status).toBe(404);
     expect((await remove('missing')).status).toBe(404);
@@ -70,8 +71,8 @@ it('trashes and restores unopened and project maps, preserves code, and keeps st
     const trash = await (await request('/api/maps/trash')).json();
     expect(trash.map((m) => m.name).sort()).toEqual(['primary', 'secondary', 'unopened']);
     expect(JSON.stringify(trash)).not.toContain(root);
-    expect(await (await request('/api/maps/trash', {token:member})).json()).toEqual([]);
-    expect((await request('/api/maps/restore', {token:member,data:{id:trashIds.unopened}})).status).toBe(404);
+    expect((await request('/api/maps/trash', elsewhere)).status).toBe(403);
+    expect((await request('/api/maps/restore', {...elsewhere,data:{id:trashIds.unopened}})).status).toBe(403);
     expect((await request('/api/maps/restore', {data:{id:'../primary'}})).status).toBe(404);
     fs.mkdirSync(named); fs.writeFileSync(path.join(named, 'state.json'), JSON.stringify({title:'Do not overwrite'}));
     expect((await request('/api/maps/restore', {data:{id:trashIds.unopened}})).status).toBe(409);

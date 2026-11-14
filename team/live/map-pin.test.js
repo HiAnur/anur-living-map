@@ -18,12 +18,13 @@ it('keeps pinned maps first, then system maps, in either sort order', () => {
   expect(ctx.ordered(maps, 'name').map((/** @type {any} */ m) => m.name)).toEqual(['alpha', 'older', 'system', 'beta', 'zulu']);
 });
 
-it('offers your own account menu on the list of maps, and lists only people on a map', () => {
-  expect(html).toMatch(/id="account-menu"[^]*Recovery email[^]*Sign out/);
+it('offers your own account menu on the list of maps, with Settings and no sign-out, and lists only people on a map', () => {
+  expect(html).toMatch(/id="account-menu"[^]*href="\/settings">Settings/);
+  for (const page of [html, index]) expect(page).not.toMatch(/Recovery email|Sign out<|\/api\/logout/);
   for (const page of [html, index]) expect(page).not.toMatch(/AI agent, draws the plans/);
 });
 
-it('pins a map for one person only, and keeps the pin across a restart', async () => {
+it('pins a map for you, and keeps the pin across a restart', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'living-map-pin-'));
   const app = path.join(root, 'app'), primary = path.join(root, 'primary');
   fs.mkdirSync(app);
@@ -35,10 +36,8 @@ it('pins a map for one person only, and keeps the pin across a restart', async (
   fs.writeFileSync(path.join(app, 'projects.json'), '[]');
   for (const name of ['first', 'second']) { fs.mkdirSync(path.join(app, 'maps', name), { recursive: true }); fs.writeFileSync(path.join(app, 'maps', name, 'state.json'), JSON.stringify(state)); }
   const env = { ...process.env, ANUR_LIVING_MAP_MAPS: app, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json') };
-  const cookie = (/** @type {string} */ name) => execFileSync(process.execPath, ['--input-type=module', '-e', `import {users} from './users.js';console.log(users.start(${JSON.stringify(name)}))`], { cwd: app, env, encoding: 'utf8' }).trim();
-  // Duy made this install's first account, and so owns it
-  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js';users.create('Duy','a long password')"], { cwd: app, env });
-  const duy = cookie('Duy'), priyanka = cookie('Priyanka');
+  // Duy is the one person on this Mac
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js';users.rename('Duy')"], { cwd: app, env });
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
   const origin = `http://localhost:${port}`; let /** @type {any} */ child;
   const start = async () => {
@@ -47,25 +46,23 @@ it('pins a map for one person only, and keeps the pin across a restart', async (
     throw new Error('Server did not start');
   };
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
-  const request = (/** @type {string} */ route, /** @type {any} */ { token = duy, data, from = origin } = {}) => fetch(origin + route, { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { cookie: `lm_session=${token}`, 'sec-fetch-site': 'same-origin', ...(data ? { origin: from, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
-  const pinned = async (/** @type {string} */ token) => (await (await request('/api/maps', { token })).json()).filter((/** @type {any} */ m) => m.pinned).map((/** @type {any} */ m) => m.name).sort();
+  const request = (/** @type {string} */ route, /** @type {any} */ { data, from = origin } = {}) => fetch(origin + route, { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { 'sec-fetch-site': 'same-origin', ...(data ? { origin: from, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
+  const pinned = async () => (await (await request('/api/maps')).json()).filter((/** @type {any} */ m) => m.pinned).map((/** @type {any} */ m) => m.name).sort();
   const pin = (/** @type {string} */ name, on = true, options = {}) => request('/api/maps/pin', { ...options, data: { name, pinned: on } });
   try {
     await start();
-    expect(await pinned(duy)).toEqual([]);
+    expect(await pinned()).toEqual([]);
     expect((await pin('second')).status).toBe(200);
     expect(await (await pin('primary')).json()).toEqual({ name: 'primary', pinned: true });
-    expect(await pinned(duy)).toEqual(['primary', 'second']);
-    expect(await pinned(priyanka)).toEqual([]);
+    expect(await pinned()).toEqual(['primary', 'second']);
     expect((await pin('missing')).status).toBe(404);
     expect((await pin('../primary')).status).toBe(404);
     expect((await pin('first', true, { from: 'https://elsewhere.example' })).status).toBe(403);
-    expect(await pinned(duy)).toEqual(['primary', 'second']);
+    expect(await pinned()).toEqual(['primary', 'second']);
     expect((await pin('second', false)).status).toBe(200);
     await stop(); await start();
-    expect(await pinned(duy)).toEqual(['primary']);
-    expect(await pinned(priyanka)).toEqual([]);
-    // the home page carries your role for its account menu: the owner of this install is its Owner
+    expect(await pinned()).toEqual(['primary']);
+    // the home page carries your role for its account menu: on your own Mac you are its Owner
     expect(await (await request('/')).text()).toContain('<meta name="lm-role" content="Owner">');
   } finally { await stop(); fs.rmSync(root, { recursive: true, force: true }); }
 }, 15000);

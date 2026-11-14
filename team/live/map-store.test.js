@@ -137,9 +137,9 @@ describe('a server started from a code folder that kept maps', () => {
     /** @type {Record<string, string | undefined>} */
     const env = { ...process.env, HOME: home, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '', LIVING_MAP_CLOUD_CONFIG: path.join(root, 'no-cloud.json'), ANUR_LIVING_MAP_NO_UPDATE: '1' };
     delete env.ANUR_LIVING_MAP_MAPS;
-    const cookie = execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(users.start('Duy'))"], { cwd: app, env, encoding: 'utf8' }).trim();
+    execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; users.rename('Duy')"], { cwd: app, env });
     const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
-    const origin = `http://localhost:${port}`, headers = { 'sec-fetch-site': 'same-origin', cookie: `lm_session=${cookie}` };
+    const origin = `http://localhost:${port}`, headers = { 'sec-fetch-site': 'same-origin' };
     const child = spawn(process.execPath, ['server.js', String(port)], { cwd: app, env, stdio: 'ignore' });
     try {
       for (let i = 0; i < 100; i++) { try { if ((await fetch(origin + '/api/version')).ok) break; } catch { /* not listening yet */ } await new Promise((r) => setTimeout(r, 50)); }

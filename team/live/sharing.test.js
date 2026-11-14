@@ -36,61 +36,79 @@ it('enforces view/edit links in pages, APIs and live streams, including revocati
   fs.mkdirSync(path.join(root, 'maps', 'shared'), { recursive: true });
   fs.writeFileSync(path.join(root, 'maps', 'shared', 'state.json'), JSON.stringify(state));
   const env = { ...process.env, ANUR_LIVING_MAP_MAPS: root, LIVING_MAP_USERS: path.join(root, 'users.db'), LIVING_MAP_LOGIN_URL: '' };
-  const cookie = execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; console.log(users.start('Duy'))"], { cwd: root, env, encoding: 'utf8' }).trim();
+  execFileSync(process.execPath, ['--input-type=module', '-e', "import {users} from './users.js'; users.rename('Duy')"], { cwd: root, env });
   const reserve = http.createServer(); await new Promise((r) => reserve.listen(0, '127.0.0.1', /** @type {() => void} */ (r))); const port = /** @type {import('node:net').AddressInfo} */ (reserve.address()).port; await new Promise((r) => reserve.close(r));
-  const origin = `http://localhost:${port}`; let child, reader;
+  let /** @type {any} */ child, /** @type {any} */ live;
   const start = async () => {
     child = spawn(process.execPath, ['server.js', String(port), '--demo'], { cwd: root, env, stdio: 'ignore' });
-    for (let i = 0; i < 60; i++) { try { if ((await fetch(origin + '/api/version')).ok) return; } catch {} await new Promise((r) => setTimeout(r, 50)); }
+    for (let i = 0; i < 60; i++) { try { if ((await fetch(`http://localhost:${port}/api/version`)).ok) return; } catch {} await new Promise((r) => setTimeout(r, 50)); }
     throw new Error('Test server did not start');
   };
   const stop = async () => { if (child && child.exitCode === null) { const done = new Promise((r) => child.once('exit', r)); child.kill(); await done; } };
-  const request = (route, /** @type {any} */ { token, owner = false, data } = {}) => fetch(origin + route + (token ? `?share=${token}` : ''), { method: data ? 'POST' : 'GET', redirect: 'manual', headers: { 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', ...(owner ? { cookie: `lm_session=${cookie}` } : {}), ...(data ? { origin, 'content-type': 'application/json' } : {}) }, ...(data ? { body: JSON.stringify(data) } : {}) });
-  const change = (mode) => request('/shared/api/sharing', { owner: true, data: { mode } });
-  const stream = async (token) => { const r = await request('/shared/api/events', { token }); reader = /** @type {any} */ (r.body).getReader(); return new TextDecoder().decode((await reader.read()).value); };
-  const end = async () => { let text = ''; for (;;) { const r = await reader.read(); if (r.done) return text; text += new TextDecoder().decode(r.value); } };
+  // The owner is Duy's own page on this Mac. Someone with a link reaches the map at another address (a tunnel to
+  // this Mac): they are never Duy there, whatever their browser sends.
+  /** @returns {Promise<any>} */
+  const request = (/** @type {string} */ route, /** @type {any} */ { token, owner = false, data } = {}) => new Promise((ok, fail) => {
+    const host = owner ? `localhost:${port}` : `share.example:${port}`;
+    const req = http.request({ host: '127.0.0.1', port, path: route + (token ? `?share=${token}` : ''), method: data ? 'POST' : 'GET',
+      headers: { host, 'sec-fetch-site': 'same-origin', 'sec-fetch-mode': 'cors', ...(data ? { origin: `http://${host}`, 'content-type': 'application/json' } : {}) } }, ok);
+    req.on('error', fail); req.end(data ? JSON.stringify(data) : undefined);
+  });
+  const text = (/** @type {any} */ res) => new Promise((ok) => { let t = ''; res.setEncoding('utf8'); res.on('data', (/** @type {string} */ c) => { t += c; }); res.on('end', () => ok(t)); });
+  const json = async (/** @type {any} */ res) => JSON.parse(/** @type {string} */ (await text(res)));
+  const status = async (/** @type {string} */ route, /** @type {any} */ o = {}) => { const res = await request(route, o); res.resume(); return res.statusCode; };
+  const change = async (/** @type {string} */ mode) => json(await request('/shared/api/sharing', { owner: true, data: { mode } }));
+  // a window following the map: what it is sent first, and then the rest until the server closes it
+  const stream = async (/** @type {string} */ token) => {
+    const res = await request('/shared/api/events', { token }); res.setEncoding('utf8');
+    let all = ''; const ended = new Promise((ok) => res.on('end', ok)); res.on('data', (/** @type {string} */ c) => { all += c; });
+    while (!all) await new Promise((r) => setTimeout(r, 10));
+    const first = all; live = { res, end: async () => { await ended; return all.slice(first.length); } };
+    return first;
+  };
+  const end = () => live.end();
   try {
     await start();
-    const rootLink = await (await request('/api/sharing', { owner: true, data: { mode: 'view' } })).json();
-    expect((await request('/api/state', { token: rootLink.token })).status).toBe(200);
-    expect((await request('/api/update', { token: rootLink.token, data: {} })).status).toBe(401);
-    expect((await request('/shared/')).status).toBe(302);
-    expect((await request('/shared/api/state')).status).toBe(403);
-    expect((await request('/shared/api/sharing', { data: { mode: 'edit' } })).status).toBe(403);
-    expect((await request('/shared/api/cloud/delete', { owner: true, data: {} })).status).toBe(403);
-    const { token } = await (await change('view')).json();
-    expect((await request('/shared/api/cloud/delete', { token, data: {confirm:true} })).status).toBe(403);
-    const page = await request('/shared/', { token }); expect(page.status).toBe(200);
-    expect(page.headers.get('referrer-policy')).toBe('no-referrer');
-    expect(await page.text()).toContain('name="lm-access" content="view"');
-    const data = await (await request('/shared/api/state', { token })).text();
+    const rootLink = await json(await request('/api/sharing', { owner: true, data: { mode: 'view' } }));
+    expect(await status('/api/state', { token: rootLink.token })).toBe(200);
+    expect(await status('/api/update', { token: rootLink.token, data: {} })).toBe(403);
+    expect(await status('/shared/')).toBe(403);
+    expect(await status('/shared/api/state')).toBe(403);
+    expect(await status('/shared/api/sharing', { data: { mode: 'edit' } })).toBe(403);
+    expect(await status('/shared/api/cloud/delete', { owner: true, data: {} })).toBe(403);
+    const { token } = await change('view');
+    expect(await status('/shared/api/cloud/delete', { token, data: {confirm:true} })).toBe(403);
+    const page = await request('/shared/', { token }); expect(page.statusCode).toBe(200);
+    expect(page.headers['referrer-policy']).toBe('no-referrer');
+    expect(await text(page)).toContain('name="lm-access" content="view"');
+    const data = await text(await request('/shared/api/state', { token }));
     expect(data).not.toContain(token); expect(data).not.toContain('private-chat-marker');
-    const file = await (await request('/shared/api/file', { token })).text(); expect(file).not.toContain(token);
-    for (const type of ['add', 'remove', 'rename', 'describebox', 'cursor', 'reset']) expect((await request('/shared/api/act', { token, data: { type, label: 'Blocked', x: 10, y: 10 } })).status).toBe(403);
-    expect((await request('/shared/api/outbox', { token })).status).toBe(403);
-    expect((await request('/api/maps', { token })).status).toBe(401);
-    expect((await request('/other/api/state', { token })).status).toBe(403);
+    const file = await text(await request('/shared/api/file', { token })); expect(file).not.toContain(token);
+    for (const type of ['add', 'remove', 'rename', 'describebox', 'cursor', 'reset']) expect(await status('/shared/api/act', { token, data: { type, label: 'Blocked', x: 10, y: 10 } })).toBe(403);
+    expect(await status('/shared/api/outbox', { token })).toBe(403);
+    expect(await status('/api/maps', { token })).toBe(403);
+    expect(await status('/other/api/state', { token })).toBe(403);
     expect(await stream(token)).not.toContain(token);
     await change('edit'); expect(await end()).toContain('access-changed');
-    const added = await request('/shared/api/act', { token, data: { type: 'add', by: 'Duy', label: 'From link', x: 20, y: 20 } }); expect(added.status).toBe(200);
-    const { id } = await added.json();
-    const next = await (await request('/shared/api/state', { token })).json(); expect(next.nodes.find((n) => n.id === id).by).toBe('Guest');
-    const description = async () => (await (await request('/shared/api/state', { token })).json()).nodes.find((n) => n.id === id).sub || '';
-    expect((await request('/shared/api/act', { token, data: { type: 'describebox', id, sub: 'A clearer description' } })).status).toBe(200);
+    const added = await request('/shared/api/act', { token, data: { type: 'add', by: 'Duy', label: 'From link', x: 20, y: 20 } }); expect(added.statusCode).toBe(200);
+    const { id } = await json(added);
+    const next = await json(await request('/shared/api/state', { token })); expect(next.nodes.find((/** @type {any} */ n) => n.id === id).by).toBe('Guest');
+    const description = async () => (await json(await request('/shared/api/state', { token }))).nodes.find((/** @type {any} */ n) => n.id === id).sub || '';
+    expect(await status('/shared/api/act', { token, data: { type: 'describebox', id, sub: 'A clearer description' } })).toBe(200);
     expect(await description()).toBe('A clearer description');
-    await request('/shared/api/act', { token, data: { type: 'undo' } }); expect(await description()).toBe('');
-    await request('/shared/api/act', { token, data: { type: 'redo' } }); expect(await description()).toBe('A clearer description');
-    for (const type of ['reset', 'ask', 'plan', 'execute', 'link']) expect((await request('/shared/api/act', { token, data: { type } })).status).toBe(403);
-    expect((await request('/shared/api/sharing', { token, data: { mode: 'edit' } })).status).toBe(403);
+    await status('/shared/api/act', { token, data: { type: 'undo' } }); expect(await description()).toBe('');
+    await status('/shared/api/act', { token, data: { type: 'redo' } }); expect(await description()).toBe('A clearer description');
+    for (const type of ['reset', 'ask', 'plan', 'execute', 'link']) expect(await status('/shared/api/act', { token, data: { type } })).toBe(403);
+    expect(await status('/shared/api/sharing', { token, data: { mode: 'edit' } })).toBe(403);
     await stop(); await start();
     expect(await description()).toBe('A clearer description');
-    expect((await request('/shared/api/state', { token })).status).toBe(200);
+    expect(await status('/shared/api/state', { token })).toBe(200);
     await stream(token); await change('view'); expect(await end()).toContain('access-changed');
-    expect((await request('/shared/api/act', { token, data: { type: 'remove', id } })).status).toBe(403);
+    expect(await status('/shared/api/act', { token, data: { type: 'remove', id } })).toBe(403);
     await stream(token); await change('restricted'); expect(await end()).toContain('access-removed');
-    expect((await request('/shared/', { token })).status).toBe(403);
-    expect((await request('/shared/api/state', { token })).status).toBe(403);
-    const renewed = await (await change('view')).json(); expect(renewed.token).not.toBe(token);
-    expect((await request('/shared/api/state', { owner: true })).status).toBe(200);
-  } finally { await /** @type {any} */ (reader)?.cancel().catch(() => {}); await stop(); fs.rmSync(root, { recursive: true, force: true }); }
+    expect(await status('/shared/', { token })).toBe(403);
+    expect(await status('/shared/api/state', { token })).toBe(403);
+    const renewed = await change('view'); expect(renewed.token).not.toBe(token);
+    expect(await status('/shared/api/state', { owner: true })).toBe(200);
+  } finally { live?.res.destroy(); await stop(); fs.rmSync(root, { recursive: true, force: true }); }
 }, 15000);

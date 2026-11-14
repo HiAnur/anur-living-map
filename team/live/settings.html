@@ -35,20 +35,14 @@ h1{font-size:18px;font-weight:500;margin-bottom:16px}
 .line dt{flex:none;width:84px;color:var(--text-2);font-size:13px}
 .line dd{flex:1;min-width:0;overflow-wrap:anywhere}
 .line dd small{display:block;color:var(--text-2);font-size:12.5px}
-.line a{flex:none;font-size:13px;padding:5px 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;color:var(--text);text-decoration:none}
-.line a:hover{border-color:var(--text)}
-#err,#invite-err{color:#B42318;font-size:13px}
-/* the owner's invite: a name, the button that makes the link, and the link to copy */
-#invite{margin-top:24px;padding:20px}
-#invite h2{font-size:15px;font-weight:500;margin-bottom:4px}
-#invite p{color:var(--text-2);font-size:13px;margin-bottom:12px}
-#invite form{display:flex;gap:8px}
-#invite input{flex:1;min-width:0;height:34px;border:1px solid var(--rule-2);border-radius:7px;padding:0 10px;font:inherit;color:inherit;background:#fff}
-#invite button{flex:none;height:34px;padding:0 14px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;font:13px var(--plex);color:var(--text);cursor:pointer}
-#invite button:hover{border-color:var(--text)}
-#invite-link{margin-top:12px}
-#invite-link input{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace}
-#invite-err{margin-top:8px}
+.line a,.line button{flex:none;display:inline-flex;align-items:center;gap:8px;font:13px var(--plex);padding:5px 12px;border:1px solid var(--rule-2);border-radius:7px;background:#fff;color:var(--text);text-decoration:none;cursor:pointer}
+.line a:hover,.line button:hover{border-color:var(--text)}
+/* changing your name: the field takes the fact's place, with Save and Cancel beside it */
+#name-form{display:flex;gap:8px;flex:1;min-width:0}
+#name-form input{flex:1;min-width:0;height:32px;border:1px solid var(--rule-2);border-radius:7px;padding:0 10px;font:inherit;color:inherit;background:#fff}
+#err,#name-err{color:#B42318;font-size:13px}
+#err{margin-bottom:12px}
+#name-err{padding:0 20px 12px}
 [hidden]{display:none!important}
 @media(max-width:480px){.line{flex-wrap:wrap}.line dt{width:100%}}
 </style>
@@ -62,61 +56,62 @@ h1{font-size:18px;font-weight:500;margin-bottom:16px}
   <div class="card" id="card" hidden>
     <div class="who"><span class="face" id="face" aria-hidden="true"></span><div><b id="name"></b><span id="role"></span></div></div>
     <dl>
-      <div class="line"><dt>Email</dt><dd><span id="email"></span><small id="email-note"></small></dd><a id="email-do" href="/login?recovery=email" hidden></a></div>
-      <div class="line" id="signin-line"><dt>Sign-in</dt><dd id="signin"></dd></div>
+      <div class="line"><dt>Name</dt>
+        <dd id="name-show"><span id="name-now"></span><small>The name your maps show for you on this Mac.</small></dd><button type="button" id="name-edit">Change</button>
+        <form id="name-form" hidden><input id="name-in" maxlength="40" autocomplete="name" aria-label="Your name"><button type="submit">Save</button><button type="button" id="name-cancel">Cancel</button></form></div>
+      <div id="name-err" role="alert" hidden></div>
+      <div class="line"><dt>Google</dt><dd><span id="google"></span><small id="google-note"></small></dd>
+        <a id="google-in" href="/auth/google?next=%2Fsettings" hidden><svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>Sign in with Google</a>
+        <button type="button" id="google-out" hidden>Sign out of Google</button></div>
     </dl>
   </div>
-  <section class="card" id="invite" hidden aria-labelledby="invite-h">
-    <h2 id="invite-h">Invite someone</h2>
-    <p>Their name, as they will sign in. The link works once, for 7 days, on this Mac.</p>
-    <form id="invite-form"><input id="invite-name" maxlength="40" autocomplete="off" aria-label="Their name" placeholder="Their name" required><button type="submit">Make invite link</button></form>
-    <form id="invite-link" hidden><input id="invite-url" readonly aria-label="Invite link"><button type="button" id="invite-copy">Copy</button></form>
-    <div id="invite-err" role="alert"></div>
-  </section>
 </main>
 <script>
-// who you are on this Mac: your name, your role on the team, the email the map has for you and how you sign in
+// who you are on this Mac: your name, which you can change, your role, and the Google account you signed in with
 const $ = (id) => document.getElementById(id);
 // back to where you came from; opened on its own, to the first page
 $('back').addEventListener('click', () => { if (history.length > 1) history.back(); else location.href = '/'; });
-// what the page writes for the answer from /api/me: the email and its note, the one thing to do about it, the sign-in.
-// A recovery email is offered only where this Mac can send email (me.mail).
+// a Google sign-in that did not finish comes back here saying why
+const failed = new URLSearchParams(location.search).get('error');
+if (failed){ $('err').textContent = failed; $('err').hidden = false; history.replaceState(null, '', '/settings'); }
+// what the page writes for the answer from /api/me: your role, and what Settings says and offers about Google
 function words(me){
-  const google = me.emailFrom === 'google', saved = me.emailFrom === 'recovery', password = me.signIn === 'password';
   return {
     role: (me.role || '').split(',')[0],
-    email: me.email || 'No email yet',
-    note: google ? 'The Google account you signed in with.' : saved ? 'Your recovery email: a link to reset your password is sent here.' : password && me.mail ? 'Add one to reset your password if you forget it.' : '',
-    action: google || !password || !me.mail ? '' : saved ? 'Change' : 'Add an email',
-    signIn: google ? 'Google' : password ? 'A password kept on this Mac' : '',
+    google: me.googleEmail || (me.google ? 'Not signed in' : 'Not set up on this Mac'),
+    note: me.googleEmail ? 'Your email and picture come from this Google account.' : me.google ? 'Optional. Adds your email and picture, and lets you publish a map online.' : '',
+    action: me.googleEmail ? 'out' : me.google ? 'in' : '',
   };
 }
-fetch('/api/me').then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Your settings could not be loaded.'); return d; }).then((me) => {
+const post = (route, data) => fetch(route, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) })
+  .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'The map server is not answering.'); return d; });
+function show(me){
   const w = words(me);
-  $('name').textContent = me.name; $('role').textContent = w.role;
+  $('name').textContent = $('name-now').textContent = me.name; $('role').textContent = w.role;
   $('face').textContent = Array.from(me.name.trim())[0]?.toUpperCase() || '';
-  const picture = document.querySelector('meta[name="lm-picture"]')?.content;
-  if (picture){ const im = new Image(); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = picture; $('face').append(im); }
+  $('face').querySelector('img')?.remove();
+  if (me.picture){ const im = new Image(); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.remove(); im.src = me.picture; $('face').append(im); }
   const color = { Harshit: '#1E7A5A', Priyanka: '#7C3AED', Duy: '#0E7490', You: '#1E7A5A', Sam: '#B45309' }[me.name];
-  if (color) $('face').style.setProperty('--profile', color);
-  $('email').textContent = w.email; $('email-note').textContent = w.note; $('email-note').hidden = !w.note;
-  $('email-do').textContent = w.action; $('email-do').hidden = !w.action;
-  $('signin').textContent = w.signIn; $('signin-line').hidden = !w.signIn;
+  $('face').style.setProperty('--profile', color || '#141413');
+  $('google').textContent = w.google; $('google-note').textContent = w.note; $('google-note').hidden = !w.note;
+  $('google-in').hidden = w.action !== 'in'; $('google-out').hidden = w.action !== 'out';
   $('card').hidden = false;
-  $('invite').hidden = !me.owner;
-}).catch((e) => { $('err').textContent = e.message; $('err').hidden = false; });
-// the owner invites someone: a one-use link to the sign-in page, where that person chooses their password
-$('invite-form').addEventListener('submit', async (e) => {
-  e.preventDefault(); $('invite-err').textContent = '';
-  const r = await fetch('/api/invite', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: $('invite-name').value }) }).catch(() => null);
-  const d = r ? await r.json().catch(() => ({})) : null;
-  if (!r?.ok) { $('invite-err').textContent = d?.error || 'The map server is not answering.'; return; }
-  $('invite-url').value = d.link; $('invite-link').hidden = false; $('invite-copy').textContent = 'Copy'; $('invite-url').select();
+}
+const load = () => fetch('/api/me').then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Your settings could not be loaded.'); return d; })
+  .then(show).catch((e) => { $('err').textContent = e.message; $('err').hidden = false; });
+load();
+// changing your name: the field opens with the name you have, Save keeps the new one, Cancel or Esc the old
+const editing = (on) => { $('name-show').hidden = $('name-edit').hidden = on; $('name-form').hidden = !on; $('name-err').hidden = true; if (on){ $('name-in').value = $('name-now').textContent; $('name-in').select(); } };
+$('name-edit').addEventListener('click', () => editing(true));
+$('name-cancel').addEventListener('click', () => editing(false));
+$('name-in').addEventListener('keydown', (e) => { if (e.key === 'Escape') editing(false); });
+$('name-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  post('/api/me', { name: $('name-in').value }).then(() => { editing(false); return load(); })
+    .catch((err) => { $('name-err').textContent = err.message; $('name-err').hidden = false; });
 });
-$('invite-copy').addEventListener('click', () => {
-  $('invite-url').select();
-  navigator.clipboard?.writeText($('invite-url').value).then(() => { $('invite-copy').textContent = 'Copied'; }, () => { /* the link stays selected to copy by hand */ });
-});
+// signing out of Google forgets its email and picture; you stay on your maps
+$('google-out').addEventListener('click', () => { post('/api/google/signout', {}).then(load).catch((e) => { $('err').textContent = e.message; $('err').hidden = false; }); });
 </script>
 </body>
 </html>
