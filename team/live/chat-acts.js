@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 
 import { AUTO_PLAN_QUESTION } from './auto-plan.js';
+import { CHAT_MAX } from './chat-limit.js';
 import { pathTo } from './map-walk.js';
 import { actionItemsOf } from './proposal-check.js';
 
@@ -73,14 +74,14 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
       if (boxId && (!n || (sees !== 'all' && n.area !== sees))) return false;
       // a question in a box's own chat stays on that box: Claude reads the main chat as it is now, and the main chat never sees it
       const side = Boolean((a.side || a.autoPlan) && n), key = side ? `@${a.by}>${n.id}` : `@${a.by}`;
-      const t = (getState().threads[key] ??= []), answer = typeof a.text === 'string' ? a.text.trim().slice(0, 400) : '';
+      const t = (getState().threads[key] ??= []), answer = typeof a.text === 'string' ? a.text.trim() : '';
       if ((a.autoPlan || t.at(-1)?.autoPlanAbout) && t.some((/** @type {any} */ m) => m.thinking)) return false;
-      if (!a.autoPlan && !answer) return false;
+      if ((!a.autoPlan && !answer) || answer.length > CHAT_MAX) return false;
       const autoPlan = Boolean(a.autoPlan || (side && t.at(-1)?.autoPlanAbout === n.id && !t.at(-1)?.proposal));
       const q = answer || AUTO_PLAN_QUESTION;
       const before = t.filter((/** @type {any} */ m) => !m.staged && !m.thinking).slice(-20);
       t.push({ who: a.by, text: q, at: stamp(), ...(n ? { about: n.id } : {}) });
-      getState().log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: q });
+      getState().log.push({ at: Date.now(), who: a.by, action: 'asked', node: n?.id, text: q.length > 400 ? `${q.slice(0, 400).trimEnd()}…` : q });
       // the scripted demo answers from its seed; a project's map or a named one asks Claude
       if (!project && !name) {
         // asking to see a flow opens it; the page does the drawing
@@ -178,8 +179,8 @@ export function chatActs({ getState, project, name, home, nodeOf, systemCode, se
     // pictures attached to it are saved in the map's folder, and the chat is told where, so Claude can open them
     /** @param {Act<'say'>} a */
     say(a) {
-      const l = linkOf(), text = String(a.text || '').trim().slice(0, 2000);
-      if (!l || l.owner !== a.by) return false;
+      const l = linkOf(), text = String(a.text || '').trim();
+      if (!l || l.owner !== a.by || text.length > CHAT_MAX) return false;
       const pics = (Array.isArray(a.images) ? a.images : []).slice(0, 5).map(savePicture).filter(Boolean);
       if (!text && !pics.length) return false;
       // a chat the map started itself hears it straight away, and its transcript shows it in the pane
