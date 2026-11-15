@@ -1131,6 +1131,7 @@ import { actionCancellable, actionLeaving } from './action-stages.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
+import { chatTooLong } from './chat-limit.js';
 import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
@@ -4282,6 +4283,8 @@ document.addEventListener('submit', (e) => {
   const c = e.target.closest('form[data-chat]');
   if (c){
     e.preventDefault(); const i = c.querySelector('textarea'), text = i.value.trim();
+    // a message over the limit stays in the box, whole, for you to shorten or split
+    if (chatTooLong(text)){ toast(chatTooLong(text)); return; }
     if (MIRROR && (text || chatPics.length)){ act('say', { text, images: chatPics }); chatPics = []; i.value = ''; keepDraft('chat', ''); renderChat(); }
     else if (!MIRROR && text){ act('ask', chatAbout ? { text, about: chatAbout } : { text }); chatAbout = null; i.value = ''; keepDraft('chat', ''); i.style.height = ''; }
     return;
@@ -4291,6 +4294,7 @@ document.addEventListener('submit', (e) => {
   if (o){ e.preventDefault(); const i = o.querySelector('input'), text = i.value.trim(); if (text){ act('call', { id: o.dataset.other, other: text }); toast('Sent. The chat hears it now.'); i.value = ''; } return; }
   const f = e.target.closest('form[data-ask]'); if (!f) return;
   e.preventDefault(); const i = f.querySelector('textarea'); const text = i.value.trim(); if (!text) return;
+  if (chatTooLong(text)){ toast(chatTooLong(text)); return; }
   act('ask', { node: f.dataset.ask, text, side: true }); i.value = ''; keepDraft(`side:${f.dataset.ask}`, ''); fitBox(i);
   // "visualize this flow": Claude draws it, so the map opens on it
   const fx = flowOf(nodeById(f.dataset.ask));
