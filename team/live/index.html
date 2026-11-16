@@ -408,6 +408,7 @@ body.blank-repo #tidyb{display:none}
 #side > .box-heading{flex-direction:column;align-items:stretch;gap:4px}
 #side .box-heading > .ct-r{order:-1;justify-content:flex-end;min-height:24px}
 #side .box-heading > [data-rename-box]{width:100%;overflow-wrap:anywhere}
+#side .box-heading > #side-name{flex:none;width:100%}
 #side .box-heading .action-type-toggle{font-size:11px;font-weight:400;margin-left:0}
 #side .refs{margin-top:auto;padding-bottom:4px}
 /* Claude references fold away like Claude's own "Context ▾": closed at first, a click on the heading opens them */
@@ -2651,7 +2652,12 @@ function endSideRename(keep){
   }
   render();
 }
-document.addEventListener('dblclick', (e) => { const title = e.target.closest('[data-rename-box]'), description = e.target.closest('[data-description-box]'); if (title) beginSideRename(title.dataset.renameBox); else if (description) beginSideRename(description.dataset.descriptionBox, 'sub'); });
+// one click edits the open box's name or description; a drag that selects text leaves it to copy
+document.addEventListener('click', (e) => {
+  if (!getSelection().isCollapsed) return;
+  const title = e.target.closest('#side [data-rename-box]'), description = e.target.closest('#side [data-description-box]');
+  if (title) beginSideRename(title.dataset.renameBox); else if (description) beginSideRename(description.dataset.descriptionBox, 'sub');
+});
 document.addEventListener('keydown', (e) => {
   if (e.target.id !== 'side-name' || e.isComposing || (e.key === 'Enter' && e.shiftKey) || !['Enter','Escape'].includes(e.key)) return;
   e.preventDefault(); e.stopImmediatePropagation(); endSideRename(e.key === 'Enter');
@@ -2758,7 +2764,7 @@ function renderSide(){
   el.classList.remove('info', 'sc');
   // a box Claude proposed and nobody applied yet: what it is, and the change it comes with, Apply on it
   if (pb){
-    el.innerHTML = `<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(pb.id)}" title="Double-click to rename">${prose(pb.label)}</span>`}<span class="ct-r"><span class="x" data-close>×</span></span></div>
+    el.innerHTML = `<div class="ct">${sideRename ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(pb.id)}" title="Click to rename">${prose(pb.label)}</span>`}<span class="ct-r"><span class="x" data-close>×</span></span></div>
       <div class="d-prop">Proposed. It joins the map when you press Apply.</div>
       ${pb.sub ? `<div class="d-sub">${esc(pb.sub)}</div>` : ''}${notes(pb.desc && pb.desc !== pb.sub ? pb.desc : '')}${proposalOf(pb.id)}`;
     return;
@@ -2836,8 +2842,8 @@ function renderSide(){
   const actionInput = el.querySelector('[data-action-answer] textarea, [data-action-start] textarea, [data-action-continue] textarea');
   const actionDraft = actionInput ? {id:actionInput.closest('form').dataset.actionAnswer || actionInput.closest('form').dataset.actionStart || actionInput.closest('form').dataset.actionContinue,value:actionInput.value,focus:document.activeElement === actionInput,start:actionInput.selectionStart,end:actionInput.selectionEnd} : null;
   const scKeep = el.querySelector('.sc-msgs')?.scrollTop; // where you were in the Side Chat, kept across redraws
-  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Double-click to rename">${prose(n.label)}</span>`}<span class="ct-r">${actionView().boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
-    ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Double-click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
+  el.innerHTML =`${backTo ? `<div class="side-back" data-back>‹ Back to ${backTo === 'decisions' ? 'Decisions' : backTo === 'sidechats' ? 'Side Chats' : 'Claude'}</div>` : ''}<div class="ct box-heading">${sideRename?.field === 'label' ? `<input id="side-name" value="${esc(sideRename.label)}" maxlength="80" aria-label="Box name" autocomplete="off">` : `<span data-rename-box="${esc(n.id)}" title="Click to rename">${prose(n.label)}</span>`}<span class="ct-r">${actionView().boxTypeButton(n)}${boxMetadata(n)}<span class="x" data-close>×</span></span></div>
+    ${sideRename?.field === 'sub' ? `<textarea id="side-name" class="side-summary-input" rows="2" maxlength="240" aria-label="Box description">${esc(sideRename.label)}</textarea>` : n.sub || (!READ_ONLY && !FILE && !PREVIEW) ? `<div class="side-summary${n.sub ? '' : ' empty'}" data-description-box="${esc(n.id)}" title="Click to edit description">${n.sub ? prose(n.sub) : 'Add a description'}</div>` : ''}
     <div class="topic-actions"><button class="gb chat-h" data-auto-plan="${esc(n.id)}" ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) || READ_ONLY || FILE || PREVIEW ? 'disabled' : ''}>${CLAUDE_MARK} ${autoPlanning.has(n.id) || sideT.some((m) => m.thinking) ? 'Working…' : 'Auto plan'}</button>${S.drawing && n.source?.facts?.length && !READ_ONLY && !SHARED && !FILE && !PREVIEW ? `<button class="gb" data-trace="${esc(n.id)}" title="Follow a request from this box through the code, hop by hop, and draw it as a sequence">Trace a request</button>` : ''}</div>
     <div class="side-tabs">${tab('box', 'Information')}${tab('chat', 'Side Chat')}${tab('history', `Decision history${answered.length ? ` · ${answered.length}` : ''}`)}</div>
     ${sideTab === 'history' ? history : sideTab === 'chat' ? `<div class="sc-sec${n.action ? ' action-chat' : ''}">${chat}</div>` : `<div class="info-body">${actionView().actionItemCard(n)}${pointsRow(n)}
