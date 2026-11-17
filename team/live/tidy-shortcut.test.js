@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 function harness(){
   let handler;const calls=[];
-  const ctx=vm.createContext({READ_ONLY:false,FILE:false,PREVIEW:null,view:'system',
+  const ctx=vm.createContext({READ_ONLY:false,FILE:false,PREVIEW:null,view:'system',mindOn:()=>false,
     scope:()=>({nodes:[{id:'root'},{id:'draft',proposed:true}]}),W:()=>140,HT:()=>50,
     act:(...args)=>calls.push(args),document:{addEventListener:(_,fn)=>{handler=fn;}}});
   vm.runInContext(html.slice(html.indexOf('// Tidy shortcut'),html.indexOf('// Map undo leaves')),ctx);
