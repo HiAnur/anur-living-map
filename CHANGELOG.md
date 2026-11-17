@@ -3,6 +3,22 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] PM mind-map view</strong></dt>
+<dd>
+
+In the top-right account menu, choose **Map view → PM** to draw your map as branching topics. <!-- source: https://github.com/HiAnur/anur-living-map/pull/548 --> <!-- merged-at: 2026-11-17T20:15:04Z -->
+
+- In PM view, pressing **Tab** extends the selected topic sideways while you name the new subtopic.
+- The delete confirmation opens by the box you picked.
+
+<img src="docs/shipping/2026-11-17/pm-view-engineer.jpg" alt="The Spring launch sample map in Engineer view, with boxes joined by arrows." width="640">
+
+<img src="docs/shipping/2026-11-17/pm-view.jpg" alt="The same Spring launch map in PM view, with Pricing and Audience branching into their subtopics." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] System maps draw Mac apps and websites</strong></dt>
 <dd>
 
