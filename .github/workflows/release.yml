@@ -1,15 +1,16 @@
 name: Release
 
-# Makes a release that every copy on the stable channel (customers') updates to: a dev build that passed CI,
-# tagged dev-<version> on main, gets the tag v<version> and a GitHub release. Only run by hand (Actions → Release
-# → Run workflow), and only by someone with admin or maintain rights on this repository: GitHub lets only people
-# with write access run it at all, and the first step stops anyone below maintain. A fork runs its own copy,
-# which cannot tag this repository.
+# Makes a release that every copy on the stable channel (customers') updates to: a commit on main whose push passed
+# CI gets the tag v<major.minor>.<that CI run's number> and a GitHub release. main holds only what is ready (daily
+# work merges into dev, and a ready fix is copied to main by a pull request), so a release never carries work the
+# team is still testing. Only run by hand (Actions → Release → Run workflow), and only by someone with admin or
+# maintain rights on this repository: GitHub lets only people with write access run it at all, and the first step
+# stops anyone below maintain. A fork runs its own copy, which cannot tag this repository.
 on:
   workflow_dispatch:
     inputs:
-      build:
-        description: "The dev build to release, e.g. dev-0.1.1234. Leave empty for the newest."
+      commit:
+        description: "The commit on main to release. Leave empty for main's newest."
         required: false
         default: ""
 
@@ -39,24 +40,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           # read from the environment, never pasted into the script: the input is text anyone running it typed
-          BUILD: ${{ inputs.build }}
+          COMMIT: ${{ inputs.commit }}
         run: |
           git fetch -q --tags --force origin main
-          build="$BUILD"
-          [ -n "$build" ] || build=$(git describe --tags --abbrev=0 --match 'dev-[0-9]*' origin/main)
-          if ! printf %s "$build" | grep -Eq '^dev-[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::\"$build\" is not a dev build name like dev-0.1.1234."; exit 1
+          if ! sha=$(git rev-parse -q --verify "${COMMIT:-origin/main}^{commit}"); then
+            echo "::error::There is no commit \"$COMMIT\"."; exit 1
           fi
-          git rev-parse -q --verify "refs/tags/$build" >/dev/null || { echo "::error::There is no build $build."; exit 1; }
-          sha=$(git rev-list -n 1 "$build")
-          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$build is not on main."; exit 1; }
-          tag="v${build#dev-}"
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main."; exit 1; }
+          # the checks must have passed on that very commit, in the CI run its push to main started
+          run=$(gh run list -R "${{ github.repository }}" -w ci.yml -b main -e push -c "$sha" --json number,conclusion \
+            --jq '[.[] | select(.conclusion == "success")][0].number // empty')
+          [ -n "$run" ] || { echo "::error::CI has not passed on $sha after its push to main."; exit 1; }
+          base=$(git show "$sha:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version.split('.').slice(0, 2).join('.')")
+          tag="v${base}.${run}"
           git rev-parse -q --verify "refs/tags/$tag" >/dev/null && { echo "::error::$tag is released already."; exit 1; }
           # a release only moves forward: copies update to the newest release on main, so an older one would
           # never reach anyone
           prev=$(git describe --tags --abbrev=0 --match 'v[0-9]*' origin/main 2>/dev/null || true)
           if [ -n "$prev" ] && git merge-base --is-ancestor "$sha" "$prev"; then
-            echo "::error::$build is not newer than the current release $prev."; exit 1
+            echo "::error::$sha is not newer than the current release $prev."; exit 1
           fi
           gh release create "$tag" --target "$sha" --title "Living Map $tag" --generate-notes ${prev:+--notes-start-tag "$prev"}
-          echo "Released $build as $tag."
+          echo "Released $sha as $tag."

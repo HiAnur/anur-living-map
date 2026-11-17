@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { channelOf, tagsFor } from './channel.js';
+import { branchFor, channelOf, tagsFor } from './channel.js';
 
 // A copy follows releases unless it was asked to follow every passing build: customers never get a build nobody
 // chose to release.
@@ -22,5 +22,9 @@ describe('the channel a copy follows', () => {
   it('moves stable copies to releases only, and dev copies to every passing build and every release', () => {
     expect(tagsFor('stable')).toEqual(['v[0-9]*']);
     expect(tagsFor('dev')).toEqual(['dev-[0-9]*', 'v[0-9]*']);
+  });
+  it('sends the team along dev and everyone else along main', () => {
+    expect(branchFor('dev')).toBe('dev');
+    expect(branchFor('stable')).toBe('main');
   });
 });

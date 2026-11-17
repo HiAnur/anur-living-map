@@ -1,7 +1,8 @@
-// Which builds a copy of the map updates to. Every push to main that passes CI is tagged dev-<version>; a build
-// becomes a release (v<version>) only when someone runs the Release workflow. A copy on the stable channel, the
-// default and what customers run, moves only to releases; one on the dev channel (the team) moves to every
-// passing build, releases included. ANUR_LIVING_MAP_CHANNEL picks it, else a `channel` file in the data folder
+// Which builds a copy of the map updates to. Daily work merges into dev, and every push to dev that passes CI is
+// tagged dev-<version>. main holds only what is ready for customers (fixes are copied there from dev), and a
+// commit on main becomes a release (v<version>) only when someone runs the Release workflow. A copy on the stable
+// channel, the default and what customers run, follows main and moves only to releases; one on the dev channel
+// (the team) follows dev and moves to every passing build there. ANUR_LIVING_MAP_CHANNEL picks it, else a `channel` file in the data folder
 // (data-dir.js), so a choice outlives a restart; open-map.sh reads the same two the same way.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,3 +24,9 @@ export function channelOf(env, dataDir) {
  * @param {Channel} channel @returns {string[]}
  */
 export const tagsFor = (channel) => (channel === 'dev' ? ['dev-[0-9]*', 'v[0-9]*'] : ['v[0-9]*']);
+
+/**
+ * The branch a channel follows: dev for the team, main for everyone else.
+ * @param {Channel} channel @returns {'dev' | 'main'}
+ */
+export const branchFor = (channel) => (channel === 'dev' ? 'dev' : 'main');

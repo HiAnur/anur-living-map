@@ -11,12 +11,14 @@
 
 - Comments explain why, in the present tense, in a few lines. No dates, names, ticket or PR numbers, or incident stories: those go in the commit message or PR. Refer to docs by skill name, not "see CLAUDE.md".
 
-## `main` is PR-only
+## Every PR goes into `dev`; `main` is only what customers may get
 
-- Never commit on `main` or push to it; `.claude/hooks/protect-main.sh` blocks both. Branch first (`git switch -c <branch>`), push the branch, open a PR.
-- Every merge to `main` becomes a dev build that the team's copies (the dev channel) update to within minutes, so `main` only moves through a reviewed PR. Customers get it only when the user has the Release workflow run (see Releases in `AGENTS.md`).
+- Branch from `origin/dev` (`git switch -c <branch> origin/dev`) and open every PR with `gh pr create --base dev`. GitHub's default base is `main`, so a PR that names no base lands in the wrong place; `.claude/hooks/protect-main.sh` refuses `gh pr create` without `--base`.
+- `main` holds only work that is ready for customers, because every release is cut from it. Work the team is still testing stays on `dev`.
+- A fix customers need now is copied to `main` by its own PR, only when the user asks: `git switch -c copy-<name> origin/main`, `git cherry-pick <commit on dev>`, then `gh pr create --base main`. Copy nothing that leans on unfinished work.
+- Never commit on `dev` or `main` or push to them; the same hook blocks both. Every merge to `dev` becomes a dev build the team's copies update to within minutes.
 - Other sessions may share this working tree. Check `git status` and the current branch before you start, and do not switch branches or reset under someone else's changes.
-- After you pull `main` yourself (`git pull`, a rebase), run `npm run skill`: the installed skill is a copy of `skill/SKILL.md`, and the server rewrites it only on its own start.
+- After you pull `dev` yourself (`git pull`, a rebase), run `npm run skill`: the installed skill is a copy of `skill/SKILL.md`, and the server rewrites it only on its own start.
 
 ## Pull requests
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# PreToolUse/Bash guard: main is reached only through a pull request. Every
-# push to main ships as an update to running copies, so a commit or push that
-# lands there skips review. Needs jq; without it the hook allows everything.
+# PreToolUse/Bash guard: dev and main are reached only through a pull request,
+# and a pull request names which one. Every push to dev ships to the team's
+# copies and main is what customers get released, so a commit or push that
+# lands on either skips review. Needs jq; without it the hook allows everything.
 # Reads the hook payload on stdin, prints a PreToolUse permission decision.
 cmd=$(jq -r '.tool_input.command // ""' 2>/dev/null)
 [ -n "$cmd" ] || exit 0
-case "$cmd" in *git*) ;; *) exit 0 ;; esac
+case "$cmd" in *git*|*"gh "*) ;; *) exit 0 ;; esac
 
 deny() {
   jq -n --arg r "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
@@ -34,8 +35,8 @@ branch=$(git -C "$dir" branch --show-current 2>/dev/null)
 # A commit while HEAD is on main. Checked at the moment of the commit, because
 # the branch this session started on is not necessarily the branch it is on now.
 if printf '%s' "$cmd" | grep -Eq '(^|[;&|]|&&)[[:space:]]*git[[:space:]]+([^;&|]*[[:space:]])?commit\b'; then
-  if [ "$branch" = "main" ]; then
-    deny "main is PR-only in this repo, and HEAD is on main right now. Branch first (git switch -c <branch>), then commit. If the work is already committed here, move it: git branch <branch> && git reset --hard origin/main."
+  if [ "$branch" = "main" ] || [ "$branch" = "dev" ]; then
+    deny "$branch is PR-only in this repo, and HEAD is on $branch right now. Branch first (git switch -c <branch>), then commit. If the work is already committed here, move it: git branch <branch> && git reset --hard origin/$branch."
   fi
 fi
 
@@ -48,7 +49,7 @@ if [ -n "$push" ]; then
   words=()
   for w in ${push#*push}; do
     case "$w" in
-      --all | --mirror) deny "main is PR-only in this repo, and $w would push it. Push your branch and open a PR." ;;
+      --all | --mirror) deny "dev and main are PR-only in this repo, and $w would push them. Push your branch and open a PR." ;;
       -*) ;;
       *) words+=("$w") ;;
     esac
@@ -62,10 +63,17 @@ if [ -n "$push" ]; then
     case "$ref" in *:*) dest=${ref##*:} ;; *) dest=$ref ;; esac
     [ "$dest" = HEAD ] && dest=$branch
     dest=${dest#refs/heads/}
-    if [ "$dest" = main ]; then
-      deny "main is PR-only in this repo, and this push would land on main. Push your branch instead and open a PR: git push -u origin <branch> && gh pr create."
+    if [ "$dest" = main ] || [ "$dest" = dev ]; then
+      deny "$dest is PR-only in this repo, and this push would land on $dest. Push your branch instead and open a PR: git push -u origin <branch> && gh pr create --base dev."
     fi
   done
+fi
+
+# A pull request names its base: GitHub's default is main, which holds only what customers may get, so a PR that
+# names none would send daily work there.
+if printf '%s' "$cmd" | grep -Eq '(^|[;&|]|&&)[[:space:]]*gh[[:space:]]+pr[[:space:]]+create\b' \
+  && ! printf '%s' "$cmd" | grep -Eq 'gh[[:space:]]+pr[[:space:]]+create[^;&|]*[[:space:]](--base|-B)([[:space:]]|=)'; then
+  deny "Name the base: gh pr create --base dev for daily work. --base main only copies a fix that is ready for customers (the dev-and-main section of CLAUDE.md)."
 fi
 
 exit 0
