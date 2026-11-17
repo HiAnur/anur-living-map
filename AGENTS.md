@@ -23,6 +23,7 @@ npm run upgrade:check  # list dependency upgrades .ncurc.cjs allows (week-old re
 npm run upgrade        # minor and patch upgrades; npm-check-updates doctor reverts any that fail upgrade:test (rewrites package.json and the lockfile; only when asked)
 npm run upgrade:latest # the same, majors included (only when asked)
 npm run skill          # install both skills, living-map and anur-living-map, into ~/.claude/skills (writes outside the repo; only when asked)
+team/live/preview.sh [start|stop|list]  # this worktree's team map on its own port (4401 up), with a copy of your maps
 npm run skill -- --hook  # also add the living-map UserPromptSubmit hook to ~/.claude/settings.json (only when asked)
 node skill/uninstall.ts [--keep-data|--delete-data]  # take the chat map off this Mac (writes outside the repo; only when asked, and in tests only with HOME, PORT and LIVING_MAP_HOME pointed away)
 node eval/read-format.ts             # can models read mermaid+ as well as one line per item (calls the model, ~$0.50; only when asked)

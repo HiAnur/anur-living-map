@@ -19,9 +19,10 @@ export const removedFrom = (state, who) => !!who && (state.removedPeople || []).
 // when it posts, and any cookie it holds, and neither may pass as a tool.
 /** @param {Req} req */
 export const localTool = (req) => !req.headers.origin && !req.headers['sec-fetch-site'] && !req.headers.cookie;
-// The address this map answers at on this Mac, with its port. Any other Host (a name that resolves here only to
-// reach this server) never acts as you.
-export const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]):\d+$/;
+// The address this map answers at on this Mac, with its port. A name under .localhost counts too (a branch
+// preview's link carries its branch that way): browsers send those to this machine and no site can own one, so
+// they stay out of reach of a page that points its own name here. Any other Host never acts as you.
+export const LOCAL_HOST = /^(localhost|[a-z0-9-]+\.localhost|127\.0\.0\.1|\[::1\]):\d+$/i;
 /**
  * A request from a page of this map in a browser on this Mac, which acts as you with no sign-in. Another site open
  * in the same browser never passes: its requests carry its own Origin or say they are cross-site. A link from it
