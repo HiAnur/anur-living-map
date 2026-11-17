@@ -33,3 +33,6 @@ CLAUDE.local.md
 
 # a map opened on this repo keeps its state here
 .living-map/
+
+# a branch preview (team/live/preview.sh): its port, its copy of the maps, its log
+.preview/

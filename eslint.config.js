@@ -22,6 +22,7 @@ export default defineConfig([
     "lm/**",
     ".claude/**",
     "team/**",
+    ".preview/**",
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,

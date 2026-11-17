@@ -65,6 +65,11 @@ it('takes a page of this map on this Mac as you, and never another site or anoth
   // an address that only resolves to this Mac, as a rebinding site uses, is never you
   expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'evil.example:4323', 'sec-fetch-site': 'same-origin' } })).toBe(false);
   expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'localhost.evil.example:4323', 'sec-fetch-site': 'same-origin' } })).toBe(false);
+  // a branch preview's name under .localhost is this Mac; a look-alike that ends elsewhere is not
+  expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'pm-view.localhost:4401', 'sec-fetch-site': 'same-origin' } })).toBe(true);
+  expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'pm-view.localhost.evil.example:4401', 'sec-fetch-site': 'same-origin' } })).toBe(false);
+  expect(fromThisMac({ method: 'GET', url: '/', headers: { host: 'a.b.localhost:4401', 'sec-fetch-site': 'same-origin' } })).toBe(false);
+  expect(fromThisMac({ method: 'POST', url: '/api/act', headers: { host: 'pm-view.localhost:4401', origin: 'http://other.localhost:4401', 'sec-fetch-site': 'same-site' } })).toBe(false);
   // a program on this Mac is a tool, not a page: it acts as Claude or as the chat it speaks for
   expect(fromThisMac(req({ 'sec-fetch-mode': 'cors', 'user-agent': 'node' }))).toBe(false);
 });
