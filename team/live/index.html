@@ -156,7 +156,12 @@ body.blank-repo #tidyb{display:none}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
 
-#canvas{position:absolute;inset:var(--topbar) 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#canvas{
+  --dot-gap:calc(20px * var(--map-zoom, 1));
+  position:absolute;inset:var(--topbar) 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);
+  background-image:radial-gradient(circle,rgba(0,0,0,.13) calc(1px * var(--map-zoom, 1)),transparent calc(1.3px * var(--map-zoom, 1)));
+  background-size:var(--dot-gap) var(--dot-gap)
+}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
@@ -1444,7 +1449,14 @@ window.addEventListener('resize', hideBoxHint);
 window.addEventListener('blur', hideBoxHint);
 
 
-const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; positionDeletePrompt(); if (S && (openThread || draft)) renderComments(); };
+const place = () => {
+  stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  // Keep the dots anchored to the same map coordinates as the boxes.
+  canvas.style.setProperty('--map-zoom', String(cam.z));
+  canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
+  positionDeletePrompt();
+  if (S && (openThread || draft)) renderComments();
+};
 // Keep the confirmation inside the visible canvas, even when its topic sits at an edge or the map is zoomed.
 function positionDeletePrompt(){
   const prompt = canvas.querySelector('.delq'); if (!prompt) return;
