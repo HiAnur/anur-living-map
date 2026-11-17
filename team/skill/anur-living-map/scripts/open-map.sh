@@ -26,29 +26,31 @@ D="$HOME/.anur-living-map"; [ ! -d "$D" ] && [ -d "$HOME/.living-map-2" ] && D="
 # the builds the clone moves to, as team/live/channel.js picks them: releases only (stable), unless
 # ANUR_LIVING_MAP_CHANNEL or a channel file in the data folder says dev (every build that passed CI)
 CH=$(printf %s "${ANUR_LIVING_MAP_CHANNEL:-$(cat "$D/channel" 2>/dev/null)}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]'); [ "$CH" = dev ] || CH=stable
+# the branch that channel follows (channel.js branchFor): dev for the team, main for everyone else
+BR=main; [ "$CH" = dev ] && BR=dev
 REV="$D/server.rev"   # the commit the running server was started from
 # the Living Map app's server (started with --bundled) says so in /api/version: it is never stopped, restarted or
 # updated from here, and no clone is needed beside it
 APP=""; case "$(curl -sf "localhost:$P/api/version" 2>/dev/null)" in *'"bundled":true'*) APP=1;; esac
 
 # 0. the latest, with nothing to do by hand: the repo is cloned when it is missing, moved to the newest build its
-#    channel follows ($CH above: a release, or on the dev channel any build that passed CI; never main itself, so a
-#    fresh clone, which holds main, starts from that build too) when it is on main with no changes
+#    channel follows ($CH above: a release on main, or on the dev channel any build on dev that passed CI; never the
+#    branch itself, so a fresh clone, which holds the branch, starts from that build too) when it is on $BR with no changes
 #    of its own (a few seconds at most; offline it gives up after a moment and says so), and the skill's copy this
 #    script runs from (~/.claude/skills, ~/.agents/skills) follows, for the next time it is read. ANUR_LIVING_MAP_NO_UPDATE=1 leaves the clone as it is.
 if [ -n "$APP" ]; then echo "update: comes with the Living Map app"; else
-  # the newest tag on origin's main that this copy's channel moves to
-  newest() { if [ "$CH" = dev ]; then git -C "$H" describe --tags --abbrev=0 --match 'dev-[0-9]*' --match 'v[0-9]*' origin/main; else git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' origin/main; fi 2>/dev/null; }
+  # the newest tag on origin's branch for this channel that the copy moves to
+  newest() { if [ "$CH" = dev ]; then git -C "$H" describe --tags --abbrev=0 --match 'dev-[0-9]*' --match 'v[0-9]*' "origin/$BR"; else git -C "$H" describe --tags --abbrev=0 --match 'v[0-9]*' "origin/$BR"; fi 2>/dev/null; }
   if [ ! -e "$H/.git" ]; then
-    git clone -q https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
+    git clone -q --branch "$BR" https://github.com/HiAnur/anur-living-map.git "$H" && echo "install: cloned $H" || { echo "install: could not clone anur-living-map into $H"; exit 1; }
     first=$(newest) && git -C "$H" reset -q --hard "$first" && echo "install: on $first ($CH)"
   fi
   [ -f "$S" ] || { echo "Living Map server not found at $S"; exit 1; }
   was=$(git -C "$H" rev-parse HEAD); br=$(git -C "$H" branch --show-current)
   if [ "${ANUR_LIVING_MAP_NO_UPDATE:-}" = 1 ]; then echo "update: skipped, ANUR_LIVING_MAP_NO_UPDATE is set"
-  elif [ "$br" != main ]; then echo "update: skipped, $H is on $br"
+  elif [ "$br" != "$BR" ]; then echo "update: skipped, $H is on $br, not $BR"
   elif [ -n "$(git -C "$H" status --porcelain --untracked-files=no)" ]; then echo "update: skipped, $H has changes of its own"
-  elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin main 2>/dev/null \
+  elif git -C "$H" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=4 fetch -q --tags origin "$BR" 2>/dev/null \
     && rel=$(newest) \
     && git -C "$H" merge -q --ff-only "$rel" 2>/dev/null; then
     now=$(git -C "$H" rev-parse HEAD)

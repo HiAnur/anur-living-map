@@ -1,9 +1,10 @@
 # Weekly dependency updates as grouped pull requests: one for npm, one for
-# GitHub Actions. CI checks each before it can merge.
+# GitHub Actions, into dev like every other change. CI checks each before it can merge.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
@@ -12,6 +13,7 @@ updates:
     open-pull-requests-limit: 3
   - package-ecosystem: github-actions
     directory: /
+    target-branch: dev
     schedule:
       interval: weekly
     groups:
