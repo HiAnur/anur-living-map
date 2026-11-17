@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
     # A push that changes only the shipping log ships no code: its PR already ran the checks, and a release
     # would offer every running copy an update with nothing in it. A push that also changes anything else runs.
     paths-ignore:
@@ -31,14 +31,15 @@ jobs:
       # the agent docs (AGENTS.md, CLAUDE.md, skills) still match the code
       - run: python3 .github/agent-docs/check.py .
 
-  # Every push to main that passes the checks becomes a dev build, tagged
+  # Every push to dev that passes the checks becomes a dev build, tagged
   # dev-<major.minor from package.json>.<run number>: copies on the dev
-  # channel (team/live/channel.js) update to it. It is not a release, so
-  # copies on the stable channel, customers', never see it: only the Release
-  # workflow (release.yml), run by hand by a maintainer, makes one.
+  # channel (team/live/channel.js) update to it. Customers' copies follow
+  # main, which holds only what is ready; a push there runs the checks, and
+  # only the Release workflow (release.yml), run by hand by a maintainer,
+  # makes it a release.
   dev-build:
     needs: app
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     permissions:
       contents: write

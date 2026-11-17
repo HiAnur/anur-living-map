@@ -66,7 +66,7 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 
 ## Releases
 
-`main` is the development branch. Every push to it that passes CI is tagged as a dev build, `dev-0.1.<run>` (the `dev-build` job in `.github/workflows/ci.yml`); a push that changes only `CHANGELOG.md` and `docs/shipping/` runs no workflow at all. A build reaches customers only when a maintainer runs the **Release** workflow by hand (`.github/workflows/release.yml`, Actions → Release; it refuses anyone below admin or maintain on the repo): it tags the chosen dev build, the newest by default, `v0.1.<run>`, publishes a GitHub release, and publishes the team map's package to npm as `anur-living-map` `0.1.<run>` (its `npm` job, by npm's trusted publishing, so no token is stored; the Mac app pins one of these versions). Every copy follows a channel (`team/live/channel.js`): **stable**, the default, updates only to releases; **dev**, for the team, to every dev build too, chosen with `ANUR_LIVING_MAP_CHANNEL=dev` or a `channel` file holding `dev` in the team map's data folder. The retired chat map never updates: a copy that installs the release carrying the frozen `server/update.ts` takes no later one. Never create a `v*` tag or GitHub release any other way, and never run the Release workflow unless the user asks.
+`dev` is the development branch: every PR merges there, and every push to it that passes CI is tagged as a dev build, `dev-0.1.<run>` (the `dev-build` job in `.github/workflows/ci.yml`); a push that changes only `CHANGELOG.md` and `docs/shipping/` runs no workflow at all. `main` holds only what is ready for customers: a fix reaches it by its own PR copying the commit from `dev`. A commit on `main` reaches customers only when a maintainer runs the **Release** workflow by hand (`.github/workflows/release.yml`, Actions → Release; it refuses anyone below admin or maintain on the repo, and any commit whose push to `main` did not pass CI): it tags the chosen commit, `main`'s newest by default, `v0.1.<CI run>`, publishes a GitHub release, and publishes the team map's package to npm as `anur-living-map` `0.1.<run>` (its `npm` job, by npm's trusted publishing, so no token is stored; the Mac app pins one of these versions). Every copy follows a channel (`team/live/channel.js`): **stable**, the default, follows `main` and updates only to releases; **dev**, for the team, follows `dev` and updates to every dev build, chosen with `ANUR_LIVING_MAP_CHANNEL=dev` or a `channel` file holding `dev` in the team map's data folder. The retired chat map never updates: a copy that installs the release carrying the frozen `server/update.ts` takes no later one. Never create a `v*` tag or GitHub release any other way, and never run the Release workflow unless the user asks.
 
 ## Conventions
 
@@ -82,9 +82,9 @@ For a UI change, also try it in the browser on a test server (below), on a linke
 
 ## Never
 
-- Never use `--no-verify`, and never commit on or push to `main` (`.claude/hooks/protect-main.sh`).
+- Never use `--no-verify`, and never commit on or push to `dev` or `main` (`.claude/hooks/protect-main.sh`).
 - Never commit `out/`, `cache/`, `data/` or anything from `~/.living-map`: they can hold private transcripts and maps.
-- Never break `npm ci`, `npm run build` or the launcher's restart: every running copy installs `main` with them.
+- Never break `npm ci`, `npm run build` or the launcher's restart: every running copy installs `dev` or `main` with them.
 
 ## Skills
 

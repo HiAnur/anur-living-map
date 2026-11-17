@@ -6,8 +6,8 @@ import { bundled, selfUpdate } from './self-update.js';
 
 // Keeping itself current never cuts Claude's work short: while a map is busy, nothing is pulled or restarted.
 
-/** A stand-in git on main, two commits behind origin's newest release, whose move to it fails so nothing on disk changes. */
-function fakeGit() {
+/** A stand-in git on `branch`, behind origin's newest build there, whose move to it fails so nothing on disk changes. */
+function fakeGit(branch = 'main') {
   /** @type {string[]} */
   const calls = [];
   const git = async (/** @type {any[]} */ ...a) => {
@@ -15,10 +15,10 @@ function fakeGit() {
     calls.push(cmd);
     if (cmd === 'rev-parse --is-inside-work-tree') return 'true';
     if (cmd === 'describe --tags --abbrev=0 --match v[0-9]* origin/main') return 'v0.1.42';
-    if (cmd === 'describe --tags --abbrev=0 --match dev-[0-9]* --match v[0-9]* origin/main') return 'dev-0.1.45';
+    if (cmd === 'describe --tags --abbrev=0 --match dev-[0-9]* --match v[0-9]* origin/dev') return 'dev-0.1.45';
     if (cmd === 'rev-list --count HEAD..v0.1.42') return '2';
     if (cmd === 'rev-list --count HEAD..dev-0.1.45') return '5';
-    if (cmd === 'branch --show-current') return 'main';
+    if (cmd === 'branch --show-current') return branch;
     if (cmd.startsWith('merge')) return null;
     return '';
   };
@@ -53,18 +53,23 @@ describe('keeping itself current', () => {
     expect(g.calls).toContain('merge -q --ff-only v0.1.42');
     expect(g.calls.some((c) => c.startsWith('pull') || c.includes('origin/main') && !c.startsWith('describe'))).toBe(false);
   });
-  it('on the dev channel, moves to the newest passing build, which customers never see unreleased', async () => {
-    const g = fakeGit();
+  it('on the dev channel, follows dev to the newest passing build, which customers never see unreleased', async () => {
+    const g = fakeGit('dev');
     const u = selfUpdate(server, () => false, { git: g.git, channel: 'dev' });
     expect(u.VERSION.channel).toBe('dev');
     expect(await u.checkLatest()).toBe(false);
     expect(u.VERSION.behind).toBe(5);
     await u.pull();
     expect(g.calls).toContain('merge -q --ff-only dev-0.1.45');
-    // the stable channel never asks for dev builds
+    expect(g.calls).toContain('fetch -q --tags origin dev');
+    // the stable channel never asks for dev builds or the dev branch
     const s = fakeGit();
     await selfUpdate(server, () => false, { git: s.git, channel: 'stable' }).checkLatest();
-    expect(s.calls.some((c) => c.includes('dev-'))).toBe(false);
+    expect(s.calls.some((c) => c.includes('dev'))).toBe(false);
+  });
+  it('leaves a copy alone when it is on the other channel\'s branch', async () => {
+    expect(await selfUpdate(server, () => false, { git: fakeGit('main').git, channel: 'dev' }).cannotUpdate()).toBe('this copy is on the branch main, not dev');
+    expect(await selfUpdate(server, () => false, { git: fakeGit('dev').git, channel: 'stable' }).cannotUpdate()).toBe('this copy is on the branch dev, not main');
   });
 });
 
