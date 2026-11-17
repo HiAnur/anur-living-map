@@ -4,8 +4,9 @@ import { configDefaults, defineConfig } from "vitest/config";
 // so this stands on its own, apart from vite.config.ts (the chat map's page).
 export default defineConfig({
   test: {
-    // e2e/ holds the browser tests, which Playwright runs
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    // e2e/ holds the browser tests, which Playwright runs; .preview/ is a
+    // branch preview's copy of the maps and the repos they read
+    exclude: [...configDefaults.exclude, "e2e/**", ".preview/**"],
     coverage: {
       provider: "v8",
       include: ["{ledger,server,web,skill,shared}/**/*.{ts,tsx}"],
