@@ -76,3 +76,38 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await expect(pricing.locator(".design-mark.progress")).toHaveCount(0);
   await expect(pricing.getByRole("img", { name: "green flag" })).toBeVisible();
 });
+
+test("box titles start at the same inset with or without markers", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    numbering: { format: "decimal", level: "1" },
+    nodes: SAMPLE.nodes.map((node) =>
+      node.id === "pricing"
+        ? { ...node, design: { flag: "red", progress: "100" } }
+        : node,
+    ),
+  });
+  const pricing = box(page, "Pricing").locator(".nt");
+  const audience = box(page, "Audience").locator(".nt");
+  const leftPadding = (title: ReturnType<typeof box>) =>
+    title.evaluate(
+      (el) =>
+        el.getBoundingClientRect().left -
+        el.closest(".node")!.getBoundingClientRect().left,
+    );
+
+  for (const view of ["Engineer", "PM"]) {
+    if (view === "PM") {
+      await page.locator("#peopleb").click();
+      await page.getByRole("radio", { name: "PM", exact: true }).click();
+      await expect(page.locator("body")).toHaveClass(/mind-view/);
+    }
+    await expect(pricing).toHaveText("1. Pricing");
+    await expect(audience).toHaveText("2. Audience");
+    expect(
+      Math.abs((await leftPadding(pricing)) - (await leftPadding(audience))),
+    ).toBeLessThan(1);
+  }
+});
