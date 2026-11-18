@@ -334,10 +334,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   /**
    * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
-   * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
+   * @param {{ title: string, description?: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
    */
-  function drawSystem({ title, folders = [], repos = [], by }) {
+  function drawSystem({ title, description, folders = [], repos = [], by }) {
     state.title = state.renamed = title; state.admins = [by];
+    if (description) state.desc = description;
     return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
