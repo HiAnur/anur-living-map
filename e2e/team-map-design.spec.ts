@@ -170,3 +170,104 @@ test("numbering changes only the selected siblings and survives undo and reload"
   await expect(pricing.locator(".nt")).toHaveText("1. Pricing");
   await expect(grandchild.locator(".nt")).toHaveText("Trial length");
 });
+
+test("Design is first and its five layouts redraw the map without changing its content", async ({
+  page,
+}) => {
+  await openSample(page);
+  for (let i = 0; i < 4; i++) {
+    const response = await page.request.post(
+      new URL("api/act", page.url()).href,
+      {
+        data: {
+          type: "add",
+          label: `Topic ${i + 3}`,
+          from: "launch",
+          x: 300,
+          y: 180 + i * 90,
+        },
+      },
+    );
+    expect(response.ok()).toBe(true);
+  }
+  await expect(page.locator("#nodes .node")).toHaveCount(8);
+  const content = async () => {
+    const state = await (
+      await page.request.get(new URL("api/state", page.url()).href)
+    ).json();
+    return { nodes: state.nodes, edges: state.edges };
+  };
+  const before = await content();
+  const rail = page.locator("#rail .ri").first();
+  await expect(rail).toHaveText("Design");
+  await rail.click();
+  const panel = page.getByRole("complementary", { name: "Design" });
+  await expect(
+    panel
+      .getByRole("group", { name: "Mindmap (Logic Map)" })
+      .getByRole("button"),
+  ).toHaveCount(5);
+  const place = (id: string) =>
+    page.locator(`#nodes [data-id="${id}"]`).evaluate((el: HTMLElement) => ({
+      x: parseFloat(el.style.left),
+      y: parseFloat(el.style.top),
+    }));
+  for (const [label, right, left] of [
+    [
+      "Clockwise",
+      ["pricing", "audience", "topic-3"],
+      ["topic-6", "topic-5", "topic-4"],
+    ],
+    [
+      "Counterclockwise",
+      ["topic-6", "topic-5", "topic-4"],
+      ["pricing", "audience", "topic-3"],
+    ],
+    [
+      "Both sides",
+      ["pricing", "audience", "topic-3"],
+      ["topic-4", "topic-5", "topic-6"],
+    ],
+    [
+      "Right",
+      ["pricing", "audience", "topic-3", "topic-4", "topic-5", "topic-6"],
+      [],
+    ],
+    [
+      "Left",
+      [],
+      ["pricing", "audience", "topic-3", "topic-4", "topic-5", "topic-6"],
+    ],
+  ] as const) {
+    const choice = panel.getByRole("button", { name: label, exact: true });
+    await choice.click();
+    await expect(choice).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("body")).toHaveClass(/mind-view/);
+    const root = await place("launch");
+    for (const [ids, sign] of [
+      [right, 1],
+      [left, -1],
+    ] as const) {
+      const positions = await Promise.all(ids.map(place));
+      positions.forEach((p, i) => {
+        expect(Math.sign(p.x - root.x)).toBe(sign);
+        if (i) expect(p.y).toBeGreaterThan(positions[i - 1].y);
+      });
+    }
+    expect(await content()).toEqual(before);
+  }
+  await page.reload();
+  await rail.click();
+  await expect(
+    panel.getByRole("button", { name: "Left", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect((await place("trial")).x).toBeLessThan((await place("pricing")).x);
+  await page.keyboard.press("Escape");
+  await box(page, "Free trial").click();
+  await page.keyboard.press("Tab");
+  await expect(page.locator("#newbox.on")).toBeVisible();
+  const editor = await page.locator("#newbox").boundingBox();
+  const parent = await box(page, "Free trial").boundingBox();
+  expect(editor!.x + editor!.width).toBeLessThan(parent!.x);
+  await page.keyboard.press("Escape");
+});

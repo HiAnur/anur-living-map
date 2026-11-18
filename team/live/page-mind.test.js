@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import { pmActionStatus } from './page-action.js';
-import { MIND_VIEW_KEY, mindBranch, mindLayout, mindView } from './page-mind.js';
+import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindView } from './page-mind.js';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 // every name is 10 map pixels a letter, so sizes are easy to check
@@ -28,7 +28,7 @@ describe('the PM view setting', () => {
     const start = html.indexOf('let VIEW_MODE ='), end = html.indexOf('\n}\n', html.indexOf('function setViewMode(')) + 3;
     const store = new Map([[MIND_VIEW_KEY, 'pm']]), calls = [];
     const ctx = vm.createContext({
-      mindView, MIND_VIEW_KEY, view: 'system', document: { querySelector: () => null, body: { classList: { toggle() {} } } },
+      mindView, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', document: { querySelector: () => null, body: { classList: { toggle() {} } } },
       localStorage: { getItem: (/** @type {string} */ k) => store.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => store.set(k, v) },
       render: () => calls.push('render'), fit: () => calls.push('fit'),
     });
@@ -48,7 +48,7 @@ describe('adding topics in the PM view', () => {
   const start = html.indexOf('let VIEW_MODE ='), end = html.indexOf('\n}\n', html.indexOf('function setViewMode(')) + 3;
   const setup = () => {
     const ctx = vm.createContext({
-      mindView, mindLayout, MIND_VIEW_KEY, view: 'system', selected: null, naming: null, topicIds: new Map(), pendingTopics: new Set(),
+      mindView, mindLayout, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', selected: null, naming: null, topicIds: new Map(), pendingTopics: new Set(),
       document: { querySelector: () => null, body: { classList: { toggle() {} } } }, localStorage: { getItem: () => 'pm', setItem() {} },
       $: () => ({ querySelector: () => null }), topicTitle: (/** @type {{label: string}} */ n) => n.label, designWidth: () => 0, wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),
@@ -159,10 +159,18 @@ describe('the PM view lines', () => {
     expect(mindBranch(leaf, deeper).startsWith('M320 -76C')).toBe(true);
   });
 
+  it('joins the facing edges and underlines the full title on a left branch', () => {
+    const leftTopic = { ...topic, x: -topic.x }, leftLeaf = { ...leaf, x: -leaf.x };
+    expect(mindBranch(root, leftTopic)).toMatch(/^M-26 0C.* -170 -80$/);
+    expect(mindBranch(leftTopic, leftLeaf)).toBe('M-230 -80C-255 -80 -255 -76 -280 -76H-320');
+  });
+
   it('meets an Action’s edge, then leaves its right edge for its own children', () => {
     const action = { ...leaf, h: 40, boxed: true };
     expect(mindBranch(topic, action)).toBe('M230 -80C255 -80 255 -90 280 -90');
     expect(mindBranch(action, { ...leaf, x: 400, depth: 3 })).toBe('M320 -90C350 -90 350 -76 380 -76H420');
+    expect(mindBranch({ ...topic, x: -topic.x }, { ...action, x: -action.x })).toBe('M-230 -80C-255 -80 -255 -90 -280 -90');
+    expect(mindBranch({ ...action, x: -action.x }, { ...leaf, x: -400, depth: 3 })).toBe('M-320 -90C-350 -90 -350 -76 -380 -76H-420');
   });
 
   it('draws only parent-to-child lines; a line between other topics shows in the Engineer view alone', () => {
@@ -179,5 +187,46 @@ describe('the PM view lines', () => {
     expect(edgesEl.innerHTML.match(/class="mind-line/g)).toHaveLength(2);
     expect(edgesEl.innerHTML).not.toContain('a>b');
     expect(edgesEl.innerHTML).not.toContain('Feeds');
+  });
+});
+
+describe('the five mind map layouts', () => {
+  const nodes = [box('root'), ...['a', 'b', 'c', 'd', 'e', 'f'].map((id, i) => box(id, 200, i * 80)), box('child', 400), box('leaf', 600)];
+  const graph = { centre: 'root', nodes, lines: [...nodes.slice(1, 7).map((n) => ({ from: 'root', to: n.id })), { from: 'a', to: 'child' }, { from: 'child', to: 'leaf' }] };
+
+  it('keeps every branch together without overlap and leaves the source map untouched', () => {
+    const before = structuredClone(graph);
+    for (const [layout] of MIND_LAYOUTS) {
+      const { at, parent } = mindLayout(graph, words, (n) => n.id === 'a' ? 80 : 0, layout);
+      expect(at.get('a')).toMatchObject({ h: 80, boxed: true });
+      expect(at.get('root')).toMatchObject({ x: 0, y: 0 });
+      const all = [...at.values()];
+      for (const [i, p] of all.entries()) for (const q of all.slice(i + 1))
+        expect(Math.abs(p.x - q.x) * 2 < p.w + q.w && Math.abs(p.y - q.y) * 2 < p.h + q.h, layout).toBe(false);
+      for (const id of ['child', 'leaf']) {
+        const p = at.get(parent.get(id) || ''), child = at.get(id);
+        if (!p || !child) throw new Error(`Missing branch: ${id}`);
+        expect(Math.sign(child.x), layout).toBe(Math.sign(p.x));
+        expect(Math.abs(child.x) - child.w / 2, layout).toBeGreaterThan(Math.abs(p.x) + p.w / 2);
+      }
+    }
+    expect(graph).toEqual(before);
+  });
+
+  it('follows the reading order shown by the direction arrows', () => {
+    for (const [layout, right, left] of /** @type {[string, string[], string[]][]} */ ([
+      ['clockwise', ['a', 'b', 'c'], ['f', 'e', 'd']],
+      ['counterclockwise', ['f', 'e', 'd'], ['a', 'b', 'c']],
+      ['balanced', ['a', 'b', 'c'], ['d', 'e', 'f']],
+      ['right', ['a', 'b', 'c', 'd', 'e', 'f'], []],
+      ['left', [], ['a', 'b', 'c', 'd', 'e', 'f']],
+    ])) {
+      const { at } = mindLayout(graph, words, undefined, layout);
+      const placed = (id) => /** @type {{ x: number, y: number }} */ (at.get(id));
+      const side = (sign) => nodes.slice(1, 7).filter((n) => Math.sign(placed(n.id).x) === sign).sort((a, b) => placed(a.id).y - placed(b.id).y).map((n) => n.id);
+      expect(side(1), layout).toEqual(right);
+      expect(side(-1), layout).toEqual(left);
+    }
+    expect(mindLayoutChoice('unknown')).toBe('right');
   });
 });
