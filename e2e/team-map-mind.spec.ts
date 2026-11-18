@@ -4,6 +4,47 @@ import { box, openSample, useTeamServer } from "./team-map.harness.ts";
 
 useTeamServer();
 
+test("remembers the last map view across local addresses", async ({ page }) => {
+  await openSample(page);
+  const map = new URL(page.url());
+  const view = (name: string) => page.getByRole("radio", { name, exact: true });
+  const openMenu = () => page.locator("#peopleb").click();
+  const saved = () =>
+    page.waitForResponse(
+      (r) => new URL(r.url()).pathname === "/api/me/map-view",
+    );
+
+  await openMenu();
+  await expect(view("Engineer")).toHaveAttribute("aria-checked", "true");
+
+  // Import the PM choice kept by an older version on this address.
+  await page.evaluate(() => localStorage.setItem("lm.view", "pm"));
+  const imported = saved();
+  await page.reload();
+  expect((await imported).ok()).toBe(true);
+  await expect(page.locator("body")).toHaveClass(/mind-view/);
+
+  const other = new URL(map);
+  other.hostname = "127.0.0.1";
+  await page.goto(other.href);
+  await expect(page.locator("body")).toHaveClass(/mind-view/);
+  await openMenu();
+  await expect(view("PM")).toHaveAttribute("aria-checked", "true");
+
+  const engineer = saved();
+  await view("Engineer").click();
+  expect((await engineer).ok()).toBe(true);
+  await page.goto(map.href);
+  await openMenu();
+  await expect(view("Engineer")).toHaveAttribute("aria-checked", "true");
+
+  const pm = saved();
+  await view("PM").click();
+  expect((await pm).ok()).toBe(true);
+  await page.goto(other.href);
+  await expect(page.locator("body")).toHaveClass(/mind-view/);
+});
+
 const middle = (node: Locator) =>
   node.evaluate((el) => {
     const r = el.getBoundingClientRect();

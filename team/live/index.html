@@ -1547,11 +1547,22 @@ const scope = () => {
   const p = proposed(), all = p.nodes.length || p.edges.length ? { nodes: [...S.nodes.map((n) => ({ ...n, ...p.layout.find((m) => m.id === n.id) })), ...p.nodes], edges: [...S.edges, ...p.edges], centre: S.centre } : S;
   return mindScope(unfolded(levelGraph(all, { top: true, start: S.start, label: S.title })));
 };
-/* The PM view (page-mind.js): the same level drawn as a mind map. Each person picks it in the account menu, and this
-   browser keeps the choice for every map. Its places are worked out on every drawing and never stored, so a box keeps
-   its place in the Engineer view; `mindPos` holds them, as of the last drawing, for what reads a box's place. */
+/* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
+   never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
 let VIEW_MODE = 'engineer', mindPos = new Map();
-try { VIEW_MODE = mindView(localStorage.getItem(MIND_VIEW_KEY)); } catch {}
+const savedMapView = document.querySelector('meta[name="lm-map-view"]');
+let browserMapView = null;
+try { browserMapView = localStorage.getItem(MIND_VIEW_KEY); } catch { /* the Mac can still keep your choice */ }
+VIEW_MODE = mindView(savedMapView?.content || browserMapView);
+let savingMapView = Promise.resolve();
+// Import a browser choice once. A later visit from a different address may still have an old browser choice.
+if (savedMapView?.content === '' && (browserMapView === 'pm' || browserMapView === 'engineer')) saveMapView(browserMapView, true);
+function saveMapView(mode, onlyIfUnset = false){
+  savingMapView = savingMapView.then(async () => {
+    const response = await fetch('/api/me/map-view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, onlyIfUnset }), keepalive: true });
+    if (!response.ok) throw new Error();
+  }).catch(() => { if (!onlyIfUnset) toast('Your map view could not be saved. Choose it again to retry.'); });
+}
 const mindOn = () => VIEW_MODE === 'pm' && !view.startsWith('flow:') && !view.startsWith('diagram:');
 const MIND_FONT = ['600 16px', '500 14px', '400 13.5px'];
 const mindWords = (n, depth) => {
@@ -1620,7 +1631,8 @@ const placeEditor = (el, at) => {
 };
 function setViewMode(mode){
   VIEW_MODE = mindView(mode);
-  try { localStorage.setItem(MIND_VIEW_KEY, VIEW_MODE); } catch {}
+  if (savedMapView) saveMapView(VIEW_MODE);
+  else try { localStorage.setItem(MIND_VIEW_KEY, VIEW_MODE); } catch { /* the choice still applies to this page */ }
   render(); fit();
 }
 /* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
