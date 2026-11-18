@@ -3,6 +3,28 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Design your map</strong></dt>
+<dd>
+
+Open **Design** below History to number topics across the map and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
+
+PM view shows the map title in a white rounded box and puts topic numbers inline with their names.
+
+<img src="docs/shipping/2026-11-17/map-design.jpg" alt="Design open beside a PM map. Pricing shows its topic number, a red flag, and a completed progress marker." width="760">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Map dots follow your zoom</strong></dt>
+<dd>
+
+The background dots get bigger and farther apart as you zoom in, and smaller and closer together as you zoom out. <!-- source: https://github.com/HiAnur/anur-living-map/pull/550 --> <!-- merged-at: 2026-11-17T22:09:16Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] PM mind-map view</strong></dt>
 <dd>
 

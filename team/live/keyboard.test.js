@@ -22,7 +22,7 @@ function harness(pm = false){
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'}, mindOn:()=>false, onMap:n=>n, editorAt:at=>at, placeEditor:(el,at)=>{ el.style.left=`${at.x}px`; el.style.top=`${at.y}px`; return at; },
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, railTab:null, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'}, mindOn:()=>false, onMap:n=>n, editorAt:at=>at, placeEditor:(el,at)=>{ el.style.left=`${at.x}px`; el.style.top=`${at.y}px`; return at; },
     document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
@@ -37,7 +37,7 @@ function harness(pm = false){
   Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
   if (pm){
-    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
+    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, topicTitle:n=>n.label,designWidth:()=>0, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
       getComputedStyle:()=>({getPropertyValue:()=>''}), localStorage:{getItem:()=> 'pm'},
       W:n=>n.mindW || 140, HT:n=>n.mindH || 50 });
     ctx.document.body={classList:{toggle(){}}};

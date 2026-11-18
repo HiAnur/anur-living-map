@@ -33,6 +33,10 @@ test("repeated Tab extends a PM branch horizontally without moving it down", asy
 }) => {
   await openSample(page);
   await usePm(page);
+  const root = page.locator("#nodes .mind-root");
+  await expect(root).toHaveText("Launch plan");
+  await expect(root).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(root).toHaveCSS("border-radius", "999px");
   await expect(page.locator("#nodes .fold")).toHaveCount(0);
   const parent = box(page, "Free trial");
   await parent.click();

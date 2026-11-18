@@ -17,7 +17,7 @@ describe('leaving Side Chat', () => {
       const box = { id: 'box', label: 'Review proposal', sub: 'A long description', desc: 'Details' };
       const ctx = vm.createContext({
         $: id => id === 'side' ? pane : null,
-        keyboardSelection: false, selected: kind === 'closed' ? null : 'box', sideRename: null,
+        keyboardSelection: false, railTab: null, selected: kind === 'closed' ? null : 'box', sideRename: null,
         nodeById: () => kind === 'restricted' ? box : null,
         proposedBox: () => kind === 'proposal' ? box : null,
         locked: () => kind === 'restricted',

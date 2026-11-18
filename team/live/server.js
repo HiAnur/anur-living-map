@@ -542,7 +542,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
-  const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
+  const CONTENT = ['desc', 'numbering', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
   const contentOf = (/** @type {any} */ s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
   const clock = (/** @type {any} */ t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
@@ -556,7 +556,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { designmap: 'changed map numbering', designbox: 'changed a box’s design', move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   /** @param {any} type @param {any} by */
@@ -603,7 +603,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
-  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
+  const UNDOABLE = new Set(['designmap', 'designbox', 'move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
   const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
     selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
     relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords });
@@ -632,6 +632,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (!file || !fs.existsSync(file)) return false;
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
+      if (!restored.numbering) delete state.numbering;
       Object.assign(state, restored);
       // a version from before the system map had its centre comes back with it
       if (state.drawing) withCentre(state, state.title);
