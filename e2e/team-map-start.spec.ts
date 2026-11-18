@@ -187,4 +187,20 @@ test("Share says only this Mac can open the link, and offers no invite", async (
   await expect(
     page.getByRole("button", { name: "Publish online" }),
   ).toHaveCount(0);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text: string) =>
+          sessionStorage.setItem("copied-link", text),
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Copy local link" }).click();
+  await expect(page.locator("#toast")).toHaveText(
+    "Local link copied. It opens only on this Mac.",
+  );
+  const copied = await page.evaluate(() =>
+    sessionStorage.getItem("copied-link"),
+  );
+  expect(new URL(copied!).origin).toBe(new URL(page.url()).origin);
 });

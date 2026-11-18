@@ -7,8 +7,8 @@ import { pathToFileURL } from "node:url";
 
 import { box, openSample, useTeamServer } from "./team-map.harness.ts";
 
-// Share → Publish online, by email: the owner signs in with Google, publishes, lists people with Can view or
-// Can edit, and a teammate opens the online copy by signing in. Google is a stand-in key set and the login
+// Share → Publish online, by link: the owner signs in with Google and confirms publication, then anyone
+// holding the link opens the cloud copy without signing in. Google is a stand-in key set and the login
 // service a stand-in on this machine, run beside a copy of the cloud with its maps in memory: nothing here
 // reaches Google, the real login service or the real cloud.
 const CLOUD = path.resolve(import.meta.dirname, "../team/cloud");
@@ -40,6 +40,12 @@ const login = http.createServer(async (req, res) => {
 const loginPort = await listen(login);
 const reserve = http.createServer(); const cloudPort = await listen(reserve); await new Promise((r) => reserve.close(r));
 const cloud = createCloudServer({ store, publishKey: ${JSON.stringify(PUBLISH_KEY)}, publicUrl: 'http://127.0.0.1:' + cloudPort, checkIdToken: google.check, loginUrl: 'http://127.0.0.1:' + loginPort });
+// Google's front end removes reserved headers before the request reaches the cloud app.
+cloud.prependListener('request', (req) => {
+  for (const name of Object.keys(req.headers)) {
+    if (name.startsWith('x-google-')) delete req.headers[name];
+  }
+});
 await new Promise((r) => cloud.listen(cloudPort, '127.0.0.1', r));
 console.log(JSON.stringify({ login: 'http://127.0.0.1:' + loginPort, cloud: 'http://127.0.0.1:' + cloudPort }));
 `;
@@ -81,112 +87,197 @@ const signInAs = (email: string, name: string) =>
     body: JSON.stringify({ email, name }),
   });
 
-test("the owner signs in with Google to publish, then shares the online copy by email", async ({
+test("the owner shares view and edit links, with people shown only while they are here", async ({
   page,
   browser,
 }) => {
-  await signInAs("duy@example.com", "Duy");
+  await signInAs("owner@example.com", "Owner");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async (text: string) =>
+          sessionStorage.setItem("copied-link", text),
+      },
+    });
+  });
+  const copied = () =>
+    page.evaluate(() => sessionStorage.getItem("copied-link"));
   await openSample(page);
+  await page.locator("#peopleb").click();
+  await page.getByRole("radio", { name: "PM", exact: true }).click();
+  const oldWindow = await page.context().newPage();
+  await openSample(oldWindow);
   await page.getByRole("button", { name: "Share" }).click();
   const share = page.locator("#share");
 
   // not published: its link opens only on this Mac, so there is no link setting to choose
   await expect(share.getByText("Link access")).toHaveCount(0);
   await expect(share.getByText("Anyone with the link can")).toHaveCount(0);
-  // and Google has not said who you are on this Mac yet
-  await share
-    .getByRole("link", { name: "Sign in with Google to publish" })
-    .click();
-  // back from Google, with Share open again
-  await expect(
-    share.getByRole("button", { name: "Publish online" }),
-  ).toBeVisible();
-  await share.getByRole("button", { name: "Publish online" }).click();
-  await page.getByRole("button", { name: "Upload and copy link" }).click();
-  await expect(share.getByText("Who has access online")).toBeVisible();
-  // published by email: the copy's own panel holds the link, never the old setting
-  await expect(share.getByText("Link access")).toHaveCount(0);
-  await expect(share).toContainText("duy@example.com");
-  await expect(share).toContainText(
-    "Only the people you add can open its link",
-  );
-
-  // add a teammate, change what they can do, and someone else to remove
-  const email = share.getByLabel("Email address to add");
-  await email.fill("Teammate@Example.com");
-  await share.getByRole("button", { name: "Add" }).click();
-  const teammate = share.locator('[data-online-person="teammate@example.com"]');
-  await expect(teammate).toBeVisible();
-  await expect(email).toHaveValue("");
-  await teammate
-    .getByLabel("What teammate@example.com can do")
-    .selectOption("edit");
-  await expect(page.locator("#toast")).toContainText(
-    "teammate@example.com can edit now",
-  );
-  await email.fill("not an address");
-  await share.getByRole("button", { name: "Add" }).click();
-  await expect(page.locator("#toast")).toContainText(
-    "Type a whole email address",
-  );
-  await email.fill("leaving@example.com");
-  await share.getByRole("button", { name: "Add" }).click();
-  await share
-    .getByRole("button", { name: "Remove leaving@example.com" })
-    .click();
-  await expect(
-    share.locator('[data-online-person="leaving@example.com"]'),
-  ).toHaveCount(0);
-
-  // anyone with the link can view: off by default, one switch
-  const linkView = share.getByRole("switch", {
-    name: "Anyone with the link can view",
+  const localLink = share.getByRole("button", {
+    name: "Copy link",
+    exact: true,
   });
-  await expect(linkView).toHaveAttribute("aria-checked", "false");
-  await linkView.click();
-  await expect(linkView).toHaveAttribute("aria-checked", "true");
-  await linkView.click();
-  await expect(linkView).toHaveAttribute("aria-checked", "false");
+  const confirm = page.getByRole("alertdialog", {
+    name: "Upload this map to Google Cloud?",
+  });
+  // Copy link signs in first, then asks before any upload or clipboard write.
+  await localLink.click();
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText(
+    "Upload a copy of this map to Google Cloud",
+  );
   await expect(
-    share.getByRole("button", { name: "Turn off link" }),
+    confirm.getByRole("button", { name: "Upload and copy link" }),
   ).toBeVisible();
+  expect(await copied()).toBeNull();
+  await confirm.getByRole("button", { name: "Keep local" }).click();
   await expect(
-    share.getByRole("button", { name: "Delete online copy" }),
+    share.getByText("Only this Mac can open this link"),
   ).toBeVisible();
+  expect(await copied()).toBeNull();
+
+  // Once signed in, Copy link goes straight to the same upload confirmation.
+  await localLink.click();
+  const upload = confirm.getByRole("button", { name: "Upload and copy link" });
+  await expect(upload).toBeVisible();
+  expect(await copied()).toBeNull();
+  await upload.click();
+  await expect(share.getByText("Shared online", { exact: true })).toBeVisible();
+  await expect(page.locator("#toast")).toHaveText(
+    "Uploaded to Google Cloud. Online link copied.",
+  );
+  await expect(share).toContainText("This map is stored in Google Cloud");
+  const onlineLink = share.getByRole("button", { name: "Copy online link" });
+  await expect(onlineLink).toBeVisible();
+  await expect(share.getByText("On this Mac", { exact: true })).toHaveCount(0);
+  await expect(share.getByText("Here now", { exact: true })).toHaveCount(0);
+  const publishedUrl = await copied();
+  expect(publishedUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/m\//);
+  await page.evaluate(() => sessionStorage.removeItem("copied-link"));
+  await onlineLink.click();
+  await expect.poll(copied).toBe(publishedUrl);
+  await expect(
+    share.getByRole("button", {
+      name: "Anyone with the link can view",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(share.getByLabel("Email address to add")).toHaveCount(0);
+  await expect(
+    share.getByRole("button", { name: "Add", exact: true }),
+  ).toHaveCount(0);
 
   const status = (await page.evaluate(() =>
     window.fetch("api/cloud").then((r) => r.json()),
-  )) as { url: string; access: { people: Record<string, string> } };
-  expect(status.access.people).toEqual({ "teammate@example.com": "edit" });
-  // the address never rides in the link
+  )) as {
+    url: string;
+    access: { people: Record<string, string>; linkView: boolean };
+  };
+  expect(status.access).toMatchObject({ people: {}, linkView: true });
+  const shared = new URL(publishedUrl!);
+  expect(shared.searchParams.get("view")).toBe("pm");
+  shared.searchParams.delete("view");
+  expect(shared.href).toBe(status.url);
   expect(status.url).not.toContain("example.com");
 
-  // someone not on the list signs in and is told whom to ask, with nothing of the map
-  const stranger = await browser.newContext();
-  const outside = await stranger.newPage();
-  await outside.goto(status.url);
-  await expect(
-    outside.getByRole("heading", { name: "Sign in to open this map" }),
-  ).toBeVisible();
-  await signInAs("stranger@example.com", "Stranger");
-  await outside.getByRole("link", { name: "Sign in with Google" }).click();
-  await expect(
-    outside.getByRole("heading", { name: "Ask Duy for access" }),
-  ).toBeVisible();
-  await expect(outside.locator("body")).not.toContainText("Pricing");
-  await stranger.close();
-
-  // the teammate signs in and edits under their own name
+  // A recipient opens the copied link directly, with no Google account or email invitation.
   const guest = await browser.newContext();
   const visitor = await guest.newPage();
-  await visitor.goto(status.url);
-  await signInAs("teammate@example.com", "Teammate");
-  await visitor.getByRole("link", { name: "Sign in with Google" }).click();
+  await visitor.goto(publishedUrl!);
+  await expect(visitor.locator("body")).toHaveClass(/mind-view/);
   await expect(box(visitor, "Pricing")).toBeVisible();
-  await expect(visitor.locator("body")).not.toHaveClass(/view-only/);
-  await expect(visitor.locator("#faces .face.me")).toHaveAttribute(
-    "title",
-    /Teammate/,
+  await expect(visitor.locator("body")).toHaveClass(/view-only/);
+  const editStatus = await visitor.evaluate(() =>
+    fetch("api/act" + location.search, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "renamebox",
+        id: "pricing",
+        label: "Changed",
+        revision: 1,
+      }),
+    }).then((r) => r.status),
   );
+  expect(editStatus).toBe(403);
+
+  await expect(share.getByText("Here now", { exact: true })).toBeVisible({
+    timeout: 12000,
+  });
+  await expect(share.getByText(/^Guest [a-f0-9]{6}$/)).toBeVisible();
+  await expect(share.getByText("Duy", { exact: true })).toHaveCount(0);
+
+  // Changing link permission applies to the anonymous recipient already viewing it.
+  await share
+    .getByRole("button", { name: "Anyone with the link can view", exact: true })
+    .click();
+  await share
+    .getByRole("menuitemradio", { name: "Can edit", exact: true })
+    .click();
+  await expect(
+    share.getByRole("button", {
+      name: "Anyone with the link can edit",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(visitor.locator("body")).not.toHaveClass(/view-only/, {
+    timeout: 10000,
+  });
+  const changed = await visitor.evaluate(async () => {
+    const state = await fetch("api/state" + location.search).then((r) =>
+      r.json(),
+    );
+    return fetch("api/act" + location.search, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "renamebox",
+        id: "pricing",
+        label: "Updated pricing",
+        revision: state.cloudRevision,
+      }),
+    }).then((r) => r.status);
+  });
+  expect(changed).toBe(200);
+  await expect(box(visitor, "Updated pricing")).toBeVisible();
+
+  await share
+    .getByRole("button", { name: "Anyone with the link can edit", exact: true })
+    .click();
+  await share
+    .getByRole("menuitemradio", { name: "Can view", exact: true })
+    .click();
+  await expect(visitor.locator("body")).toHaveClass(/view-only/, {
+    timeout: 10000,
+  });
+
+  // Turning the link off revokes it. Turning it on creates a new link.
+  await share
+    .getByRole("button", { name: "Anyone with the link can view", exact: true })
+    .click();
+  await share
+    .getByRole("menuitemradio", { name: "Turn off link", exact: true })
+    .click();
+  await expect(share.getByText("In cloud · link off")).toBeVisible();
+  expect((await guest.request.get(status.url)).status()).toBe(403);
+  await share
+    .getByRole("button", { name: "Link sharing is off", exact: true })
+    .click();
+  await share
+    .getByRole("menuitemradio", { name: "Can view", exact: true })
+    .click();
+  await expect(
+    share.getByRole("button", {
+      name: "Anyone with the link can view",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await onlineLink.click();
+  const freshUrl = await copied();
+  expect(freshUrl).not.toBe(status.url);
+  expect((await guest.request.get(status.url)).status()).toBe(403);
+  await visitor.goto(freshUrl!);
+  await expect(box(visitor, "Updated pricing")).toBeVisible();
   await guest.close();
+  await oldWindow.close();
 });
