@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Your last Map view stays selected</strong></dt>
+<dd>
+
+Local maps on this Mac reopen in whichever **Map view** you picked last, PM or Engineer. <!-- source: https://github.com/HiAnur/anur-living-map/pull/556 --> <!-- merged-at: 2026-11-18T01:26:41Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Move branches in PM view</strong></dt>
 <dd>
 
