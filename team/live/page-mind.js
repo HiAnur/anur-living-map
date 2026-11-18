@@ -1,4 +1,4 @@
-// The PM view: a map drawn as a classic mind map. The level's start sits on the left as a filled pill, its main topics
+// The PM view: a map drawn as a classic mind map. The level's start sits on the left as an outlined title box, its main topics
 // to its right as outlined boxes on thick curved branches, and every deeper topic as words on a thin underline, joined
 // to its parent by a thin bracket curve, siblings lined up in one column. It draws the same boxes and the same tree as
 // the Engineer view (the lines `levelGraph` hands the page); only where each sits and how it looks change, so nothing

@@ -2,6 +2,7 @@
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
+import { savedDesign, validDesignValue } from './page-design.js';
 import { tidy, tidyLevel } from './project.js';
 
 
@@ -69,6 +70,24 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       const label = String(a.label || '').trim().slice(0, 40), had = edges.find((/** @type {any} */ e) => e.from === from.id && e.to === to.id);
       if (had) { if (!label && !out && !inn) return false; if (label) had.label = label; Object.assign(had, sides); } else edges.push({ from: from.id, to: to.id, ...(label ? { label } : {}), ...sides });
       tell(`${a.by} drew a line ${from.label} → ${to.label}${label ? ` (${label})` : ''}`);
+      return true;
+    },
+    /** @param {Act<'designmap'>} a */
+    designmap(a) {
+      if (!['format', 'level'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      const state = getState();
+      state.numbering = { ...savedDesign(state.numbering, ['format', 'level']), [a.field]: a.value };
+      return true;
+    },
+    /** @param {Act<'designbox'>} a */
+    designbox(a) {
+      const n = nodeOf(a.id), sees = seesOf(a.by);
+      if (!n || (sees !== 'all' && n.area !== sees) || !['align', 'flag', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      const design = savedDesign(n.design, ['align', 'flag', 'progress']);
+      if (a.value && !(a.field === 'align' && a.value === 'center')) design[a.field] = a.value;
+      else delete design[a.field];
+      if (Object.keys(design).length) n.design = design;
+      else delete n.design;
       return true;
     },
     // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
