@@ -199,8 +199,11 @@ body.blank-repo #tidyb{display:none}
 #rubber .attach-target{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-box{fill:var(--box);fill-opacity:.85;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-line{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
+body.mind-view #rubber :is(.attach-target,.attach-box,.attach-line){stroke-width:3;stroke-dasharray:none}
+body.mind-view #rubber .attach-box{fill:color-mix(in srgb,var(--ok) 34%,var(--box));fill-opacity:1}
 #rubber .drag-source{fill:var(--new-tint);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
 #rubber .drag-ghost{opacity:.75}
+body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 #rubber .drag-ghost-box{fill:var(--box);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
 #rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
@@ -1611,7 +1614,7 @@ function mindScope(sc){
   mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth }]));
   mindLevel = view;
   const placed = nodes.filter((n) => n.id !== MIND_DRAFT).map((n) => ({ ...n, ...mindPos.get(n.id) }));
-  return { ...sc, nodes: placed, mind: { parent, via, draft: mindPos.get(MIND_DRAFT) } };
+  return { ...sc, nodes: placed, mind: { parent, via, centre: nodes.find((n) => n.id === sc.centre), draft: mindPos.get(MIND_DRAFT) } };
 }
 // a box where it is drawn now: in the PM view its place in the mind map, else its own
 const onMap = (n) => (n && mindOn() && mindPos.has(n.id) ? { ...n, ...mindPos.get(n.id) } : n);
@@ -4148,34 +4151,74 @@ function planTopicSibling(graph, roots, target, above, close = true){
   if (!plan) return null;
   return {...plan,moves:plan.moves.map((m) => ({...m,fromY:m.fromY*sign+0,y:m.y*sign+0}))};
 }
+function planMindSibling(sc, graph, roots, target, above){
+  const parent = sc.mind.parent.get(target.id);
+  const linked = new Set(graph.edges.map((e) => e.to));
+  if (linked.has(target.id)){
+    if (!graph.edges.some((e) => e.to === target.id && e.from === parent)) return null;
+    return planTopicSibling(graph, roots, target, above);
+  }
+  // The layout gives loose topics a common centre. Use its lines for placement without saving them to the map.
+  if (parent !== sc.centre || !sc.mind.centre || roots.some((id) => linked.has(id) || sc.mind.parent.get(id) !== parent)) return null;
+  const nodes = sc.mind.centre.virtual ? [...graph.nodes, sc.mind.centre] : graph.nodes;
+  const edges = [...graph.edges, ...graph.nodes.filter((n) => !linked.has(n.id) && sc.mind.parent.get(n.id) === parent).map((n) => ({from:parent,to:n.id}))];
+  const plan = planTopicSibling({nodes, edges}, roots, target, above);
+  return plan && {...plan, reorder: true, moves: plan.moves.filter((m) => m.id !== LEVEL_CENTRE)};
+}
+function mindSiblingHint(sc, ids, target, parentId, direction){
+  const parent = sc.nodes.find((n) => n.id === parentId);
+  const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && direction*(n.y-target.y) > 0)
+    .sort((a, b) => direction*(a.y-b.y))[0];
+  const edge = target.y + direction*HT(target)/2;
+  const h = 16, w = Math.max(96, W(target)), x = target.x-W(target)/2;
+  // Center the marker in a gap, or give it its own space at the end of the branch.
+  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
+  const pw = W(parent), ph = HT(parent);
+  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth}, {x, y, w:0, h:0, depth:target.mindDepth});
+  return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
+}
 function previewTopicAttach(sx, sy){
   if (!drag?.source || PREVIEW || FILE || READ_ONLY) return;
   drag.attach = null;
   const roots = topicDragRoots(drag), ids = branchIds(drag.source, roots);
-  const visible = new Set(scope().nodes.map((n) => n.id));
-  const outline = drag.source.nodes.filter((n) => ids.has(n.id) && visible.has(n.id)).map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
-  const at = drag.at || {x:sx,y:sy}, n = drag.n;
-  const floatingNodes = drag.many?.length > 1 ? [n] : drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id));
+  const sc = scope(), visible = new Set(sc.nodes.map((n) => n.id));
+  const branch = (drag.mind ? sc.nodes : drag.source.nodes).filter((n) => ids.has(n.id) && visible.has(n.id));
+  const outline = branch.map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
+  const at = drag.at || {x:sx,y:sy}, n = drag.mind ? onMap(drag.n) : drag.n;
+  const floatingNodes = drag.many?.length > 1 ? [n] : branch;
   const floating = `<g class="drag-ghost">${floatingNodes.map((b) => { const m = drag.freeMoves?.find((m) => m.id === b.id); const x = m?.x ?? b.x+at.x-n.x, y = m?.y ?? b.y+at.y-n.y, w = W(b), h = HT(b); return `<rect class="drag-ghost-box" x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="6"/><foreignObject x="${x-w/2+12}" y="${y-h/2+8}" width="${w-24}" height="${h-16}"><div xmlns="http://www.w3.org/1999/xhtml" class="drag-ghost-label">${esc(b.label)}</div></foreignObject>`; }).join('')}</g>`;
   const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
   let target = null, gap = 40 / cam.z;
-  for (const n of scope().nodes){
-    if (ids.has(n.id) || locked(n) || n.proposed || n.virtual) continue;
+  for (const n of sc.nodes){
+    if (ids.has(n.id) || locked(n) || n.proposed || n.virtual || n.pending) continue;
     const distance = Math.hypot(Math.max(0,Math.abs(sx-n.x)-W(n)/2),Math.max(0,Math.abs(sy-n.y)-HT(n)/2));
     if (distance < gap){ gap = distance; target = n; }
   }
   if (!target) return;
-  const vertical = Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
+  const vertical = (!drag.mind || target.mindDepth > 0) && Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
   if (!vertical && parents.has(target.id)) return;
+  const savedTarget = drag.mind ? drag.source.nodes.find((n) => n.id === target.id) : target;
+  if (!savedTarget) return;
+  // Hit test the drawn mind map, then plan against the shared map's stored positions.
+  if (drag.mind && [...parents].some((id) => locked(nodeById(id) || {}))) return;
   // A child grows away from its parent, as on any mind map; only a box with no parent to its side takes the pointer's side.
-  const from = drag.source.nodes.find((n) => drag.source.edges.some((e) => e.from === n.id && e.to === target.id) && n.x !== target.x);
-  const side = from ? Math.sign(target.x - from.x) : sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, target, sy < target.y, close)
+  const from = drag.source.nodes.find((n) => drag.source.edges.some((e) => e.from === n.id && e.to === target.id) && n.x !== savedTarget.x);
+  const side = from ? Math.sign(savedTarget.x - from.x) : !drag.mind && sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, savedTarget, sy < target.y, close)
     : roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, side, null, close) : planTopicAttach(drag.source, roots[0], target.id, side, null, close);
-  const plan = make(true);
+  const plan = drag.mind && vertical ? planMindSibling(sc, drag.source, roots, savedTarget, sy < target.y) : make(true);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
   drag.attach = plan;
+  const padding = 4, outlineRight = target.x + W(target)/2 + padding;
+  const targetOutline = `<rect class="attach-target" x="${target.x-W(target)/2-padding}" y="${target.y-HT(target)/2-padding}" width="${W(target)+2*padding}" height="${HT(target)+2*padding}" rx="8"/>`;
+  if (drag.mind){
+    if (vertical){ $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, target, plan.parent, sy < target.y ? -1 : 1); return; }
+    const landingX = outlineRight + 20;
+    const landing = `<path class="attach-line" d="M${outlineRight} ${target.y}H${landingX}"/><rect class="attach-box" x="${landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
+    $('rubber').innerHTML = preview + targetOutline + landing;
+    return;
+  }
   // The hint sits among the boxes as they are drawn now: the parent re-centres and the space the branch leaves
   // closes only once it is dropped.
   const hint = make(false) || plan, parent = drag.source.nodes.find((n) => n.id === plan.parent);
@@ -4195,7 +4238,7 @@ function previewTopicAttach(sx, sy){
     const points = fanPts(parent, ghost, around) || routePts(parent, ghost, null, around), h = slot === null ? HT(ghost) : 10;
     return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-h/2}" width="${W(ghost)}" height="${h}" rx="${slot === null ? 6 : 5}"/>`;
   }).join('');
-  $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/>${landings}`;
+  $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs>` + targetOutline + landings;
 }
 function cancelTopicDrag(){
   if (!drag?.source) return;
@@ -4205,6 +4248,7 @@ function cancelTopicDrag(){
 function moveTopicDrag(sx, sy){
   moved = true;
   const at = {x:Math.round(sx+drag.dx),y:Math.round(sy+drag.dy)};
+  if (drag.mind){ drag.at = at; previewTopicAttach(sx,sy); return; }
   if (drag.source){ drag.at = at; drag.freeMoves = planTopicMove(drag); } else Object.assign(drag.n,at);
   render(); previewTopicAttach(sx,sy);
 }
@@ -4257,7 +4301,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const nd = e.target.closest('.node');
   const field = e.target.closest('.s') ? 'sub' : e.target.closest('.nt') ? 'label' : null;
   moved = false;
-  if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
+  if (tool === 'hand' || (mindOn() && spaceDown)){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); if (mindOn()) canvas.setPointerCapture(e.pointerId); return; }
   if (tool === 'box' || tool === 'arrow'){
     if (PREVIEW || READ_ONLY){ toast(READ_ONLY ? VIEW_SAYS : FROZEN_SAYS); return; }
     if (view.startsWith('flow:') || view.startsWith('diagram:')){ toast('Draw on the map itself, not inside a flow or a diagram.'); return; }
@@ -4284,7 +4328,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);
-    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY, proposed: true, mind: mindOn() }; canvas.setPointerCapture(e.pointerId); }
+    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY, proposed: true, pan: mindOn() }; canvas.setPointerCapture(e.pointerId); }
     return;
   }
   if (nd){
@@ -4292,14 +4336,15 @@ canvas.addEventListener('pointerdown', (e) => {
     // a locked box opens its "no access" card and never moves
     if ((READ_ONLY || locked(n)) && hubbed(n)){ tapHub(n); return; }
     if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
-    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY };
-    // the PM view places every topic itself: dragging one moves the map instead, and a click still picks it
-    if (mindOn()){ drag.mind = true; canvas.setPointerCapture(e.pointerId); return; }
+    const [sx, sy] = toStage(e.clientX, e.clientY), at = onMap(n);
+    drag = { n, field, dx: at.x - sx, dy: at.y - sy, startX: e.clientX, startY: e.clientY, mind: mindOn() };
+    // The start is the layout's anchor. A drag from it pans, just as on a frozen map.
+    if (drag.mind && (PREVIEW || FILE || n.id === fold.start)){ drag.pan = true; canvas.setPointerCapture(e.pointerId); return; }
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
       const all = view === 'system' ? S : nodeById(view)?.inside;
       if (all) drag.source = structuredClone({nodes:all.nodes,edges:all.edges || []});
     }
-    if (group.size > 1 && group.has(n.id)) drag.many = [...group].map((id) => nodeById(id)).filter(Boolean).map((m) => ({ n: m, dx: m.x - sx, dy: m.y - sy }));
+    if (group.size > 1 && group.has(n.id) && (!drag.mind || !group.has(fold.start))) drag.many = [...group].map((id) => nodeById(id)).filter(Boolean).map((m) => ({ n: m, dx: m.x - sx, dy: m.y - sy }));
     else if (group.size){ group.clear(); }
   }
   else if (spaceDown || PREVIEW){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
@@ -4321,7 +4366,7 @@ canvas.addEventListener('pointermove', (e) => {
     if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) <= 4) return;
     clearTimeout(tapTimer);
   }
-  if (drag?.mind){ moved = true; drag = null; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
+  if (drag?.pan){ moved = true; drag = null; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
   if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
   else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
@@ -4415,11 +4460,16 @@ canvas.addEventListener('pointerup', (e) => {
       const all = view === 'system' ? S : nodeById(view)?.inside;
       for (const m of plan.moves){ const n = all?.nodes.find((n) => n.id === m.id); if (n) Object.assign(n,{x:Math.round(m.x),y:Math.round(m.y)}); }
       const roots = plan.ids || topicDragRoots(d);
-      if (all) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
+      // Moving among the same siblings only changes their order, leaving the existing lines and their labels intact.
+      const reorder = plan.reorder || (d.mind && roots.every((id) => { const before = plan.parentsById?.[id] || plan.parents; return before.length === 1 && before[0] === plan.parent; }));
+      if (all && !reorder) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
+      if (d.mind) mindPos.delete(d.n.id);
       folded.delete(plan.parent); saveFolds(); selected = d.n.id; keyboardSelection = true; render();
-      act('reparent',{id:topicDragRoots(d)[0],...plan,view}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
+      const save = reorder ? act('move',{moves:plan.moves}) : act('reparent',{id:roots[0],...plan,view});
+      save.then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
       return;
     }
+    if (moved && drag.mind){ cancelTopicDrag(); return; }
     if (moved && drag.source){
       const moves = drag.freeMoves;
       if (!moves){ cancelTopicDrag(); toast('That branch contains a box you cannot move.'); return; }
