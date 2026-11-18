@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Clearer Action Boxes in PM view</strong></dt>
+<dd>
+
+PM Action Boxes show their status beside the title. Long names wrap into balanced lines, with the box fitted to the text. <!-- source: https://github.com/HiAnur/anur-living-map/pull/562 --> <!-- merged-at: 2026-11-18T20:59:22Z -->
+
+<img src="docs/shipping/2026-11-18/pm-action-boxes.png" alt="An example PM map shows Action Boxes with Ready for review, Blocked and Done badges beside the existing Side Chat panel." width="900">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Number topics by group</strong></dt>
 <dd>
 
