@@ -863,6 +863,18 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-status-pill[data-tone="completed"]{background:var(--completed)}
 .action-status-pill[data-tone="cancelled"]{background:var(--text-2)}
 .action-status-pill .action-spin{width:9px;height:9px;border-color:color-mix(in srgb,currentColor 35%,transparent);border-top-color:currentColor}
+/* PM Actions keep their arrow, name and status together, including topics otherwise drawn as underlines. */
+.node.mind-action{padding:0 12px;border:1px solid var(--action);border-radius:8px;background:var(--action-tint)}
+.node.mind-action .n{font:500 14px/1.25 var(--plex);gap:8px;justify-content:flex-start}
+.node.mind-action .nt{flex:1;white-space:normal;text-wrap:balance;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.node.mind-action.sel{outline:1.5px solid var(--new);outline-offset:2px;box-shadow:none}
+.node.mind-action.sel .n{color:var(--text)}
+.node.mind-action .mind-action-arrow{flex:none;width:12px;font:400 22px/1 var(--plex);color:var(--action)}
+.node.mind-action .action-status-pill{position:static;flex:none;margin-left:auto;border:0;background:color-mix(in srgb,var(--text-2) 10%,var(--box));color:var(--text-2)}
+.node.mind-action .action-status-pill[data-tone="active"]{background:color-mix(in srgb,var(--flag-blue) 12%,var(--box));color:var(--flag-blue)}
+.node.mind-action .action-status-pill[data-tone="waiting"]{background:color-mix(in srgb,var(--execution) 12%,var(--box));color:var(--execution)}
+.node.mind-action .action-status-pill[data-tone="blocked"]{background:color-mix(in srgb,var(--flag-red) 12%,var(--box));color:var(--flag-red)}
+.node.mind-action .action-status-pill[data-tone="completed"]{background:color-mix(in srgb,var(--completed) 12%,var(--box));color:var(--completed)}
 .action-chat-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .action-result .result-summary{margin:10px 0 0;line-height:1.5}
 .action-result .result-details{margin-top:12px;border-top:1px solid var(--action-line);padding-top:10px}
@@ -1213,7 +1225,7 @@ import { searchBoxes } from './page-search.js';
 import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
 import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, progressIcon, savedDesign } from './page-design.js';
-import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
+import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable, pmActionStatus } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { chatTooLong } from './chat-limit.js';
@@ -1419,10 +1431,10 @@ const W = (n) => {
   return wraps.get(key);
 };
 // Count wrapped words, including names containing a long unbroken word.
-const nameLines = (n) => {
-  const title = topicTitle(n), room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${title}`;
+const nameLines = (n, room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), font = '500 13.5px') => {
+  const title = topicTitle(n), key = `name|${font}|${room}|${title}`;
   if (!wraps.has(key)){
-    ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
+    ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 0;
     for (const paragraph of title.split('\n')){
       let line = ''; lines++;
@@ -1568,10 +1580,43 @@ function saveMapView(mode, onlyIfUnset = false){
 }
 const mindOn = () => VIEW_MODE === 'pm' && !view.startsWith('flow:') && !view.startsWith('diagram:');
 const MIND_FONT = ['600 16px', '500 14px', '400 13.5px'];
+const mindAction = (n) => !locked(n) && !!(n.action || n.proposed && n.boxType === 'action');
+const mindTextWidth = (text, font, limit = 300) => {
+  const key = `mind|${font}|${text}`;
+  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, ruler.measureText(text || ' ').width); }
+  return Math.min(limit, wraps.get(key));
+};
+// Tighten the text column while keeping its line count, so balancing leaves no empty column before the badge.
+const mindActionRoom = (n) => {
+  const title = topicTitle(n), key = `mind-room|${title}`, font = '500 14px';
+  if (!wraps.has(key)){
+    let low = 1, high = Math.ceil(mindTextWidth(title, font, 240));
+    const lines = nameLines(n, high, font);
+    if (lines > 1){
+      while (low < high){
+        const middle = Math.floor((low + high) / 2);
+        if (nameLines(n, middle, font) <= lines) high = middle;
+        else low = middle + 1;
+      }
+    }
+    wraps.set(key, high);
+  }
+  return wraps.get(key);
+};
 const mindWords = (n, depth) => {
-  const title = topicTitle(n), font = MIND_FONT[Math.min(depth, 2)], key = `mind|${font}|${title}`;
-  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.min(300, ruler.measureText(title || ' ').width)); }
-  return wraps.get(key) + designWidth(n);
+  const action = mindAction(n), font = action ? '500 14px' : MIND_FONT[Math.min(depth, 2)];
+  let width = (action ? mindActionRoom(n) : mindTextWidth(topicTitle(n), font)) + designWidth(n);
+  if (action){
+    const status = pmActionStatus(n.action);
+    width += 20 + mindTextWidth(status.label, '500 11px') + 24;
+    width += (n.design?.flag ? 2 : 0) + (n.design?.progress ? 2 : 0) + (n.icon === 'db' ? 22 : 0);
+    if (['gathering','running'].includes(n.action?.stage)) width += 13;
+  }
+  return width;
+};
+const mindActionHeight = (n) => {
+  if (!mindAction(n)) return 0;
+  return Math.max(40, 18 + nameLines(n, mindActionRoom(n), '500 14px') * 17.5);
 };
 // the topic being named with Tab or Enter is placed in the mind map like any other, so its editor opens where it will sit
 const MIND_DRAFT = '@draft';
@@ -1605,13 +1650,13 @@ function mindScope(sc){
     nodes = [...nodes, { id: MIND_DRAFT, label: typed || naming.text || 'Sub-topic', x: naming.x, y: naming.y }];
     if (draftParent) lines = [...lines, { from: draftParent, to: MIND_DRAFT }];
   }
-  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords);
+  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords, mindActionHeight);
   // what you are working on stays where it is on screen while the map grows round it: the topic getting a new
   // topic, the one being renamed, the one picked, else the start
   const before = mindLevel === view ? mindPos : new Map();
   const still = [draftParent, naming?.edit, selected, sc.centre].find((id) => typeof id === 'string' && before.has(id) && at.has(id));
   const dx = still ? before.get(still).x - at.get(still).x : 0, dy = still ? before.get(still).y - at.get(still).y : 0;
-  mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth }]));
+  mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth, mindBoxed: p.boxed }]));
   mindLevel = view;
   const placed = nodes.filter((n) => n.id !== MIND_DRAFT).map((n) => ({ ...n, ...mindPos.get(n.id) }));
   return { ...sc, nodes: placed, mind: { parent, via, centre: nodes.find((n) => n.id === sc.centre), draft: mindPos.get(MIND_DRAFT) } };
@@ -2399,19 +2444,19 @@ function render(){
   const hub = nodes.find(hubbed), folded = !!hub && hubLevel(shownLevel(), maxLevel(), !!S.drawing) > shownLevel();
   let html = '';
   for (const n of nodes){
-    const isHubBox = n === hub && !sc.mind, mindRoot = sc.mind && n.mindDepth === 0;
+    const isHubBox = n === hub && !sc.mind, mindRoot = sc.mind && n.mindDepth === 0, pmAction = sc.mind && mindAction(n);
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
+    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', pmAction ? 'mind-action' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
     const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'progress']);
     const marks = flagIcon(design.flag || '') + progressIcon(design.progress || '');
     html += `<div class="${cls}" data-id="${n.id}" ${design.align ? `data-align="${design.align}"` : ''} ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}</div>`}
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
+      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${pmAction ? '<span class="mind-action-arrow" aria-hidden="true">›</span>' : ''}${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}${pmAction ? actionView().actionStatusPill(n.action, false, true) : ''}</div>`}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${isHubBox || mindRoot ? '' : foldButton(n, byId)}
@@ -2437,7 +2482,7 @@ function render(){
 // The PM view's lines (page-mind.js): only each topic's curve from its parent. Lines between topics that are not parent
 // and child stay on the map and show in the Engineer view. A line you may pick is picked and deleted as there.
 function drawMindLines(sc, nodes, edges, byId, anyFocus){
-  const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth });
+  const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth, boxed: n.mindBoxed });
   const canPick = (e, a, b) => !!e && !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
   const quiet = (a, b, e) => anyFocus && !e?.state && !focused(a) && !focused(b);
   let svg = '', hits = '', pickSeen = false;
@@ -4172,7 +4217,7 @@ function mindSiblingHint(sc, ids, target, parentId, direction){
   // Center the marker in a gap, or give it its own space at the end of the branch.
   const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
   const pw = W(parent), ph = HT(parent);
-  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth}, {x, y, w:0, h:0, depth:target.mindDepth});
+  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth, boxed:parent.mindBoxed}, {x, y, w:0, h:0, depth:target.mindDepth});
   return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
 }
 function previewTopicAttach(sx, sy){
