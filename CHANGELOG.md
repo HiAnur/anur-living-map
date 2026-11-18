@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Even spacing when naming PM topics</strong></dt>
+<dd>
+
+New main topics in PM view keep their names centered vertically as you type. <!-- source: https://github.com/HiAnur/anur-living-map/pull/575 --> <!-- merged-at: 2026-11-18T22:58:59Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Share a map in PM or Engineer view</strong></dt>
 <dd>
 
