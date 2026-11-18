@@ -29,8 +29,10 @@ if (!db.prepare('PRAGMA table_info(sessions)').all().some((c) => c.name === 'ema
 
 /** @param {string} key @returns {string | null} */
 const setting = (key) => { const row = /** @type {any} */ (db.prepare('SELECT value FROM settings WHERE key = ?').get(key)); return row ? String(row.value) : null; };
-/** @param {string} key @param {string} value */
-const setSetting = (key, value) => { db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value); };
+/** @param {string} key @param {string} value @param {boolean} [onlyIfUnset] */
+const setSetting = (key, value, onlyIfUnset = false) => {
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value WHERE ?').run(key, value, onlyIfUnset ? 0 : 1);
+};
 /** @returns {string[]} every account an earlier install made, oldest first */
 const accounts = () => db.prepare('SELECT name FROM users ORDER BY rowid').all().map((r) => String(r.name));
 
@@ -83,6 +85,16 @@ export const users = {
   owner: () => setting('owner'),
   /** @returns {string} who you are on this Mac */
   me: () => setting('owner') || macPerson(),
+  mapView() {
+    const mode = setting('map_view');
+    return mode === 'pm' || mode === 'engineer' ? mode : '';
+  },
+  /** @param {unknown} mode @param {boolean} onlyIfUnset */
+  setMapView(mode, onlyIfUnset) {
+    if (mode !== 'pm' && mode !== 'engineer') return false;
+    setSetting('map_view', mode, onlyIfUnset);
+    return true;
+  },
   nameProblem,
   /** Change the name you go by here. @param {unknown} name @returns {{ name: string } | { error: string }} */
   rename(name) {
