@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Move branches in PM view</strong></dt>
+<dd>
+
+In PM view, drop a topic onto another topic to move its branch underneath, or drop just above or below to change its order. <!-- source: https://github.com/HiAnur/anur-living-map/pull/557 --> <!-- merged-at: 2026-11-18T01:21:06Z -->
+
+<img src="docs/shipping/2026-11-17/pm-drag-and-drop.png" alt="A PM map shows a green landing box beside Movies while Subtopic is being dragged onto it." width="650">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Design your map</strong></dt>
 <dd>
 
