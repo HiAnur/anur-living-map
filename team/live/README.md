@@ -117,3 +117,7 @@ On the home page, **+ New map** opens an empty, saved **Untitled map** with its 
 The home page at `/` includes **Context**, listing the maps you can access. Choose a map to view or download its Description object, Map object, Decision object and Memory object as JSON. Open map sits beside the map name. Shared links and downloaded files do not expose this cross-map browser.
 
 Map boxes show their title without the description underneath. Hover a box to read its summary in a nearby card; click it to read or edit the full details. Hovering does not select the box, resize it or open the side panel. Action and decision status pills remain visible.
+
+### Mind map layout
+
+**Design**, first in the right-hand rail, opens the **Mindmap (Logic Map)** choices: clockwise, counterclockwise, both sides, right and left. Choosing one switches to the PM view and redraws the same topics and branches. The choice stays in this browser for this map, including after a reload. When dragging in PM, the nearest available topic shows a green drop marker before the pointer reaches it. Drops above or below a topic also work a little to either side of its title. It changes only how the map is drawn; the Engineer positions and the map’s content stay as saved.
