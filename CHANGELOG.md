@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Choose your map type</strong></dt>
+<dd>
+
+Both **New map** and sending a prompt offer **PM Map** for ideas, plans and tasks or **Engineering Map** to map your code repo, keeping what you typed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/566 --> <!-- merged-at: 2026-11-18T21:30:17Z -->
+
+<img src="docs/shipping/2026-11-18/map-type-choice.jpg" alt="New map offers PM Map on the left for ideas, plans and tasks, and Engineering Map on the right to map your code repo." width="540">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Choose your mind map layout</strong></dt>
 <dd>
 
