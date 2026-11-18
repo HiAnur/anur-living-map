@@ -10,7 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
-  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --claude:#C96442; }
+  --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --claude:#C96442; --pending:#a74426; --cloud:#448bb8; --cloud-fill:#e0f2ff; }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 #top{height:44px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid var(--rule);font-weight:500}
@@ -41,19 +41,21 @@ body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 :root{--profile:#0E7490}
 main{width:100%;max-width:640px;margin:48px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
-a.map{display:flex;align-items:baseline;gap:12px;padding:14px 16px;margin-bottom:10px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none}
+a.map{display:flex;align-items:center;gap:20px;padding:16px 52px 16px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none;min-height:58px}
 a.map:hover{border-color:var(--text)}
 .t{font-weight:500}
-.map-name{display:flex;align-items:center;flex-wrap:wrap;gap:7px;min-width:0}
-.map-name .t{overflow-wrap:anywhere}
-.map-status{display:inline-flex;align-items:center;gap:8px;flex:none}
-.map-shared{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;border:1px solid var(--rule-2);border-radius:50%;color:var(--text-2)}
-.map-cloud{display:inline-flex;align-items:center;gap:4px;flex:none;font-size:11px;font-weight:400;color:var(--text-2);white-space:nowrap}
-.map-shared svg,.map-cloud svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-@media(max-width:600px){a.map{flex-wrap:wrap;gap:5px 10px}.map-name{flex-basis:100%}.addr{overflow-wrap:anywhere}.n{white-space:normal}}
-.addr{color:var(--text-2);font-size:12.5px}
-.n{margin-left:auto;color:var(--text-2);font-size:12.5px;white-space:nowrap}
-.n b{color:var(--claude);font-weight:500}
+.map-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.map-cloud{position:relative;display:inline-flex;align-items:center;flex:none;color:var(--cloud)}
+.map-cloud svg{width:18px;height:18px;fill:var(--cloud-fill);stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.map-cloud:focus-visible{outline:2px solid var(--text);outline-offset:3px;border-radius:3px}
+.cloud-tip{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:5;width:220px;padding:8px 10px;border-radius:6px;background:var(--text);color:#fff;font:400 12px/1.4 var(--plex);white-space:normal;text-align:left;box-shadow:0 4px 14px var(--rule)}
+.map-cloud:hover .cloud-tip,.map-cloud:focus .cloud-tip{display:block}
+
+.map-meta{display:flex;flex:none;align-items:center;gap:12px}
+.map-pending{font-size:12.5px;font-weight:500;white-space:nowrap}
+.map-pending,#brain .map-pending{color:var(--pending)}
+.last-edit{flex:none;color:var(--text-2);font-size:12.5px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:600px){a.map{gap:12px}.last-edit{font-size:12px}}
 .none{color:var(--text-2)}
 /* a new map from a prompt, in a box like Claude's: Claude Code starts it on a blank canvas */
 #new{display:flex;align-items:flex-end;gap:8px;margin-bottom:28px;padding:12px 10px 10px 14px;background:#fff;border:1px solid var(--rule-2);border-radius:18px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
@@ -131,25 +133,31 @@ a.map:hover{border-color:var(--text)}
 /* no maps yet: what to do first */
 .empty{padding:22px 20px;background:#fff;border:1px dashed var(--rule-2);border-radius:10px;color:var(--text-2)}
 .empty b{display:block;margin-bottom:4px;color:var(--text);font-weight:500;font-size:15px}
-.tag-sys{font-size:11.5px;padding:1px 7px;border-radius:5px;border:1px solid var(--rule-2);color:var(--text-2)}
 .sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
 .sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
 .sort button:hover{color:var(--text)}
 .sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
-/* Trash keeps maps recoverable, with the same neutral action on every owned map. */
+/* The list keeps the name, pending answers and last edit in view; each map's details and other actions open from More. */
 .row{position:relative;margin-bottom:10px}
-.row a.map{margin-bottom:0;align-items:center}
-.row.can a.map{padding-right:48px}
-.del{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:28px;height:28px;border:0;border-radius:7px;background:none;color:var(--text-2);font-size:14px;cursor:pointer}
-.del:hover{background:#f0eee8;color:var(--text)}
-.del svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-/* A pin keeps a map at the top of your own list. It sits on the card's top right corner, half over the edge, like
-   a pin stuck in a note, and is filled while the map is pinned. */
-.pin{position:absolute;top:-9px;right:-9px;width:22px;height:22px;padding:0;display:grid;place-items:center;border:1px solid var(--rule-2);border-radius:50%;background:#fff;color:var(--text-2);cursor:pointer}
-.pin:hover,.pin:focus-visible{border-color:var(--text);color:var(--text);outline:none}
-.pin svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:rotate(40deg)}
-.pin.on{background:var(--text);border-color:var(--text);color:#fff}
-.pin.on svg{fill:currentColor}
+.row.menu-open{z-index:2}
+.map-more{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:none;color:var(--text-2);cursor:pointer}
+.map-more:hover,.map-more[aria-expanded="true"]{background:#f0eee8;color:var(--text)}
+.map-more svg{width:18px;height:18px;fill:currentColor}
+.map-more:focus-visible,.map-menu button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.map-menu{position:absolute;right:8px;top:calc(100% - 6px);width:min(292px,calc(100% - 16px));padding:6px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 8px 24px var(--rule);font-size:13px}
+.map-details{display:grid;gap:6px;padding:8px 10px 12px;color:var(--text-2)}
+.map-details b{font-weight:500;color:var(--text)}
+.map-folder{display:grid;gap:6px}
+.map-details > .map-folder:not(:first-child){margin:6px -10px 0;padding:12px 10px 0;border-top:1px solid var(--rule)}
+.map-folder-path{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:11.5px/1.5 ui-monospace,Menlo,monospace;user-select:all}
+.map-menu .copy-folder{width:max-content;padding:5px 8px;border:1px solid var(--rule-2);font-size:12px}
+.map-menu-actions{border-top:1px solid var(--rule);padding-top:5px}
+.map-menu button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--text);text-align:left;font:13px var(--plex);cursor:pointer}
+.map-menu button:hover{background:var(--canvas)}
+.map-menu button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+/* Only pinned maps carry a marker; Pin and Unpin are actions in More. */
+.pin{position:absolute;top:-9px;right:-9px;width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--text);border-radius:50%;background:var(--text);color:#fff}
+.pin svg{width:13px;height:13px;fill:currentColor;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:rotate(40deg)}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
 #brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
@@ -157,7 +165,9 @@ a.map:hover{border-color:var(--text)}
 @media(max-width:860px){.home{display:block}#brain{border-left:0;border-top:1px solid var(--rule)}}
 #brain .brain-map{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:14px 10px;text-align:left;border:0;border-bottom:1px solid var(--rule);background:none;color:var(--text);cursor:pointer;border-radius:8px}
 #brain .brain-map:hover{background:var(--canvas)}
-#brain .brain-map strong{font-size:14px;display:block}
+#brain .brain-map strong{font-size:14px;display:block;min-width:0}
+#brain .brain-map-status{display:flex;align-items:center;gap:10px;flex:none}
+#brain .brain-map-status small{margin:0}
 #brain small{display:block;color:var(--text-2);font-size:12px;margin-top:4px}
 #brain .brain-back{border:0;background:none;color:var(--new);padding:2px 0 14px;cursor:pointer}
 #brain h2{font-size:19px;margin:2px 0 12px;overflow-wrap:anywhere}
@@ -172,7 +182,7 @@ a.map:hover{border-color:var(--text)}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
 [hidden]{display:none!important}
 .trash-button{font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
-.trash-button:disabled,.del:disabled,.pin:disabled{opacity:.5;cursor:wait}
+.trash-button:disabled,.map-menu button:disabled{opacity:.5;cursor:wait}
 #trash-open{margin-top:6px;background:none}
 #trash-panel>p{color:var(--text-2);font-size:13px;margin:10px 0 18px}
 .trash-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin:10px 0;background:#fff;border:1px solid var(--rule-2);border-radius:10px}
@@ -242,6 +252,7 @@ if (SIGNED_IN){
 }
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const shortAgo = (t) => ago(t).replace(/ (min|h|d) ago$/, (_, unit) => unit === 'min' ? 'm' : unit).replace('just now', 'now');
 // a repo's size from GitHub's kilobytes, in words a person reads at a glance
 const sizeOf = (kb) => kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : kb < 1024 * 1024 ? `${Math.round(kb / 1024)} MB` : `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -517,10 +528,17 @@ document.addEventListener('click', (e) => {
 let maps = null, sortBy = 'time';
 try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
 const titleOf = (m) => m.title || m.name;
-function mapIndicators(m){
-  if (!m.shared && !m.cloud) return '';
-  return `<span class="map-status">${m.shared ? '<span class="map-shared" role="img" aria-label="Shared by link" title="Shared by link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v2"/></svg></span>' : ''}${m.cloud ? '<span class="map-cloud" role="img" aria-label="Online copy stored in the cloud" title="Online copy stored in the cloud"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 0-10 6 6 0 0 1 11.5 1.5A4.3 4.3 0 0 1 18 18Z"/></svg></span>' : ''}</span>`;
+function cloudMark(m){
+  return m.cloud ? '<span class="map-cloud" role="img" aria-label="Stored in the cloud" aria-description="A copy of this map is stored in the cloud." tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 0-10 6 6 0 0 1 11.5 1.5A4.3 4.3 0 0 1 18 18Z"/></svg><span class="cloud-tip" role="tooltip">A copy of this map is stored in the cloud.</span></span>' : '';
 }
+function shortFolder(folder){
+  const parts = String(folder).split(/[\\/]/).filter(Boolean);
+  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : String(folder);
+}
+function mapDetails(m){
+  return `<div class="map-details">${m.system ? `<b>${m.system === 'running' ? 'Drawing from code' : 'System map'}</b>` : ''}${m.system && m.repos ? `<span>${m.repos} ${m.repos === 1 ? 'repo' : 'repos'}${m.drawn ? ` · Drawn ${ago(m.drawn)}` : ''}</span>${m.newCommits ? `<span>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</span>` : ''}` : ''}${m.shared ? '<span>Shared by link</span>' : ''}${m.cloud ? '<span>Online copy stored in the cloud</span>' : ''}${m.folder ? `<div class="map-folder"><b>Local folder</b><code class="map-folder-path" title="${esc(m.folder)}">${esc(shortFolder(m.folder))}</code><button type="button" class="copy-folder" data-copy-folder="${esc(m.name)}">Copy folder location</button></div>` : ''}</div>`;
+}
+const duplicateIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M12 7V3H3v9h4"/></svg>';
 const pinIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3h4v5l2.5 3.5h-9L8 8zM10 11.5V17"/></svg>';
 function ordered(maps, sortBy){
   return [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
@@ -537,7 +555,49 @@ function list(){
   if (!maps.length) { el.innerHTML = '<div class="empty"><b>No maps yet — make one</b>Say what Claude should map in the box above, or press <button type="button" class="nm-quiet" data-empty-new>New map</button> to draw a repo from its code or start from a blank canvas.</div>'; return; }
   el.className = '';
   const sorted = ordered(maps, sortBy);
-  el.innerHTML = sorted.map((m) => `<div class="row${m.deletable ? ' can' : ''}"><a class="map" href="${m.href}${location.search}"><span class="map-name"><span class="t">${esc(titleOf(m))}</span>${m.system ? `<span class="tag-sys">${m.system === 'running' ? 'Drawing from code' : 'System map'}</span>` : ''}</span><span class="addr">${m.href}</span><span class="n">${m.system && m.repos ? `${m.repos} ${m.repos === 1 ? 'repo' : 'repos'} · ${m.system === 'running' ? 'drawing now · ' : m.drawn ? `drawn ${ago(m.drawn)} · ` : ''}${m.newCommits ? `<b>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</b> · ` : ''}` : ''}${m.boxes} boxes${m.open ? ` · <b>${m.open} to answer</b>` : ''} · ${ago(m.at)}</span>${mapIndicators(m)}</a><button type="button" class="pin${m.pinned ? ' on' : ''}" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}" title="${m.pinned ? 'Unpin' : 'Pin to the top'}" aria-label="${m.pinned ? `Unpin ${esc(titleOf(m))}` : `Pin ${esc(titleOf(m))} to the top`}">${pinIcon}</button>${m.deletable ? `<button type="button" class="del" data-trash="${esc(m.name)}" title="Move to Trash" aria-label="Move ${esc(titleOf(m))} to Trash">${trashIcon}</button>` : ''}</div>`).join('');
+  el.innerHTML = sorted.map((m, i) => `<div class="row"><a class="map" href="${m.href}${location.search}"><span class="map-name t">${esc(titleOf(m))}</span><span class="map-meta">${m.open ? `<span class="map-pending">${m.open} to answer</span>` : ''}${cloudMark(m)}<span class="last-edit"${m.at ? ` title="${esc(new Date(m.at).toLocaleString())}"` : ''}>${m.at ? shortAgo(m.at) : 'Not edited yet'}</span></span></a>${m.pinned ? `<span class="pin" role="img" aria-label="Pinned" title="Pinned to the top">${pinIcon}</span>` : ''}<button type="button" class="map-more" data-map-menu="${esc(m.name)}" aria-expanded="false" aria-controls="map-menu-${i}" aria-label="More options for ${esc(titleOf(m))}" title="More options"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button><div class="map-menu" id="map-menu-${i}" role="region" aria-label="${esc(titleOf(m))} details and actions" hidden>${mapDetails(m)}<div class="map-menu-actions"><button type="button" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}">${pinIcon}${m.pinned ? 'Unpin' : 'Pin to top'}</button>${m.deletable ? `<button type="button" class="duplicate" data-duplicate="${esc(m.name)}">${duplicateIcon}Duplicate</button><button type="button" class="del" data-trash="${esc(m.name)}">${trashIcon}Move to Trash</button>` : ''}</div></div></div>`).join('');
+}
+function closeMapMenus(focus = false){
+  const button = document.querySelector('[data-map-menu][aria-expanded="true"]');
+  if (!button) return;
+  button.setAttribute('aria-expanded', 'false');
+  $(button.getAttribute('aria-controls')).hidden = true;
+  button.closest('.row').classList.remove('menu-open');
+  if (focus) button.focus();
+}
+function toggleMapMenu(button){
+  const open = button.getAttribute('aria-expanded') !== 'true';
+  closeMapMenus();
+  if (!open) return;
+  button.setAttribute('aria-expanded', 'true');
+  $(button.getAttribute('aria-controls')).hidden = false;
+  button.closest('.row').classList.add('menu-open');
+}
+document.addEventListener('click', (e) => { if (!e.target.closest('.map-menu,[data-map-menu]')) closeMapMenus(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeMapMenus(true);
+  if (e.key === 'ArrowDown' && e.target.closest('[data-map-menu]')) {
+    e.preventDefault();
+    const button = e.target.closest('[data-map-menu]');
+    if (button.getAttribute('aria-expanded') !== 'true') toggleMapMenu(button);
+    $(button.getAttribute('aria-controls')).querySelector('button')?.focus();
+  }
+});
+async function copyFolder(name, button){
+  const folder = maps.find((m) => m.name === name)?.folder;
+  if (!folder) return;
+  try {
+    await navigator.clipboard.writeText(folder);
+    button.textContent = 'Copied';
+    setTimeout(() => { button.textContent = 'Copy folder location'; }, 1800);
+  } catch { trashNotice('Could not copy the folder location. Select the path and copy it.'); }
+}
+async function duplicateMap(name, button){
+  button.disabled = true;
+  try {
+    const result = await trashRequest('/api/maps/duplicate', {name});
+    location.href = result.href;
+  } catch (e){ button.disabled = false; trashNotice(e.message); }
 }
 // a pin is saved for you on the server, so it is there in any browser on this Mac
 async function togglePin(name, button){
@@ -546,12 +606,15 @@ async function togglePin(name, button){
   try {
     map.pinned = (await trashRequest('/api/maps/pin', { name, pinned: !map.pinned })).pinned;
     list(); $('trash-status').hidden = true;
-    // the list is drawn again, so the keyboard stays on the pin that was pressed
-    [...document.querySelectorAll('[data-pin]')].find((b) => b.dataset.pin === name)?.focus();
+    // Pinning sorts the list again and closes the menu, so the keyboard returns to that map's More button.
+    [...document.querySelectorAll('[data-map-menu]')].find((b) => b.dataset.mapMenu === name)?.focus();
   } catch (e){ button.disabled = false; trashNotice(e.message); }
 }
 $('list').addEventListener('click', (e) => {
   if (e.target.closest('[data-empty-new]')) return blank.click();
+  const copy = e.target.closest('[data-copy-folder]'); if (copy) return copyFolder(copy.dataset.copyFolder, copy);
+  const more = e.target.closest('[data-map-menu]'); if (more) return toggleMapMenu(more);
+  const duplicate = e.target.closest('[data-duplicate]'); if (duplicate) return duplicateMap(duplicate.dataset.duplicate, duplicate);
   const button = e.target.closest('[data-trash]'); if (button) return moveToTrash(button.dataset.trash, button);
   const pin = e.target.closest('[data-pin]'); if (pin) togglePin(pin.dataset.pin, pin);
 });
@@ -604,7 +667,7 @@ function renderBrain(){
   if (brainLoading){ el.innerHTML = heading + back + '<p class="brain-empty" role="status">Loading…</p>'; return; }
   if (brainError){ el.innerHTML = heading + back + `<p role="alert">${esc(brainError)}</p><button class="gb" data-brain-retry>Try again</button>`; return; }
   if (!brainMap){
-    el.innerHTML = heading + brainMaps.map((m,i) => `<button class="brain-map" data-brain-map="${i}"><span><strong>${esc(m.title || m.name || 'Untitled map')}</strong><small>${m.boxes || 0} boxes</small></span><span aria-hidden="true">›</span></button>`).join(''); return;
+    el.innerHTML = heading + brainMaps.map((m,i) => `<button class="brain-map" data-brain-map="${i}"><strong>${esc(m.title || m.name || 'Untitled map')}</strong><span class="brain-map-status">${m.open ? `<small class="map-pending">${m.open} to answer</small>` : ''}${cloudMark(m)}<span aria-hidden="true">›</span></span></button>`).join(''); return;
   }
   const state = brainState;
   if (!state) return;
