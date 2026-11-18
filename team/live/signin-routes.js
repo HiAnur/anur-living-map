@@ -52,6 +52,18 @@ export function signInRoutes({ users, googleFinish, googleOn, googleStart, page,
       const got = users.rename(a.name);
       return 'name' in got ? json(200, { name: got.name }) : json(400, { error: got.error });
     }
+    if (url.pathname === '/api/me/map-view' && req.method === 'POST') {
+      if (!fromHere()) return refuse();
+      const /** @type {any} */ a = await jsonBody(req, {});
+      try {
+        return users.setMapView(a?.mode, a?.onlyIfUnset === true)
+          ? json(200, {})
+          : json(400, { error: 'Choose Engineer or PM.' });
+      } catch (error) {
+        console.error('[map] could not save the map view:', error);
+        return json(500, { error: 'Your map view could not be saved.' });
+      }
+    }
     // signing out of Google forgets its email and picture; you stay on your maps
     if (url.pathname === '/api/google/signout' && req.method === 'POST') {
       if (!fromHere()) return refuse();

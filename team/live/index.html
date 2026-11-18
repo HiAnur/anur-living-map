@@ -17,6 +17,8 @@
   --canvas:#fbfaf7; --box:#fff; --box-line:#bdb9ae; --line:#a8a49a; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
   --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#fff;
   --action:#784861; --action-tint:#F8F0F5; --action-line:#BE92AA;--execution:#875512;--execution-tint:#FFF4DB;--execution-line:#C9A661;
+  --flag-red:#c52e3b;--flag-orange:#bd4b09;--flag-yellow:#946300;--flag-green:#008050;
+  --flag-blue:#0075af;--flag-indigo:#3e5ac9;--flag-purple:#8246c6;--progress:#0075af;
   --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --todo:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442; --ok:#2E8B57; --completed:#1E8045;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -154,7 +156,12 @@ body.blank-repo #tidyb{display:none}
 .tbtn.on{background:#141413;color:#fff;border-color:#141413}
 .tbtn .bad{color:var(--gone);font-weight:500}
 
-#canvas{position:absolute;inset:var(--topbar) 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);background-image:radial-gradient(circle,rgba(0,0,0,.13) 1px,transparent 1.3px);background-size:20px 20px}
+#canvas{
+  --dot-gap:calc(20px * var(--map-zoom, 1));
+  position:absolute;inset:var(--topbar) 72px 0 0;overflow:hidden;cursor:default;background-color:var(--canvas);
+  background-image:radial-gradient(circle,rgba(0,0,0,.13) calc(1px * var(--map-zoom, 1)),transparent calc(1.3px * var(--map-zoom, 1)));
+  background-size:var(--dot-gap) var(--dot-gap)
+}
 #canvas.grabbing{cursor:grabbing}
 #stage{position:absolute;left:0;top:0;width:0;height:0;transform-origin:0 0}
 #edges{position:absolute;left:0;top:0;overflow:visible;width:1px;height:1px}
@@ -190,10 +197,13 @@ body.blank-repo #tidyb{display:none}
 #rubber .attach-target{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-box{fill:var(--box);fill-opacity:.85;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
 #rubber .attach-line{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:3 3}
+body.mind-view #rubber :is(.attach-target,.attach-box,.attach-line){stroke-width:3;stroke-dasharray:none}
+body.mind-view #rubber .attach-box{fill:color-mix(in srgb,var(--ok) 34%,var(--box));fill-opacity:1}
 #rubber .drag-source{fill:var(--new-tint);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
 #rubber .drag-ghost{opacity:.75}
+body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 #rubber .drag-ghost-box{fill:var(--box);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
-#rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
+#rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
@@ -214,14 +224,19 @@ body.blank-repo #tidyb{display:none}
 #rubber rect.snap{fill:none;stroke:#0D99FF;stroke-width:2;stroke-dasharray:none}
 #newbox{position:absolute;display:none;transform:translate(-50%,-50%);z-index:3}
 #newbox.on{display:block}
+#newbox.mind-draft{transform:translate(0,-50%)}
+#newbox.mind-draft textarea,body.mind-view #newbox.inline textarea{text-align:left}
+/* a new deeper topic is typed as words on its underline, no box */
+#newbox.mind-words{height:28px!important}
+#newbox.mind-words textarea{min-height:0;padding:4px 5px;border:0;border-radius:0;background:transparent;box-shadow:none;font:400 13.5px/20px var(--plex)}
 #newbox.inline input,#newbox.inline textarea{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;text-align:center;line-height:1.25}
 #newbox.line input{font:12px var(--plex);color:var(--text-2);background:var(--canvas)}
 .node.editing-name .nt,.node.editing-description .s{visibility:hidden}
 .reply-progress{flex:none;padding:10px 16px}
 #newbox input,#newbox textarea{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-#newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none;text-align:center}
+#newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none}
 #newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
-#newbox textarea{text-align:center;padding:15px 10px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
+#newbox textarea{text-align:left;padding:15px 12px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
@@ -254,7 +269,50 @@ body.blank-repo #tidyb{display:none}
 /* selected: the box lights up blue */
 /* a picked box: its own edge turns blue, with the dots out past its sides */
 .node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
-.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
+/* the PM view (page-mind.js): an outlined start box with rounded ends, main topics outlined boxes on thick branches, deeper topics
+   words on a thin underline; the font sizes are the ones the page measures (MIND_FONT) */
+#edges > path.mind-line{stroke:var(--text-2)}
+#edges > path.mind-branch{stroke-width:3}
+#edges > path.mind-twig{stroke-width:1.3}
+#edges > path.mind-line.new{stroke:var(--new)}
+.node.mind-root{padding:0 22px;border-radius:999px}
+.node.mind-root:not(.locked){background:var(--box);border:2px solid var(--text)}
+.node.mind-root .n{font:600 16px/1.25 var(--plex);justify-content:center;text-align:center}
+.node.mind-topic{padding:0 14px;border:1.5px solid var(--text);border-radius:8px}
+.node.mind-topic .n{font:500 14px/1.25 var(--plex)}
+/* a deeper topic is only its words: its underline is drawn with its line (mindBranch), and picking it thickens that underline */
+.node.mind-leaf{padding:0 5px;background:transparent;border:0;border-radius:0}
+.node.mind-leaf .n{font:400 13.5px/1.25 var(--plex)}
+.node.mind-leaf:hover{box-shadow:none}
+.node.mind-leaf.sel{outline:none;box-shadow:inset 0 -2px 0 var(--new)}
+.node.mind-leaf.sel .n{color:var(--new)}
+.node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node.mind-root.sel{outline-offset:2px}
+.node.mind-pending{pointer-events:none}
+body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
+/* the account menu's choice of how maps are drawn */
+.pm-view{display:flex;align-items:center;gap:8px;margin-top:4px;padding:8px;border-top:1px solid var(--rule)}
+.pm-view > span{flex:1;font-size:12.5px;color:var(--text-2)}
+.pm-view [role=radiogroup]{display:flex;padding:2px;border-radius:8px;background:#f0efea}
+.pm-view button{height:26px;padding:0 10px;border:0;border-radius:6px;background:none;font:500 12.5px var(--plex);color:var(--text-2);cursor:pointer}
+.pm-view button[aria-checked=true]{background:var(--box);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+/* Design marks travel with the box when it moves or is exported. */
+.design-mark{display:inline-grid;place-items:center;flex:none;width:16px;height:16px}
+.design-mark svg{display:block;width:100%;height:100%}
+.design-mark.flag{border-radius:50%;background:var(--flag-color);color:var(--box);padding:1px}
+[data-flag="red"]{--flag-color:var(--flag-red)}
+[data-flag="orange"]{--flag-color:var(--flag-orange)}
+[data-flag="yellow"]{--flag-color:var(--flag-yellow)}
+[data-flag="green"]{--flag-color:var(--flag-green)}
+[data-flag="blue"]{--flag-color:var(--flag-blue)}
+[data-flag="indigo"]{--flag-color:var(--flag-indigo)}
+[data-flag="purple"]{--flag-color:var(--flag-purple)}
+.design-mark.progress{color:var(--progress)}
+.node[data-align="top"]{justify-content:flex-start;padding-top:6px}
+.node[data-align="bottom"]{justify-content:flex-end;padding-bottom:6px}
+.node.editing-name .design-mark{visibility:hidden}
+.node .hub-marks{position:absolute;left:100%;top:-7px;display:flex;gap:2px;pointer-events:none}
+.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;align-self:stretch;text-align:left;gap:6px}
 /* Names wrap in full, and HT reserves room for every line. */
 .node .nt{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
@@ -803,6 +861,18 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-status-pill[data-tone="completed"]{background:var(--completed)}
 .action-status-pill[data-tone="cancelled"]{background:var(--text-2)}
 .action-status-pill .action-spin{width:9px;height:9px;border-color:color-mix(in srgb,currentColor 35%,transparent);border-top-color:currentColor}
+/* PM Actions keep their arrow, name and status together, including topics otherwise drawn as underlines. */
+.node.mind-action{padding:0 12px;border:1px solid var(--action);border-radius:8px;background:var(--action-tint)}
+.node.mind-action .n{font:500 14px/1.25 var(--plex);gap:8px;justify-content:flex-start}
+.node.mind-action .nt{flex:1;white-space:normal;text-wrap:balance;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.node.mind-action.sel{outline:1.5px solid var(--new);outline-offset:2px;box-shadow:none}
+.node.mind-action.sel .n{color:var(--text)}
+.node.mind-action .mind-action-arrow{flex:none;width:12px;font:400 22px/1 var(--plex);color:var(--action)}
+.node.mind-action .action-status-pill{position:static;flex:none;margin-left:auto;border:0;background:color-mix(in srgb,var(--text-2) 10%,var(--box));color:var(--text-2)}
+.node.mind-action .action-status-pill[data-tone="active"]{background:color-mix(in srgb,var(--flag-blue) 12%,var(--box));color:var(--flag-blue)}
+.node.mind-action .action-status-pill[data-tone="waiting"]{background:color-mix(in srgb,var(--execution) 12%,var(--box));color:var(--execution)}
+.node.mind-action .action-status-pill[data-tone="blocked"]{background:color-mix(in srgb,var(--flag-red) 12%,var(--box));color:var(--flag-red)}
+.node.mind-action .action-status-pill[data-tone="completed"]{background:color-mix(in srgb,var(--completed) 12%,var(--box));color:var(--completed)}
 .action-chat-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .action-result .result-summary{margin:10px 0 0;line-height:1.5}
 .action-result .result-details{margin-top:12px;border-top:1px solid var(--action-line);padding-top:10px}
@@ -846,12 +916,39 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .att .x{margin-left:auto;cursor:pointer}
 #chat .att + .ask{border-top:0}
 /* the rail down the right edge: a button per extra panel, icon over its name; Claude sits at the foot */
-#rail{position:fixed;right:0;top:var(--topbar);bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15}
-#rail .ri{position:relative;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
+#rail{position:fixed;right:0;top:var(--topbar);bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15;overflow-y:auto;scrollbar-width:none}
+#rail .ri{position:relative;flex-shrink:0;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
 #rail .ri svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 #rail .ri:hover{background:#f3f2ee;color:var(--text)}
 #rail .ri.on{background:#efeee9;color:var(--text)}
 #rail .ri .dot{position:absolute;top:6px;right:17px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
+/* Design uses the same pane and selection as the map. */
+#design{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#design h2,#design h3{font-size:14px;font-weight:500;line-height:1.3}
+#design h3{margin-bottom:10px}
+#design .ct{margin-bottom:12px}
+#design .design-close{display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;background:transparent;color:var(--text-2);border-radius:6px;cursor:pointer;font-size:19px;line-height:1}
+#design section{border-top:1px solid var(--rule);padding:14px 0}
+#design .design-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,86px),1fr));gap:8px}
+#design .design-fields label{display:grid;gap:4px;min-width:0}
+#design .design-fields span,#design .design-target{font-size:12px;color:var(--text-2)}
+#design select{height:34px;min-width:0;padding:0 6px;background:var(--box);border:1px solid var(--rule-2);border-radius:6px;font:inherit}
+#design .design-target{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:-4px 0 14px}
+#design .design-options{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+#design .design-options:last-child{margin-bottom:0}
+#design .design-options button{display:inline-flex;justify-content:center;align-items:center;gap:5px;min-width:31px;min-height:34px;padding:2px 5px;background:var(--box);border:1px solid var(--rule-2);border-radius:6px;font-size:12px;cursor:pointer}
+#design .design-options button[aria-pressed="true"]{border-color:var(--new);background:var(--new-tint);box-shadow:inset 0 0 0 1px var(--new)}
+#design .design-layouts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+#design .design-layouts button{display:grid;place-items:center;min-width:0;min-height:52px;padding:3px;background:var(--box);color:var(--text-2);border:1px solid var(--rule-2);border-radius:8px;cursor:pointer}
+#design .design-layouts svg{display:block;width:100%;max-width:64px}
+#design .design-layouts button[aria-pressed="true"]{color:var(--text);border-color:var(--new);background:var(--new-tint);box-shadow:inset 0 0 0 1px var(--new)}
+#design .design-mark{width:19px;height:19px}
+#design .align-icon{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+#design button:hover:not(:disabled){background:var(--canvas)}
+#design button:focus-visible,#design select:focus-visible,#rail [data-rail="design"]:focus-visible{outline:2px solid var(--new);outline-offset:2px}
+#design button:disabled,#design select:disabled{cursor:default;opacity:.65}
+#design .design-note{font-size:13px;color:var(--text-2)}
+@media(max-width:760px){body.design-open{--pane-width:min(320px,calc(100vw - 148px))}}
 /* the Decisions panel: every answer and applied change on the map, newest first */
 #decs{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #decs.on{display:block}
@@ -1106,11 +1203,13 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
 <div class="panel" id="decs"></div>
 <div class="panel" id="hist"></div>
+<aside class="panel" id="design" aria-labelledby="design-heading" hidden></aside>
 <div class="panel" id="mem"></div>
 <div class="panel" id="scs"></div>
 <div id="histbar"></div>
 <!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
 <nav id="rail">
+  <button class="ri" type="button" data-rail="design" aria-expanded="false" aria-controls="design"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h7m4 0h3M3 10h2m4 0h8M3 15h9m4 0h1"/><circle cx="12" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="14" cy="15" r="2"/></svg><span>Design</span></button>
   <button class="ri" data-rail="decisions" title="Every decision made on this map"><svg viewBox="0 0 20 20"><path d="M3 5.5l1.6 1.6L7.5 4.2M3 11.5l1.6 1.6 2.9-2.9M10 6h7M10 12h7M3 16.5h14"/></svg><span>Decisions</span></button>
   <button class="ri" data-rail="comments" title="Every comment on this map"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><span>Comments</span></button>
   <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Context</span></button>
@@ -1127,7 +1226,8 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
+import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, progressIcon, savedDesign } from './page-design.js';
+import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable, pmActionStatus } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { chatTooLong } from './chat-limit.js';
@@ -1135,6 +1235,7 @@ import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
 import { HUB_SIZE, LEVEL_CENTRE, hubHint, hubLevel, isHub, levelGraph } from './page-hub.js';
+import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindView } from './page-mind.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1297,7 +1398,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'undo', 'redo']);
+const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'designmap', 'designbox', 'undo', 'redo']);
 const pendingActions = new Set();
 let cloudWriteQueue = Promise.resolve();
 const act = (type, extra = {}) => {
@@ -1321,19 +1422,22 @@ const cam = { x: 0, y: 0, z: 1 };
 // 220, where the name wraps; include both borders and rounding room before wrapping. As tall as its lines. A box drawn big with one word in it is the usual size.
 const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
+const topicTitle = (n) => n.topicNumber ? `${n.topicNumber} ${n.label}` : String(n.label || '');
+const designWidth = (n) => (n.design?.flag ? 22 : 0) + (n.design?.progress ? 22 : 0);
 const W = (n) => {
+  if (n.mindW) return n.mindW;
   if (hubbed(n)) return HUB_SIZE;
-  const key = `w|${n.kind}|${n.icon}|${n.label}`;
-  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 28 + (n.icon === 'db' ? 20 : 0))))); }
+  const title = topicTitle(n), extra = designWidth(n), key = `w|${n.kind}|${n.icon}|${extra}|${title}`;
+  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(title).width + 28 + extra + (n.icon === 'db' ? 20 : 0))))); }
   return wraps.get(key);
 };
 // Count wrapped words, including names containing a long unbroken word.
-const nameLines = (n) => {
-  const room = W(n) - 26 - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${n.label}`;
+const nameLines = (n, room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), font = '500 13.5px') => {
+  const title = topicTitle(n), key = `name|${font}|${room}|${title}`;
   if (!wraps.has(key)){
-    ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
+    ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 0;
-    for (const paragraph of String(n.label || '').split('\n')){
+    for (const paragraph of title.split('\n')){
       let line = ''; lines++;
       for (const word of paragraph.split(/\s+/).filter(Boolean)){
         const joined = line ? `${line} ${word}` : word;
@@ -1351,7 +1455,7 @@ const nameLines = (n) => {
 };
 document.fonts?.ready.then(() => { wraps.clear(); if (S) render(); });
 // Only the title determines a box's size; supporting text appears on hover or in its details.
-const HT = (n) => hubbed(n) ? HUB_SIZE : (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + 40 + Math.max(0, nameLines(n) - 1) * 17;
+const HT = (n) => n.mindH ? n.mindH : hubbed(n) ? HUB_SIZE : (n.action || n.proposed && n.boxType === 'action' ? 18 : 0) + 40 + Math.max(0, nameLines(n) - 1) * 17;
 const boxSummary = (n) => {
   if (locked(n)) return '';
   const summary = String(n.sub || n.desc || '').trim();
@@ -1362,8 +1466,6 @@ const boxSummary = (n) => {
 const { fanPts, planTopicInsert, planTopicRemove } = layoutFor({ W, HT });
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
-// before any plan is drawn nothing fades: the whole system is the picture
-const anyFocus = () => !decisionMap() && scope().nodes.some(focused);
 // a map of decisions rather than of a repo's code (GTM at /gtm/): nothing is built there, so a box's colour
 // says whether it still needs an answer (amber), has been answered (green), or is information (plain)
 const decisionMap = () => !!S && !S.project && !!location.pathname.split('/')[1];
@@ -1407,15 +1509,34 @@ window.addEventListener('resize', hideBoxHint);
 window.addEventListener('blur', hideBoxHint);
 
 
-const place = () => { stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`; if (S && (openThread || draft)) renderComments(); };
+const place = () => {
+  stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
+  // Keep the dots anchored to the same map coordinates as the boxes.
+  canvas.style.setProperty('--map-zoom', String(cam.z));
+  canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
+  positionDeletePrompt();
+  if (S && (openThread || draft)) renderComments();
+};
+// Keep the confirmation inside the visible canvas, even when its topic sits at an edge or the map is zoomed.
+function positionDeletePrompt(){
+  const prompt = canvas.querySelector('.delq'); if (!prompt) return;
+  const r = canvas.getBoundingClientRect(), margin = 12;
+  prompt.style.maxWidth = `${Math.min(300, Math.max(0, r.width - margin * 2) / cam.z)}px`;
+  prompt.style.maxHeight = `${Math.max(0, r.height - margin * 2) / cam.z}px`;
+  prompt.style.overflow = 'auto'; prompt.style.transform = 'translateX(-50%)';
+  const b = prompt.getBoundingClientRect();
+  const dx = Math.max(r.left + margin, Math.min(r.right - margin - b.width, b.left)) - b.left;
+  const dy = Math.max(r.top + margin, Math.min(r.bottom - margin - b.height, b.top)) - b.top;
+  prompt.style.transform = `translate(calc(-50% + ${dx / cam.z}px), ${dy / cam.z}px)`;
+}
 // Go to a box from a list (Decisions, Claude's chat): the map glides until the box sits in the middle of the
 // part you can see, beside the pane that opens for it, at a zoom you can read; a box inside another opens that one
 // A box opened by a click stays where it is; if its pane covers it, reveal only the hidden part.
-const keepInView = (id) => { const n = nodeById(id) || proposedBox(id); if (n) keepEditorVisible(n, W(n), HT(n)); };
+const keepInView = (id) => { const n = onMap(nodeById(id) || proposedBox(id)); if (n) keepEditorVisible(n, W(n), HT(n)); };
 function centerOn(id){
   const parent = parentBoxOf(S, id);
   const v = parent ? parent.id : 'system'; if (view !== v){ view = v; render(); }
-  const n = nodeById(id) || proposed().nodes.find((x) => x.id === id); if (!n) return;
+  const n = onMap(nodeById(id) || proposed().nodes.find((x) => x.id === id)); if (!n) return;
   const r = canvas.getBoundingClientRect(), z = Math.max(cam.z, 0.8);
   const to = { x: r.width / 2 - n.x * z, y: r.height / 2 - n.y * z, z }, from = { ...cam }, t0 = performance.now();
   const step = (now) => {
@@ -1436,12 +1557,136 @@ const toStage = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [
 const scope = () => {
   if (view !== 'system'){
     const box = nodeById(view);
-    return unfolded(levelGraph(box?.inside || { nodes: [], edges: [] }, { top: false, label: box?.label || '' }));
+    return mindScope(unfolded(levelGraph(box?.inside || { nodes: [], edges: [] }, { top: false, label: box?.label || '' })));
   }
   // everyone sees the whole picture; a box outside your reach is drawn locked, not hidden
   const p = proposed(), all = p.nodes.length || p.edges.length ? { nodes: [...S.nodes.map((n) => ({ ...n, ...p.layout.find((m) => m.id === n.id) })), ...p.nodes], edges: [...S.edges, ...p.edges], centre: S.centre } : S;
-  return unfolded(levelGraph(all, { top: true, start: S.start, label: S.title }));
+  return mindScope(unfolded(levelGraph(all, { top: true, start: S.start, label: S.title })));
 };
+/* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
+   never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
+const MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
+let MIND_LAYOUT = 'right';
+try { MIND_LAYOUT = mindLayoutChoice(localStorage.getItem(MIND_LAYOUT_KEY)); } catch { /* the choice still applies to this page */ }
+let VIEW_MODE = 'engineer', mindPos = new Map();
+const savedMapView = document.querySelector('meta[name="lm-map-view"]');
+let browserMapView = null;
+try { browserMapView = localStorage.getItem(MIND_VIEW_KEY); } catch { /* the Mac can still keep your choice */ }
+VIEW_MODE = mindView(savedMapView?.content || browserMapView);
+let savingMapView = Promise.resolve();
+// Import a browser choice once. A later visit from a different address may still have an old browser choice.
+if (savedMapView?.content === '' && (browserMapView === 'pm' || browserMapView === 'engineer')) saveMapView(browserMapView, true);
+function saveMapView(mode, onlyIfUnset = false){
+  savingMapView = savingMapView.then(async () => {
+    const response = await fetch('/api/me/map-view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode, onlyIfUnset }), keepalive: true });
+    if (!response.ok) throw new Error();
+  }).catch(() => { if (!onlyIfUnset) toast('Your map view could not be saved. Choose it again to retry.'); });
+}
+const mindOn = () => VIEW_MODE === 'pm' && !view.startsWith('flow:') && !view.startsWith('diagram:');
+const MIND_FONT = ['600 16px', '500 14px', '400 13.5px'];
+const mindAction = (n) => !locked(n) && !!(n.action || n.proposed && n.boxType === 'action');
+const mindTextWidth = (text, font, limit = 300) => {
+  const key = `mind|${font}|${text}`;
+  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, ruler.measureText(text || ' ').width); }
+  return Math.min(limit, wraps.get(key));
+};
+// Tighten the text column while keeping its line count, so balancing leaves no empty column before the badge.
+const mindActionRoom = (n) => {
+  const title = topicTitle(n), key = `mind-room|${title}`, font = '500 14px';
+  if (!wraps.has(key)){
+    let low = 1, high = Math.ceil(mindTextWidth(title, font, 240));
+    const lines = nameLines(n, high, font);
+    if (lines > 1){
+      while (low < high){
+        const middle = Math.floor((low + high) / 2);
+        if (nameLines(n, middle, font) <= lines) high = middle;
+        else low = middle + 1;
+      }
+    }
+    wraps.set(key, high);
+  }
+  return wraps.get(key);
+};
+const mindWords = (n, depth) => {
+  const action = mindAction(n), font = action ? '500 14px' : MIND_FONT[Math.min(depth, 2)];
+  let width = (action ? mindActionRoom(n) : mindTextWidth(topicTitle(n), font)) + designWidth(n);
+  if (action){
+    const status = pmActionStatus(n.action);
+    width += 20 + mindTextWidth(status.label, '500 11px') + 24;
+    width += (n.design?.flag ? 2 : 0) + (n.design?.progress ? 2 : 0) + (n.icon === 'db' ? 22 : 0);
+    if (['gathering','running'].includes(n.action?.stage)) width += 13;
+  }
+  return width;
+};
+const mindActionHeight = (n) => {
+  if (!mindAction(n)) return 0;
+  return Math.max(40, 18 + nameLines(n, mindActionRoom(n), '500 14px') * 17.5);
+};
+// the topic being named with Tab or Enter is placed in the mind map like any other, so its editor opens where it will sit
+const MIND_DRAFT = '@draft';
+// a topic saved a moment ago and not yet back from the server keeps its place, so the next Tab hangs under it
+const mindTags = new WeakMap();
+let mindTagCount = 0, mindLevel = null;
+const mindTag = (p) => typeof p.id === 'string' ? p.id : mindTags.get(p) || (mindTags.set(p, `@pending${++mindTagCount}`), mindTags.get(p));
+const mindKey = (id) => {
+  if (typeof id === 'string') return topicIds.get(id) || id;
+  if (typeof topicIds.get(id) === 'string') return topicIds.get(id);
+  const p = [...pendingTopics].find((q) => q.saved === id || q.id === id);
+  return p ? mindTag(p) : null;
+};
+function mindScope(sc){
+  document.body.classList.toggle('mind-view', mindOn());
+  if (!mindOn()){ mindPos = new Map(); mindLevel = null; return sc; }
+  let { nodes, lines } = sc;
+  // a name being typed over a topic sizes it as it grows, as a box does in the Engineer view
+  if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? { ...n, [naming.field || 'label']: naming.draftText || ' ' } : n);
+  const have = new Set(nodes.map((n) => n.id));
+  for (const p of pendingTopics){
+    const id = mindTag(p), from = p.link ? mindKey(p.link.id) : null;
+    if (p.view !== view || have.has(id)) continue;
+    nodes = [...nodes, { id, label: p.label, x: p.x, y: p.y, pending: true }]; have.add(id);
+    if (from) lines = [...lines, { from, to: id }];
+  }
+  let draftParent = null;
+  if (naming?.keyboard && naming.link && naming.view === view){
+    const typed = $('newbox').querySelector('textarea')?.value;
+    draftParent = mindKey(naming.link.id);
+    nodes = [...nodes, { id: MIND_DRAFT, label: typed || naming.text || 'Sub-topic', x: naming.x, y: naming.y }];
+    if (draftParent) lines = [...lines, { from: draftParent, to: MIND_DRAFT }];
+  }
+  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords, mindActionHeight, MIND_LAYOUT);
+  // what you are working on stays where it is on screen while the map grows round it: the topic getting a new
+  // topic, the one being renamed, the one picked, else the start
+  const before = mindLevel === view ? mindPos : new Map();
+  const still = [draftParent, naming?.edit, selected, sc.centre].find((id) => typeof id === 'string' && before.has(id) && at.has(id));
+  const dx = still ? before.get(still).x - at.get(still).x : 0, dy = still ? before.get(still).y - at.get(still).y : 0;
+  mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth, mindBoxed: p.boxed }]));
+  mindLevel = view;
+  const placed = nodes.filter((n) => n.id !== MIND_DRAFT).map((n) => ({ ...n, ...mindPos.get(n.id) }));
+  return { ...sc, nodes: placed, mind: { parent, via, layout: MIND_LAYOUT, centre: nodes.find((n) => n.id === sc.centre), draft: mindPos.get(MIND_DRAFT) } };
+}
+// a box where it is drawn now: in the PM view its place in the mind map, else its own
+const onMap = (n) => (n && mindOn() && mindPos.has(n.id) ? { ...n, ...mindPos.get(n.id) } : n);
+// where the editor for a name goes: over the box being renamed, or where the topic being named will sit
+const editorAt = (at) => {
+  if (!mindOn()) return at;
+  const p = mindPos.get(at.edit || (at.keyboard && at.link ? MIND_DRAFT : ''));
+  return p ? { ...at, ...p } : at;
+};
+// puts the name editor there; for a new topic in the PM view its left edge starts where the topic's words will
+const placeEditor = (el, at) => {
+  const shown = editorAt(at), draft = mindOn() && at.keyboard && at.link && !at.edit && mindPos.get(MIND_DRAFT);
+  el.classList.toggle('mind-draft', !!draft); el.classList.toggle('mind-words', !!draft && draft.mindDepth >= 2);
+  el.style.left = `${draft ? draft.x - draft.mindW / 2 : shown.x}px`; el.style.top = `${shown.y}px`;
+  if (draft){ el.style.width = `${draft.mindW}px`; el.style.height = `${draft.mindH}px`; }
+  return shown;
+};
+function setViewMode(mode){
+  VIEW_MODE = mindView(mode);
+  if (savedMapView) saveMapView(VIEW_MODE);
+  else try { localStorage.setItem(MIND_VIEW_KEY, VIEW_MODE); } catch { /* the choice still applies to this page */ }
+  render(); fit();
+}
 /* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
    A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
    What you fold is yours alone: this browser keeps it for this map. */
@@ -1452,6 +1697,8 @@ const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([.
 // each box's children, and for each folded box the boxes it hides, as of the last drawing
 let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
 function unfolded({ nodes, edges, lines = edges, centre = null }){
+  // PM always shows the whole branch; keep saved folds for the Engineer view.
+  const collapsed = mindOn() ? new Set() : folded;
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
   // a box's children are what the tree hangs under it, a person under the repo they use among them
   for (const e of lines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
@@ -1463,13 +1710,16 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   // the map starts at the boxes no line comes into, and at any loop of boxes none of those reach
   let roots = [...ids].filter((id) => !into.has(id));
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
-  const shown = walk(roots, (id) => folded.has(id));
+  const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
-  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
+  const { depth, parents } = numberingTree({ nodes, lines, centre });
   // the level's start: its circle
-  fold = { start: centre, kids, depth, hides: new Map([...folded].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  fold = { start: centre, kids, depth, parents, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
+  if (S.numbering){
+    const numbers = numberTopics(nodes, depth, parents, S.numbering, view);
+    nodes = nodes.map((n) => !locked(n) && numbers.has(n.id) ? { ...n, topicNumber: numbers.get(n.id) } : n);
+  }
   return shown.size === ids.size ? { nodes, edges, lines, centre } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter(showing), lines: lines.filter(showing), centre };
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
@@ -1531,6 +1781,7 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 function toggleFold(id){
+  if (mindOn()) return;
   if (folded.has(id)) folded.delete(id); else folded.add(id);
   saveFolds(); scope();
   // folding away the box you had open closes it, rather than unfolding again at once
@@ -1543,6 +1794,7 @@ function toggleFold(id){
 const maxLevel = () => Math.max(0, ...fold.depth.values());
 const levelFolds = (k) => k >= maxLevel() ? [] : [...fold.depth].filter(([id, d]) => d === k && fold.kids.has(id)).map(([id]) => id);
 function setLevel(k){
+  if (mindOn()) return;
   scope(); const here = new Set(fold.depth.keys());
   folded = new Set([...[...folded].filter((id) => !here.has(id)), ...levelFolds(k)]);
   saveFolds(); scope();
@@ -1553,7 +1805,7 @@ function setLevel(k){
 // the level showing now: the furthest ring out with a box showing
 const shownLevel = () => Math.max(0, ...scope().nodes.map((n) => fold.depth.get(n.id) || 0));
 function renderLevels(){
-  const el = $('levels'), max = flowBox() || diagramBox() ? 0 : maxLevel();
+  const el = $('levels'), max = mindOn() || flowBox() || diagramBox() ? 0 : maxLevel();
   el.style.display = max ? '' : 'none'; if (!max) return;
   // + at the deepest level still unfolds whatever you folded by hand
   const now = shownLevel(), hidden = [...fold.hides.values()].some((h) => h.length);
@@ -1570,6 +1822,7 @@ function foldSide(n, at){
   return side === 'b' && n.inside ? 'r' : side;
 }
 function foldButton(n, at){
+  if (mindOn()) return '';
   const side = foldSide(n, at); if (!side) return '';
   const shut = folded.has(n.id), hid = fold.hides.get(n.id)?.length || 0;
   return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${esc(n.label)}` : `Fold: hide the boxes under ${esc(n.label)}`}">${shut ? hid || '+' : '−'}</span>`;
@@ -2116,112 +2369,145 @@ function render(){
   const { edges } = sc;
   if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-  // lines
-  // the lines' words go in after every line, so no other line runs across them
-  let svg = '', words = '', hits = '';
-  const lines = [], labels = [];
-  // a line you may delete: not one Claude only proposed, and not one touching a box outside your reach
-  const canPick = (e, a, b) => !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
-  let pickSeen = false;
-  const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
-  const seen = new Set(), cross = crossLinks(sc);
-  const routed = [], dupOf = new Map();
-  for (const e of edges){
-    const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
-    const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
-    if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup, e });
-  }
-  const ports = portsFor(routed, nodes, !cross);
-  // every plain line's points first, so each can hop where it crosses another
-  const fanned = new Set(cross ? routed.filter((l) => !l.e.out && !l.e.in && l.dup === null).map((l) => [l.id, fanPts(l.a, l.b, nodes)]).filter(([, p]) => p).map(([id]) => id) : []);
-  const ptsOf = new Map(routed.map((l) => [l.id, fanned.has(l.id) ? fanPts(l.a, l.b, nodes) : l.e.out || l.e.in ? plainPts(l, nodes, routed) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id), routed.slice(0, routed.indexOf(l)).map((o) => plainPts(o, nodes, routed)))]));
-  for (const e of edges){
-    const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
-    const dup = dupOf.get(e);
-    // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
-    const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
-    const k = k0;
-    // motion means "still open": once nothing on the map waits on anyone, the plan's own new lines hold still
-    // (blue and dashed, not built yet); a change Claude proposes keeps moving until someone applies it
-    const still = k === 'new' && !e.proposed && settledPlan();
-    const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
-    // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
-    if (cross?.links.has(`${e.from}>${e.to}`)){
-      const c = curve(a, b, (cross.rootOf.get(a.id) || cross.root).x), kc = !e.proposed && !e.state ? 'cross' : k;
+  const hasFocus = !decisionMap() && nodes.some(focused);
+  if (sc.mind) drawMindLines(sc, nodes, edges, byId, hasFocus);
+  else {
+    // lines
+    // the lines' words go in after every line, so no other line runs across them
+    let svg = '', words = '', hits = '';
+    const lines = [], labels = [];
+    // a line you may delete: not one Claude only proposed, and not one touching a box outside your reach
+    const canPick = (e, a, b) => !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
+    let pickSeen = false;
+    const pair = (e) => edges.some((o) => o.from === e.to && o.to === e.from);
+    const seen = new Set(), cross = crossLinks(sc);
+    const routed = [], dupOf = new Map();
+    for (const e of edges){
+      const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
+      const dup = pair(e) ? seen.has(`${e.to}>${e.from}`) : null; seen.add(`${e.from}>${e.to}`); dupOf.set(e, dup);
+      if (!cross?.links.has(`${e.from}>${e.to}`)) routed.push({ id: `${e.from}>${e.to}`, a, b, dup, e });
+    }
+    const ports = portsFor(routed, nodes, !cross);
+    // every plain line's points first, so each can hop where it crosses another
+    const fanned = new Set(cross ? routed.filter((l) => !l.e.out && !l.e.in && l.dup === null).map((l) => [l.id, fanPts(l.a, l.b, nodes)]).filter(([, p]) => p).map(([id]) => id) : []);
+    const ptsOf = new Map(routed.map((l) => [l.id, fanned.has(l.id) ? fanPts(l.a, l.b, nodes) : l.e.out || l.e.in ? plainPts(l, nodes, routed) : routePts(l.a, l.b, l.dup, nodes, ports.get(l.id), routed.slice(0, routed.indexOf(l)).map((o) => plainPts(o, nodes, routed)))]));
+    for (const e of edges){
+      const a = byId[e.from], b = byId[e.to]; if (!a || !b) continue;
+      const dup = dupOf.get(e);
+      // a line Claude proposed and you have not applied is blue and moving, on any map; on a map of decisions the rest are plain
+      const k0 = e.proposed ? 'new' : decisionMap() ? 'old' : e.state || 'old';
+      const k = k0;
+      // motion means "still open": once nothing on the map waits on anyone, the plan's own new lines hold still
+      // (blue and dashed, not built yet); a change Claude proposes keeps moving until someone applies it
+      const still = k === 'new' && !e.proposed && settledPlan();
+      const quiet = hasFocus && !e.state && !focused(a) && !focused(b);
+      // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
+      if (cross?.links.has(`${e.from}>${e.to}`)){
+        const c = curve(a, b, (cross.rootOf.get(a.id) || cross.root).x), kc = !e.proposed && !e.state ? 'cross' : k;
+        const pk = pickedLine === `${e.from}>${e.to}`;
+        svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
+        if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }
+        lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
+        if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid, edit: canPick(e, a, b) });
+        continue;
+      }
+      const pts = ptsOf.get(`${e.from}>${e.to}`);
+      lines.push({ id: `${e.from}>${e.to}`, pts });
+      const others = [...ptsOf].filter(([id]) => id !== `${e.from}>${e.to}`).map(([, p]) => p);
       const pk = pickedLine === `${e.from}>${e.to}`;
-      svg += `<path class="${kc} ${quiet && !pk ? 'faint' : ''} ${pk ? 'pick' : ''}" d="${c.d}" marker-end="${endOf(kc === 'cross' ? 'old' : k)}"/>`;
-      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${c.d}"/>`; if (pk) pickSeen = true; }
-      lines.push({ id: `${e.from}>${e.to}`, pts: c.pts });
-      if (e.label) labels.push({ id: `${e.from}>${e.to}`, k: kc, text: e.label, pts: c.pts, first: c.mid, edit: canPick(e, a, b) });
-      continue;
+      svg += `<path class="${k} ${quiet && !pk ? 'faint' : ''} ${still ? 'still' : ''} ${pk ? 'pick' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
+      if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk) pickSeen = true; }
+      // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
+      // the words go halfway along the line's longest stretch, unless another line or box is there (placeWords)
+      if (e.label){
+        // a fanned line's words go on its last stretch, beside the box it leads to
+        const [p, q] = fanned.has(`${e.from}>${e.to}`) ? pts.slice(-2) : pts.slice(1).map((q, i) => [pts[i], q]).sort((s, t) => Math.hypot(t[1][0] - t[0][0], t[1][1] - t[0][1]) - Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]))[0];
+        labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], edit: canPick(e, a, b) });
+      }
     }
-    const pts = ptsOf.get(`${e.from}>${e.to}`);
-    lines.push({ id: `${e.from}>${e.to}`, pts });
-    const others = [...ptsOf].filter(([id]) => id !== `${e.from}>${e.to}`).map(([, p]) => p);
-    const pk = pickedLine === `${e.from}>${e.to}`;
-    svg += `<path class="${k} ${quiet && !pk ? 'faint' : ''} ${still ? 'still' : ''} ${pk ? 'pick' : ''}" d="${hopPath(pts, others)}" marker-end="${endOf(k)}"/>`;
-    if (canPick(e, a, b)){ hits += `<path class="hit" data-edge="${e.from}>${e.to}" d="${pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x} ${y}`).join('')}"/>`; if (pk) pickSeen = true; }
-    // a line's words sit on the line itself, in a gap, so the line reads "Upgrade →"
-    // the words go halfway along the line's longest stretch, unless another line or box is there (placeWords)
-    if (e.label){
-      // a fanned line's words go on its last stretch, beside the box it leads to
-      const [p, q] = fanned.has(`${e.from}>${e.to}`) ? pts.slice(-2) : pts.slice(1).map((q, i) => [pts[i], q]).sort((s, t) => Math.hypot(t[1][0] - t[0][0], t[1][1] - t[0][1]) - Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]))[0];
-      labels.push({ id: `${e.from}>${e.to}`, k, text: e.label, pts, first: [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], edit: canPick(e, a, b) });
+    for (const L of placeWords(labels, lines, nodes))
+      words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central"${naming?.edge === L.id ? ' style="visibility:hidden"' : ''}>${esc(L.text)}</text>`;
+    // a picked line that is gone (deleted, or folded away) lets go
+    if (!pickSeen) pickedLine = null;
+    edgesEl.innerHTML = defsHtml + svg + hits + words;
+    // a label wider than LABEL_WIDTH wraps onto more lines, centred where it was, so it never covers its own line;
+    // the gap behind it is as big as the words, measured, plus a little air
+    for (const r of edgesEl.querySelectorAll('rect.gap')){
+      const t = r.nextElementSibling, wide = t.getComputedTextLength();
+      if (wide > LABEL_WIDTH){
+        const text = t.textContent || '', lines = wrapWords(text, Math.max(8, Math.floor(LABEL_WIDTH / (wide / text.length)))), x = t.getAttribute('x') || '0';
+        t.textContent = '';
+        lines.forEach((line, i) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); s.setAttribute('x', x); s.setAttribute('dy', i ? '1.2em' : `${-(lines.length - 1) * 0.6}em`); s.textContent = line; t.appendChild(s); });
+      }
+      const b = t.getBBox();
+      r.setAttribute('x', b.x - 4); r.setAttribute('y', b.y - 1); r.setAttribute('width', b.width + 8); r.setAttribute('height', b.height + 2);
     }
-  }
-  for (const L of placeWords(labels, lines, nodes))
-    words += `<rect class="gap" x="${L.at[0]}" y="${L.at[1] - 8}" width="0" height="16" fill="var(--canvas)"/><text class="${L.k}${L.edit ? ' ed' : ''}" ${L.edit ? `data-edge-label="${L.id}" data-text="${esc(L.text)}"` : ''} x="${L.at[0]}" y="${L.at[1]}" text-anchor="middle" dominant-baseline="central"${naming?.edge === L.id ? ' style="visibility:hidden"' : ''}>${esc(L.text)}</text>`;
-  // a picked line that is gone (deleted, or folded away) lets go
-  if (!pickSeen) pickedLine = null;
-  edgesEl.innerHTML = defsHtml + svg + hits + words;
-  // a label wider than LABEL_WIDTH wraps onto more lines, centred where it was, so it never covers its own line;
-  // the gap behind it is as big as the words, measured, plus a little air
-  for (const r of edgesEl.querySelectorAll('rect.gap')){
-    const t = r.nextElementSibling, wide = t.getComputedTextLength();
-    if (wide > LABEL_WIDTH){
-      const text = t.textContent || '', lines = wrapWords(text, Math.max(8, Math.floor(LABEL_WIDTH / (wide / text.length)))), x = t.getAttribute('x') || '0';
-      t.textContent = '';
-      lines.forEach((line, i) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'tspan'); s.setAttribute('x', x); s.setAttribute('dy', i ? '1.2em' : `${-(lines.length - 1) * 0.6}em`); s.textContent = line; t.appendChild(s); });
-    }
-    const b = t.getBBox();
-    r.setAttribute('x', b.x - 4); r.setAttribute('y', b.y - 1); r.setAttribute('width', b.width + 8); r.setAttribute('height', b.height + 2);
   }
   // boxes
   document.body.classList.toggle('decide', decisionMap());
   const hub = nodes.find(hubbed), folded = !!hub && hubLevel(shownLevel(), maxLevel(), !!S.drawing) > shownLevel();
   let html = '';
   for (const n of nodes){
-    const isHubBox = n === hub;
+    const isHubBox = n === hub && !sc.mind, mindRoot = sc.mind && n.mindDepth === 0, pmAction = sc.mind && mindAction(n);
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
-    html += `<div class="${cls}" data-id="${n.id}" ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      ${isHubBox ? '' : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>`}
+    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', pmAction ? 'mind-action' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
+    const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'progress']);
+    const marks = flagIcon(design.flag || '') + progressIcon(design.progress || '');
+    html += `<div class="${cls}" data-id="${n.id}" ${design.align ? `data-align="${design.align}"` : ''} ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
+      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${pmAction ? '<span class="mind-action-arrow" aria-hidden="true">›</span>' : ''}${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}${pmAction ? actionView().actionStatusPill(n.action, false, true) : ''}</div>`}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
-      ${isHubBox ? '' : foldButton(n, byId)}
+      ${isHubBox || mindRoot ? '' : foldButton(n, byId)}
       ${!locked(n) && n.action?.stage === 'ready' && n.action.by === ME && !READ_ONLY && !FILE && !PREVIEW ? `<button class="map-execute" data-box-action="actionexecute" data-action-id="${esc(n.id)}" data-action-revision="${esc(n.action.id)}" aria-label="Execute ${esc(n.label)}">Execute</button>` : ''}
       ${/* a box's Expand or diagram pill sits on its bottom edge, so it has no bottom dot to draw a line from */ ''}
-      ${!locked(n) && !n.proposed && !n.virtual && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== (isHubBox ? null : foldSide(n, byId)) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
+      ${!sc.mind && !locked(n) && !n.proposed && !n.virtual && !PREVIEW && !view.startsWith('flow:') && !view.startsWith('diagram:') ? ['t', 'r', 'b', 'l'].filter((c) => c !== (isHubBox ? null : foldSide(n, byId)) && !(c === 'b' && (n.inside || dgPill(n)))).map((c) => `<span class="cd ${c}" data-cd="${c}"></span>`).join('') : ''}
       ${delAsk === '*' && n.id === groupLead() ? `<div class="delq"><span>${esc(deleteQuestion('*'))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="*">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       ${delAsk === n.id && !locked(n) ? `<div class="delq"><span>${esc(deleteQuestion(n.id))}</span><div class="delq-actions"><button class="gb soft" data-delete-yes="${n.id}">Delete <kbd>Enter</kbd></button><button class="gb" data-delete-no>Keep <kbd>Esc</kbd></button></div></div>` : ''}
       </div>`;
     // a warning sits under the box, as wide as the box and wrapping inside it, clear of a pill on the box's
     // bottom edge: `warn` is what breaks, `why` the comment under it. Only while a question on the box is open:
     // once it is answered the warning stays on the box's card and in its steps, and the map stays clear
-    const warn = n.warn && !locked(n) && open.length;
+    const warn = !sc.mind && n.warn && !locked(n) && open.length;
     if (warn) html += `<div class="warn" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (n.inside || n.diagram ? 14 : 6)}px;width:${W(n)}px">⚠ ${n.warn}</div>`;
     // the file only for the box you picked, below the dot under it; the card has it too
-    if (n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5) + 22}px">${n.file}</div>`;
+    if (!sc.mind && n.file && selected === n.id) html += `<div class="file" style="left:${n.x - W(n) / 2}px;top:${n.y + HT(n) / 2 + (warn ? 24 : 5) + 22}px">${n.file}</div>`;
   }
   nodesEl.innerHTML = html;
   positionInlineName();
-  renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); renderDrawing(); fitPane();
+  renderLevels(); renderTop(); renderSide(); renderPrs(); renderCursors(); renderComments(); renderChat(); renderDecs(); renderHist(); renderMem(); renderDrawing(); fitPane(); positionDeletePrompt();
+}
+
+// The PM view's lines (page-mind.js): only each topic's curve from its parent. Lines between topics that are not parent
+// and child stay on the map and show in the Engineer view. A line you may pick is picked and deleted as there.
+function drawMindLines(sc, nodes, edges, byId, anyFocus){
+  const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth, boxed: n.mindBoxed });
+  const canPick = (e, a, b) => !!e && !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
+  const quiet = (a, b, e) => anyFocus && !e?.state && !focused(a) && !focused(b);
+  let svg = '', hits = '', pickSeen = false;
+  const draw = (cls, d, id, pickable) => {
+    const pk = !!id && pickedLine === id;
+    svg += `<path class="${cls}${pk ? ' pick' : ''}" d="${d}"/>`;
+    if (pickable){ hits += `<path class="hit" data-edge="${id}" d="${d}"/>`; if (pk) pickSeen = true; }
+  };
+  const kind = (n) => n.mindDepth <= 1 ? 'mind-branch' : 'mind-twig';
+  for (const n of nodes){
+    const a = byId[sc.mind.parent.get(n.id)]; if (!a) continue;
+    const line = sc.mind.via.get(n.id), id = line && !line.virtual ? line.flip || `${line.from}>${line.to}` : null;
+    const e = id && edges.find((x) => `${x.from}>${x.to}` === id);
+    const k = e?.proposed ? 'new' : decisionMap() ? 'old' : e?.state || 'old';
+    draw(`mind-line ${kind(n)} ${k} ${quiet(a, n, e) ? 'faint' : ''}`, mindBranch(box(a), box(n)), id, canPick(e, a, n));
+  }
+  // the topic being named hangs off its parent already, its curve drawn as a new line
+  const draft = sc.mind.draft, up = draft && byId[sc.mind.parent.get(MIND_DRAFT)];
+  if (up) svg += `<path class="mind-line ${draft.mindDepth <= 1 ? 'mind-branch' : 'mind-twig'} new still" d="${mindBranch(box(up), box(draft))}"/>`;
+  if (!pickSeen) pickedLine = null;
+  edgesEl.innerHTML = defsHtml + svg + hits;
 }
 
 // Share: copy this map's address, manage access, publish it online, or download it. It says plainly who can open
@@ -2608,6 +2894,7 @@ function renderTop(){
   const ppl = [...S.people].sort((a, b) => (b.id === ME) - (a.id === ME) || isHere(b) - isHere(a));
   $('faces').innerHTML = `<button class="pp ${peopleOpen ? 'on' : ''}" id="peopleb" title="Who is on this map now">${ppl.filter(isHere).map((p) => `<span class="face ${p.id === ME ? 'me' : ''}" style="background:${pcol(p.id)}" title="${p.id}, here now">${p.id[0]}${facePic(p.id)}</span>`).join('')}<svg class="chev" viewBox="0 0 20 20"><path d="M6 8l4 4 4-4"/></svg></button>
     ${peopleOpen ? `<div class="pm">${ppl.map((p) => `<div class="pm-row ${p.id === ME ? 'me' : ''} ${isHere(p) ? '' : 'away'}"${SIGNED_IN ? '' : ` data-as="${p.id}"`}${p.id === ME || SIGNED_IN ? '' : ` title="See the map as ${p.id}"`}><span class="face" style="background:${pcol(p.id)}">${p.id[0]}${facePic(p.id)}</span><span class="pm-who"><b>${p.id}${p.id === ME ? ' <i>(You)</i>' : ''}</b><span>${[roleOf(p), isHere(p) ? '<em class="on">Here now</em>' : 'Not here'].filter(Boolean).join(' · ')}</span></span></div>`).join('')}
+      <div class="pm-view"><span>Map view</span><div role="radiogroup" aria-label="How maps are drawn">${[['engineer', 'Engineer'], ['pm', 'PM']].map(([v, t]) => `<button role="radio" aria-checked="${VIEW_MODE === v}" data-view-mode="${v}" title="${v === 'pm' ? 'Draw maps as a mind map' : 'Draw maps as boxes and arrows'}">${t}</button>`).join('')}</div></div>
       ${SIGNED_IN && !CLOUD ? `<a class="pm-row pm-out" href="/settings">Settings</a>` : ''}</div>` : ''}`;
 }
 
@@ -2751,7 +3038,7 @@ document.addEventListener('click', async (e) => {
 });
 function renderSide(){
   const el = $('side');
-  if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
+  if (keyboardSelection || railTab === 'design'){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
   if (sideRename && (sideRename.id !== (n || pb)?.id || locked(n || pb))) sideRename = null;
   el.classList.toggle('on', !!(n || pb));
@@ -2976,7 +3263,7 @@ const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320
 const fitTools = () => document.body.classList.toggle('tight', $('tools').getBoundingClientRect().right + 12 > $('foot').getBoundingClientRect().left);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
-const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
+const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel', 'design'].some((id) => $(id).classList.contains('on'))); fitTools(); };
 try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
 $('chatgrip').addEventListener('pointerdown', (e) => {
   e.preventDefault(); const g = e.currentTarget; let w = 0;
@@ -3131,6 +3418,85 @@ function renderChat(){
 /* the rail's Decisions panel: every question answered on this map, newest first: intent made clear, not edits;
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
+let designPanelHtml = '';
+function renderDesign(){
+  const panel = $('design'), open = railTab === 'design';
+  panel.hidden = !open;
+  panel.classList.toggle('on', open);
+  document.body.classList.toggle('design-open', open);
+  designRail().setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const available = !READ_ONLY && !FILE && !PREVIEW;
+  const box = selected && group.size <= 1 && nodeById(selected);
+  const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
+  const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
+  const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
+  const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
+  const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
+  const choice = (field, value, label, icon, active, visible = '') =>
+    `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
+  const align = BOX_ALIGNMENTS.map(([value, label], i) => choice('align', value, `${label} align`,
+    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, value === (design.align || 'center'), label)).join('');
+  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), value === design.flag)).join('');
+  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
+  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
+  const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
+    <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
+      <div class="design-layouts" role="group" aria-labelledby="design-layout">${layouts}</div>
+    </section>
+    <section aria-labelledby="design-numbering"><h3 id="design-numbering">Topic numbering</h3>
+      <p class="design-target">Selected topic and its siblings</p>
+      <div class="design-fields">
+        <label><span>Format</span><select id="design-format" data-design-map="format" ${available && numberGroup && numberGroup.ids.every((id) => !locked(nodeById(id))) ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
+      </div>
+    </section>
+    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
+      ${target ? `<div class="design-target" title="${esc(target.label)}">${esc(target.label)}</div>
+        ${!hubbed(target) || mindOn() ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
+        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', !design.flag, 'None')}</div>
+        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', !design.progress, 'None')}</div>`
+      : '<p class="design-note">Select a box to change its design.</p>'}
+    </section>`;
+  if (html === designPanelHtml) return;
+  const focus = panel.contains(document.activeElement) ? document.activeElement.id : '';
+  designPanelHtml = html;
+  panel.innerHTML = html;
+  if (focus) $(focus)?.focus({ preventScroll: true });
+}
+const designRail = () => document.querySelector('[data-rail="design"]');
+function closeDesign(){
+  railTab = null;
+  if (selected) keyboardSelection = true;
+  render();
+  designRail().focus();
+}
+function saveDesign(type, field, value, id){
+  act(type, { field, value, ...(id ? { id } : {}) }).then((response) => {
+    if (!response?.ok){
+      designPanelHtml = ''; renderDesign();
+      if (!CLOUD){ toast('That design change could not be saved. Try again.'); refreshMap(); }
+    }
+  });
+}
+$('design').addEventListener('change', (e) => {
+  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value, selected);
+});
+$('design').addEventListener('click', (e) => {
+  const layout = e.target.closest('[data-mind-layout]');
+  if (layout){
+    MIND_LAYOUT = mindLayoutChoice(layout.dataset.mindLayout);
+    try { localStorage.setItem(MIND_LAYOUT_KEY, MIND_LAYOUT); } catch { /* the choice still applies to this page */ }
+    mindLevel = null;
+    setViewMode('pm');
+    return;
+  }
+  const choice = e.target.closest('[data-design-box]');
+  if (choice && selected) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, selected);
+});
+document.addEventListener('keydown', (e) => {
+  if (railTab !== 'design' || e.key !== 'Escape' || !e.target.closest('#design, [data-rail="design"]')) return;
+  e.preventDefault(); e.stopImmediatePropagation(); closeDesign();
+}, true);
 // the decision opened in the Decisions panel, by call id: one at a time
 const decOpen = new Set();
 function openNewMap(){
@@ -3175,6 +3541,7 @@ async function loadContextChoices(){
 let memEdit = null; // the item you are editing
 const memSeen = () => (S.memory || []).filter((m) => !m.box || (nodeById(m.box) && canSee(nodeById(m.box))));
 function renderMem(){
+  renderDesign();
   renderSideChats(); // the rail's other list, drawn on every redraw with this one
   const el = $('mem'), open = railTab === 'memory' && !selected;
   el.classList.toggle('on', open); if (!open) { contextChoices = null; contextError = false; return; }
@@ -3237,7 +3604,7 @@ const memOf = (id) => ['instruction', 'memory'].map((kind) => {
 function renderDecs(){
   const el = $('decs'), open = railTab === 'decisions' && !selected;
   el.classList.toggle('on', open);
-  document.querySelectorAll('#rail .ri').forEach((b) => b.classList.toggle('on', b.dataset.rail === railTab && !selected));
+  document.querySelectorAll('#rail .ri').forEach((b) => b.classList.toggle('on', b.dataset.rail === railTab && (!selected || railTab === 'design')));
   if (!open) return;
   const when = (t) => { const d = new Date(t); return `${d.toDateString() === new Date().toDateString() ? '' : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, `}${d.toTimeString().slice(0, 5)}`; };
   const logged = (S.log || []).filter((l) => ['confirmed', 'disputed', 'answered'].includes(l.action))
@@ -3482,8 +3849,15 @@ const pendingTopics = new Set();
 const topicIds = new Map();
 let nameSession = 0;
 let topicSaveQueue = Promise.resolve();
+// A push can arrive before Add returns its id. Keep the pending PM topic until that id lets us replace it once.
+let heldTopicState = null;
+function takeTopicState(apply){
+  if (mindOn() && [...pendingTopics].some((n) => n.sending)){ heldTopicState = apply; return; }
+  heldTopicState = null; apply();
+}
+function flushTopicState(){ const apply = heldTopicState; heldTopicState = null; if (apply) takeTopicState(apply); }
 async function refreshMap(){
-  try { const r = await fetch('api/state'); if (!r.ok) return; LIVE = await r.json(); hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); } catch {}
+  try { const r = await fetch('api/state'); if (!r.ok) return; const next = await r.json(); takeTopicState(() => { LIVE = next; hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); }); } catch {}
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
@@ -3526,7 +3900,7 @@ function syncTopicPreview(fresh = false){
   if (!naming) return;
   if (naming.keyboard && naming.link){
     updateTopicLayout(naming, $('newbox').querySelector('input, textarea')?.value || naming.text);
-    $('newbox').style.left = `${naming.x}px`; $('newbox').style.top = `${naming.y}px`;
+    placeEditor($('newbox'), naming);
   } else moveTopicPreview(naming.reflow);
   drawTopicArrow(naming);
 }
@@ -3538,10 +3912,12 @@ function topicDraft(n, child){
   const children = graph.edges.filter((e) => e.from === graph.key(parent?.id)).map((e) => graph.nodes.find((b) => b.id === e.to)).filter((b) => b && (b.x >= parent.x) === right).sort((a,b) => a.y-b.y);
   const x = child ? children[0]?.x ?? current.x + (right ? 1 : -1) * (W(current) / 2 + 140) : current.x;
   const at = { x, y:current.y, link:parent, after:child ? null : n.id, keyboard:true, text:'Sub-topic', returnTo:n.id, returnTopic:n, view };
-  if (parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
+  if (!mindOn() && parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
   updateTopicLayout(at); askName(at);
 }
 function keepEditorVisible(at, width, height){
+  // The PM editor uses the drawn topic's size, not the Engineer view's larger box.
+  if (mindOn() && at.keyboard && at.link && !at.edit && at.mindW){ width = at.mindW; height = at.mindH; }
   const r = canvas.getBoundingClientRect();
   const controls = ['tools', 'foot'].map((id) => $(id).getBoundingClientRect()).filter((b) => b.width && b.height);
   const bottom = Math.min(r.height, ...controls.map((b) => b.top - r.top)) - 16;
@@ -3552,6 +3928,7 @@ function keepEditorVisible(at, width, height){
   place();
 }
 function drawTopicArrow(at){
+  if (mindOn() && at.keyboard){ $('rubber').innerHTML = ''; return; }
   if (at.link){
     const ghost = { x: at.x, y: at.y, label: at.text || 'Sub-topic' };
     const id = topicIds.get(at.link.id) || at.link.id;
@@ -3569,35 +3946,44 @@ function positionInlineName(){
   if (!naming?.edit) return;
   const node = [...nodesEl.querySelectorAll('.node')].find((n) => n.dataset.id === naming.edit), title = node?.querySelector(naming.field === 'sub' ? '.s' : '.nt');
   if (!title) return;
-  const rect = title.getBoundingClientRect(), [x,y] = toStage(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  const rect = title.getBoundingClientRect(), style = getComputedStyle(title), row = title.closest('.n');
+  const boxStyle = getComputedStyle(node), gap = row ? parseFloat(getComputedStyle(row).columnGap) || 0 : 0;
+  const markers = row ? [...row.children].filter((el) => el !== title) : [];
+  const occupied = markers.reduce((sum, el) => sum + el.getBoundingClientRect().width / cam.z + gap, 0);
+  const room = row?.clientWidth ?? node.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
+  const width = Math.max(20, room - occupied);
+  const [x,y] = toStage(rect.x + (style.textAlign === 'left' ? width * cam.z : rect.width) / 2, rect.y + rect.height / 2);
   const el = $('newbox'), input = el.querySelector('textarea');
   el.style.left = `${x}px`; el.style.top = `${y}px`;
-  el.style.width = `${Math.max(20, (node.clientWidth - 24 - (naming.field !== 'sub' && node.querySelector('.n svg') ? 20 : 0)))}px`;
+  el.style.width = `${width}px`;
   el.style.height = `${Math.max(17, rect.height / cam.z)}px`;
-  if (input){ const style = getComputedStyle(title); input.style.color = style.color; input.style.font = style.font; input.style.opacity = style.opacity; }
+  if (input){ input.style.color = style.color; input.style.font = style.font; input.style.opacity = style.opacity; input.style.textAlign = style.textAlign; }
 }
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
   const line = !!(at.from || at.edge), description = at.field === 'sub';
   naming = { view, ...at, session: ++nameSession, untouched: !line && !at.edit }; const el = $('newbox');
+  // in the PM view the topic being named takes its place in the mind map first, and the editor opens there
+  if (mindOn() && !line) render();
   drawTopicArrow(at);
 
   // Account for the whole zoomed editor and the controls covering the canvas.
   const width = line ? 220 : 140, height = line ? 36 : 50;
-  keepEditorVisible(at, width, height);
-  el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; el.style.width = `${width}px`; el.style.height = `${height}px`; el.classList.add('on'); el.classList.toggle('inline', line || !!at.edit); el.classList.toggle('line', line);
+  keepEditorVisible(editorAt(at), width, height);
+  placeEditor(el, at); el.style.width = `${width}px`; el.style.height = `${height}px`; el.classList.add('on'); el.classList.toggle('inline', line || !!at.edit); el.classList.toggle('line', line);
   const tag = line ? 'input' : 'textarea';
   el.innerHTML = `<${tag} maxlength="${line ? 40 : description ? 240 : 80}" placeholder="${line ? 'Words on the line, or just Enter' : description ? 'Describe the box' : 'Name the box'}" aria-label="${line ? 'Words on the line' : description ? 'Description of the box' : 'Name of the box'}" autocomplete="off"${line ? '>' : ' rows="1"></textarea>'}`;
   const i = el.querySelector('input, textarea'); i.value = at.text ?? (line ? '' : 'Topic');
   const resizeName = () => {
     if (line){ ruler.font = `12px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; el.style.width = `${Math.max(24, ruler.measureText(i.value || i.placeholder).width + 8)}px`; el.style.height = '18px'; return; }
     if (at.edit){ naming.draftText = i.value; render(); return; }
-    if (naming?.keyboard && naming.link){ updateTopicLayout(naming, i.value); at = naming; el.style.left = `${at.x}px`; el.style.top = `${at.y}px`; drawTopicArrow(at); }
+    if (naming?.keyboard && naming.link){ updateTopicLayout(naming, i.value); at = naming; placeEditor(el, at); drawTopicArrow(at); }
+    if (mindOn() && naming?.keyboard && naming.link){ i.style.height = '100%'; keepEditorVisible(editorAt(at), 140, 50); return; }
     const width = W({ ...nodeById(at.edit), label: i.value });
     el.style.width = `${width}px`; i.style.height = '0px';
     const height = Math.max(50, i.scrollHeight + 3);
     el.style.height = `${height}px`; i.style.height = '100%';
-    keepEditorVisible(at, width, height);
+    keepEditorVisible(editorAt(at), width, height);
   };
   resizeName(); if (line) render(); i.focus({preventScroll:true});
   if (naming.untouched) i.classList.add('draft'); else i.select();
@@ -3649,25 +4035,32 @@ function endName(keep, restore = true){
     const from = at.link ? await at.link.id : null;
     if (at.link && !from) throw new Error('parent');
     const reflow = await Promise.all((at.reflow || []).map(async (m) => ({...m, id:await m.id})));
+    pending.sending = !at.edit;
     const r = await act(at.edit ? (at.field === 'sub' ? 'describebox' : 'renamebox') : 'add', at.edit ? { id: at.edit, [at.field || 'label']: text, ...(at.proposed ? {proposed:true} : {}) } : { label: text, x: at.x, y: at.y, ...(reflow.length ? {reflow} : {}), ...(from ? { from, out: at.out, in: at.in } : {}), view: at.view });
     if (!r?.ok) throw new Error('save');
     const result = await r.json(), id = at.edit || result.id;
+    // The saved box inherits its pending position, even when the live snapshot arrived before this reply.
+    if (mindOn()){ const shown = mindPos.get(mindTag(pending)); if (shown) mindPos.set(id, shown); }
     pending.id = id; topicIds.set(saved, id);
+    pending.sending = false; flushTopicState();
     if (naming){ syncTopicPreview(); render(); }
     if (restore && at.session === nameSession && !naming && view === at.view){ selected = id; render(); }
     return id;
-  }).catch(() => { moveTopicPreview(at.reflow, true); refreshMap(); pendingTopics.delete(pending); toast('The box could not be saved. Please try again.'); return null; });
+  }).catch(() => { moveTopicPreview(at.reflow, true); pendingTopics.delete(pending); pending.sending = false; flushTopicState(); refreshMap(); toast('The box could not be saved. Please try again.'); return null; });
   topicSaveQueue = saved; pending.saved = saved; return saved;
 }
 function selectTopic(id, fallback){
   nameSession++; keyboardSelection = true; selected = id; render();
-  const n = nodeById(id) || fallback;
+  const n = onMap(nodeById(id) || fallback);
   if (n) keepEditorVisible(n, W(n), HT(n));
 }
 // Navigation uses the visible boxes so folded topics and private boxes cannot capture selection.
 function keyboardNeighbor(n, key){
   const parent = n.link || topicParent(n);
-  if (parent && key === (parent.x <= n.x ? 'ArrowLeft' : 'ArrowRight')) return parent;
+  // the boxes where they are drawn: in the PM view, their places in the mind map
+  const up = onMap(parent);
+  n = n.keyboard && n.link ? editorAt(n) : onMap(n);
+  if (parent && key === (up.x <= n.x ? 'ArrowLeft' : 'ArrowRight')) return parent;
   const [dx, dy] = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[key];
   return scope().nodes.filter((b) => b.id !== n.id && !locked(b) && !b.proposed && !b.virtual)
     .map((b) => { const x = b.x - n.x, y = b.y - n.y; return { b, ahead: x * dx + y * dy, across: Math.abs(x * dy - y * dx) }; })
@@ -3701,6 +4094,7 @@ document.addEventListener('keydown', (e) => {
 
 // Tidy shortcut shares the button's action.
 function tidyMap(){
+  if (mindOn()) return;
   if (READ_ONLY || FILE || PREVIEW || view.startsWith('flow:') || view.startsWith('diagram:')) return;
   const nodes = scope().nodes.filter((n) => !n.proposed);
   act('tidy', { view, only:nodes.map((n) => n.id), sizes:nodes.map((n) => ({id:n.id,w:W(n),h:HT(n)})) });
@@ -3816,34 +4210,83 @@ function planTopicSibling(graph, roots, target, above, close = true){
   if (!plan) return null;
   return {...plan,moves:plan.moves.map((m) => ({...m,fromY:m.fromY*sign+0,y:m.y*sign+0}))};
 }
+function planMindSibling(sc, graph, roots, target, above){
+  const parent = sc.mind.parent.get(target.id);
+  const shown = sc.nodes.find((n) => n.id === target.id), centre = sc.nodes.find((n) => n.id === sc.centre);
+  // The upward half of a circular reading order reverses the stored sibling order.
+  if (parent === sc.centre && shown && centre && ((sc.mind.layout === 'clockwise' && shown.x < centre.x) || (sc.mind.layout === 'counterclockwise' && shown.x > centre.x))) above = !above;
+  const linked = new Set(graph.edges.map((e) => e.to));
+  if (linked.has(target.id)){
+    if (!graph.edges.some((e) => e.to === target.id && e.from === parent)) return null;
+    return planTopicSibling(graph, roots, target, above);
+  }
+  // The layout gives loose topics a common centre. Use its lines for placement without saving them to the map.
+  if (parent !== sc.centre || !sc.mind.centre || roots.some((id) => linked.has(id) || sc.mind.parent.get(id) !== parent)) return null;
+  const nodes = sc.mind.centre.virtual ? [...graph.nodes, sc.mind.centre] : graph.nodes;
+  const edges = [...graph.edges, ...graph.nodes.filter((n) => !linked.has(n.id) && sc.mind.parent.get(n.id) === parent).map((n) => ({from:parent,to:n.id}))];
+  const plan = planTopicSibling({nodes, edges}, roots, target, above);
+  return plan && {...plan, reorder: true, moves: plan.moves.filter((m) => m.id !== LEVEL_CENTRE)};
+}
+function mindSiblingHint(sc, ids, target, parentId, direction){
+  const parent = sc.nodes.find((n) => n.id === parentId);
+  const side = target.x < parent.x ? -1 : 1;
+  const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && Math.sign(n.x-parent.x) === side && direction*(n.y-target.y) > 0)
+    .sort((a, b) => direction*(a.y-b.y))[0];
+  const edge = target.y + direction*HT(target)/2;
+  const h = 16, w = Math.max(96, W(target)), x = target.x-W(target)/2;
+  // Center the marker in a gap, or give it its own space at the end of the branch.
+  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
+  const pw = W(parent), ph = HT(parent);
+  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth, boxed:parent.mindBoxed}, {x:side < 0 ? x+w : x, y, w:0, h:0, depth:target.mindDepth});
+  return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
+}
 function previewTopicAttach(sx, sy){
   if (!drag?.source || PREVIEW || FILE || READ_ONLY) return;
   drag.attach = null;
   const roots = topicDragRoots(drag), ids = branchIds(drag.source, roots);
-  const visible = new Set(scope().nodes.map((n) => n.id));
-  const outline = drag.source.nodes.filter((n) => ids.has(n.id) && visible.has(n.id)).map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
-  const at = drag.at || {x:sx,y:sy}, n = drag.n;
-  const floatingNodes = drag.many?.length > 1 ? [n] : drag.source.nodes.filter((b) => ids.has(b.id) && visible.has(b.id));
+  const sc = scope(), visible = new Set(sc.nodes.map((n) => n.id));
+  const branch = (drag.mind ? sc.nodes : drag.source.nodes).filter((n) => ids.has(n.id) && visible.has(n.id));
+  const outline = branch.map((n) => `<rect class="drag-source" x="${n.x-W(n)/2-2}" y="${n.y-HT(n)/2-2}" width="${W(n)+4}" height="${HT(n)+4}" rx="7"/>`).join('');
+  const at = drag.at || {x:sx,y:sy}, n = drag.mind ? onMap(drag.n) : drag.n;
+  const floatingNodes = drag.many?.length > 1 ? [n] : branch;
   const floating = `<g class="drag-ghost">${floatingNodes.map((b) => { const m = drag.freeMoves?.find((m) => m.id === b.id); const x = m?.x ?? b.x+at.x-n.x, y = m?.y ?? b.y+at.y-n.y, w = W(b), h = HT(b); return `<rect class="drag-ghost-box" x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="6"/><foreignObject x="${x-w/2+12}" y="${y-h/2+8}" width="${w-24}" height="${h-16}"><div xmlns="http://www.w3.org/1999/xhtml" class="drag-ghost-label">${esc(b.label)}</div></foreignObject>`; }).join('')}</g>`;
   const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
-  let target = null, gap = 40 / cam.z;
-  for (const n of scope().nodes){
-    if (ids.has(n.id) || locked(n) || n.proposed || n.virtual) continue;
+  // Use screen pixels so zooming out does not make a branch harder to reach.
+  const reach = (drag.mind ? 120 : 40) / cam.z, siblingReach = drag.mind ? 48 / cam.z : 0;
+  const siblingDrop = (n) => (!drag.mind || n.mindDepth > 0) && Math.abs(sx-n.x) <= W(n)/2+siblingReach && Math.abs(sy-n.y) > HT(n)/4;
+  let target = null, gap = reach;
+  for (const n of sc.nodes){
+    if (ids.has(n.id) || locked(n) || n.proposed || n.virtual || n.pending) continue;
+    if (!siblingDrop(n) && parents.has(n.id)) continue;
     const distance = Math.hypot(Math.max(0,Math.abs(sx-n.x)-W(n)/2),Math.max(0,Math.abs(sy-n.y)-HT(n)/2));
     if (distance < gap){ gap = distance; target = n; }
   }
   if (!target) return;
-  const vertical = Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
-  if (!vertical && parents.has(target.id)) return;
+  const vertical = siblingDrop(target);
+  const savedTarget = drag.mind ? drag.source.nodes.find((n) => n.id === target.id) : target;
+  if (!savedTarget) return;
+  // Hit test the drawn mind map, then plan against the shared map's stored positions.
+  if (drag.mind && [...parents].some((id) => locked(nodeById(id) || {}))) return;
   // A child grows away from its parent, as on any mind map; only a box with no parent to its side takes the pointer's side.
-  const from = drag.source.nodes.find((n) => drag.source.edges.some((e) => e.from === n.id && e.to === target.id) && n.x !== target.x);
-  const side = from ? Math.sign(target.x - from.x) : sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, target, sy < target.y, close)
+  const from = drag.source.nodes.find((n) => drag.source.edges.some((e) => e.from === n.id && e.to === target.id) && n.x !== savedTarget.x);
+  const side = from ? Math.sign(savedTarget.x - from.x) : !drag.mind && sx < target.x ? -1 : 1, make = (close) => vertical ? planTopicSibling(drag.source, roots, savedTarget, sy < target.y, close)
     : roots.length > 1 ? planGroupAttach(drag.source, roots, target.id, side, null, close) : planTopicAttach(drag.source, roots[0], target.id, side, null, close);
-  const plan = make(true);
+  const plan = drag.mind && vertical ? planMindSibling(sc, drag.source, roots, savedTarget, sy < target.y) : make(true);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
   drag.attach = plan;
+  const padding = 4;
+  const targetOutline = `<rect class="attach-target" x="${target.x-W(target)/2-padding}" y="${target.y-HT(target)/2-padding}" width="${W(target)+2*padding}" height="${HT(target)+2*padding}" rx="8"/>`;
+  if (drag.mind){
+    if (vertical){ $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, target, plan.parent, sy < target.y ? -1 : 1); return; }
+    const shownParent = sc.nodes.find((p) => p.id === sc.mind.parent.get(target.id));
+    const direction = shownParent ? Math.sign(target.x-shownParent.x) || 1 : MIND_LAYOUT === 'left' ? -1 : 1;
+    const edgeX = target.x + direction*(W(target)/2+padding), landingX = edgeX + direction*20;
+    const landing = `<path class="attach-line" d="M${edgeX} ${target.y}H${landingX}"/><rect class="attach-box" x="${direction < 0 ? landingX-W(n) : landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
+    $('rubber').innerHTML = preview + targetOutline + landing;
+    return;
+  }
   // The hint sits among the boxes as they are drawn now: the parent re-centres and the space the branch leaves
   // closes only once it is dropped.
   const hint = make(false) || plan, parent = drag.source.nodes.find((n) => n.id === plan.parent);
@@ -3863,7 +4306,7 @@ function previewTopicAttach(sx, sy){
     const points = fanPts(parent, ghost, around) || routePts(parent, ghost, null, around), h = slot === null ? HT(ghost) : 10;
     return `<path class="attach-line" d="${points.map((p,i) => `${i?'L':'M'}${p[0]} ${p[1]}`).join('')}" marker-end="url(#a-attach)"/><rect class="attach-box" x="${ghost.x-W(ghost)/2}" y="${ghost.y-h/2}" width="${W(ghost)}" height="${h}" rx="${slot === null ? 6 : 5}"/>`;
   }).join('');
-  $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs><rect class="attach-target" x="${target.x-W(target)/2-4}" y="${target.y-HT(target)/2-4}" width="${W(target)+8}" height="${HT(target)+8}" rx="8"/>${landings}`;
+  $('rubber').innerHTML = preview + `<defs><marker id="a-attach" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto"><path d="M0 1L10 5L0 9Z" style="fill:var(--ok);stroke:none"/></marker></defs>` + targetOutline + landings;
 }
 function cancelTopicDrag(){
   if (!drag?.source) return;
@@ -3873,6 +4316,7 @@ function cancelTopicDrag(){
 function moveTopicDrag(sx, sy){
   moved = true;
   const at = {x:Math.round(sx+drag.dx),y:Math.round(sy+drag.dy)};
+  if (drag.mind){ drag.at = at; previewTopicAttach(sx,sy); return; }
   if (drag.source){ drag.at = at; drag.freeMoves = planTopicMove(drag); } else Object.assign(drag.n,at);
   render(); previewTopicAttach(sx,sy);
 }
@@ -3887,7 +4331,7 @@ document.addEventListener('keyup', (e) => { if (e.code === 'Space'){ spaceDown =
 const inBox = (n, r) => n.x + W(n) / 2 >= r[0] && n.x - W(n) / 2 <= r[2] && n.y + HT(n) / 2 >= r[1] && n.y - HT(n) / 2 <= r[3];
 function marqueeHits(m){
   const r = [Math.min(m.x0, m.x1), Math.min(m.y0, m.y1), Math.max(m.x0, m.x1), Math.max(m.y0, m.y1)];
-  return [...nodesEl.querySelectorAll('.node')].map((el) => nodeById(el.dataset.id)).filter((n) => n && !locked(n) && !n.proposed && inBox(n, r)).map((n) => n.id);
+  return [...nodesEl.querySelectorAll('.node')].map((el) => nodeById(el.dataset.id)).filter((n) => n && !locked(n) && !n.proposed && inBox(onMap(n), r)).map((n) => n.id);
 }
 // a right-button drag moves the map, from anywhere on it, whatever the tool; the browser's own menu stays shut on the map
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -3925,7 +4369,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const nd = e.target.closest('.node');
   const field = e.target.closest('.s') ? 'sub' : e.target.closest('.nt') ? 'label' : null;
   moved = false;
-  if (tool === 'hand'){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
+  if (tool === 'hand' || (mindOn() && spaceDown)){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); if (mindOn()) canvas.setPointerCapture(e.pointerId); return; }
   if (tool === 'box' || tool === 'arrow'){
     if (PREVIEW || READ_ONLY){ toast(READ_ONLY ? VIEW_SAYS : FROZEN_SAYS); return; }
     if (view.startsWith('flow:') || view.startsWith('diagram:')){ toast('Draw on the map itself, not inside a flow or a diagram.'); return; }
@@ -3935,12 +4379,13 @@ canvas.addEventListener('pointerdown', (e) => {
       const n = nd && nodeById(nd.dataset.id);
       if (!n){ toast('Start the line on a box.'); return; }
       if (locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
-      drawing = { from: n, x: sx, y: sy };
+      drawing = { from: onMap(n), x: sx, y: sy };
     }
     canvas.setPointerCapture(e.pointerId); drawRubber(); return;
   }
   // the comment tool drops a pin where you click, on a box or on the canvas
   if (tool === 'comment'){
+    if (mindOn()){ toast('Comments on the map show in the Engineer view. Use Comments on the right here.'); setTool('select'); return; }
     const [sx, sy] = toStage(e.clientX, e.clientY);
     const n = nd && nodeById(nd.dataset.id);
     if (n && locked(n)){ toast(`You don't have access to ${n.label}.`); return; }
@@ -3951,7 +4396,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // a proposed box drags, and a click opens its card
   if (nd?.classList.contains('proposed')){
     const n = proposedBox(nd.dataset.id);
-    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY, proposed: true }; canvas.setPointerCapture(e.pointerId); }
+    if (n){ const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY, proposed: true, pan: mindOn() }; canvas.setPointerCapture(e.pointerId); }
     return;
   }
   if (nd){
@@ -3959,12 +4404,15 @@ canvas.addEventListener('pointerdown', (e) => {
     // a locked box opens its "no access" card and never moves
     if ((READ_ONLY || locked(n)) && hubbed(n)){ tapHub(n); return; }
     if (READ_ONLY || locked(n)){ selected = selected === n.id ? null : n.id; render(); if (selected) keepInView(selected); return; }
-    const [sx, sy] = toStage(e.clientX, e.clientY); drag = { n, field, dx: n.x - sx, dy: n.y - sy, startX: e.clientX, startY: e.clientY };
+    const [sx, sy] = toStage(e.clientX, e.clientY), at = onMap(n);
+    drag = { n, field, dx: at.x - sx, dy: at.y - sy, startX: e.clientX, startY: e.clientY, mind: mindOn() };
+    // The start is the layout's anchor. A drag from it pans, just as on a frozen map.
+    if (drag.mind && (PREVIEW || FILE || n.id === fold.start)){ drag.pan = true; canvas.setPointerCapture(e.pointerId); return; }
     if (!PREVIEW && !FILE && !view.startsWith('flow:') && !view.startsWith('diagram:')){
       const all = view === 'system' ? S : nodeById(view)?.inside;
       if (all) drag.source = structuredClone({nodes:all.nodes,edges:all.edges || []});
     }
-    if (group.size > 1 && group.has(n.id)) drag.many = [...group].map((id) => nodeById(id)).filter(Boolean).map((m) => ({ n: m, dx: m.x - sx, dy: m.y - sy }));
+    if (group.size > 1 && group.has(n.id) && (!drag.mind || !group.has(fold.start))) drag.many = [...group].map((id) => nodeById(id)).filter(Boolean).map((m) => ({ n: m, dx: m.x - sx, dy: m.y - sy }));
     else if (group.size){ group.clear(); }
   }
   else if (spaceDown || PREVIEW){ panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); }
@@ -3986,10 +4434,11 @@ canvas.addEventListener('pointermove', (e) => {
     if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) <= 4) return;
     clearTimeout(tapTimer);
   }
+  if (drag?.pan){ moved = true; drag = null; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); return; }
   if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
   else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
-  if (Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
+  if (!mindOn() && Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
 // Recognize double clicks even if a live update replaces a box between taps.
 let lastTap = { id: null, at: 0 };
@@ -4019,7 +4468,7 @@ const pick = (n) => {
   // Keep an open details pane in place while distinguishing a click from a double click.
   const cardOpen = $('side').classList.contains('on');
   selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = !cardOpen;
-  renderPickedBox(cardOpen);
+  renderPickedBox(cardOpen || railTab === 'design');
   const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; if (!cardOpen) renderPickedBox(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
@@ -4056,9 +4505,9 @@ canvas.addEventListener('pointerup', (e) => {
       askName({ x: Math.round(drawn ? (d.x0 + d.x1) / 2 : d.x0), y: Math.round(drawn ? (d.y0 + d.y1) / 2 : d.y0) });
     } else {
       const to = document.elementFromPoint(e.clientX, e.clientY)?.closest('.node'), n = to && nodeById(to.dataset.id);
-      if (!n || n === d.from) toast('Let go of the line on another box.');
+      if (!n || n.id === d.from.id) toast('Let go of the line on another box.');
       else if (locked(n)) toast(`You don't have access to ${n.label}.`);
-      else askName({ from: d.from, to: n, x: Math.round((d.from.x + n.x) / 2), y: Math.round((d.from.y + n.y) / 2) });
+      else askName({ from: d.from, to: n, x: Math.round((d.from.x + onMap(n).x) / 2), y: Math.round((d.from.y + onMap(n).y) / 2) });
     }
     return;
   }
@@ -4079,11 +4528,16 @@ canvas.addEventListener('pointerup', (e) => {
       const all = view === 'system' ? S : nodeById(view)?.inside;
       for (const m of plan.moves){ const n = all?.nodes.find((n) => n.id === m.id); if (n) Object.assign(n,{x:Math.round(m.x),y:Math.round(m.y)}); }
       const roots = plan.ids || topicDragRoots(d);
-      if (all) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
+      // Moving among the same siblings only changes their order, leaving the existing lines and their labels intact.
+      const reorder = plan.reorder || (d.mind && roots.every((id) => { const before = plan.parentsById?.[id] || plan.parents; return before.length === 1 && before[0] === plan.parent; }));
+      if (all && !reorder) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
+      if (d.mind) mindPos.delete(d.n.id);
       folded.delete(plan.parent); saveFolds(); selected = d.n.id; keyboardSelection = true; render();
-      act('reparent',{id:topicDragRoots(d)[0],...plan,view}).then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
+      const save = reorder ? act('move',{moves:plan.moves}) : act('reparent',{id:roots[0],...plan,view});
+      save.then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
       return;
     }
+    if (moved && drag.mind){ cancelTopicDrag(); return; }
     if (moved && drag.source){
       const moves = drag.freeMoves;
       if (!moves){ cancelTopicDrag(); toast('That branch contains a box you cannot move.'); return; }
@@ -4166,6 +4620,7 @@ document.addEventListener('click', (e) => {
     act('call', o ? { id: b.dataset.call, option: o } : { id: b.dataset.call, answer: b.dataset.ans });
     toast(o ? `Picked “${b.dataset.label}”. The chat hears it now.` : `${b.dataset.ans === 'confirm' ? 'Confirmed' : 'Disputed'}. The chat hears it now.`);
   }
+  else if (t.closest('[data-view-mode]')){ setViewMode(t.closest('[data-view-mode]').dataset.viewMode); }
   else if (t.closest('#peopleb')){ peopleOpen = !peopleOpen; renderTop(); }
   else if (t.id === 'shareb') openShare();
   else if (t.id === 'sharebg' || t.closest('[data-close-share]')){ shareOpen = false; cloudPublishConfirm = false; cloudDeleteConfirm = false; linkMenuOpen = false; renderShare(); }
@@ -4214,6 +4669,13 @@ document.addEventListener('click', (e) => {
   else if (t.closest('#tidyb')) tidyMap();
   else if (t.id === 'fitb'){ readingSize(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
+  else if (t.closest('[data-rail="design"]')){
+    if (railTab === 'design'){ closeDesign(); return; }
+    railTab = 'design'; chatOpen = false; render();
+    $('design-layout-' + MIND_LAYOUT).focus({ preventScroll: true });
+    if (selected) keepInView(selected);
+  }
+  else if (t.closest('#design [data-close-rail]')){ closeDesign(); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   else if (t.closest('[data-box-source-chat]')){
@@ -4490,7 +4952,7 @@ window.addEventListener('message', (e) => {
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
   fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
-    PREVIEW = { ...v, content }; S = { ...LIVE, ...content }; selected = null; renderHistBar(); render();
+    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, ...content }; selected = null; renderHistBar(); render();
   }).catch(() => toast('That version could not be opened.'));
 }
 function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHistBar(); render(); }
@@ -4539,6 +5001,7 @@ function listen(){
   es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
+    takeTopicState(() => {
     const arrived = new Set(allBoxesOf(next).map((n) => n.id));
     for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
     for (const id of pendingRemovals) if (!allBoxesOf(next).some((n) => n.id === id)) pendingRemovals.delete(id);
@@ -4555,7 +5018,7 @@ function listen(){
     const ae = document.activeElement;
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next;
+    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, ...PREVIEW.content } : next;
     if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();
@@ -4563,6 +5026,7 @@ function listen(){
     if (firstState){ firstState = false; fit(); openBrainBox(); openNewMap(); if (location.hash === '#share'){ history.replaceState(null, '', location.pathname + location.search); openShare(); } }
     lineHasMap = true;
     if (document.hidden && !CLOUD) dropLine();
+    });
   });
   // the server's push carries no Google sign-in, which only a request from this browser can ask: keep the last one
   es.addEventListener('cloud', (m) => { CLOUD_STATUS = { ...JSON.parse(m.data), ...(CLOUD_STATUS?.google ? { google: CLOUD_STATUS.google } : {}) }; if (shareOpen) renderShare(); });

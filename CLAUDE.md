@@ -20,6 +20,12 @@
 - Other sessions may share this working tree. Check `git status` and the current branch before you start, and do not switch branches or reset under someone else's changes.
 - After you pull `dev` yourself (`git pull`, a rebase), run `npm run skill`: the installed skill is a copy of `skill/SKILL.md`, and the server rewrites it only on its own start.
 
+## Preview a branch on its own port
+
+- After changing the team map (`team/live`, `team/skill`) in a worktree, run `team/live/preview.sh` from that worktree and give the user the link it prints. Run it again after each later change: it restarts on the same port, so the user's tab keeps working.
+- Never start, stop or restart the server on `4323`: it is the user's everyday map, running from their own clone.
+- After the branch's PR merges, run `team/live/preview.sh stop` in the worktree before removing it. `team/live/preview.sh list` shows every preview running.
+
 ## Pull requests
 
 - Write the PR description in the sections of `.github/pull_request_template.md`; `gh pr create --body` does not apply the template for you.

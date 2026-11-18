@@ -41,6 +41,7 @@ import { appendProposed } from './proposal-layout.js';
 import { drawServer } from './draw.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
+import { numberingGroupOf } from './numbering.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapStore, moveMaps } from './map-store.js';
@@ -296,7 +297,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const touchesHidden = (a, who) => {
     const hidden = hiddenFor(who);
     if (!hidden.size) return false;
-    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into].filter((x) => typeof x === 'string');
+    const group = a.type === 'designmap' && a.id ? numberingGroupOf(state, a.id)?.ids || [] : [];
+    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into, ...group].filter((x) => typeof x === 'string');
     return ids.some((id) => { const n = nodeOf(id); return n && hidden.has(String(repoOf(state, n))); });
   };
   /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */
@@ -316,10 +318,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   /**
    * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
-   * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
+   * @param {{ title: string, description?: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
    */
-  function drawSystem({ title, folders = [], repos = [], by }) {
+  function drawSystem({ title, description, folders = [], repos = [], by }) {
     state.title = state.renamed = title; state.admins = [by];
+    if (description) state.desc = description;
     return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.
@@ -526,7 +529,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
-  const CONTENT = ['desc', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
+  const CONTENT = ['desc', 'numbering', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
   const contentOf = (/** @type {any} */ s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
   const clock = (/** @type {any} */ t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
@@ -540,7 +543,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
-  const LABEL = { move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
+  const LABEL = { designmap: 'changed map numbering', designbox: 'changed a box’s design', move: 'moved boxes', reparent: 'moved a topic to another parent', tidy: 'tidied up the map', add: 'drew a box', connect: 'drew a line', remove: 'took a box off the map', unlink: 'took a line off the map', relabel: 'renamed a line', resize: 'resized a box', reset: 'started the map over from the code', rename: 'renamed the map' };
   let lastContent = history[0] && fs.existsSync(path.join(HIST, `${history[0].id}.json`)) ? fs.readFileSync(path.join(HIST, `${history[0].id}.json`), 'utf8') : null;
   // with Auto-save off (state.autosave false, from the Save menu) a change makes no version; Save now does
   /** @param {any} type @param {any} by */
@@ -587,7 +590,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
-  const UNDOABLE = new Set(['move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
+  const UNDOABLE = new Set(['designmap', 'designbox', 'move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
   const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
     selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
     relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords });
@@ -616,6 +619,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (!file || !fs.existsSync(file)) return false;
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
+      if (!restored.numbering) delete state.numbering;
       Object.assign(state, restored);
       // a version from before the system map had its centre comes back with it
       if (state.drawing) withCentre(state, state.title);
@@ -845,6 +849,7 @@ const { deletedMaps, projects, mapCalled } = maps;
 // told your role on the team
 const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\p{L}\p{N} ._-]/gu, '')}">`,
+    who && file === 'index.html' && `<meta name="lm-map-view" content="${users.mapView()}">`,
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 // your role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string | null} */ who) => who && who === users.me() ? 'Owner' : '';

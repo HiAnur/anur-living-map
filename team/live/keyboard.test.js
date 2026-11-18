@@ -7,21 +7,24 @@ import { actionLeaving } from './action-stages.js';
 import { branchIds } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 import { actionExecuted } from './page-action.js';
+import { levelGraph } from './page-hub.js';
+import { numberingTree } from './page-design.js';
 import { layoutFor } from './page-layout.js';
+import { MIND_VIEW_KEY, mindLayout, mindView } from './page-mind.js';
 
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = html.slice(html.indexOf('const pendingRemovals ='), html.indexOf('// Tidy shortcut'));
 const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIVE = next;'));
 const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
-function harness(){
+function harness(pm = false){
   let input, handler, pickTimer;
-  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana' });
+  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana', numberingTree });
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'},
-    document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, railTab:null, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'}, mindOn:()=>false, onMap:n=>n, editorAt:at=>at, placeEditor:(el,at)=>{ el.style.left=`${at.x}px`; el.style.top=`${at.y}px`; return at; },
+    document:{addEventListener(type,f){handler=f;},querySelector:()=>null}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
@@ -34,12 +37,155 @@ function harness(){
   // the page's sizes, looked up each time, so a test that changes them changes what the layout sees
   Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
+  if (pm){
+    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, MIND_LAYOUT: 'right', topicTitle:n=>n.label,designWidth:()=>0, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
+      getComputedStyle:()=>({getPropertyValue:()=>''}), localStorage:{getItem:()=> 'pm'},
+      W:n=>n.mindW || 140, HT:n=>n.mindH || 50 });
+    ctx.document.body={classList:{toggle(){}}};
+    const start=html.indexOf('let VIEW_MODE ='),end=html.indexOf('\n}\n',html.indexOf('function setViewMode('))+3;
+    vm.runInContext(html.slice(start,end)+'\nthis.shown=onMap; this.editor=editorAt; this.mindScope=mindScope;',ctx);
+    const unfoldStart=html.indexOf('function unfolded(');
+    vm.runInContext(html.slice(unfoldStart,html.indexOf('const foldedAway',unfoldStart)),ctx);
+    ctx.scope=()=>ctx.mindScope(ctx.unfolded(levelGraph(ctx.S,{top:true,start:'root'})));
+    ctx.render=()=>ctx.scope();
+    Object.assign(ctx,{drag:null,pendingOpen:null,railTab:null,firstState:false,lineHasMap:false,CLOUD:false,
+      es:{addEventListener(_name,fn){ctx.receiveState=state=>fn({data:JSON.stringify(state)});}}});
+    const listener=html.indexOf("  es.addEventListener('state', (m) => {");
+    vm.runInContext(html.slice(listener,html.indexOf("  // the server's push",listener)),ctx);
+  }
   vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);
   vm.runInContext(html.slice(html.indexOf('function deleteBox('),html.indexOf("document.addEventListener('keydown'",html.indexOf('function deleteBox('))),ctx);
   /** @type {(key: any, extra?: any) => any} */ const event=(key,extra={})=>({key,target:{closest:()=>false},preventDefault(){this.defaultPrevented=true;},stopPropagation(){},...extra});
   return {ctx, rubber, input:()=>input, key:(key,extra)=>handler(event(key,extra)), edit:key=>input.keydown(event(key)), type:text=>{input.beforeinput({inputType:'insertText'});input.value=text;input.input();}, blur:()=>input.blur(),pick:id=>vm.runInContext('pick',ctx)(ctx.nodeById(id)),flushPick:()=>{const fn=pickTimer;pickTimer=null;fn?.();}};
 }
 describe('keyboard brainstorming',()=>{
+  it.each([false,true])('keeps saved folding preferences when extending a branch (PM: %s)',pm=>{
+    const h=harness(pm);h.ctx.cam={x:120,y:300,z:1};
+    h.ctx.S.nodes.push(...['active','child','grandchild','other'].map((id,i)=>({id,label:id,x:(i+1)*210,y:0})));
+    h.ctx.S.edges.push({from:'root',to:'active'},{from:'active',to:'child'},{from:'child',to:'grandchild'},{from:'root',to:'other'});
+    h.ctx.folded.add('child');h.ctx.folded.add('other');h.ctx.selected='active';h.ctx.render();h.key('Tab');
+    expect(h.ctx.folded.has('child')).toBe(true);
+    expect(h.ctx.folded.has('other')).toBe(true);
+  });
+  it('shows all saved folded topics in PM without a badge, restoring folds in Engineer',()=>{
+    const h=harness(true);
+    h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0},{id:'grandchild',label:'Grandchild',x:420,y:0});
+    h.ctx.S.edges.push({from:'root',to:'child'},{from:'child',to:'grandchild'});h.ctx.folded.add('child');
+    const start=html.indexOf('function foldButton('),end=html.indexOf('\n}',start)+2;
+    vm.runInContext(html.slice(start,end),h.ctx);
+    expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child','grandchild']);
+    expect(h.ctx.fold.hides.size).toBe(0);
+    expect(h.ctx.foldButton(h.ctx.nodeById('child'),{})).toBe('');
+    vm.runInContext("VIEW_MODE = 'engineer'",h.ctx);
+    expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child']);
+    expect(h.ctx.fold.hides.get('child')).toEqual(['grandchild']);
+  });
+  it('keeps twenty PM children visible when new ids have old saved fold preferences',async()=>{
+    const h=harness(true);h.ctx.cam={x:120,y:300,z:1};
+    h.ctx.folded.add('created-2');h.ctx.folded.add('created-5');h.ctx.render();
+    const state=structuredClone(h.ctx.S);let count=0;
+    h.ctx.act=async(_type,a)=>{
+      const id=`created-${++count}`;
+      state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});
+      h.ctx.receiveState(state);return {ok:true,json:async()=>({id})};
+    };
+    h.key('Tab');
+    for(let i=1;i<=20;i++){
+      h.edit('Tab');await h.ctx.naming.link.id;
+      const nodes=h.ctx.scope().nodes;
+      expect(nodes,`visible topics after Tab ${i}`).toHaveLength(i+1);
+      expect(nodes.map(n=>n.y)).toEqual(nodes.map(()=>0));
+      expect(h.ctx.fold.hides.size).toBe(0);
+    }
+  });
+  it('never draws both the pending PM topic and its saved copy when the state arrives first',async()=>{
+    const h=harness(true);h.ctx.cam={x:120,y:300,z:1};h.ctx.render();
+    const state=structuredClone(h.ctx.S),frames=[];
+    h.ctx.render=()=>frames.push(h.ctx.scope().nodes.length);
+    let release=()=>{};const reply=new Promise(resolve=>{release=()=>resolve(null);});
+    h.ctx.act=async(_type,a)=>{
+      state.nodes.push({id:'saved',label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:'saved'});
+      h.ctx.receiveState(state);state.title='Latest';h.ctx.receiveState(state);await reply;
+      return {ok:true,json:async()=>({id:'saved'})};
+    };
+    h.key('Tab');h.edit('Tab');await new Promise(setImmediate);
+    expect(Math.max(...frames)).toBe(2);
+    release();await h.ctx.naming.link.id;
+    expect(h.ctx.S.nodes.map(n=>n.id)).toEqual(['root','saved']);
+    expect(h.ctx.S.title).toBe('Latest');
+    expect(Math.max(...frames)).toBe(2);
+  });
+  it('releases the latest PM state when adding a topic fails',async()=>{
+    const h=harness(true);h.ctx.cam={x:120,y:300,z:1};h.ctx.render();
+    h.ctx.act=async()=>{
+      h.ctx.receiveState({...h.ctx.S,title:'Updated elsewhere'});
+      expect(h.ctx.S.title).toBeUndefined();
+      return {ok:false};
+    };
+    h.key('Tab');const saved=h.ctx.endName(true);expect(await saved).toBeNull();
+    expect(h.ctx.S.title).toBe('Updated elsewhere');
+    expect(h.ctx.scope().nodes).toHaveLength(1);
+  });
+  it('does not jump vertically when a PM topic fits above the toolbar',()=>{
+    const h=harness(true);h.ctx.cam={x:120,y:710,z:1};
+    h.ctx.S.nodes.push({id:'branch',label:'Branch',x:210,y:0},{id:'leaf',label:'Leaf',x:420,y:0});
+    h.ctx.S.edges.push({from:'root',to:'branch'},{from:'branch',to:'leaf'});h.ctx.selected='leaf';h.ctx.render();
+    for(let i=0;i<10;i++){
+      if(i===0)h.key('Tab');else h.edit('Tab');
+      expect(h.ctx.cam.y).toBe(710);
+      const at=h.ctx.editor(h.ctx.naming);
+      expect(at.y*h.ctx.cam.z+h.ctx.cam.y).toBe(710);
+      const style=h.ctx.$('newbox').style;
+      expect(Number.parseFloat(style.width)).toBe(at.mindW);
+      expect(Number.parseFloat(style.height)).toBe(at.mindH);
+      const right=(Number.parseFloat(style.left)+Number.parseFloat(style.width))*h.ctx.cam.z+h.ctx.cam.x;
+      expect(right).toBeLessThanOrEqual(1184);
+    }
+  });
+  it.each([false,true])('keeps the new lower PM branch level during every redraw (rapid: %s)',async(rapid)=>{
+    const h=harness(true);h.ctx.cam={x:120,y:300,z:1};
+    h.ctx.S.nodes.push({id:'branch',label:'Branch',x:210,y:0},{id:'leaf',label:'Leaf',x:420,y:0},{id:'old',label:'Old child',x:630,y:0});
+    h.ctx.S.edges.push({from:'root',to:'branch'},{from:'branch',to:'leaf'},{from:'leaf',to:'old'});h.ctx.selected='leaf';h.ctx.render();
+    const state=structuredClone(h.ctx.S), frames=[];
+    let count=0;
+    const render=h.ctx.render;h.ctx.render=()=>{render();if(h.ctx.naming)frames.push(h.ctx.editor(h.ctx.naming).y);};
+    h.ctx.act=async(type,a)=>{
+      const id=`created-${++count}`;
+      for(const m of a.reflow||[])state.nodes.find(n=>n.id===m.id).y=m.y;
+      state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});
+      h.ctx.S=structuredClone(state);h.ctx.syncTopicPreview(true);h.ctx.render();
+      await new Promise(setImmediate);
+      return {ok:true,json:async()=>({id})};
+    };
+    h.key('Tab');const y=h.ctx.editor(h.ctx.naming).y;frames.length=0;
+    for(let i=0;i<8;i++){
+      h.edit('Tab');if(!rapid)await h.ctx.naming.link.id;
+      expect(frames,`redraws after Tab ${i+1}`).toEqual(frames.map(()=>y));frames.length=0;
+    }
+    await h.ctx.naming.link.id;
+    expect(frames).toEqual(frames.map(()=>y));
+  });
+  it('keeps a PM chain horizontal through repeated Tab presses and saves arriving before their replies',async()=>{
+    const h=harness(true);h.ctx.cam={x:120,y:300,z:1};
+    h.ctx.S.nodes.push({id:'branch',label:'Branch',x:210,y:0},{id:'leaf',label:'Leaf',x:420,y:0});
+    h.ctx.S.edges.push({from:'root',to:'branch'},{from:'branch',to:'leaf'});h.ctx.selected='leaf';h.ctx.render();
+    const state=structuredClone(h.ctx.S), start=h.ctx.shown(h.ctx.nodeById('leaf')).y;
+    let count=0;
+    h.ctx.act=async(type,a)=>{
+      const id=`created-${++count}`;
+      for(const m of a.reflow||[])state.nodes.find(n=>n.id===m.id).y=m.y;
+      state.nodes.push({id,label:a.label,x:a.x,y:a.y});state.edges.push({from:a.from,to:id});
+      h.ctx.S=structuredClone(state);h.ctx.syncTopicPreview(true);h.ctx.render();
+      return {ok:true,json:async()=>({id})};
+    };
+    h.key('Tab');
+    for(let i=0;i<8;i++){
+      h.edit('Tab');await h.ctx.naming.link.id;
+      expect(h.ctx.editor(h.ctx.naming).y,`draft after save ${i+1}`).toBe(start);
+      expect(h.ctx.shown(h.ctx.nodeById('leaf')).y,`branch after save ${i+1}`).toBe(start);
+      expect(h.ctx.cam.y).toBe(300);
+    }
+  });
   it('keeps an open details pane visible when clicking the selected box or another box',()=>{
     const h=harness(),frames=[];h.rubber.classList.contains=()=>true;
     h.ctx.S.nodes.push({id:'rivals',label:'Rivals',x:300,y:0});

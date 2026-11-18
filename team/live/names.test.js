@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 const html=fs.readFileSync(new URL('./index.html',import.meta.url),'utf8');
 describe('full topic names',()=>{
   it('counts every wrapped line including long words and explicit line breaks',()=>{
-    const ctx=vm.createContext({W:()=>126,wraps:new Map(),ruler:{measureText:s=>({width:s.length*10})},document:{documentElement:{}},getComputedStyle:()=>({getPropertyValue:()=>''})});
+    const ctx=vm.createContext({W:()=>126,topicTitle:n=>n.label,designWidth:()=>0,wraps:new Map(),ruler:{measureText:s=>({width:s.length*10})},document:{documentElement:{}},getComputedStyle:()=>({getPropertyValue:()=>''})});
     vm.runInContext(html.slice(html.indexOf('const nameLines ='),html.indexOf('document.fonts?.ready'))+'\nthis.lines=nameLines;',ctx);
     expect(ctx.lines({label:'short'})).toBe(1);
     expect(ctx.lines({label:'one two three four five six seven eight'})).toBe(5);

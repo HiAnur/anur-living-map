@@ -3,6 +3,125 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Choose your map type</strong></dt>
+<dd>
+
+Both **New map** and sending a prompt offer **PM Map** for ideas, plans and tasks or **Engineering Map** to map your code repo, keeping what you typed. <!-- source: https://github.com/HiAnur/anur-living-map/pull/566 --> <!-- merged-at: 2026-11-18T21:30:17Z -->
+
+<img src="docs/shipping/2026-11-18/map-type-choice.jpg" alt="New map offers PM Map on the left for ideas, plans and tasks, and Engineering Map on the right to map your code repo." width="540">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Choose your mind map layout</strong></dt>
+<dd>
+
+Open **Design**, first in the right-hand rail, and choose clockwise, counterclockwise, both sides, right or left under **Mindmap (Logic Map)**. Your choice stays selected for that map in this browser. <!-- source: https://github.com/HiAnur/anur-living-map/pull/564 --> <!-- merged-at: 2026-11-18T21:18:55Z -->
+
+<img src="docs/shipping/2026-11-18/mind-map-layouts.jpg" alt="Design is first in the rail, with five layout icons beside a sample map branching to both sides." width="900">
+
+</dd>
+<dt><strong>Easier drops in PM view</strong></dt>
+<dd>
+
+The green drop marker appears farther from a topic, including a little to either side when you drop above or below, so you can move branches without dragging so close. <!-- source: https://github.com/HiAnur/anur-living-map/pull/564 --> <!-- merged-at: 2026-11-18T21:18:55Z -->
+
+<img src="docs/shipping/2026-11-18/pm-drop-range.jpg" alt="A sample PM map shows a green landing marker below Audience before the dragged branch reaches the topic." width="650">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] Clearer Action Boxes in PM view</strong></dt>
+<dd>
+
+PM Action Boxes show their status beside the title. Long names wrap into balanced lines, with the box fitted to the text. <!-- source: https://github.com/HiAnur/anur-living-map/pull/562 --> <!-- merged-at: 2026-11-18T20:59:22Z -->
+
+<img src="docs/shipping/2026-11-18/pm-action-boxes.png" alt="An example PM map shows Action Boxes with Ready for review, Blocked and Done badges beside the existing Side Chat panel." width="900">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Number topics by group</strong></dt>
+<dd>
+
+Select a topic and choose **Design → Topic numbering → Format** to number it and its siblings. Parent and child groups keep their own numbering, and **None** clears only the selected group. <!-- source: https://github.com/HiAnur/anur-living-map/pull/560 --> <!-- merged-at: 2026-11-18T20:47:31Z -->
+
+<img src="docs/shipping/2026-11-18/selected-topic-numbering.jpg" alt="Design shows numbering for the selected topic and its siblings. The parent keeps its number, and the selected topic's child remains unnumbered." width="820">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Your last Map view stays selected</strong></dt>
+<dd>
+
+Local maps on this Mac reopen in whichever **Map view** you picked last, PM or Engineer. <!-- source: https://github.com/HiAnur/anur-living-map/pull/556 --> <!-- merged-at: 2026-11-18T01:26:41Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Move branches in PM view</strong></dt>
+<dd>
+
+In PM view, drop a topic onto another topic to move its branch underneath, or drop just above or below to change its order. <!-- source: https://github.com/HiAnur/anur-living-map/pull/557 --> <!-- merged-at: 2026-11-18T01:21:06Z -->
+
+<img src="docs/shipping/2026-11-17/pm-drag-and-drop.png" alt="A PM map shows a green landing box beside Movies while Subtopic is being dragged onto it." width="650">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Box titles line up on the left</strong></dt>
+<dd>
+
+Titles keep the same left padding in both map views while you rename them or add a flag or progress marker. <!-- source: https://github.com/HiAnur/anur-living-map/pull/554 --> <!-- merged-at: 2026-11-18T01:12:51Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Design your map</strong></dt>
+<dd>
+
+Open **Design** in the right-hand rail to number a selected group of topics and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
+
+PM view shows the map title in a white rounded box and puts topic numbers inline with their names.
+
+<img src="docs/shipping/2026-11-17/map-design.jpg" alt="Design open beside a PM map. Pricing shows its topic number, a red flag, and a completed progress marker." width="760">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Map dots follow your zoom</strong></dt>
+<dd>
+
+The background dots get bigger and farther apart as you zoom in, and smaller and closer together as you zoom out. <!-- source: https://github.com/HiAnur/anur-living-map/pull/550 --> <!-- merged-at: 2026-11-17T22:09:16Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] PM mind-map view</strong></dt>
+<dd>
+
+In the top-right account menu, choose **Map view → PM** to draw your map as branching topics. <!-- source: https://github.com/HiAnur/anur-living-map/pull/548 --> <!-- merged-at: 2026-11-17T20:15:04Z -->
+
+- In PM view, pressing **Tab** extends the selected topic sideways while you name the new subtopic.
+- The delete confirmation opens by the box you picked.
+
+<img src="docs/shipping/2026-11-17/pm-view-engineer.jpg" alt="The Spring launch sample map in Engineer view, with boxes joined by arrows." width="640">
+
+<img src="docs/shipping/2026-11-17/pm-view.jpg" alt="The same Spring launch map in PM view, with Pricing and Audience branching into their subtopics." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] Share a map online with people by email</strong></dt>
 <dd>
 
