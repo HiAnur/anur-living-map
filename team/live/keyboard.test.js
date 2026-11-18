@@ -8,6 +8,7 @@ import { branchIds } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 import { actionExecuted } from './page-action.js';
 import { levelGraph } from './page-hub.js';
+import { numberingTree } from './page-design.js';
 import { layoutFor } from './page-layout.js';
 import { MIND_VIEW_KEY, mindLayout, mindView } from './page-mind.js';
 
@@ -18,12 +19,12 @@ const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIV
 const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
 function harness(pm = false){
   let input, handler, pickTimer;
-  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana' });
+  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana', numberingTree });
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
-  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'}, mindOn:()=>false, onMap:n=>n, editorAt:at=>at, placeEditor:(el,at)=>{ el.style.left=`${at.x}px`; el.style.top=`${at.y}px`; return at; },
-    document:{addEventListener(type,f){handler=f;}}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
+  Object.assign(ctx, { S:{ nodes:[{id:'root',label:'Root',x:0,y:0}],edges:[] }, LIVE:null, PREVIEW:null,READ_ONLY:false, FILE:false, naming:null, lastTap:{id:null,at:0}, railTab:null, diagramChange:()=>null, hubbed:()=>false, view:'system', selected:'root', keyboardSelection:false, group:new Set(), pickedLine:null, delAsk:null, tool:'select', cam:{x:0,y:0,z:1}, folded:new Set(), lastTopics:new Map(), fold:{start:'root'}, mindOn:()=>false, onMap:n=>n, editorAt:at=>at, placeEditor:(el,at)=>{ el.style.left=`${at.x}px`; el.style.top=`${at.y}px`; return at; },
+    document:{addEventListener(type,f){handler=f;},querySelector:()=>null}, $:id=>id==='newbox'?editor:['tools','foot'].includes(id)?controls:rubber,
     setTimeout(fn){pickTimer=fn;return 1;},clearTimeout(){pickTimer=null;},
     canvas:{getBoundingClientRect:()=>({left:0,top:0,width:1200,height:800})},
     crossLinks:()=>true, routePts:(a,b)=>[[a.x+70,a.y],[b.x-72,b.y]], W:()=>140, HT:()=>50, sideAt:(n,side)=>[n.x+(side==='r'?70:-70),n.y], sideFacing:()=> 'r',
@@ -37,7 +38,7 @@ function harness(pm = false){
   Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
   if (pm){
-    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
+    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, MIND_LAYOUT: 'right', topicTitle:n=>n.label,designWidth:()=>0, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
       getComputedStyle:()=>({getPropertyValue:()=>''}), localStorage:{getItem:()=> 'pm'},
       W:n=>n.mindW || 140, HT:n=>n.mindH || 50 });
     ctx.document.body={classList:{toggle(){}}};

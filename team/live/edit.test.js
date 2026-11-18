@@ -9,7 +9,7 @@ function harness(){
   let up, pending;const edits=[],opened=[];
   const ctx=vm.createContext({
     canvas:{addEventListener(type,handler){up=handler;}},drawing:null,marquee:null,drag:null,panning:null,moved:false,PREVIEW:null,READ_ONLY:false,FILE:false,
-    lastTap:{id:null,at:0},DBL:320,tapTimer:null,nameSession:0,naming:null,clearTimeout(){pending=null;},setTimeout(fn){pending=fn;return 1;},Date,selected:null,render(){},keepInView(){},
+    lastTap:{id:null,at:0},DBL:320,tapTimer:null,nameSession:0,naming:null,clearTimeout(){pending=null;},setTimeout(fn){pending=fn;return 1;},Date,selected:null,railTab:null,render(){},keepInView(){},
     locked:n=>!!n.locked,diagramChange:()=>false,hubbed:()=>false,LEVEL_CENTRE:"@centre",mindOn:()=>false,onMap:n=>n,
     askName:at=>edits.push(at),enter:id=>opened.push(id),openDiagram:id=>opened.push(id),
   });
