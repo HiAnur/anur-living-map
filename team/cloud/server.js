@@ -59,8 +59,9 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
     const json = (/** @type {any} */ code, /** @type {any} */ value) => res.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
     const htmlPage = (/** @type {number} */ code, /** @type {string} */ text) => res.writeHead(code, { 'content-type': 'text/html; charset=utf-8' }).end(text);
     const publisher = equal(req.headers.authorization || '', `Bearer ${publishKey}`);
-    // the Google account the owner's Mac acts for, proved by an ID token it got through the login service
-    const google = () => checkId(req.headers['x-google-id-token']);
+    // Google's front end strips the reserved x-google-* name. Keep it for older clients on direct connections.
+    const googleProof = req.headers['x-living-map-google-id-token'] ?? req.headers['x-google-id-token'];
+    const google = () => checkId(googleProof);
     // the visitor's own Google sign-in on this cloud, or null
     const session = /** @type {{ email: string, name: string } | null} */ (cookies.open('session', cookie(req, 'lm_cloud_session'), SESSION_DAYS * 86_400_000));
     try {
@@ -94,18 +95,26 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         if (!publisher) throw fail(401, 'Publishing requires this Mac\'s sharing key.');
         const a = await body(req), data = mapData(a.data), id = a.id;
         if (!/^[a-f0-9]{32}$/.test(id || '') || !/^[a-f0-9]{64}$/.test(a.ownerKey || '') || !/^[a-f0-9]{64}$/.test(a.linkKey || '') || !['view','edit'].includes(a.mode)) throw fail(400, 'Invalid sharing settings.');
+        if (a.linkView !== undefined && typeof a.linkView !== 'boolean') throw fail(400, 'Choose on or off.');
+        if (a.linkRole !== undefined && !['view', 'edit'].includes(a.linkRole)) throw fail(400, 'Choose Can view or Can edit.');
         // an online copy belongs to the Google account that published it; a Mac from before Google sign-in sends none
-        if (!req.headers['x-google-id-token']) throw fail(401, 'Publishing online needs a Google sign-in now. Update Living Map on this Mac, then sign in with Google.');
+        if (!googleProof) throw fail(401, 'Publishing online needs a Google sign-in now. Update Living Map on this Mac, then sign in with Google.');
         const who = await google();
         const existing = await store.get(id);
         if (existing) {
           const v = existing.value;
           if (!equal(v.ownerHash, hash(a.ownerKey))) throw fail(403, 'This map belongs to someone else.');
           if (v.owner && v.owner.email !== who.email) throw fail(403, 'This online copy belongs to another Google account. Sign in with that account to change it.');
-          if (!v.owner) { Object.assign(v, { owner: who, people: {}, linkView: false }); await store.put(id, v, existing.version); }
+          if (!v.owner || a.linkView !== undefined || a.linkRole !== undefined) {
+            if (!v.owner) Object.assign(v, { owner: who, people: {}, linkView: false });
+            if (a.linkView !== undefined) v.linkView = a.linkView;
+            if (a.linkRole !== undefined) v.linkRole = a.linkRole;
+            await store.put(id, v, existing.version);
+          }
           return json(200, { data: v.data, revision: v.revision, mode: v.mode, access: accessOf(v) });
         }
-        const value = { data, ownerHash: hash(a.ownerKey), linkHash: hash(a.linkKey), mode: 'view', owner: who, people: {}, linkView: false, undo: [], revision: 1 };
+        // Only a client that confirmed sharing by link opens a new map to people holding that link.
+        const value = { data, ownerHash: hash(a.ownerKey), linkHash: hash(a.linkKey), mode: 'view', owner: who, people: {}, linkView: a.linkView === true, ...(a.linkRole ? { linkRole: a.linkRole } : {}), undo: [], revision: 1 };
         await store.put(id, value, null);
         return json(201, { data, revision: 1, mode: value.mode, access: accessOf(value) });
       }
@@ -135,12 +144,17 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       }
       // a signed-in visitor on a copy shared by email acts under their Google name
       const named = !mac && v.owner && session ? session : null;
+      const guest = cookie(req, 'lm_cloud_guest');
+      const guestId = /^[a-f0-9]{32}$/.test(guest) ? guest : '';
+      const viewer = named || (guestId ? { email: `guest:${guestId}`, name: `Guest ${guestId.slice(0, 6)}` } : null);
       if (!p && req.method === 'GET') return res.writeHead(302, { location: `/m/${id}/${url.search}` }).end();
       if (p === '/' && req.method === 'GET') {
-        const guest = (req.headers.cookie || '').match(/(?:^|;\s*)lm_cloud_guest=([a-f0-9]{32})(?:;|$)/)?.[1] || crypto.randomBytes(16).toString('hex');
-        res.setHeader('set-cookie', `lm_cloud_guest=${guest}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
+        const key = guestId || crypto.randomBytes(16).toString('hex');
+        const person = named || { email: `guest:${key}`, name: `Guest ${key.slice(0, 6)}` };
+        present(id, person);
+        res.setHeader('set-cookie', `lm_cloud_guest=${key}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
         const metas = ['<meta name="lm-cloud" content="1">', `<meta name="lm-access" content="${role}">`, '<meta name="lm-shared" content="1">',
-          named ? `<meta name="lm-user" content="${named.name}">` : '',
+          `<meta name="lm-user" content="${person.name}">`,
           // someone viewing through the link alone may have been invited to edit: Share offers them a sign-in
           v.owner && !named ? `<meta name="lm-cloud-signin" content="/auth/google?next=${encodeURIComponent(`/m/${id}/?share=${suppliedLink}`)}">` : ''];
         return htmlPage(200, html.replace('</head>', `${metas.join('')}</head>`));
@@ -148,11 +162,12 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       if (p === '/editing.js' && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(fs.readFileSync(path.join(DIR, 'editing.js')));
       if (p === '/api/state' && req.method === 'GET') {
         if (mac) {
-          const etag = `"${v.revision}"`; res.setHeader('etag', etag);
+          const names = present(id, null);
+          const etag = `"${v.revision}.${v.mode}.${v.linkRole || 'view'}.${v.linkView ? 1 : 0}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
           if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
-          return json(200, { ...viewData(v.data, v.mode), cloudRevision: v.revision, access: accessOf(v) });
+          return json(200, { ...viewData(v.data, v.mode), cloudRevision: v.revision, access: accessOf(v), here: names });
         }
-        const names = v.owner ? present(id, named) : [];
+        const names = v.owner ? present(id, viewer) : [];
         const etag = `"${v.revision}.${role}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
         if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
         // who is here stands in for the map's people, the only people a visitor is sent
@@ -173,12 +188,12 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         if (JSON.stringify(merged) !== JSON.stringify(v.data)) {
           v.data = merged; v.revision++; await store.put(id, v, record.version);
         }
-        return json(200, { data: v.data, revision: v.revision, access: accessOf(v) });
+        return json(200, { data: v.data, revision: v.revision, access: accessOf(v), here: present(id, null) });
       }
       // Who may open the copy. Once it has an owner, only that Google account changes it; a copy from before
       // Google sign-in is claimed by the first change made while signed in, and until then keeps its link modes.
       if (p === '/api/sharing' && mac) {
-        if (v.owner || req.headers['x-google-id-token']) {
+        if (v.owner || googleProof) {
           const who = await google();
           if (v.owner && v.owner.email !== who.email) throw fail(403, 'This online copy belongs to another Google account. Sign in with that account to change it.');
           if (!v.owner) Object.assign(v, { owner: who, people: {}, linkView: false, ...(v.mode === 'restricted' ? {} : { mode: 'view' }) });
@@ -203,9 +218,8 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       if (a.type === 'cursor') return json(200, {});
       if (a.revision !== v.revision) throw fail(409, 'The map changed elsewhere. Your view is refreshing; please try again.');
       // Every browser has its own undo history; names supplied in a request cannot impersonate someone.
-      const guest = (req.headers.cookie || '').match(/(?:^|;\s*)lm_cloud_guest=([a-f0-9]{32})(?:;|$)/)?.[1];
-      if (!guest && !mac && !named) throw fail(401, 'Open the shared map first.');
-      const by = mac ? 'Owner' : named ? named.name : `Guest ${/** @type {string} */ (guest).slice(0, 6)}`;
+      if (!guestId && !mac && !named) throw fail(401, 'Open the shared map first.');
+      const by = mac ? 'Owner' : named ? named.name : `Guest ${guestId.slice(0, 6)}`;
       const engine = openMap({ home: '/tmp/living-map-memory', memory: true, initialState: viewData(v.data, v.mode), undoState: v.undo });
       try {
         const result = engine.editShared({ ...a, by });

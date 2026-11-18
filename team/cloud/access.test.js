@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { signedLink } from '../live/cloud-data.js';
 import { MAX_PEOPLE, sealer } from './access.js';
@@ -86,6 +86,39 @@ describe('publishing', () => {
     const c = await cloud();
     const r = await fetch(`${c.url}/api/maps`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-google-id-token': google.token(OWNER) }, body: JSON.stringify({ id: ID }) });
     expect(r.status).toBe(401);
+  });
+  it('opens a confirmed link to anonymous viewers and keeps a retried publication consistent', async () => {
+    const c = await cloud();
+    const data = { id: ID, ownerKey: OWNER_KEY, linkKey: LINK, mode: 'view', linkView: true, data: map() };
+    expect((await c.mac('/api/maps', { ...data, linkView: 'yes' })).status).toBe(400);
+    expect(c.store.records.size).toBe(0);
+    const published = await c.mac('/api/maps', data);
+    expect(published.status).toBe(201);
+    expect((await published.json()).access.linkView).toBe(true);
+    expect((await c.visit('api/state')).status).toBe(200);
+    expect((await c.visit('api/act', { data: { type: 'renamebox', id: 'a', label: 'No', revision: 1 } })).status).toBe(403);
+    await c.access({ linkView: false });
+    expect((await c.visit('api/state')).status).toBe(401);
+    await c.publish();
+    expect((await c.visit('api/state')).status).toBe(401);
+    expect((await c.mac('/api/maps', data)).status).toBe(200);
+    expect((await c.visit('api/state')).status).toBe(200);
+  });
+  it('reports anonymous visitors to the owner only while they are present', async () => {
+    const c = await cloud();
+    await c.publish();
+    await c.access({ linkView: true });
+    const before = await c.mac(`/m/${ID}/api/state`, undefined);
+    const etag = /** @type {string} */ (before.headers.get('etag'));
+    expect((await before.json()).here).toEqual([]);
+    await c.visit('api/state');
+    const active = await c.mac(`/m/${ID}/api/state`, undefined);
+    expect(active.headers.get('etag')).not.toBe(etag);
+    expect((await active.json()).here).toEqual(['Guest eeeeee']);
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 21_000);
+    try {
+      expect((await (await c.mac(`/m/${ID}/api/state`, undefined)).json()).here).toEqual([]);
+    } finally { clock.mockRestore(); }
   });
 });
 

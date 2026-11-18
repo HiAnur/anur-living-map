@@ -1,11 +1,12 @@
 // The list of maps, at the server's own /api/...: a new map from a prompt, a map file loaded, Trash (move, list,
-// restore), a pin, background from other maps, the maps a person may open, and a code folder added from a chat. Each
+// restore), a duplicate, a pin, background from other maps, the maps a person may open, and a code folder added from a chat. Each
 // route answers with the response, and true when it answered.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { contextReader } from './map-context.js';
+import { copyMap } from './map-copy.js';
 import { body, jsonBody } from './request.js';
 import { localTool } from './sharing.js';
 
@@ -52,6 +53,28 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       const dir = path.join(MAPS, name);
       fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));
       mapCalled(name);
+      return json(200, { name, href: `/${name}/` });
+    }
+    if (url.pathname === '/api/maps/duplicate' && req.method === 'POST') {
+      if (!who) return json(401, { error: 'Open Living Map in a browser on this Mac.' });
+      if (req.headers.origin !== `http://${req.headers.host}` || !String(req.headers['content-type'] || '').startsWith('application/json')) return json(403, { error: 'Open Living Map on this Mac to duplicate a map.' });
+      const a = await jsonBody(req, {}), original = String(a.name || '');
+      const map = /^[a-z0-9-]+$/.test(original) && everyMap().find(([n]) => n === original)?.[1];
+      if (!map || !map.allowed(who, req)) return json(404, { error: 'That map is no longer in your list.' });
+      if (!map.canDelete(who)) return json(403, { error: 'Only a map owner can duplicate this map.' });
+      const state = map.snapshot(), name = freeName(`${original}-copy`), dir = path.join(MAPS, name);
+      const base = String(state.title || 'Untitled map'), titles = new Set(everyMap().map(([, m]) => m.summary().title));
+      let title = `${base} (copy)`;
+      for (let i = 2; titles.has(title); i++) title = `${base} (copy ${i})`;
+      const folder = folders.get(original), source = folder ? path.join(folder, '.living-map') : path.join(MAPS, original);
+      try {
+        copyMap({ state, title, who, source, dir });
+        mapCalled(name);
+      } catch (e) {
+        named.delete(name); fs.rmSync(dir, { recursive: true, force: true });
+        console.error('[map] duplicate', e);
+        return json(500, { error: 'Could not duplicate the map. Try again.' });
+      }
       return json(200, { name, href: `/${name}/` });
     }
     // Archive only the map data, never its code folder. A tombstone also prevents old URLs and restarts recreating it.
@@ -140,7 +163,10 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       return json(200, {});
     }
     if (url.pathname === '/api/maps') {
-      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), pinned: isPinned(who, name), ...m.summary() }));
+      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => {
+        const project = folders.get(name);
+        return { name, href: `/${name}/`, deletable: m.canDelete(who), pinned: isPinned(who, name), ...m.summary(), folder: path.resolve(project || MAPS, project ? '.living-map' : name) };
+      });
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
     }
     // a chat opening the map from another code folder adds that folder to the list, and it stays there

@@ -28,7 +28,7 @@ describe('the PM view setting', () => {
     const start = html.indexOf('let VIEW_MODE ='), end = html.indexOf('\n}\n', html.indexOf('function setViewMode(')) + 3;
     const store = new Map([[MIND_VIEW_KEY, 'pm']]), calls = [];
     const ctx = vm.createContext({
-      mindView, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', document: { querySelector: () => null, body: { classList: { toggle() {} } } },
+      linkView:null, mindView, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', document: { querySelector: () => null, body: { classList: { toggle() {} } } },
       localStorage: { getItem: (/** @type {string} */ k) => store.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => store.set(k, v) },
       render: () => calls.push('render'), fit: () => calls.push('fit'),
     });
@@ -48,7 +48,7 @@ describe('adding topics in the PM view', () => {
   const start = html.indexOf('let VIEW_MODE ='), end = html.indexOf('\n}\n', html.indexOf('function setViewMode(')) + 3;
   const setup = () => {
     const ctx = vm.createContext({
-      mindView, mindLayout, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', selected: null, naming: null, topicIds: new Map(), pendingTopics: new Set(),
+      linkView:null, mindView, mindLayout, MIND_VIEW_KEY, MIND_LAYOUT: 'right', view: 'system', selected: null, naming: null, topicIds: new Map(), pendingTopics: new Set(),
       document: { querySelector: () => null, body: { classList: { toggle() {} } } }, localStorage: { getItem: () => 'pm', setItem() {} },
       $: () => ({ querySelector: () => null }), topicTitle: (/** @type {{label: string}} */ n) => n.label, designWidth: () => 0, wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),

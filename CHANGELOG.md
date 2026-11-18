@@ -3,6 +3,34 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Share a map in PM or Engineer view</strong></dt>
+<dd>
+
+Choose **Share → Copy link** and confirm the first upload to Google Cloud. The link opens in the view you copied. Choose **Can view** or **Can edit** for anyone with the link, or **Turn off link** to close access. <!-- source: https://github.com/HiAnur/anur-living-map/pull/571 --> <!-- merged-at: 2026-11-18T21:44:36Z -->
+
+<img src="docs/shipping/2026-11-18/share-map-link.png" alt="The Share dialog on a sample map, with Can view, Can edit, and Turn off link in the Link access menu." width="640">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>✨ [New feature] Duplicate a map</strong></dt>
+<dd>
+
+Open a map’s **⋯** menu and choose **Duplicate** to make an independent copy you can edit. <!-- source: https://github.com/HiAnur/anur-living-map/pull/568 --> <!-- merged-at: 2026-11-18T21:42:39Z -->
+
+</dd>
+<dt><strong>🧹 [Layout cleanup] A clearer map list</strong></dt>
+<dd>
+
+Map rows keep the name, pending answers, cloud status and edit time together, with **Pin**, **Copy folder location** and other details in **⋯**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/568 --> <!-- merged-at: 2026-11-18T21:42:39Z -->
+
+<img src="docs/shipping/2026-11-18/map-library.png" alt="A sample map list shows compact rows, a cloud before the edit time, and a More menu with separate System map and Local folder sections, folder copying, Pin, Duplicate and Trash." width="650">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Choose your map type</strong></dt>
 <dd>
 
