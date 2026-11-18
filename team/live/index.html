@@ -202,7 +202,7 @@ body.blank-repo #tidyb{display:none}
 #rubber .drag-source{fill:var(--new-tint);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
 #rubber .drag-ghost{opacity:.75}
 #rubber .drag-ghost-box{fill:var(--box);stroke:var(--new);stroke-width:2;stroke-dasharray:none}
-#rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
+#rubber .drag-ghost-label{width:100%;height:100%;display:flex;align-items:center;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text);font:500 13.5px var(--plex)}
 /* a box under the pointer (or one you picked) shows a dot in the middle of each side: drag one out to draw a line.
    Let go on a box, or near one, and the line points to it (that box gets a blue outline while you are over it);
    let go on empty map and a new box goes there, named in place, with the line to it */
@@ -233,9 +233,9 @@ body.blank-repo #tidyb{display:none}
 .node.editing-name .nt,.node.editing-description .s{visibility:hidden}
 .reply-progress{flex:none;padding:10px 16px}
 #newbox input,#newbox textarea{width:100%;height:100%;min-height:36px;padding:0 10px;border:1.5px solid var(--new);border-radius:6px;background:#fff;font:500 13.5px var(--plex);user-select:text;outline:none;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-#newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none;text-align:center}
+#newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none}
 #newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
-#newbox textarea{text-align:center;padding:15px 10px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
+#newbox textarea{text-align:left;padding:15px 12px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
@@ -274,15 +274,14 @@ body.blank-repo #tidyb{display:none}
 #edges > path.mind-branch{stroke-width:3}
 #edges > path.mind-twig{stroke-width:1.3}
 #edges > path.mind-line.new{stroke:var(--new)}
-.node.mind-root,.node.mind-topic,.node.mind-leaf{text-align:left}
 .node.mind-root{padding:0 22px;border-radius:999px}
 .node.mind-root:not(.locked){background:var(--box);border:2px solid var(--text)}
-.node.mind-root .n{font:600 16px/1.25 var(--plex)}
+.node.mind-root .n{font:600 16px/1.25 var(--plex);justify-content:center;text-align:center}
 .node.mind-topic{padding:0 14px;border:1.5px solid var(--text);border-radius:8px}
 .node.mind-topic .n{font:500 14px/1.25 var(--plex)}
 /* a deeper topic is only its words: its underline is drawn with its line (mindBranch), and picking it thickens that underline */
 .node.mind-leaf{padding:0 5px;background:transparent;border:0;border-radius:0}
-.node.mind-leaf .n{justify-content:flex-start;font:400 13.5px/1.25 var(--plex)}
+.node.mind-leaf .n{font:400 13.5px/1.25 var(--plex)}
 .node.mind-leaf:hover{box-shadow:none}
 .node.mind-leaf.sel{outline:none;box-shadow:inset 0 -2px 0 var(--new)}
 .node.mind-leaf.sel .n{color:var(--new)}
@@ -312,7 +311,7 @@ body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
 .node[data-align="bottom"]{justify-content:flex-end;padding-bottom:6px}
 .node.editing-name .design-mark{visibility:hidden}
 .node .hub-marks{position:absolute;left:100%;top:-7px;display:flex;gap:2px;pointer-events:none}
-.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
+.node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;align-self:stretch;text-align:left;gap:6px}
 /* Names wrap in full, and HT reserves room for every line. */
 .node .nt{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
 .node .ic{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.3;flex:none;color:var(--text-2)}
@@ -3873,12 +3872,18 @@ function positionInlineName(){
   if (!naming?.edit) return;
   const node = [...nodesEl.querySelectorAll('.node')].find((n) => n.dataset.id === naming.edit), title = node?.querySelector(naming.field === 'sub' ? '.s' : '.nt');
   if (!title) return;
-  const rect = title.getBoundingClientRect(), [x,y] = toStage(rect.x + rect.width / 2, rect.y + rect.height / 2);
+  const rect = title.getBoundingClientRect(), style = getComputedStyle(title), row = title.closest('.n');
+  const boxStyle = getComputedStyle(node), gap = row ? parseFloat(getComputedStyle(row).columnGap) || 0 : 0;
+  const markers = row ? [...row.children].filter((el) => el !== title) : [];
+  const occupied = markers.reduce((sum, el) => sum + el.getBoundingClientRect().width / cam.z + gap, 0);
+  const room = row?.clientWidth ?? node.clientWidth - parseFloat(boxStyle.paddingLeft) - parseFloat(boxStyle.paddingRight);
+  const width = Math.max(20, room - occupied);
+  const [x,y] = toStage(rect.x + (style.textAlign === 'left' ? width * cam.z : rect.width) / 2, rect.y + rect.height / 2);
   const el = $('newbox'), input = el.querySelector('textarea');
   el.style.left = `${x}px`; el.style.top = `${y}px`;
-  el.style.width = `${Math.max(20, (node.clientWidth - 2 * (parseFloat(getComputedStyle(node).paddingLeft) || 12) - (naming.field !== 'sub' && node.querySelector('.n svg') ? 20 : 0)))}px`;
+  el.style.width = `${width}px`;
   el.style.height = `${Math.max(17, rect.height / cam.z)}px`;
-  if (input){ const style = getComputedStyle(title); input.style.color = style.color; input.style.font = style.font; input.style.opacity = style.opacity; }
+  if (input){ input.style.color = style.color; input.style.font = style.font; input.style.opacity = style.opacity; input.style.textAlign = style.textAlign; }
 }
 function askName(at){
   keyboardSelection = true; renderSide(); fitPane();
