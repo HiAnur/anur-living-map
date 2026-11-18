@@ -318,11 +318,13 @@ describe('the system map routes', () => {
     vi.spyOn(agent, 'answer').mockImplementation(async () => ({ value: { boxes: [], lines: [] }, cost: { value: 0.01, unit: 'usd' }, ms: 1 }));
     expect((await call('/api/systemmap', { folders: ['/etc'] })).status).toBe(400);
     expect((await call('/api/systemmap', { folders: [path.join(work, 'notes')] })).status).toBe(400);
-    const started = await call('/api/systemmap', { title: 'Shop system', folders });
+    const description = 'Map the services and data we need for our launch.';
+    const started = await call('/api/systemmap', { title: 'Shop system', description, folders });
     expect(started).toEqual({ status: 200, body: { name: 'shop-system', href: '/shop-system/' } });
     const map = maps.mapCalled('shop-system');
     await until(() => map.snapshot().drawing?.status === 'done');
-    expect(map.snapshot()).toMatchObject({ title: 'Shop system', drawing: { by: 'Harshit', repos: 2 } });
+    expect(map.snapshot()).toMatchObject({ title: 'Shop system', desc: description, drawing: { by: 'Harshit', repos: 2 } });
+    expect(JSON.parse(fs.readFileSync(path.join(DIR, 'maps', 'shop-system', 'state.json'), 'utf8')).desc).toBe(description);
     // the list of maps says how many repos it was drawn from and when
     expect(map.summary()).toMatchObject({ system: 'done', repos: 2, drawn: expect.any(Number) });
     expect((await call('/api/systemmap/cancel', { name: 'shop-system' })).status).toBe(409);
