@@ -84,9 +84,11 @@ a.map:hover{border-color:var(--text)}
 #newmap::backdrop{background:rgba(20,20,19,.28)}
 .nm-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .nm-head h2{margin:0;font-size:17px;font-weight:600}
+.nm-prompt{margin:0 0 14px;padding:10px 12px;max-height:100px;overflow:auto;border-radius:8px;background:var(--canvas);font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
 .nm-x{width:30px;height:30px;border:0;border-radius:7px;background:none;font-size:20px;color:var(--text-2);cursor:pointer}
 .nm-x:hover{background:#f3f2ee}
-.nm-pick{display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:10px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;font:14px var(--plex);color:var(--text);cursor:pointer}
+#nm-choose:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.nm-pick{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;min-width:0;width:100%;text-align:left;padding:14px 16px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;font:14px/1.5 var(--plex);color:var(--text);cursor:pointer}
 .nm-pick:hover,.nm-pick:focus-visible{border-color:var(--text);outline:none}
 .nm-pick b{display:block;font-weight:600;margin-bottom:2px}
 .nm-pick span{color:var(--text-2);font-size:13px}
@@ -197,7 +199,7 @@ a.map:hover{border-color:var(--text)}
 <div class="home">
 <main>
   <div class="head"><h1>Start a new map</h1><div class="head-actions"><label id="load-map" title="Open a map someone sent you as a file"><input type="file" accept=".html,text/html" hidden>Load a map file</label><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
-  <form id="new"><textarea rows="2" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
+  <form id="new"><textarea rows="2" maxlength="4000" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" role="alert" hidden></div>
   <div id="lerr" hidden></div>
@@ -211,11 +213,12 @@ a.map:hover{border-color:var(--text)}
 <aside id="brain" aria-label="Context"></aside>
 <dialog id="newmap" aria-labelledby="nm-title">
   <div class="nm-head"><h2 id="nm-title">New map</h2><button type="button" class="nm-x" data-nm-close aria-label="Close">×</button></div>
+  <p id="nm-prompt" class="nm-prompt" hidden></p>
   <div id="nm-choose">
-    <button type="button" class="nm-pick" data-nm="system" autofocus><b>System map</b><span>Your system drawn from its code: services, data and how they connect.</span></button>
-    <button type="button" class="nm-pick" data-nm="blank"><b>Default map</b><span>A blank canvas you fill in yourself or with Claude.</span></button>
+    <button type="button" class="nm-pick" data-nm="blank" autofocus><b>PM Map</b><span>Ideas, plans and tasks.</span></button>
+    <button type="button" class="nm-pick" data-nm="system"><b>Engineering Map</b><span>Map your code repo.</span></button>
   </div>
-  <form id="code" hidden aria-label="System map">
+  <form id="code" hidden aria-label="Engineering Map">
     <div class="nm-top"><button type="button" class="nm-back" data-nm-back>‹ Back</button><div id="gh-who"></div></div>
     <div class="nm-src" role="group" aria-label="Where the code is"><button type="button" data-src="local" aria-pressed="false">A folder on this Mac</button><button type="button" data-src="github" aria-pressed="false">On GitHub</button></div>
     <div id="code-gh"><div id="gh-state" class="nm-step" aria-live="polite"></div><div id="gh-repos"></div></div>
@@ -273,11 +276,18 @@ async function createMap(data, query){
 box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing){ e.preventDefault(); form.requestSubmit(); } });
 form.addEventListener('submit', (e) => {
   e.preventDefault(); const prompt = box.value.trim(); if (!prompt || go.disabled) return;
-  createMap({ prompt }, 'chat=1');
+  openNewMap();
 });
-// New map asks which kind first. A default map opens at once; a system map walks through GitHub one step at a
-// time: connect your account, install the app where your code is, choose repos
+// Both ways to start ask which kind before creating anything. The prompt stays with the choice until it opens.
 const dialog = $('newmap'), code = $('code');
+let pendingPrompt = '';
+function openNewMap(){
+  if (go.disabled || blank.disabled) return;
+  pendingPrompt = box.value.trim();
+  $('nm-prompt').textContent = pendingPrompt; $('nm-prompt').hidden = !pendingPrompt;
+  $('code-title').value = pendingPrompt.replace(/\s+/g, ' ').slice(0, 80);
+  err.hidden = true; step('choose'); dialog.showModal();
+}
 // where the code is: a folder on this Mac, or GitHub; this browser remembers the choice
 let source = 'local';
 try { if (localStorage.getItem('lm.source') === 'github') source = 'github'; } catch {}
@@ -290,7 +300,7 @@ function estimate(){
 }
 function step(name){
   $('nm-choose').hidden = name !== 'choose'; code.hidden = name !== 'system';
-  $('nm-title').textContent = name === 'system' ? 'System map' : 'New map';
+  $('nm-title').textContent = name === 'system' ? 'Engineering Map' : 'New map';
   codeError('');
   if (name === 'system') showSource();
   else clearTimeout(ghWatch);
@@ -307,8 +317,8 @@ code.querySelector('.nm-src').addEventListener('click', (e) => {
   showSource();
 });
 // Drawing is for Engineers and Admins: anyone else is told whom to ask, with a request to copy.
-const ASK = `Could you draw a system map of our code in Living Map (New map, then System map)? I'd like to see how our system fits together.`;
-const askOthers = (can) => `<p>Drawing a system map is for Engineers and Admins.${can.engineers.length ? ` Ask ${esc(can.engineers.join(', '))} to draw it.` : ' Ask an Admin to draw it.'}</p><button type="button" class="nm-btn" data-ask-engineer="${esc(ASK)}">Copy a request to send them</button>`;
+const ASK = `Could you draw an Engineering Map of our code in Living Map (New map, then Engineering Map)? I'd like to see how our system fits together.`;
+const askOthers = (can) => `<p>Drawing an Engineering Map is for Engineers and Admins.${can.engineers.length ? ` Ask ${esc(can.engineers.join(', '))} to draw it.` : ' Ask an Admin to draw it.'}</p><button type="button" class="nm-btn" data-ask-engineer="${esc(ASK)}">Copy a request to send them</button>`;
 // The code folders this server already keeps a map of: someone opened the map from each, in its own chat or with
 // npx. A folder is never typed in here, so the page cannot ask after other folders on this Mac.
 async function showFolders(){
@@ -329,12 +339,12 @@ async function showFolders(){
   estimate();
 }
 $('local-repos').addEventListener('change', estimate);
-blank.addEventListener('click', () => { step('choose'); dialog.showModal(); });
+blank.addEventListener('click', openNewMap);
 dialog.addEventListener('click', (e) => {
   if (e.target === dialog || e.target.closest('[data-nm-close]')){ clearTimeout(ghWatch); dialog.close(); }
   if (e.target.closest('[data-nm-back]')) step('choose');
   const pick = e.target.closest('[data-nm]');
-  if (pick?.dataset.nm === 'blank'){ dialog.close(); createMap({ blank: true }, 'new=1'); }
+  if (pick?.dataset.nm === 'blank'){ dialog.close(); createMap(pendingPrompt ? { prompt: pendingPrompt } : { blank: true }, pendingPrompt ? 'chat=1' : 'new=1'); }
   if (pick?.dataset.nm === 'system') step('system');
 });
 dialog.addEventListener('close', () => clearTimeout(ghWatch));
@@ -434,7 +444,7 @@ code.addEventListener('submit', async (e) => {
   $('code-go').disabled = true; codeError('');
   const title = $('code-title').value.trim() || $('code-title').placeholder;
   const what = source === 'local' ? { folders: chosen() } : { repos: chosen().map((x) => ({ owner: x.split('/')[0], name: x.split('/')[1] })) };
-  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, ...what }) })
+  const r = await fetch('/api/systemmap', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title, ...what, ...(pendingPrompt ? { description: pendingPrompt } : {}) }) })
     .then(async (x) => ({ ok: x.ok, b: await x.json() })).catch(() => ({ ok: false, b: { error: 'Living Map did not answer.' } }));
   if (!r.ok){ codeError(r.b.error || 'The map could not start.'); estimate(); return; }
   location.href = `${r.b.href}${location.search}`;

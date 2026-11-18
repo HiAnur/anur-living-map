@@ -863,6 +863,18 @@ body.resizing{cursor:col-resize;user-select:none}
 .action-status-pill[data-tone="completed"]{background:var(--completed)}
 .action-status-pill[data-tone="cancelled"]{background:var(--text-2)}
 .action-status-pill .action-spin{width:9px;height:9px;border-color:color-mix(in srgb,currentColor 35%,transparent);border-top-color:currentColor}
+/* PM Actions keep their arrow, name and status together, including topics otherwise drawn as underlines. */
+.node.mind-action{padding:0 12px;border:1px solid var(--action);border-radius:8px;background:var(--action-tint)}
+.node.mind-action .n{font:500 14px/1.25 var(--plex);gap:8px;justify-content:flex-start}
+.node.mind-action .nt{flex:1;white-space:normal;text-wrap:balance;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.node.mind-action.sel{outline:1.5px solid var(--new);outline-offset:2px;box-shadow:none}
+.node.mind-action.sel .n{color:var(--text)}
+.node.mind-action .mind-action-arrow{flex:none;width:12px;font:400 22px/1 var(--plex);color:var(--action)}
+.node.mind-action .action-status-pill{position:static;flex:none;margin-left:auto;border:0;background:color-mix(in srgb,var(--text-2) 10%,var(--box));color:var(--text-2)}
+.node.mind-action .action-status-pill[data-tone="active"]{background:color-mix(in srgb,var(--flag-blue) 12%,var(--box));color:var(--flag-blue)}
+.node.mind-action .action-status-pill[data-tone="waiting"]{background:color-mix(in srgb,var(--execution) 12%,var(--box));color:var(--execution)}
+.node.mind-action .action-status-pill[data-tone="blocked"]{background:color-mix(in srgb,var(--flag-red) 12%,var(--box));color:var(--flag-red)}
+.node.mind-action .action-status-pill[data-tone="completed"]{background:color-mix(in srgb,var(--completed) 12%,var(--box));color:var(--completed)}
 .action-chat-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .action-result .result-summary{margin:10px 0 0;line-height:1.5}
 .action-result .result-details{margin-top:12px;border-top:1px solid var(--action-line);padding-top:10px}
@@ -928,6 +940,10 @@ body.resizing{cursor:col-resize;user-select:none}
 #design .design-options:last-child{margin-bottom:0}
 #design .design-options button{display:inline-flex;justify-content:center;align-items:center;gap:5px;min-width:31px;min-height:34px;padding:2px 5px;background:var(--box);border:1px solid var(--rule-2);border-radius:6px;font-size:12px;cursor:pointer}
 #design .design-options button[aria-pressed="true"]{border-color:var(--new);background:var(--new-tint);box-shadow:inset 0 0 0 1px var(--new)}
+#design .design-layouts{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+#design .design-layouts button{display:grid;place-items:center;min-width:0;min-height:52px;padding:3px;background:var(--box);color:var(--text-2);border:1px solid var(--rule-2);border-radius:8px;cursor:pointer}
+#design .design-layouts svg{display:block;width:100%;max-width:64px}
+#design .design-layouts button[aria-pressed="true"]{color:var(--text);border-color:var(--new);background:var(--new-tint);box-shadow:inset 0 0 0 1px var(--new)}
 #design .design-mark{width:19px;height:19px}
 #design .align-icon{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
 #design button:hover:not(:disabled){background:var(--canvas)}
@@ -1195,12 +1211,12 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="histbar"></div>
 <!-- the rail down the right edge, like Descript's: one button per extra panel, Claude at the foot -->
 <nav id="rail">
+  <button class="ri" type="button" data-rail="design" aria-expanded="false" aria-controls="design"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h7m4 0h3M3 10h2m4 0h8M3 15h9m4 0h1"/><circle cx="12" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="14" cy="15" r="2"/></svg><span>Design</span></button>
   <button class="ri" data-rail="decisions" title="Every decision made on this map"><svg viewBox="0 0 20 20"><path d="M3 5.5l1.6 1.6L7.5 4.2M3 11.5l1.6 1.6 2.9-2.9M10 6h7M10 12h7M3 16.5h14"/></svg><span>Decisions</span></button>
   <button class="ri" data-rail="comments" title="Every comment on this map"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><span>Comments</span></button>
   <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Context</span></button>
   <button class="ri" data-rail="sidechats" title="Your side chats on this map's boxes"><svg viewBox="0 0 20 20"><path d="M3.5 4.5h9v6.5h-5l-3 2.5v-2.5h-1z"/><path d="M14.5 8h2v6.5h-1V17l-3-2.5h-4.5v-1.5"/></svg><span>Side Chats</span></button>
   <button class="ri" data-rail="history" title="Every version of this map"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 101.9-4.6M3.4 3.4v2.8h2.8"/><path d="M10 6.6V10l2.4 1.5"/></svg><span>History</span></button>
-  <button class="ri" type="button" data-rail="design" aria-expanded="false" aria-controls="design"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h7m4 0h3M3 10h2m4 0h8M3 15h9m4 0h1"/><circle cx="12" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="14" cy="15" r="2"/></svg><span>Design</span></button>
   <button id="bot" title="Chat with Claude about this map"><span class="star"></span><span>Chat</span></button>
 </nav>
 <div id="toast"></div>
@@ -1212,8 +1228,8 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, NUMBER_LEVELS, flagIcon, numberTopics, progressIcon, savedDesign } from './page-design.js';
-import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
+import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, progressIcon, savedDesign } from './page-design.js';
+import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable, pmActionStatus } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
 import { chatTooLong } from './chat-limit.js';
@@ -1221,7 +1237,7 @@ import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
 import { HUB_SIZE, LEVEL_CENTRE, hubHint, hubLevel, isHub, levelGraph } from './page-hub.js';
-import { MIND_VIEW_KEY, mindBranch, mindLayout, mindView } from './page-mind.js';
+import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindView } from './page-mind.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1419,10 +1435,10 @@ const W = (n) => {
   return wraps.get(key);
 };
 // Count wrapped words, including names containing a long unbroken word.
-const nameLines = (n) => {
-  const title = topicTitle(n), room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${title}`;
+const nameLines = (n, room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), font = '500 13.5px') => {
+  const title = topicTitle(n), key = `name|${font}|${room}|${title}`;
   if (!wraps.has(key)){
-    ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
+    ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 0;
     for (const paragraph of title.split('\n')){
       let line = ''; lines++;
@@ -1552,6 +1568,9 @@ const scope = () => {
 };
 /* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
    never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
+const MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
+let MIND_LAYOUT = 'right';
+try { MIND_LAYOUT = mindLayoutChoice(localStorage.getItem(MIND_LAYOUT_KEY)); } catch { /* the choice still applies to this page */ }
 let VIEW_MODE = 'engineer', mindPos = new Map();
 const savedMapView = document.querySelector('meta[name="lm-map-view"]');
 let browserMapView = null;
@@ -1568,10 +1587,43 @@ function saveMapView(mode, onlyIfUnset = false){
 }
 const mindOn = () => VIEW_MODE === 'pm' && !view.startsWith('flow:') && !view.startsWith('diagram:');
 const MIND_FONT = ['600 16px', '500 14px', '400 13.5px'];
+const mindAction = (n) => !locked(n) && !!(n.action || n.proposed && n.boxType === 'action');
+const mindTextWidth = (text, font, limit = 300) => {
+  const key = `mind|${font}|${text}`;
+  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, ruler.measureText(text || ' ').width); }
+  return Math.min(limit, wraps.get(key));
+};
+// Tighten the text column while keeping its line count, so balancing leaves no empty column before the badge.
+const mindActionRoom = (n) => {
+  const title = topicTitle(n), key = `mind-room|${title}`, font = '500 14px';
+  if (!wraps.has(key)){
+    let low = 1, high = Math.ceil(mindTextWidth(title, font, 240));
+    const lines = nameLines(n, high, font);
+    if (lines > 1){
+      while (low < high){
+        const middle = Math.floor((low + high) / 2);
+        if (nameLines(n, middle, font) <= lines) high = middle;
+        else low = middle + 1;
+      }
+    }
+    wraps.set(key, high);
+  }
+  return wraps.get(key);
+};
 const mindWords = (n, depth) => {
-  const title = topicTitle(n), font = MIND_FONT[Math.min(depth, 2)], key = `mind|${font}|${title}`;
-  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.min(300, ruler.measureText(title || ' ').width)); }
-  return wraps.get(key) + designWidth(n);
+  const action = mindAction(n), font = action ? '500 14px' : MIND_FONT[Math.min(depth, 2)];
+  let width = (action ? mindActionRoom(n) : mindTextWidth(topicTitle(n), font)) + designWidth(n);
+  if (action){
+    const status = pmActionStatus(n.action);
+    width += 20 + mindTextWidth(status.label, '500 11px') + 24;
+    width += (n.design?.flag ? 2 : 0) + (n.design?.progress ? 2 : 0) + (n.icon === 'db' ? 22 : 0);
+    if (['gathering','running'].includes(n.action?.stage)) width += 13;
+  }
+  return width;
+};
+const mindActionHeight = (n) => {
+  if (!mindAction(n)) return 0;
+  return Math.max(40, 18 + nameLines(n, mindActionRoom(n), '500 14px') * 17.5);
 };
 // the topic being named with Tab or Enter is placed in the mind map like any other, so its editor opens where it will sit
 const MIND_DRAFT = '@draft';
@@ -1605,16 +1657,16 @@ function mindScope(sc){
     nodes = [...nodes, { id: MIND_DRAFT, label: typed || naming.text || 'Sub-topic', x: naming.x, y: naming.y }];
     if (draftParent) lines = [...lines, { from: draftParent, to: MIND_DRAFT }];
   }
-  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords);
+  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords, mindActionHeight, MIND_LAYOUT);
   // what you are working on stays where it is on screen while the map grows round it: the topic getting a new
   // topic, the one being renamed, the one picked, else the start
   const before = mindLevel === view ? mindPos : new Map();
   const still = [draftParent, naming?.edit, selected, sc.centre].find((id) => typeof id === 'string' && before.has(id) && at.has(id));
   const dx = still ? before.get(still).x - at.get(still).x : 0, dy = still ? before.get(still).y - at.get(still).y : 0;
-  mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth }]));
+  mindPos = new Map([...at].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, mindW: p.w, mindH: p.h, mindDepth: p.depth, mindBoxed: p.boxed }]));
   mindLevel = view;
   const placed = nodes.filter((n) => n.id !== MIND_DRAFT).map((n) => ({ ...n, ...mindPos.get(n.id) }));
-  return { ...sc, nodes: placed, mind: { parent, via, centre: nodes.find((n) => n.id === sc.centre), draft: mindPos.get(MIND_DRAFT) } };
+  return { ...sc, nodes: placed, mind: { parent, via, layout: MIND_LAYOUT, centre: nodes.find((n) => n.id === sc.centre), draft: mindPos.get(MIND_DRAFT) } };
 }
 // a box where it is drawn now: in the PM view its place in the mind map, else its own
 const onMap = (n) => (n && mindOn() && mindPos.has(n.id) ? { ...n, ...mindPos.get(n.id) } : n);
@@ -1663,14 +1715,12 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
   const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const depth = new Map(roots.map((id) => [id, 0])), parents = new Map(), q = [...roots];
-  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); parents.set(k, id); q.push(k); } }
+  const { depth, parents } = numberingTree({ nodes, lines, centre });
   // the level's start: its circle
-  fold = { start: centre, kids, depth, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  fold = { start: centre, kids, depth, parents, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
-  if (S.numbering?.format && S.numbering.format !== 'none'){
-    const numbering = savedDesign(S.numbering, ['format', 'level']);
-    const numbers = numberTopics(nodes, depth, parents, numbering);
+  if (S.numbering){
+    const numbers = numberTopics(nodes, depth, parents, S.numbering, view);
     nodes = nodes.map((n) => !locked(n) && numbers.has(n.id) ? { ...n, topicNumber: numbers.get(n.id) } : n);
   }
   return shown.size === ids.size ? { nodes, edges, lines, centre } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter(showing), lines: lines.filter(showing), centre };
@@ -2401,19 +2451,19 @@ function render(){
   const hub = nodes.find(hubbed), folded = !!hub && hubLevel(shownLevel(), maxLevel(), !!S.drawing) > shownLevel();
   let html = '';
   for (const n of nodes){
-    const isHubBox = n === hub && !sc.mind, mindRoot = sc.mind && n.mindDepth === 0;
+    const isHubBox = n === hub && !sc.mind, mindRoot = sc.mind && n.mindDepth === 0, pmAction = sc.mind && mindAction(n);
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
+    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', pmAction ? 'mind-action' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
     const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'progress']);
     const marks = flagIcon(design.flag || '') + progressIcon(design.progress || '');
     html += `<div class="${cls}" data-id="${n.id}" ${design.align ? `data-align="${design.align}"` : ''} ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}</div>`}
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
+      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${pmAction ? '<span class="mind-action-arrow" aria-hidden="true">›</span>' : ''}${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}${pmAction ? actionView().actionStatusPill(n.action, false, true) : ''}</div>`}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
-      ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
+      ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
       ${n.inside && !locked(n) ? `<span class="expand" data-expand="${n.id}" title="Open ${esc(n.label)}: what is inside it">Expand ›</span>`
         : !locked(n) ? dgPill(n) : ''}
       ${isHubBox || mindRoot ? '' : foldButton(n, byId)}
@@ -2439,7 +2489,7 @@ function render(){
 // The PM view's lines (page-mind.js): only each topic's curve from its parent. Lines between topics that are not parent
 // and child stay on the map and show in the Engineer view. A line you may pick is picked and deleted as there.
 function drawMindLines(sc, nodes, edges, byId, anyFocus){
-  const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth });
+  const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth, boxed: n.mindBoxed });
   const canPick = (e, a, b) => !!e && !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
   const quiet = (a, b, e) => anyFocus && !e?.state && !focused(a) && !focused(b);
   let svg = '', hits = '', pickSeen = false;
@@ -3382,9 +3432,9 @@ function renderDesign(){
   const available = !READ_ONLY && !FILE && !PREVIEW;
   const box = selected && group.size <= 1 && nodeById(selected);
   const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
-  const numbering = savedDesign(S.numbering, ['format', 'level']);
+  const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
   const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
-  const format = numbering.format || 'none';
+  const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
   const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
   const choice = (field, value, label, icon, active, visible = '') =>
     `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
@@ -3392,11 +3442,15 @@ function renderDesign(){
     `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, value === (design.align || 'center'), label)).join('');
   const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), value === design.flag)).join('');
   const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
+  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
+    <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
+      <div class="design-layouts" role="group" aria-labelledby="design-layout">${layouts}</div>
+    </section>
     <section aria-labelledby="design-numbering"><h3 id="design-numbering">Topic numbering</h3>
+      <p class="design-target">Selected topic and its siblings</p>
       <div class="design-fields">
-        <label><span>Format</span><select id="design-format" data-design-map="format" ${available ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
-        <label><span>Levels</span><select id="design-level" data-design-map="level" ${available && format !== 'none' ? '' : 'disabled'}>${options(NUMBER_LEVELS, numbering.level || '1')}</select></label>
+        <label><span>Format</span><select id="design-format" data-design-map="format" ${available && numberGroup && numberGroup.ids.every((id) => !locked(nodeById(id))) ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
       </div>
     </section>
     <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
@@ -3428,9 +3482,17 @@ function saveDesign(type, field, value, id){
   });
 }
 $('design').addEventListener('change', (e) => {
-  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value);
+  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value, selected);
 });
 $('design').addEventListener('click', (e) => {
+  const layout = e.target.closest('[data-mind-layout]');
+  if (layout){
+    MIND_LAYOUT = mindLayoutChoice(layout.dataset.mindLayout);
+    try { localStorage.setItem(MIND_LAYOUT_KEY, MIND_LAYOUT); } catch { /* the choice still applies to this page */ }
+    mindLevel = null;
+    setViewMode('pm');
+    return;
+  }
   const choice = e.target.closest('[data-design-box]');
   if (choice && selected) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, selected);
 });
@@ -4153,6 +4215,9 @@ function planTopicSibling(graph, roots, target, above, close = true){
 }
 function planMindSibling(sc, graph, roots, target, above){
   const parent = sc.mind.parent.get(target.id);
+  const shown = sc.nodes.find((n) => n.id === target.id), centre = sc.nodes.find((n) => n.id === sc.centre);
+  // The upward half of a circular reading order reverses the stored sibling order.
+  if (parent === sc.centre && shown && centre && ((sc.mind.layout === 'clockwise' && shown.x < centre.x) || (sc.mind.layout === 'counterclockwise' && shown.x > centre.x))) above = !above;
   const linked = new Set(graph.edges.map((e) => e.to));
   if (linked.has(target.id)){
     if (!graph.edges.some((e) => e.to === target.id && e.from === parent)) return null;
@@ -4167,14 +4232,15 @@ function planMindSibling(sc, graph, roots, target, above){
 }
 function mindSiblingHint(sc, ids, target, parentId, direction){
   const parent = sc.nodes.find((n) => n.id === parentId);
-  const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && direction*(n.y-target.y) > 0)
+  const side = target.x < parent.x ? -1 : 1;
+  const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && Math.sign(n.x-parent.x) === side && direction*(n.y-target.y) > 0)
     .sort((a, b) => direction*(a.y-b.y))[0];
   const edge = target.y + direction*HT(target)/2;
   const h = 16, w = Math.max(96, W(target)), x = target.x-W(target)/2;
   // Center the marker in a gap, or give it its own space at the end of the branch.
   const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
   const pw = W(parent), ph = HT(parent);
-  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth}, {x, y, w:0, h:0, depth:target.mindDepth});
+  const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth, boxed:parent.mindBoxed}, {x:side < 0 ? x+w : x, y, w:0, h:0, depth:target.mindDepth});
   return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
 }
 function previewTopicAttach(sx, sy){
@@ -4190,15 +4256,18 @@ function previewTopicAttach(sx, sy){
   const preview = outline + floating; $('rubber').innerHTML = preview;
   if ([...ids].some((id) => locked(nodeById(id) || {}))) return;
   const parents = new Set(drag.source.edges.filter((e) => roots.includes(e.to)).map((e) => e.from));
-  let target = null, gap = 40 / cam.z;
+  // Use screen pixels so zooming out does not make a branch harder to reach.
+  const reach = (drag.mind ? 120 : 40) / cam.z, siblingReach = drag.mind ? 48 / cam.z : 0;
+  const siblingDrop = (n) => (!drag.mind || n.mindDepth > 0) && Math.abs(sx-n.x) <= W(n)/2+siblingReach && Math.abs(sy-n.y) > HT(n)/4;
+  let target = null, gap = reach;
   for (const n of sc.nodes){
     if (ids.has(n.id) || locked(n) || n.proposed || n.virtual || n.pending) continue;
+    if (!siblingDrop(n) && parents.has(n.id)) continue;
     const distance = Math.hypot(Math.max(0,Math.abs(sx-n.x)-W(n)/2),Math.max(0,Math.abs(sy-n.y)-HT(n)/2));
     if (distance < gap){ gap = distance; target = n; }
   }
   if (!target) return;
-  const vertical = (!drag.mind || target.mindDepth > 0) && Math.abs(sx-target.x) <= W(target)/2 && Math.abs(sy-target.y) > HT(target)/4;
-  if (!vertical && parents.has(target.id)) return;
+  const vertical = siblingDrop(target);
   const savedTarget = drag.mind ? drag.source.nodes.find((n) => n.id === target.id) : target;
   if (!savedTarget) return;
   // Hit test the drawn mind map, then plan against the shared map's stored positions.
@@ -4210,12 +4279,14 @@ function previewTopicAttach(sx, sy){
   const plan = drag.mind && vertical ? planMindSibling(sc, drag.source, roots, savedTarget, sy < target.y) : make(true);
   if (!plan || plan.moves.some((m) => locked(nodeById(m.id) || {}))) return;
   drag.attach = plan;
-  const padding = 4, outlineRight = target.x + W(target)/2 + padding;
+  const padding = 4;
   const targetOutline = `<rect class="attach-target" x="${target.x-W(target)/2-padding}" y="${target.y-HT(target)/2-padding}" width="${W(target)+2*padding}" height="${HT(target)+2*padding}" rx="8"/>`;
   if (drag.mind){
     if (vertical){ $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, target, plan.parent, sy < target.y ? -1 : 1); return; }
-    const landingX = outlineRight + 20;
-    const landing = `<path class="attach-line" d="M${outlineRight} ${target.y}H${landingX}"/><rect class="attach-box" x="${landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
+    const shownParent = sc.nodes.find((p) => p.id === sc.mind.parent.get(target.id));
+    const direction = shownParent ? Math.sign(target.x-shownParent.x) || 1 : MIND_LAYOUT === 'left' ? -1 : 1;
+    const edgeX = target.x + direction*(W(target)/2+padding), landingX = edgeX + direction*20;
+    const landing = `<path class="attach-line" d="M${edgeX} ${target.y}H${landingX}"/><rect class="attach-box" x="${direction < 0 ? landingX-W(n) : landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
     $('rubber').innerHTML = preview + targetOutline + landing;
     return;
   }
@@ -4604,8 +4675,7 @@ document.addEventListener('click', (e) => {
   else if (t.closest('[data-rail="design"]')){
     if (railTab === 'design'){ closeDesign(); return; }
     railTab = 'design'; chatOpen = false; render();
-    const control = $('design-format');
-    (control.disabled ? $('design-close') : control).focus({ preventScroll: true });
+    $('design-layout-' + MIND_LAYOUT).focus({ preventScroll: true });
     if (selected) keepInView(selected);
   }
   else if (t.closest('#design [data-close-rail]')){ closeDesign(); }

@@ -3,6 +3,47 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Choose your mind map layout</strong></dt>
+<dd>
+
+Open **Design**, first in the right-hand rail, and choose clockwise, counterclockwise, both sides, right or left under **Mindmap (Logic Map)**. Your choice stays selected for that map in this browser. <!-- source: https://github.com/HiAnur/anur-living-map/pull/564 --> <!-- merged-at: 2026-11-18T21:18:55Z -->
+
+<img src="docs/shipping/2026-11-18/mind-map-layouts.jpg" alt="Design is first in the rail, with five layout icons beside a sample map branching to both sides." width="900">
+
+</dd>
+<dt><strong>Easier drops in PM view</strong></dt>
+<dd>
+
+The green drop marker appears farther from a topic, including a little to either side when you drop above or below, so you can move branches without dragging so close. <!-- source: https://github.com/HiAnur/anur-living-map/pull/564 --> <!-- merged-at: 2026-11-18T21:18:55Z -->
+
+<img src="docs/shipping/2026-11-18/pm-drop-range.jpg" alt="A sample PM map shows a green landing marker below Audience before the dragged branch reaches the topic." width="650">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>🧹 [Layout cleanup] Clearer Action Boxes in PM view</strong></dt>
+<dd>
+
+PM Action Boxes show their status beside the title. Long names wrap into balanced lines, with the box fitted to the text. <!-- source: https://github.com/HiAnur/anur-living-map/pull/562 --> <!-- merged-at: 2026-11-18T20:59:22Z -->
+
+<img src="docs/shipping/2026-11-18/pm-action-boxes.png" alt="An example PM map shows Action Boxes with Ready for review, Blocked and Done badges beside the existing Side Chat panel." width="900">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Number topics by group</strong></dt>
+<dd>
+
+Select a topic and choose **Design → Topic numbering → Format** to number it and its siblings. Parent and child groups keep their own numbering, and **None** clears only the selected group. <!-- source: https://github.com/HiAnur/anur-living-map/pull/560 --> <!-- merged-at: 2026-11-18T20:47:31Z -->
+
+<img src="docs/shipping/2026-11-18/selected-topic-numbering.jpg" alt="Design shows numbering for the selected topic and its siblings. The parent keeps its number, and the selected topic's child remains unnumbered." width="820">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Your last Map view stays selected</strong></dt>
 <dd>
 
@@ -35,7 +76,7 @@ Titles keep the same left padding in both map views while you rename them or add
 <dt><strong>✨ [New feature] Design your map</strong></dt>
 <dd>
 
-Open **Design** below History to number topics across the map and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
+Open **Design** in the right-hand rail to number a selected group of topics and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
 
 PM view shows the map title in a white rounded box and puts topic numbers inline with their names.
 

@@ -41,6 +41,7 @@ import { appendProposed } from './proposal-layout.js';
 import { drawServer } from './draw.js';
 import { askContext } from './ask-context.js';
 import { boxActs } from './box-acts.js';
+import { numberingGroupOf } from './numbering.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapStore, moveMaps } from './map-store.js';
@@ -312,7 +313,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   const touchesHidden = (a, who) => {
     const hidden = hiddenFor(who);
     if (!hidden.size) return false;
-    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into].filter((x) => typeof x === 'string');
+    const group = a.type === 'designmap' && a.id ? numberingGroupOf(state, a.id)?.ids || [] : [];
+    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into, ...group].filter((x) => typeof x === 'string');
     return ids.some((id) => { const n = nodeOf(id); return n && hidden.has(String(repoOf(state, n))); });
   };
   /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */
@@ -332,10 +334,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   }
   /**
    * A system map of code folders on this Mac or repos on GitHub, drawn from their code.
-   * @param {{ title: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
+   * @param {{ title: string, description?: string, folders?: string[], repos?: { owner: string, name: string }[], by: string }} job
    */
-  function drawSystem({ title, folders = [], repos = [], by }) {
+  function drawSystem({ title, description, folders = [], repos = [], by }) {
     state.title = state.renamed = title; state.admins = [by];
+    if (description) state.desc = description;
     return system.start({ folders, repos, by });
   }
   // Persist a manual map immediately, even before its first topic is named.

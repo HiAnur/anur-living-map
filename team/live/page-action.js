@@ -21,6 +21,14 @@ export function actionStatus(a){
     unconfirmed:{label:'Unconfirmed',tone:'waiting'},
   })[a.stage] || {label:'Unconfirmed',tone:'waiting'};
 }
+
+/** The PM map's words for the same recorded state; the Action's panel keeps its own labels. @param {any} a */
+export function pmActionStatus(a){
+  const status = actionStatus(a);
+  if (!status) return { label: 'Draft', tone: 'neutral' };
+  const labels = /** @type {Record<string, string>} */ ({ 'Needs clarity': 'Needs answer', 'Ready to execute': 'Ready for review', Executing: 'Running', Executed: 'Done' });
+  return { label: labels[status.label] || status.label, tone: a?.stage === 'waiting' ? 'neutral' : a?.stage === 'ready' ? 'waiting' : status.tone };
+}
 // A draft nobody wrote anything in can go back to being an Info box; anything more is cancelled and kept.
 // action-box.js decides the same on the server.
 /** @param {any} a */
@@ -69,8 +77,8 @@ export const actionUnmakeable = (a, cancellable) => !!a?.from?.quote && !a.from.
 /** @param {any} view */
 export function actionScreens(view){
   const { esc, prose, md, claudes, yours, attached } = view;
-  function actionStatusPill(/** @type {any} */ a = undefined, below = false){
-    const status = actionStatus(a);
+  function actionStatusPill(/** @type {any} */ a = undefined, below = false, pm = false){
+    const status = pm ? pmActionStatus(a) : actionStatus(a);
     if (!status) return '';
     return `<span class="action-status-pill${below ? ' below' : ''}" data-tone="${status.tone}" aria-label="Action status: ${status.label}">${['gathering','running'].includes(a?.stage) ? actionSpinner(a) : ''}${status.label}</span>`;
   }

@@ -270,3 +270,82 @@ test("a PM drop on empty canvas leaves the branch and camera in place", async ({
   await expect(page.locator("#rubber .drag-ghost")).toHaveCount(0);
   expect(await middle(source)).toEqual(start);
 });
+
+test("left layout joins a dropped branch on the left and keeps its children", async ({
+  page,
+}) => {
+  const name = await openSample(page);
+  await page.getByRole("button", { name: "Design", exact: true }).click();
+  await page.getByRole("button", { name: "Left", exact: true }).click();
+  await page.keyboard.press("Escape");
+  const pricing = box(page, "Pricing"),
+    trial = box(page, "Free trial");
+  const audience = await middle(box(page, "Audience"));
+  await dragTo(page, pricing, audience.x, audience.y);
+  const marker = page.locator("#rubber .attach-box");
+  await expect(marker).toBeVisible();
+  const hint = await marker.boundingBox();
+  expect(hint!.x + hint!.width).toBeLessThan(audience.x);
+  await page.mouse.up();
+  await expect
+    .poll(async () => {
+      const state = await (
+        await page.request.get(`${server.origin}/${name}/api/state`)
+      ).json();
+      return state.edges.some(
+        (edge: { from: string; to: string }) =>
+          edge.from === "audience" && edge.to === "pricing",
+      );
+    })
+    .toBe(true);
+  expect((await middle(trial)).x).toBeLessThan((await middle(pricing)).x);
+  await page.reload();
+  expect((await middle(pricing)).x).toBeLessThan(
+    (await middle(box(page, "Audience"))).x,
+  );
+});
+
+for (const layout of ["Right", "Left"]) {
+  test(`${layout} layout detects a sibling drop before the pointer reaches the topic`, async ({
+    page,
+  }) => {
+    const name = await openSample(page);
+    await page.getByRole("button", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: layout, exact: true }).click();
+    await page.keyboard.press("Escape");
+    if (layout === "Left") {
+      await page.locator("#zoomout").click();
+      await page.locator("#zoomout").click();
+    }
+    const pricing = box(page, "Pricing"),
+      audience = box(page, "Audience");
+    const target = await audience.boundingBox();
+    expect(target).not.toBeNull();
+    // Begin the preview while still 90 screen pixels below the topic and outside its title column.
+    await dragTo(
+      page,
+      pricing,
+      target!.x + target!.width + 24,
+      target!.y + target!.height + 90,
+    );
+    const marker = page.locator("#rubber rect.mind-drop-slot");
+    await expect(marker).toBeVisible();
+    await expect(page.locator("#rubber .attach-target")).toBeVisible();
+    const saved = await (
+      await page.request.get(`${server.origin}/${name}/api/state`)
+    ).json();
+    expect(saved.edges).toEqual(SAMPLE.edges);
+    await page.mouse.up();
+    await expect
+      .poll(async () => (await middle(pricing)).y > (await middle(audience)).y)
+      .toBe(true);
+    const state = await (
+      await page.request.get(`${server.origin}/${name}/api/state`)
+    ).json();
+    expect(state.edges).toEqual(SAMPLE.edges);
+    await page.reload();
+    expect((await middle(pricing)).y).toBeGreaterThan(
+      (await middle(audience)).y,
+    );
+  });
+}

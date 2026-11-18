@@ -76,8 +76,9 @@ export function systemRoutes({ maps, home = os.homedir(), github = sharedGithub,
       if (repos.some((/** @type {{ owner: string, name: string }} */ r) => !GITHUB_NAME.test(r.owner) || !GITHUB_NAME.test(r.name))) return json(400, { error: 'Not a GitHub repo name.' });
       if (repos.length && !github().status(who).linked) return json(401, { error: 'Link your GitHub account first.' });
       const title = String(a.title || '').trim().slice(0, 80) || `${folders.length ? path.basename(folders.length === 1 ? folders[0] : path.dirname(folders[0])) : repos[0].owner} system`;
+      const description = typeof a.description === 'string' ? a.description.trim().slice(0, 4000) : '';
       const name = maps.freeName(title);
-      maps.mapCalled(name).drawSystem({ title, folders, repos, by: who });
+      maps.mapCalled(name).drawSystem({ title, description, folders, repos, by: who });
       return json(200, { name, href: `/${name}/` });
     }
     const m = /^\/api\/systemmap\/(cancel|retry|apply|dismiss)$/.exec(url.pathname);
