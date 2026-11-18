@@ -260,7 +260,7 @@ test("the map updating itself from new commits does not pop the panel up", async
   await expect(page.locator("#sysdraw")).toBeHidden();
 });
 
-test("a default map opens empty at once, even with a system map there", async ({
+test("a PM Map opens empty at once, even with a system map there", async ({
   page,
 }) => {
   openState(systemMap({ title: "Builds-on base" }), {}, "builds-on-base");
@@ -269,7 +269,7 @@ test("a default map opens empty at once, even with a system map there", async ({
     page.locator(".row", { hasText: "Builds-on base" }),
   ).toBeVisible();
   await page.locator("#new-map").click();
-  await page.getByRole("button", { name: /Default map/ }).click();
+  await page.getByRole("button", { name: /PM Map/ }).click();
   await expect(page).toHaveURL(/\?new=1$/);
   await expect(page.locator("#crumbs .builds")).toHaveCount(0);
 });

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { allBoxesOf } from './map-walk.js';
+import { savedDesign, savedNumbering } from './page-design.js';
 
 /** @param {string} id @param {string} token @param {string} key */
 export const signedLink = (id, token, key) => `${token}.${crypto.createHmac('sha256', key).update(`${id}:${token}`).digest('hex')}`;
@@ -24,6 +25,8 @@ export function mapData(input, depth = 0) {
     for (const k of ['sub', 'desc', 'state', 'kind', 'icon', 'area']) if (k in out && !plain(out[k])) throw new Error('A box contains unsupported text.');
     for (const k of ['state','kind','icon']) if (k in out && !/^[\w -]*$/.test(out[k])) throw new Error('A box has an invalid style.');
     for (const k of ['x','y','w','h']) if (k in out && (!Number.isFinite(out[k]) || Math.abs(out[k]) > 1e7)) throw new Error('A box has an invalid size or position.');
+    const design = savedDesign(n.design, ['align', 'flag', 'progress']);
+    if (Object.keys(design).length) out.design = design;
     if (n.inside) out.inside = mapData(n.inside, depth + 1);
     return out;
   });
@@ -45,7 +48,8 @@ export function mapData(input, depth = 0) {
     });
     return { ...pick(c, ['id','node','x','y','view','resolved','at']), msgs };
   });
-  return { title, desc, nodes, edges, comments, ...(identifier(input.start) ? { start: input.start } : {}) };
+  const numbering = input.numbering ? savedNumbering(input.numbering) : {};
+  return { title, desc, nodes, edges, comments, ...(Object.keys(numbering).length ? { numbering } : {}), ...(identifier(input.start) ? { start: input.start } : {}) };
 }
 /** @param {object} data @param {string} mode */
 export function viewData(data, mode) {

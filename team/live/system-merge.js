@@ -38,6 +38,7 @@ export function keepHandEdits(before, drawn, keep = {}) {
         if (!byHand(n) && edited(n)) Object.assign(now, Object.fromEntries(['label', 'sub', 'desc', 'updatedBy', 'updatedAt'].filter((k) => k in n).map((k) => [k, n[k]])));
         if (n.moved) Object.assign(now, { x: n.x, y: n.y, moved: true });
         if (n.action) now.action = n.action;
+        if (n.design) now.design = n.design;
       } else if (byHand(n) || n.action || keepBox.has(n.id)) {
         (levelFor(parent).nodes ||= []).push(structuredClone(n));
         continue;

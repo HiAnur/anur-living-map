@@ -28,6 +28,7 @@ export function installCloudData(state, data) {
   const graph = nodes(state.nodes, data.nodes);
   Object.assign(state, data, { nodes: graph });
   if (!data.start) delete state.start;
+  if (!data.numbering) delete state.numbering;
 }
 /** @typedef {{ idToken: string, needs?: string }} Google the Google ID token this Mac's owner signed in with (googleIdentity in google.js) */
 /**

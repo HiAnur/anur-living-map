@@ -40,6 +40,8 @@ const OK = /** @type {Record<string, any>} */ ({
   reparent: { type: 'reparent', id: 'web2', parent: 'web3', parents: ['web'], moves: [{ id: 'web2', fromX: 600, fromY: -90, x: 600, y: -200 }] },
   tidy: { type: 'tidy' }, add: { type: 'add', label: 'New', x: 900, y: 0 }, connect: { type: 'connect', from: 'web2', to: 'web' },
   remove: { type: 'remove', id: 'web2' }, unlink: { type: 'unlink', from: 'web', to: 'web2' },
+  designbox: { type: 'designbox', id: 'web', field: 'flag', value: 'red' },
+  designmap: { type: 'designmap', field: 'format', value: 'decimal' },
   resize: { type: 'resize', id: 'web', x: 300, y: -90, w: 200, h: 60 }, relabel: { type: 'relabel', from: 'web', to: 'web2', label: 'Sends' },
   renamebox: { type: 'renamebox', id: 'web', label: 'Website' }, describebox: { type: 'describebox', id: 'web', sub: 'The site' },
   pointbox: { type: 'pointbox', id: 'web', box: 'system-site' },
@@ -59,6 +61,7 @@ const OUTSIDE = /** @type {Record<string, any>} */ ({
   reparent: { type: 'reparent', id: 'api', parent: 'web', parents: ['root'], moves: [{ id: 'api', fromX: 300, fromY: 90, x: 600, y: 0 }] },
   connect: { type: 'connect', from: 'api', to: 'web' },
   remove: { type: 'remove', id: 'api' }, unlink: { type: 'unlink', from: 'root', to: 'api' },
+  designbox: { type: 'designbox', id: 'api', field: 'flag', value: 'red' },
   resize: { type: 'resize', id: 'api', x: 300, y: 90, w: 200, h: 60 }, relabel: { type: 'relabel', from: 'root', to: 'api', label: 'Calls' },
   renamebox: { type: 'renamebox', id: 'api', label: 'API' }, describebox: { type: 'describebox', id: 'api', sub: 'The api' },
   pointbox: { type: 'pointbox', id: 'api', box: 'system-api' },
@@ -202,7 +205,7 @@ describe('the table in permissions.js', () => {
   it('has a row for every action a map takes', () => {
     expect(Object.keys(WHO).sort()).toEqual([...Object.keys(COMMANDS), 'cursor'].sort());
   });
-  it('gives an edit link the same actions as before it was a table', () => {
-    expect([...LINK_EDITS].sort()).toEqual(['add', 'comment', 'connect', 'cursor', 'describebox', 'move', 'redo', 'relabel', 'remove', 'rename', 'renamebox', 'reparent', 'reply', 'resize', 'resolve', 'tidy', 'undo', 'unlink']);
+  it('gives an edit link only the allowed editing actions', () => {
+    expect([...LINK_EDITS].sort()).toEqual(['add', 'comment', 'connect', 'cursor', 'describebox', 'designbox', 'designmap', 'move', 'redo', 'relabel', 'remove', 'rename', 'renamebox', 'reparent', 'reply', 'resize', 'resolve', 'tidy', 'undo', 'unlink']);
   });
 });
