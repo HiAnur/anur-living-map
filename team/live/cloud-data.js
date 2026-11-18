@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { allBoxesOf } from './map-walk.js';
-import { savedDesign } from './page-design.js';
+import { savedDesign, savedNumbering } from './page-design.js';
 
 /** @param {string} id @param {string} token @param {string} key */
 export const signedLink = (id, token, key) => `${token}.${crypto.createHmac('sha256', key).update(`${id}:${token}`).digest('hex')}`;
@@ -48,7 +48,7 @@ export function mapData(input, depth = 0) {
     });
     return { ...pick(c, ['id','node','x','y','view','resolved','at']), msgs };
   });
-  const numbering = savedDesign(input.numbering, ['format', 'level']);
+  const numbering = input.numbering ? savedNumbering(input.numbering) : {};
   return { title, desc, nodes, edges, comments, ...(Object.keys(numbering).length ? { numbering } : {}), ...(identifier(input.start) ? { start: input.start } : {}) };
 }
 /** @param {object} data @param {string} mode */

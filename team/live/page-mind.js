@@ -1,6 +1,6 @@
-// The PM view: a map drawn as a classic mind map. The level's start sits on the left as an outlined title box, its main topics
-// on either side as outlined boxes on thick curved branches, and every deeper topic as words on a thin underline, joined
-// to its parent by a thin bracket curve, siblings lined up in one column. It draws the same boxes and the same tree as
+// The PM view: a map drawn as a classic mind map. The level's start is an outlined title box, its main topics
+// on either side as outlined boxes on thick curved branches, and deeper information as words on a thin underline, joined
+// to its parent by a thin bracket curve, siblings lined up in one column. Actions stay boxes at every depth. It draws the same tree as
 // the Engineer view (the lines `levelGraph` hands the page); only where each sits and how it looks change, so nothing
 // here is stored and a teammate in the Engineer view sees no difference. Only the tree's own lines are drawn: a line
 // between topics that are not parent and child shows in the Engineer view alone. A page module (see page-modules.js).
@@ -54,11 +54,12 @@ const mindAt = (/** @type {number[]} */ list, /** @type {number} */ depth) => li
  * it). Each topic's `x`, `y` is its middle, like a box's.
  * @param {{ nodes: any[], lines: any[], centre: string | null }} level
  * @param {(n: any, depth: number) => number} words how wide a topic's name is, at its depth, in map pixels
+ * @param {(n: any) => number} [actionHeight] an Action’s height after wrapping its title, or zero for information
  * @param {string} [layout] the branches' direction and reading order
- * @returns {{ at: Map<string, { x: number, y: number, w: number, h: number, depth: number }>, parent: Map<string, string>, via: Map<string, any> }}
+ * @returns {{ at: Map<string, { x: number, y: number, w: number, h: number, depth: number, boxed: boolean }>, parent: Map<string, string>, via: Map<string, any> }}
  *   `via` is the line that made each topic its parent's child
  */
-export function mindLayout({ nodes, lines, centre }, words, layout = 'right') {
+export function mindLayout({ nodes, lines, centre }, words, actionHeight = () => 0, layout = 'right') {
   /** @type {Map<string, any>} */
   const at = new Map(), parent = new Map(), via = new Map();
   const by = new Map(nodes.map((n) => [n.id, n]));
@@ -92,14 +93,17 @@ export function mindLayout({ nodes, lines, centre }, words, layout = 'right') {
   /** @type {Map<string, any>} */
   const size = new Map(nodes.filter((n) => depth.has(n.id)).map((n) => {
     const d = /** @type {number} */ (depth.get(n.id));
-    return [n.id, { w: Math.ceil(words(n, d)) + mindAt(MIND_PAD, d), h: mindAt(MIND_TALL, d), depth: d }];
+    const h = actionHeight(n);
+    return [n.id, { w: Math.ceil(words(n, d)) + (h ? 26 : mindAt(MIND_PAD, d)), h: h || mindAt(MIND_TALL, d), depth: d, boxed: h > 0 }];
   }));
+  // The ready Action's Execute button sits below it. Its siblings leave room for that existing control.
+  const gapOf = (/** @type {string[]} */ list) => list.length ? Math.max(mindAt(MIND_ROW, size.get(list[0]).depth), list.some((id) => size.get(id).boxed && by.get(id).action?.stage === 'ready') ? 36 : 0) : 0;
   // how tall each topic's branch is: the topic itself, or its children stacked with a gap between them
   /** @type {Map<string, number>} */
   const tall = new Map();
   const tallOf = (/** @type {string} */ id) => tall.get(id) || 0;
   const measure = (/** @type {string} */ id) => {
-    const list = kids.get(id) || [], gap = list.length ? mindAt(MIND_ROW, size.get(list[0]).depth) : 0;
+    const list = kids.get(id) || [], gap = gapOf(list);
     const under = list.reduce((s, k) => s + measure(k), 0) + gap * Math.max(0, list.length - 1);
     const t = Math.max(size.get(id).h, under);
     tall.set(id, t); return t;
@@ -110,7 +114,7 @@ export function mindLayout({ nodes, lines, centre }, words, layout = 'right') {
     const x = left + direction * s.w / 2;
     let y = top + tallOf(id) / 2;
     if (list.length) {
-      const gap = mindAt(MIND_ROW, size.get(list[0]).depth);
+      const gap = gapOf(list);
       const under = list.reduce((sum, k) => sum + tallOf(k), 0) + gap * (list.length - 1);
       let t = top + (tallOf(id) - under) / 2;
       const next = left + direction * (s.w + mindAt(MIND_COL, s.depth));
@@ -150,8 +154,8 @@ export function mindLayout({ nodes, lines, centre }, words, layout = 'right') {
  * The curve from a topic to one of its children. Out of the start, a thick branch fans to the main topic's left side;
  * deeper, a thin bracket leaves the parent (a box's right side, or the end of a topic's underline), turns evenly
  * halfway across the gap, and carries on as the child's underline, one stroke, so line and underline always meet.
- * @param {{ x: number, y: number, w: number, h: number, depth: number }} a the parent
- * @param {{ x: number, y: number, w: number, h: number, depth: number }} b the child
+ * @param {{ x: number, y: number, w: number, h: number, depth: number, boxed?: boolean }} a the parent
+ * @param {{ x: number, y: number, w: number, h: number, depth: number, boxed?: boolean }} b the child
  */
 export function mindBranch(a, b) {
   const r = (/** @type {number} */ v) => Math.round(v * 10) / 10;
@@ -160,6 +164,6 @@ export function mindBranch(a, b) {
     const sx = a.x + direction * (a.w / 2 - Math.min(24, a.w / 4)), sy = a.y, ex = b.x - direction * b.w / 2, ey = b.y, dx = ex - sx;
     return `M${r(sx)} ${r(sy)}C${r(sx + dx * 0.25)} ${r(sy + (ey - sy) * 0.8)} ${r(sx + dx * 0.45)} ${r(ey)} ${r(ex)} ${r(ey)}`;
   }
-  const sx = a.x + direction * a.w / 2, sy = a.depth >= 2 ? a.y + a.h / 2 : a.y, ex = b.x - direction * b.w / 2, ey = b.y + b.h / 2, mid = sx + (ex - sx) / 2;
-  return `M${r(sx)} ${r(sy)}C${r(mid)} ${r(sy)} ${r(mid)} ${r(ey)} ${r(ex)} ${r(ey)}H${r(b.x + direction * b.w / 2)}`;
+  const sx = a.x + direction * a.w / 2, sy = a.depth >= 2 && !a.boxed ? a.y + a.h / 2 : a.y, ex = b.x - direction * b.w / 2, ey = b.boxed ? b.y : b.y + b.h / 2, mid = sx + (ex - sx) / 2;
+  return `M${r(sx)} ${r(sy)}C${r(mid)} ${r(sy)} ${r(mid)} ${r(ey)} ${r(ex)} ${r(ey)}${b.boxed ? '' : `H${r(b.x + direction * b.w / 2)}`}`;
 }

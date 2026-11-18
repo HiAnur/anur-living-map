@@ -3,6 +3,7 @@ import vm from 'node:vm';
 
 import { describe, expect, it } from 'vitest';
 
+import { pmActionStatus } from './page-action.js';
 import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindView } from './page-mind.js';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
@@ -51,6 +52,7 @@ describe('adding topics in the PM view', () => {
       document: { querySelector: () => null, body: { classList: { toggle() {} } } }, localStorage: { getItem: () => 'pm', setItem() {} },
       $: () => ({ querySelector: () => null }), topicTitle: (/** @type {{label: string}} */ n) => n.label, designWidth: () => 0, wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),
+      locked: () => false, pmActionStatus,
     });
     vm.runInContext(`${html.slice(start, end)}\nthis.scope = mindScope;`, ctx);
     return ctx;
@@ -129,6 +131,17 @@ describe('the PM view layout', () => {
   it('is empty for an empty level', () => {
     expect(mindLayout({ centre: null, nodes: [], lines: [] }, words).at.size).toBe(0);
   });
+
+  it('gives Actions room at every depth and keeps a ready Action’s Execute button clear of its sibling', () => {
+    const draft = { ...box('draft'), action: { stage: 'draft' } }, ready = { ...box('ready'), action: { stage: 'ready' } };
+    const input = { centre: 'root', nodes: [box('root'), box('topic'), ready, draft], lines: [{ from: 'root', to: 'topic' }, { from: 'topic', to: 'ready' }, { from: 'topic', to: 'draft' }] };
+    const { at } = mindLayout(input, words, (n) => n.action ? 40 : 0);
+    const a = /** @type {any} */ (at.get('ready')), b = /** @type {any} */ (at.get('draft'));
+    expect(a).toMatchObject({ w: words(ready) + 26, h: 40, depth: 2, boxed: true });
+    expect(b.y - b.h / 2 - (a.y + a.h / 2)).toBeGreaterThanOrEqual(36);
+    expect(at.get('topic')).toMatchObject({ h: 38, boxed: false });
+    expect(mindLayout(input, words).at.get('ready')).toMatchObject({ h: 28, boxed: false });
+  });
 });
 
 describe('the PM view lines', () => {
@@ -150,6 +163,14 @@ describe('the PM view lines', () => {
     const leftTopic = { ...topic, x: -topic.x }, leftLeaf = { ...leaf, x: -leaf.x };
     expect(mindBranch(root, leftTopic)).toMatch(/^M-26 0C.* -170 -80$/);
     expect(mindBranch(leftTopic, leftLeaf)).toBe('M-230 -80C-255 -80 -255 -76 -280 -76H-320');
+  });
+
+  it('meets an Action’s edge, then leaves its right edge for its own children', () => {
+    const action = { ...leaf, h: 40, boxed: true };
+    expect(mindBranch(topic, action)).toBe('M230 -80C255 -80 255 -90 280 -90');
+    expect(mindBranch(action, { ...leaf, x: 400, depth: 3 })).toBe('M320 -90C350 -90 350 -76 380 -76H420');
+    expect(mindBranch({ ...topic, x: -topic.x }, { ...action, x: -action.x })).toBe('M-230 -80C-255 -80 -255 -90 -280 -90');
+    expect(mindBranch({ ...action, x: -action.x }, { ...leaf, x: -400, depth: 3 })).toBe('M-320 -90C-350 -90 -350 -76 -380 -76H-420');
   });
 
   it('draws only parent-to-child lines; a line between other topics shows in the Engineer view alone', () => {
@@ -176,7 +197,8 @@ describe('the five mind map layouts', () => {
   it('keeps every branch together without overlap and leaves the source map untouched', () => {
     const before = structuredClone(graph);
     for (const [layout] of MIND_LAYOUTS) {
-      const { at, parent } = mindLayout(graph, words, layout);
+      const { at, parent } = mindLayout(graph, words, (n) => n.id === 'a' ? 80 : 0, layout);
+      expect(at.get('a')).toMatchObject({ h: 80, boxed: true });
       expect(at.get('root')).toMatchObject({ x: 0, y: 0 });
       const all = [...at.values()];
       for (const [i, p] of all.entries()) for (const q of all.slice(i + 1))
@@ -199,7 +221,7 @@ describe('the five mind map layouts', () => {
       ['right', ['a', 'b', 'c', 'd', 'e', 'f'], []],
       ['left', [], ['a', 'b', 'c', 'd', 'e', 'f']],
     ])) {
-      const { at } = mindLayout(graph, words, layout);
+      const { at } = mindLayout(graph, words, undefined, layout);
       const placed = (id) => /** @type {{ x: number, y: number }} */ (at.get(id));
       const side = (sign) => nodes.slice(1, 7).filter((n) => Math.sign(placed(n.id).x) === sign).sort((a, b) => placed(a.id).y - placed(b.id).y).map((n) => n.id);
       expect(side(1), layout).toEqual(right);

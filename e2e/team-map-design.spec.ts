@@ -27,8 +27,14 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await format.selectOption("roman");
   await expect(pricing.locator(".nt")).toHaveText("I. Pricing");
   await expect(trial.locator(".nt")).toHaveText("Free trial");
-  await panel.getByLabel("Levels").selectOption("all");
-  await expect(trial.locator(".nt")).toHaveText("I. Free trial");
+  await expect(panel.getByLabel("Levels")).toHaveCount(0);
+  await trial.click();
+  await expect(format).toHaveValue("none");
+  await format.selectOption("letters");
+  await expect(trial.locator(".nt")).toHaveText("A. Free trial");
+  await expect(pricing.locator(".nt")).toHaveText("I. Pricing");
+  await pricing.click();
+  await expect(format).toHaveValue("roman");
 
   await panel.getByRole("button", { name: "Top align" }).click();
   await expect(pricing).toHaveAttribute("data-align", "top");
@@ -110,6 +116,59 @@ test("box titles start at the same inset with or without markers", async ({
       Math.abs((await leftPadding(pricing)) - (await leftPadding(audience))),
     ).toBeLessThan(1);
   }
+});
+
+test("numbering changes only the selected siblings and survives undo and reload", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    numbering: { format: "decimal", level: "1" },
+  });
+  for (const [label, from, x, y] of [
+    ["Annual plan", "pricing", 600, 0],
+    ["Trial length", "trial", 900, -90],
+  ] as const) {
+    const response = await page.request.post(
+      new URL("api/act", page.url()).href,
+      {
+        data: { type: "add", label, from, x, y },
+      },
+    );
+    expect(response.ok()).toBe(true);
+  }
+  await page.locator("#peopleb").click();
+  await page.getByRole("radio", { name: "PM", exact: true }).click();
+  const trial = page.locator('#nodes [data-id="trial"]');
+  const annual = page.locator('#nodes [data-id="annual-plan"]');
+  const grandchild = page.locator('#nodes [data-id="trial-length"]');
+  const pricing = page.locator('#nodes [data-id="pricing"]');
+  const audience = page.locator('#nodes [data-id="audience"]');
+  await trial.click();
+  await page.getByRole("button", { name: "Design", exact: true }).click();
+  const format = page.locator("#design-format");
+  await expect(format).toHaveValue("none");
+  await format.selectOption("roman");
+  await expect(trial.locator(".nt")).toHaveText("I. Free trial");
+  await expect(annual.locator(".nt")).toHaveText("II. Annual plan");
+  await expect(pricing.locator(".nt")).toHaveText("1. Pricing");
+  await expect(audience.locator(".nt")).toHaveText("2. Audience");
+  await expect(grandchild.locator(".nt")).toHaveText("Trial length");
+
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(trial.locator(".nt")).toHaveText("Free trial");
+  await expect(format).toHaveValue("none");
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(trial.locator(".nt")).toHaveText("I. Free trial");
+  await page.reload();
+  await expect(annual.locator(".nt")).toHaveText("II. Annual plan");
+  await trial.click();
+  await page.getByRole("button", { name: "Design", exact: true }).click();
+  await expect(format).toHaveValue("roman");
+  await format.selectOption("none");
+  await expect(annual.locator(".nt")).toHaveText("Annual plan");
+  await expect(pricing.locator(".nt")).toHaveText("1. Pricing");
+  await expect(grandchild.locator(".nt")).toHaveText("Trial length");
 });
 
 test("Design is first and its five layouts redraw the map without changing its content", async ({

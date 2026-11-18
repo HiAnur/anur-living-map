@@ -3,6 +3,28 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>🧹 [Layout cleanup] Clearer Action Boxes in PM view</strong></dt>
+<dd>
+
+PM Action Boxes show their status beside the title. Long names wrap into balanced lines, with the box fitted to the text. <!-- source: https://github.com/HiAnur/anur-living-map/pull/562 --> <!-- merged-at: 2026-11-18T20:59:22Z -->
+
+<img src="docs/shipping/2026-11-18/pm-action-boxes.png" alt="An example PM map shows Action Boxes with Ready for review, Blocked and Done badges beside the existing Side Chat panel." width="900">
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Number topics by group</strong></dt>
+<dd>
+
+Select a topic and choose **Design → Topic numbering → Format** to number it and its siblings. Parent and child groups keep their own numbering, and **None** clears only the selected group. <!-- source: https://github.com/HiAnur/anur-living-map/pull/560 --> <!-- merged-at: 2026-11-18T20:47:31Z -->
+
+<img src="docs/shipping/2026-11-18/selected-topic-numbering.jpg" alt="Design shows numbering for the selected topic and its siblings. The parent keeps its number, and the selected topic's child remains unnumbered." width="820">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Your last Map view stays selected</strong></dt>
 <dd>
 
@@ -35,7 +57,7 @@ Titles keep the same left padding in both map views while you rename them or add
 <dt><strong>✨ [New feature] Design your map</strong></dt>
 <dd>
 
-Open **Design** below History to number topics across the map and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
+Open **Design** below History to number a selected group of topics and give the selected box a flag, a progress marker, or vertical alignment. <!-- source: https://github.com/HiAnur/anur-living-map/pull/552 --> <!-- merged-at: 2026-11-18T00:44:37Z -->
 
 PM view shows the map title in a white rounded box and puts topic numbers inline with their names.
 
