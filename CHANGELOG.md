@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Share a map in PM or Engineer view</strong></dt>
+<dd>
+
+Choose **Share → Copy link** and confirm the first upload to Google Cloud. The link opens in the view you copied. Choose **Can view** or **Can edit** for anyone with the link, or **Turn off link** to close access. <!-- source: https://github.com/HiAnur/anur-living-map/pull/571 --> <!-- merged-at: 2026-11-18T21:44:36Z -->
+
+<img src="docs/shipping/2026-11-18/share-map-link.png" alt="The Share dialog on a sample map, with Can view, Can edit, and Turn off link in the Link access menu." width="640">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Duplicate a map</strong></dt>
 <dd>
 
