@@ -17,6 +17,8 @@
   --canvas:#fbfaf7; --box:#fff; --box-line:#bdb9ae; --line:#a8a49a; --text:#141413; --text-2:#6c6a64; --text-3:#8e8b84;
   --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --card:#fff;
   --action:#784861; --action-tint:#F8F0F5; --action-line:#BE92AA;--execution:#875512;--execution-tint:#FFF4DB;--execution-line:#C9A661;
+  --flag-red:#c52e3b;--flag-orange:#bd4b09;--flag-yellow:#946300;--flag-green:#008050;
+  --flag-blue:#0075af;--flag-indigo:#3e5ac9;--flag-purple:#8246c6;--progress:#0075af;
   --new:#2F6FE4; --new-tint:rgba(47,111,228,.07); --todo:#D9A400; --gone:#D23B32; --assume:#7C5CE6; --claude:#C96442; --ok:#2E8B57; --completed:#1E8045;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -266,15 +268,16 @@ body.blank-repo #tidyb{display:none}
 /* selected: the box lights up blue */
 /* a picked box: its own edge turns blue, with the dots out past its sides */
 .node.sel{outline:1.5px solid #0D99FF;outline-offset:-1px;box-shadow:none}
-/* the PM view (page-mind.js): the start a filled pill, main topics outlined boxes on thick branches, deeper topics
+/* the PM view (page-mind.js): an outlined start box with rounded ends, main topics outlined boxes on thick branches, deeper topics
    words on a thin underline; the font sizes are the ones the page measures (MIND_FONT) */
 #edges > path.mind-line{stroke:var(--text-2)}
 #edges > path.mind-branch{stroke-width:3}
 #edges > path.mind-twig{stroke-width:1.3}
 #edges > path.mind-line.new{stroke:var(--new)}
 .node.mind-root,.node.mind-topic,.node.mind-leaf{text-align:left}
-.node.mind-root{padding:0 22px;background:var(--ok);border-color:var(--ok);border-radius:999px}
-.node.mind-root .n{font:600 16px/1.25 var(--plex);color:var(--box)}
+.node.mind-root{padding:0 22px;border-radius:999px}
+.node.mind-root:not(.locked){background:var(--box);border:2px solid var(--text)}
+.node.mind-root .n{font:600 16px/1.25 var(--plex)}
 .node.mind-topic{padding:0 14px;border:1.5px solid var(--text);border-radius:8px}
 .node.mind-topic .n{font:500 14px/1.25 var(--plex)}
 /* a deeper topic is only its words: its underline is drawn with its line (mindBranch), and picking it thickens that underline */
@@ -293,6 +296,22 @@ body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
 .pm-view [role=radiogroup]{display:flex;padding:2px;border-radius:8px;background:#f0efea}
 .pm-view button{height:26px;padding:0 10px;border:0;border-radius:6px;background:none;font:500 12.5px var(--plex);color:var(--text-2);cursor:pointer}
 .pm-view button[aria-checked=true]{background:var(--box);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+/* Design marks travel with the box when it moves or is exported. */
+.design-mark{display:inline-grid;place-items:center;flex:none;width:16px;height:16px}
+.design-mark svg{display:block;width:100%;height:100%}
+.design-mark.flag{border-radius:50%;background:var(--flag-color);color:var(--box);padding:1px}
+[data-flag="red"]{--flag-color:var(--flag-red)}
+[data-flag="orange"]{--flag-color:var(--flag-orange)}
+[data-flag="yellow"]{--flag-color:var(--flag-yellow)}
+[data-flag="green"]{--flag-color:var(--flag-green)}
+[data-flag="blue"]{--flag-color:var(--flag-blue)}
+[data-flag="indigo"]{--flag-color:var(--flag-indigo)}
+[data-flag="purple"]{--flag-color:var(--flag-purple)}
+.design-mark.progress{color:var(--progress)}
+.node[data-align="top"]{justify-content:flex-start;padding-top:6px}
+.node[data-align="bottom"]{justify-content:flex-end;padding-bottom:6px}
+.node.editing-name .design-mark{visibility:hidden}
+.node .hub-marks{position:absolute;left:100%;top:-7px;display:flex;gap:2px;pointer-events:none}
 .node .n{font:500 13.5px/1.25 var(--plex);color:var(--text);display:flex;align-items:center;justify-content:center;gap:6px}
 /* Names wrap in full, and HT reserves room for every line. */
 .node .nt{min-width:0;overflow-wrap:anywhere;white-space:pre-wrap}
@@ -885,12 +904,35 @@ body.resizing{cursor:col-resize;user-select:none}
 #chat .att .x{margin-left:auto;cursor:pointer}
 #chat .att + .ask{border-top:0}
 /* the rail down the right edge: a button per extra panel, icon over its name; Claude sits at the foot */
-#rail{position:fixed;right:0;top:var(--topbar);bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15}
-#rail .ri{position:relative;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
+#rail{position:fixed;right:0;top:var(--topbar);bottom:0;width:72px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 0 14px;background:#fff;border-left:1px solid var(--rule);z-index:15;overflow-y:auto;scrollbar-width:none}
+#rail .ri{position:relative;flex-shrink:0;width:62px;padding:8px 0 7px;display:flex;flex-direction:column;align-items:center;gap:4px;border:0;border-radius:8px;background:none;color:var(--text-2);font-size:11.5px;cursor:pointer}
 #rail .ri svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 #rail .ri:hover{background:#f3f2ee;color:var(--text)}
 #rail .ri.on{background:#efeee9;color:var(--text)}
 #rail .ri .dot{position:absolute;top:6px;right:17px;width:7px;height:7px;border-radius:50%;background:#D23B32;box-shadow:0 0 0 2px #fff}
+/* Design uses the same pane and selection as the map. */
+#design{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
+#design h2,#design h3{font-size:14px;font-weight:500;line-height:1.3}
+#design h3{margin-bottom:10px}
+#design .ct{margin-bottom:12px}
+#design .design-close{display:grid;place-items:center;width:26px;height:26px;padding:0;border:0;background:transparent;color:var(--text-2);border-radius:6px;cursor:pointer;font-size:19px;line-height:1}
+#design section{border-top:1px solid var(--rule);padding:14px 0}
+#design .design-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,86px),1fr));gap:8px}
+#design .design-fields label{display:grid;gap:4px;min-width:0}
+#design .design-fields span,#design .design-target{font-size:12px;color:var(--text-2)}
+#design select{height:34px;min-width:0;padding:0 6px;background:var(--box);border:1px solid var(--rule-2);border-radius:6px;font:inherit}
+#design .design-target{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:-4px 0 14px}
+#design .design-options{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+#design .design-options:last-child{margin-bottom:0}
+#design .design-options button{display:inline-flex;justify-content:center;align-items:center;gap:5px;min-width:31px;min-height:34px;padding:2px 5px;background:var(--box);border:1px solid var(--rule-2);border-radius:6px;font-size:12px;cursor:pointer}
+#design .design-options button[aria-pressed="true"]{border-color:var(--new);background:var(--new-tint);box-shadow:inset 0 0 0 1px var(--new)}
+#design .design-mark{width:19px;height:19px}
+#design .align-icon{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+#design button:hover:not(:disabled){background:var(--canvas)}
+#design button:focus-visible,#design select:focus-visible,#rail [data-rail="design"]:focus-visible{outline:2px solid var(--new);outline-offset:2px}
+#design button:disabled,#design select:disabled{cursor:default;opacity:.65}
+#design .design-note{font-size:13px;color:var(--text-2)}
+@media(max-width:760px){body.design-open{--pane-width:min(320px,calc(100vw - 148px))}}
 /* the Decisions panel: every answer and applied change on the map, newest first */
 #decs{right:72px;top:var(--topbar);bottom:0;width:var(--pane-width);padding:14px 16px;overflow:auto;display:none;border-radius:0;border-width:0 0 0 1px;box-shadow:none}
 #decs.on{display:block}
@@ -1145,6 +1187,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="chatgrip" title="Drag to make Claude's pane wider or narrower"></div>
 <div class="panel" id="decs"></div>
 <div class="panel" id="hist"></div>
+<aside class="panel" id="design" aria-labelledby="design-heading" hidden></aside>
 <div class="panel" id="mem"></div>
 <div class="panel" id="scs"></div>
 <div id="histbar"></div>
@@ -1155,6 +1198,7 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <button class="ri" data-rail="memory" title="What Claude follows and remembers on this map"><svg viewBox="0 0 20 20"><path d="M5.5 3.5h9v13l-4.5-3.2-4.5 3.2z"/></svg><span>Context</span></button>
   <button class="ri" data-rail="sidechats" title="Your side chats on this map's boxes"><svg viewBox="0 0 20 20"><path d="M3.5 4.5h9v6.5h-5l-3 2.5v-2.5h-1z"/><path d="M14.5 8h2v6.5h-1V17l-3-2.5h-4.5v-1.5"/></svg><span>Side Chats</span></button>
   <button class="ri" data-rail="history" title="Every version of this map"><svg viewBox="0 0 20 20"><path d="M3.6 10a6.4 6.4 0 101.9-4.6M3.4 3.4v2.8h2.8"/><path d="M10 6.6V10l2.4 1.5"/></svg><span>History</span></button>
+  <button class="ri" type="button" data-rail="design" aria-expanded="false" aria-controls="design"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h7m4 0h3M3 10h2m4 0h8M3 15h9m4 0h1"/><circle cx="12" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="14" cy="15" r="2"/></svg><span>Design</span></button>
   <button id="bot" title="Chat with Claude about this map"><span class="star"></span><span>Chat</span></button>
 </nav>
 <div id="toast"></div>
@@ -1166,6 +1210,7 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
+import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, NUMBER_LEVELS, flagIcon, numberTopics, progressIcon, savedDesign } from './page-design.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
@@ -1338,7 +1383,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'undo', 'redo']);
+const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'designmap', 'designbox', 'undo', 'redo']);
 const pendingActions = new Set();
 let cloudWriteQueue = Promise.resolve();
 const act = (type, extra = {}) => {
@@ -1362,20 +1407,22 @@ const cam = { x: 0, y: 0, z: 1 };
 // 220, where the name wraps; include both borders and rounding room before wrapping. As tall as its lines. A box drawn big with one word in it is the usual size.
 const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
+const topicTitle = (n) => n.topicNumber ? `${n.topicNumber} ${n.label}` : String(n.label || '');
+const designWidth = (n) => (n.design?.flag ? 22 : 0) + (n.design?.progress ? 22 : 0);
 const W = (n) => {
   if (n.mindW) return n.mindW;
   if (hubbed(n)) return HUB_SIZE;
-  const key = `w|${n.kind}|${n.icon}|${n.label}`;
-  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(String(n.label || '')).width + 28 + (n.icon === 'db' ? 20 : 0))))); }
+  const title = topicTitle(n), extra = designWidth(n), key = `w|${n.kind}|${n.icon}|${extra}|${title}`;
+  if (!wraps.has(key)){ ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.ceil(Math.min(220, Math.max(BASE(n), ruler.measureText(title).width + 28 + extra + (n.icon === 'db' ? 20 : 0))))); }
   return wraps.get(key);
 };
 // Count wrapped words, including names containing a long unbroken word.
 const nameLines = (n) => {
-  const room = W(n) - 26 - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${n.label}`;
+  const title = topicTitle(n), room = W(n) - 26 - designWidth(n) - (n.icon === 'db' ? 20 : 0), key = `name|${room}|${title}`;
   if (!wraps.has(key)){
     ruler.font = `500 13.5px ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`;
     let lines = 0;
-    for (const paragraph of String(n.label || '').split('\n')){
+    for (const paragraph of title.split('\n')){
       let line = ''; lines++;
       for (const word of paragraph.split(/\s+/).filter(Boolean)){
         const joined = line ? `${line} ${word}` : word;
@@ -1404,8 +1451,6 @@ const boxSummary = (n) => {
 const { fanPts, planTopicInsert, planTopicRemove } = layoutFor({ W, HT });
 // what the plan touches, or what waits on someone: the rest fades
 const focused = (n) => !!(n.state || n.decided);
-// before any plan is drawn nothing fades: the whole system is the picture
-const anyFocus = () => !decisionMap() && scope().nodes.some(focused);
 // a map of decisions rather than of a repo's code (GTM at /gtm/): nothing is built there, so a box's colour
 // says whether it still needs an answer (amber), has been answered (green), or is information (plain)
 const decisionMap = () => !!S && !S.project && !!location.pathname.split('/')[1];
@@ -1511,9 +1556,9 @@ try { VIEW_MODE = mindView(localStorage.getItem(MIND_VIEW_KEY)); } catch {}
 const mindOn = () => VIEW_MODE === 'pm' && !view.startsWith('flow:') && !view.startsWith('diagram:');
 const MIND_FONT = ['600 16px', '500 14px', '400 13.5px'];
 const mindWords = (n, depth) => {
-  const font = MIND_FONT[Math.min(depth, 2)], key = `mind|${font}|${n.label}`;
-  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.min(300, ruler.measureText(String(n.label || ' ')).width)); }
-  return wraps.get(key);
+  const title = topicTitle(n), font = MIND_FONT[Math.min(depth, 2)], key = `mind|${font}|${title}`;
+  if (!wraps.has(key)){ ruler.font = `${font} ${getComputedStyle(document.documentElement).getPropertyValue('--plex')}`; wraps.set(key, Math.min(300, ruler.measureText(title || ' ').width)); }
+  return wraps.get(key) + designWidth(n);
 };
 // the topic being named with Tab or Enter is placed in the mind map like any other, so its editor opens where it will sit
 const MIND_DRAFT = '@draft';
@@ -1604,11 +1649,16 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
   const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const depth = new Map(roots.map((id) => [id, 0])), q = [...roots];
-  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); q.push(k); } }
+  const depth = new Map(roots.map((id) => [id, 0])), parents = new Map(), q = [...roots];
+  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); parents.set(k, id); q.push(k); } }
   // the level's start: its circle
   fold = { start: centre, kids, depth, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
+  if (S.numbering?.format && S.numbering.format !== 'none'){
+    const numbering = savedDesign(S.numbering, ['format', 'level']);
+    const numbers = numberTopics(nodes, depth, parents, numbering);
+    nodes = nodes.map((n) => !locked(n) && numbers.has(n.id) ? { ...n, topicNumber: numbers.get(n.id) } : n);
+  }
   return shown.size === ids.size ? { nodes, edges, lines, centre } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter(showing), lines: lines.filter(showing), centre };
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
@@ -2258,7 +2308,8 @@ function render(){
   const { edges } = sc;
   if (naming?.edit && naming.draftText !== undefined) nodes = nodes.map((n) => n.id === naming.edit ? {...n,[naming.field || 'label']:naming.draftText || ' '} : n);
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-  if (sc.mind) drawMindLines(sc, nodes, edges, byId);
+  const hasFocus = !decisionMap() && nodes.some(focused);
+  if (sc.mind) drawMindLines(sc, nodes, edges, byId, hasFocus);
   else {
     // lines
     // the lines' words go in after every line, so no other line runs across them
@@ -2288,7 +2339,7 @@ function render(){
       // motion means "still open": once nothing on the map waits on anyone, the plan's own new lines hold still
       // (blue and dashed, not built yet); a change Claude proposes keeps moving until someone applies it
       const still = k === 'new' && !e.proposed && settledPlan();
-      const quiet = anyFocus() && !e.state && !focused(a) && !focused(b);
+      const quiet = hasFocus && !e.state && !focused(a) && !focused(b);
       // a cross-link always curves around the tree; a plain one is faint, one a plan adds or proposes keeps its colour
       if (cross?.links.has(`${e.from}>${e.to}`)){
         const c = curve(a, b, (cross.rootOf.get(a.id) || cross.root).x), kc = !e.proposed && !e.state ? 'cross' : k;
@@ -2340,10 +2391,12 @@ function render(){
     const open = S.calls.filter((c) => c.node === n.id && c.status === 'open'), mine = open.some((c) => c.for === ME);
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
-    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !anyFocus() ? '' : 'faint'].join(' ');
-    html += `<div class="${cls}" data-id="${n.id}" ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
+    const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
+    const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'progress']);
+    const marks = flagIcon(design.flag || '') + progressIcon(design.progress || '');
+    html += `<div class="${cls}" data-id="${n.id}" ${design.align ? `data-align="${design.align}"` : ''} ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
-      ${isHubBox ? '' : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(n.label)}</span></div>`}
+      ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}</div>`}
       ${mine ? `<span class="mk q" title="${open.find((c) => c.for === ME).ask || ''}">Need clarify</span>`
         : locked(n) ? '' : open.length ? waitPill(open, 'mk q') : (() => { const d = S.calls.filter((c) => c.node === n.id && c.status !== 'open').at(-1); return d && !open.length ? `<span class="mk q ok" title="${d.ask || d.text}: ${ans(d)} from ${d.by}, ${d.at}">Clarified</span>` : ''; })()}
       ${!locked(n) && (n.action || n.proposed && n.boxType === 'action') ? actionView().actionStatusPill(n.action, S.calls.some((c) => c.node === n.id)) : ''}
@@ -2371,10 +2424,10 @@ function render(){
 
 // The PM view's lines (page-mind.js): only each topic's curve from its parent. Lines between topics that are not parent
 // and child stay on the map and show in the Engineer view. A line you may pick is picked and deleted as there.
-function drawMindLines(sc, nodes, edges, byId){
+function drawMindLines(sc, nodes, edges, byId, anyFocus){
   const box = (n) => ({ x: n.x, y: n.y, w: n.mindW, h: n.mindH, depth: n.mindDepth });
   const canPick = (e, a, b) => !!e && !e.proposed && !e.virtual && !locked(a) && !locked(b) && !PREVIEW;
-  const quiet = (a, b, e) => anyFocus() && !e?.state && !focused(a) && !focused(b);
+  const quiet = (a, b, e) => anyFocus && !e?.state && !focused(a) && !focused(b);
   let svg = '', hits = '', pickSeen = false;
   const draw = (cls, d, id, pickable) => {
     const pk = !!id && pickedLine === id;
@@ -2924,7 +2977,7 @@ document.addEventListener('click', async (e) => {
 });
 function renderSide(){
   const el = $('side');
-  if (keyboardSelection){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
+  if (keyboardSelection || railTab === 'design'){ $('box-metadata')?.hidePopover(); el.classList.remove('on'); return; }
   const n = selected && nodeById(selected), pb = selected && !n && proposedBox(selected);
   if (sideRename && (sideRename.id !== (n || pb)?.id || locked(n || pb))) sideRename = null;
   el.classList.toggle('on', !!(n || pb));
@@ -3149,7 +3202,7 @@ const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320
 const fitTools = () => document.body.classList.toggle('tight', $('tools').getBoundingClientRect().right + 12 > $('foot').getBoundingClientRect().left);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
-const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel'].some((id) => $(id).classList.contains('on'))); fitTools(); };
+const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel', 'design'].some((id) => $(id).classList.contains('on'))); fitTools(); };
 try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
 $('chatgrip').addEventListener('pointerdown', (e) => {
   e.preventDefault(); const g = e.currentTarget; let w = 0;
@@ -3304,6 +3357,73 @@ function renderChat(){
 /* the rail's Decisions panel: every question answered on this map, newest first: intent made clear, not edits;
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
+let designPanelHtml = '';
+function renderDesign(){
+  const panel = $('design'), open = railTab === 'design';
+  panel.hidden = !open;
+  panel.classList.toggle('on', open);
+  document.body.classList.toggle('design-open', open);
+  designRail().setAttribute('aria-expanded', String(open));
+  if (!open) return;
+  const available = !READ_ONLY && !FILE && !PREVIEW;
+  const box = selected && group.size <= 1 && nodeById(selected);
+  const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
+  const numbering = savedDesign(S.numbering, ['format', 'level']);
+  const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
+  const format = numbering.format || 'none';
+  const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
+  const choice = (field, value, label, icon, active, visible = '') =>
+    `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
+  const align = BOX_ALIGNMENTS.map(([value, label], i) => choice('align', value, `${label} align`,
+    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, value === (design.align || 'center'), label)).join('');
+  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), value === design.flag)).join('');
+  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
+  const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
+    <section aria-labelledby="design-numbering"><h3 id="design-numbering">Topic numbering</h3>
+      <div class="design-fields">
+        <label><span>Format</span><select id="design-format" data-design-map="format" ${available ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
+        <label><span>Levels</span><select id="design-level" data-design-map="level" ${available && format !== 'none' ? '' : 'disabled'}>${options(NUMBER_LEVELS, numbering.level || '1')}</select></label>
+      </div>
+    </section>
+    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
+      ${target ? `<div class="design-target" title="${esc(target.label)}">${esc(target.label)}</div>
+        ${!hubbed(target) || mindOn() ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
+        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', !design.flag, 'None')}</div>
+        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', !design.progress, 'None')}</div>`
+      : '<p class="design-note">Select a box to change its design.</p>'}
+    </section>`;
+  if (html === designPanelHtml) return;
+  const focus = panel.contains(document.activeElement) ? document.activeElement.id : '';
+  designPanelHtml = html;
+  panel.innerHTML = html;
+  if (focus) $(focus)?.focus({ preventScroll: true });
+}
+const designRail = () => document.querySelector('[data-rail="design"]');
+function closeDesign(){
+  railTab = null;
+  if (selected) keyboardSelection = true;
+  render();
+  designRail().focus();
+}
+function saveDesign(type, field, value, id){
+  act(type, { field, value, ...(id ? { id } : {}) }).then((response) => {
+    if (!response?.ok){
+      designPanelHtml = ''; renderDesign();
+      if (!CLOUD){ toast('That design change could not be saved. Try again.'); refreshMap(); }
+    }
+  });
+}
+$('design').addEventListener('change', (e) => {
+  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value);
+});
+$('design').addEventListener('click', (e) => {
+  const choice = e.target.closest('[data-design-box]');
+  if (choice && selected) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, selected);
+});
+document.addEventListener('keydown', (e) => {
+  if (railTab !== 'design' || e.key !== 'Escape' || !e.target.closest('#design, [data-rail="design"]')) return;
+  e.preventDefault(); e.stopImmediatePropagation(); closeDesign();
+}, true);
 // the decision opened in the Decisions panel, by call id: one at a time
 const decOpen = new Set();
 function openNewMap(){
@@ -3348,6 +3468,7 @@ async function loadContextChoices(){
 let memEdit = null; // the item you are editing
 const memSeen = () => (S.memory || []).filter((m) => !m.box || (nodeById(m.box) && canSee(nodeById(m.box))));
 function renderMem(){
+  renderDesign();
   renderSideChats(); // the rail's other list, drawn on every redraw with this one
   const el = $('mem'), open = railTab === 'memory' && !selected;
   el.classList.toggle('on', open); if (!open) { contextChoices = null; contextError = false; return; }
@@ -3410,7 +3531,7 @@ const memOf = (id) => ['instruction', 'memory'].map((kind) => {
 function renderDecs(){
   const el = $('decs'), open = railTab === 'decisions' && !selected;
   el.classList.toggle('on', open);
-  document.querySelectorAll('#rail .ri').forEach((b) => b.classList.toggle('on', b.dataset.rail === railTab && !selected));
+  document.querySelectorAll('#rail .ri').forEach((b) => b.classList.toggle('on', b.dataset.rail === railTab && (!selected || railTab === 'design')));
   if (!open) return;
   const when = (t) => { const d = new Date(t); return `${d.toDateString() === new Date().toDateString() ? '' : `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, `}${d.toTimeString().slice(0, 5)}`; };
   const logged = (S.log || []).filter((l) => ['confirmed', 'disputed', 'answered'].includes(l.action))
@@ -4217,7 +4338,7 @@ const pick = (n) => {
   // Keep an open details pane in place while distinguishing a click from a double click.
   const cardOpen = $('side').classList.contains('on');
   selected = n.id; pickedLine = null; delAsk = null; keyboardSelection = !cardOpen;
-  renderPickedBox(cardOpen);
+  renderPickedBox(cardOpen || railTab === 'design');
   const go = () => { if (session !== nameSession || selected !== n.id || naming) return; keyboardSelection = false; if (!cardOpen) renderPickedBox(); keepInView(selected); };
   tapTimer = setTimeout(go, DBL);
 };
@@ -4413,6 +4534,14 @@ document.addEventListener('click', (e) => {
   else if (t.closest('#tidyb')) tidyMap();
   else if (t.id === 'fitb'){ readingSize(); }
   else if (t.id === 'zoomin' || t.id === 'zoomout'){ zoomBy(t.id === 'zoomin' ? 1.2 : 1 / 1.2); }
+  else if (t.closest('[data-rail="design"]')){
+    if (railTab === 'design'){ closeDesign(); return; }
+    railTab = 'design'; chatOpen = false; render();
+    const control = $('design-format');
+    (control.disabled ? $('design-close') : control).focus({ preventScroll: true });
+    if (selected) keepInView(selected);
+  }
+  else if (t.closest('#design [data-close-rail]')){ closeDesign(); }
   else if (t.closest('[data-rail]')){ const r = t.closest('[data-rail]').dataset.rail; railTab = railTab === r && !selected ? null : r; if (railTab){ selected = null; chatOpen = false; } render(); }
   else if (t.closest('[data-close-rail]')){ railTab = null; render(); }
   else if (t.closest('[data-box-source-chat]')){
@@ -4689,7 +4818,7 @@ window.addEventListener('message', (e) => {
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
   fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
-    PREVIEW = { ...v, content }; S = { ...LIVE, ...content }; selected = null; renderHistBar(); render();
+    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, ...content }; selected = null; renderHistBar(); render();
   }).catch(() => toast('That version could not be opened.'));
 }
 function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHistBar(); render(); }
@@ -4755,7 +4884,7 @@ function listen(){
     const ae = document.activeElement;
     const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, ...PREVIEW.content } : next;
+    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, ...PREVIEW.content } : next;
     if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();

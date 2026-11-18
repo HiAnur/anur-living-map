@@ -49,7 +49,7 @@ describe('adding topics in the PM view', () => {
     const ctx = vm.createContext({
       mindView, mindLayout, MIND_VIEW_KEY, view: 'system', selected: null, naming: null, topicIds: new Map(), pendingTopics: new Set(),
       document: { body: { classList: { toggle() {} } } }, localStorage: { getItem: () => 'pm', setItem() {} },
-      $: () => ({ querySelector: () => null }), wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
+      $: () => ({ querySelector: () => null }), topicTitle: (/** @type {{label: string}} */ n) => n.label, designWidth: () => 0, wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),
     });
     vm.runInContext(`${html.slice(start, end)}\nthis.scope = mindScope;`, ctx);
