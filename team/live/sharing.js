@@ -46,6 +46,14 @@ export function sharedState(state, owner = false, guest = false, who = null, hid
 
 /** @type {Set<string>} */
 const NONE = new Set();
+/** Group choices may name private parents, so the same visibility cut applies to their keys.
+ * @param {any} state @param {Set<string>} away
+ */
+const numberingFor = (state, away) => state.numbering ? { numbering: {
+  ...state.numbering,
+  ...(state.numbering.groups ? { groups: Object.fromEntries(Object.entries(state.numbering.groups).filter(([key]) => !away.has(key.slice(2)))) } : {}),
+} } : {};
+
 // what a box drawn from a repo the viewer may not read keeps: where it is, never what it is
 const UNNAMED = ['id', 'x', 'y', 'w', 'h', 'moved'];
 export const PRIVATE_REPO = 'A private repo';
@@ -99,6 +107,7 @@ export function withoutRepos(state, hidden) {
   const callOn = new Map((state.calls || []).map((/** @type {any} */ c) => [c.id, c.node]));
   return {
     ...state,
+    ...numberingFor(state, away),
     nodes: (state.nodes || []).map(box),
     edges: (state.edges || []).map(line),
     comments: (state.comments || []).filter((/** @type {any} */ c) => near(c.node) && (c.view === 'system' || near(c.view))),
@@ -132,6 +141,7 @@ export function forArea(state, sees) {
   const callOn = new Map((state.calls || []).map((/** @type {any} */ c) => [c.id, c.node]));
   return {
     ...state,
+    ...numberingFor(state, away),
     nodes: (state.nodes || []).map(box),
     edges: (state.edges || []).map(line),
     comments: (state.comments || []).filter((/** @type {any} */ c) => near(c.node) && (c.view === 'system' || near(c.view))),
