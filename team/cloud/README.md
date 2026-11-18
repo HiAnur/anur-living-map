@@ -6,27 +6,28 @@ never opens a tunnel or requires the Mac to stay awake.
 
 Share → Publish online uploads the selected map. Publishing needs Google: the
 local server sends the Google ID token from its owner's latest sign-in
-(`x-google-id-token`), and the cloud checks it against Google's public keys
+(`x-living-map-google-id-token`), and the cloud checks it against Google's public keys
 (`google-id.js`: signed by Google, meant for the login service's client
 `GOOGLE_CLIENT_ID`, unexpired, address verified), so it needs no Google secret. The
-copy records that account as its `owner`, with `people` (address → `view` or
-`edit`, lowercased, at most 100) and `linkView` (off). Only the owner's Mac, with
-its sharing key, its owner key and a fresh token for the owner's address, changes
-`people`, `linkView` or the link, or deletes the copy (`/m/<id>/api/sharing`,
-`/m/<id>/api/delete`); the owner key alone keeps syncing the map.
+copy records that account as its `owner`. The publishing request sets `linkView: true`
+after the owner confirms the upload. Its `linkRole` selects `view` or `edit` for people holding the link. A recipient
+opens the link directly, without signing in. Share offers **Can view**, **Can edit**, and **Turn off link**. Only the owner's Mac, with its sharing key, owner key and a fresh Google
+token, changes sharing or deletes the copy; the owner key alone keeps syncing.
 
-A visitor needs the link and, unless `linkView` is on, a Google sign-in on the
-cloud itself: `/auth/google` sends them through the login service (which must list
-this cloud's origin in `RETURN_ORIGINS`) and `/auth/done` trades the one-time code
-for an ID token, checks it, and sets `lm_cloud_session` (HttpOnly, Secure,
-SameSite=Lax, 30 days, signed with a key derived from `PUBLISH_KEY`; the cloud keeps
-no session store). A listed address gets its role and edits under its Google name;
-any other sees a page asking its owner for access, and an API answer that says the
-same, with nothing of the map. Access is checked on every request, so a removed
-address is out at once. Visitors are never sent the people list or anyone's
-address: only the names of who has the map open, kept in memory for 20 seconds.
-“Turn off link” keeps everyone out, listed or not; a new link after revocation
-uses a new secret.
+An owner record also stores earlier email grants in `people`. The cloud checks
+those grants for existing maps and accepts their API representation, while the Share
+dialog provides link sharing. A publishing request that omits `linkView` creates
+a restricted copy. Repeating a confirmed publication with `linkView: true`
+applies that link setting only for the verified owner. Sharing status from the
+cloud tells the Mac which access setting was stored.
+
+The cloud's Google sign-in (`/auth/google` and `/auth/done`) remains available
+for the owner and people with earlier edit access. It checks the token and sets
+`lm_cloud_session` (HttpOnly, Secure, SameSite=Lax, 30 days, signed with a key
+derived from `PUBLISH_KEY`). Visitors receive only the names of who has the map
+open. Anonymous visitors use guest names. The owner’s Mac receives the same live
+presence list, kept in memory for 20 seconds and excluded from saved map data. **Turn off link** keeps everyone out; turning it on after revocation uses
+a new secret.
 
 A copy published before Google sign-in has no owner and works as before (its link
 gives view or edit) until its Mac publishes or changes its sharing with a token,

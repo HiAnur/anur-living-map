@@ -37,7 +37,7 @@ function harness(pm = false){
   Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
   if (pm){
-    Object.assign(ctx, { mindView, mindLayout, MIND_VIEW_KEY, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
+    Object.assign(ctx, { linkView:null, mindView, mindLayout, MIND_VIEW_KEY, wraps:new Map(), ruler:{measureText:t=>({width:t.length*8})},
       getComputedStyle:()=>({getPropertyValue:()=>''}), localStorage:{getItem:()=> 'pm'},
       W:n=>n.mindW || 140, HT:n=>n.mindH || 50 });
     ctx.document.body={classList:{toggle(){}}};
