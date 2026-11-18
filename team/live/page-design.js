@@ -34,6 +34,59 @@ export function savedDesign(record, fields) {
   }));
 }
 
+/** Read older map-wide settings alongside per-group choices.
+ * @param {any} record
+ * @returns {{ format?: string, level?: string, groups: Record<string, string> }}
+ */
+export function savedNumbering(record) {
+  const saved = savedDesign(record, ['format', 'level']);
+  const groups = record?.groups;
+  if (!groups || typeof groups !== 'object' || Array.isArray(groups)) return { ...saved, groups: {} };
+  return { ...saved, groups: Object.fromEntries(Object.entries(groups).filter(([key, value]) =>
+    /^[pv]:[\w.:-]{1,200}$/.test(key) && validDesignValue('format', value))) };
+}
+
+/** The numbering tree follows the same first incoming branch as the displayed map.
+ * @param {{ nodes: any[], lines: any[], centre: string | null }} graph
+ */
+export function numberingTree({ nodes, lines, centre }) {
+  const parents = new Map(), depth = new Map(), out = new Map();
+  const ids = new Set(nodes.map((n) => n.id)), root = centre || nodes[0]?.id;
+  if (!root) return { parents, depth };
+  for (const line of lines) {
+    if (!ids.has(line.from) || !ids.has(line.to) || line.from === line.to) continue;
+    out.set(line.from, [...(out.get(line.from) || []), line.to]);
+  }
+  const queue = [root];
+  depth.set(root, 0);
+  for (let i = 0; i < queue.length; i++) {
+    const parent = queue[i];
+    for (const child of out.get(parent) || []) {
+      if (depth.has(child)) continue;
+      parents.set(child, parent);
+      depth.set(child, depth.get(parent) + 1);
+      queue.push(child);
+    }
+  }
+  return { parents, depth };
+}
+
+/** @param {any[]} nodes @param {Map<string, string>} parents @param {string} id @param {string} view */
+export function numberingGroup(nodes, parents, id, view) {
+  const parent = parents.get(id);
+  if (!parent) return null;
+  const owner = nodes.find((n) => n.id === parent);
+  const key = owner?.virtual ? `v:${view}` : `p:${parent}`;
+  return { key, parent, ids: nodes.filter((n) => !n.virtual && !n.proposed && parents.get(n.id) === parent).map((n) => n.id) };
+}
+
+/** @param {any} settings @param {string} key @param {number} depth */
+export function numberingFormat(settings, key, depth) {
+  const saved = savedNumbering(settings);
+  if (Object.hasOwn(saved.groups, key)) return saved.groups[key];
+  return saved.level === 'all' || depth <= Number(saved.level || '1') ? saved.format || 'none' : 'none';
+}
+
 /** @param {number} n @param {string} format */
 export function formatTopicNumber(n, format) {
   if (format === 'parentheses') return `(${n})`;
@@ -54,20 +107,23 @@ export function formatTopicNumber(n, format) {
 
 /** Number siblings in their canvas order before folding so the labels stay steady.
  * @param {any[]} nodes @param {Map<string, number>} depth @param {Map<string, string>} parents
- * @param {{ format?: string, level?: string }} settings
+ * @param {any} settings @param {string} [view]
  */
-export function numberTopics(nodes, depth, parents, { format = 'none', level = '1' }) {
+export function numberTopics(nodes, depth, parents, settings, view = 'system') {
   /** @type {Map<string, any[]>} */
   const siblings = new Map();
   const byId = new Map(nodes.map((n) => [n.id, n]));
   for (const n of nodes) {
     const d = depth.get(n.id) || 0, parent = parents.get(n.id);
-    if (!parent || !d || (level !== 'all' && d > Number(level)) || n.virtual || n.proposed || n.hiddenRepo) continue;
+    if (!parent || !d || n.virtual || n.proposed || n.hiddenRepo) continue;
     if (!siblings.has(parent)) siblings.set(parent, []);
     siblings.get(parent)?.push(n);
   }
   const labels = new Map();
   for (const [parent, list] of siblings) {
+    const group = numberingGroup(nodes, parents, list[0].id, view);
+    const format = group && numberingFormat(settings, group.key, depth.get(list[0].id) || 0);
+    if (!format || format === 'none') continue;
     const x = byId.get(parent)?.x || 0;
     list.sort((a, b) => Number(a.x < x) - Number(b.x < x) || a.y - b.y);
     const punctuation = format === 'parentheses' ? '' : '.';

@@ -25,7 +25,7 @@ export const WHO = {
   relabel: { standing: 'link', then: 'both boxes are in their area' },
   unlink: { standing: 'link', then: 'both boxes are in their area' },
   remove: { standing: 'link', then: 'every box taken off (the whole branch with cascade) is in their area; a box holding an Action only by its author or an Admin, before it has run and while it is not preparing or running (action-leave.js)' },
-  designmap: { standing: 'link', then: 'nothing: numbering for the whole map' },
+  designmap: { standing: 'link', then: 'with a selected box, every sibling is in their area; without one, legacy map-wide numbering' },
   designbox: { standing: 'link', then: 'the box is in their area' },
   resize: { standing: 'link', then: 'the box is in their area' },
   renamebox: { standing: 'link', then: 'the box is in their area; a box Claude proposed is in a proposal of theirs' },

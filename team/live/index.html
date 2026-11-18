@@ -1212,7 +1212,7 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, inviteEmail, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, NUMBER_LEVELS, flagIcon, numberTopics, progressIcon, savedDesign } from './page-design.js';
+import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, progressIcon, savedDesign } from './page-design.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
@@ -1663,14 +1663,12 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
   const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const depth = new Map(roots.map((id) => [id, 0])), parents = new Map(), q = [...roots];
-  while (q.length){ const id = q.shift(); for (const k of kids.get(id) || []) if (!depth.has(k)){ depth.set(k, depth.get(id) + 1); parents.set(k, id); q.push(k); } }
+  const { depth, parents } = numberingTree({ nodes, lines, centre });
   // the level's start: its circle
-  fold = { start: centre, kids, depth, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
+  fold = { start: centre, kids, depth, parents, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
-  if (S.numbering?.format && S.numbering.format !== 'none'){
-    const numbering = savedDesign(S.numbering, ['format', 'level']);
-    const numbers = numberTopics(nodes, depth, parents, numbering);
+  if (S.numbering){
+    const numbers = numberTopics(nodes, depth, parents, S.numbering, view);
     nodes = nodes.map((n) => !locked(n) && numbers.has(n.id) ? { ...n, topicNumber: numbers.get(n.id) } : n);
   }
   return shown.size === ids.size ? { nodes, edges, lines, centre } : { nodes: nodes.filter((n) => shown.has(n.id)), edges: edges.filter(showing), lines: lines.filter(showing), centre };
@@ -3382,9 +3380,9 @@ function renderDesign(){
   const available = !READ_ONLY && !FILE && !PREVIEW;
   const box = selected && group.size <= 1 && nodeById(selected);
   const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
-  const numbering = savedDesign(S.numbering, ['format', 'level']);
+  const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
   const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
-  const format = numbering.format || 'none';
+  const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
   const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
   const choice = (field, value, label, icon, active, visible = '') =>
     `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
@@ -3394,9 +3392,9 @@ function renderDesign(){
   const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
     <section aria-labelledby="design-numbering"><h3 id="design-numbering">Topic numbering</h3>
+      <p class="design-target">Selected topic and its siblings</p>
       <div class="design-fields">
-        <label><span>Format</span><select id="design-format" data-design-map="format" ${available ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
-        <label><span>Levels</span><select id="design-level" data-design-map="level" ${available && format !== 'none' ? '' : 'disabled'}>${options(NUMBER_LEVELS, numbering.level || '1')}</select></label>
+        <label><span>Format</span><select id="design-format" data-design-map="format" ${available && numberGroup && numberGroup.ids.every((id) => !locked(nodeById(id))) ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
       </div>
     </section>
     <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
@@ -3428,7 +3426,7 @@ function saveDesign(type, field, value, id){
   });
 }
 $('design').addEventListener('change', (e) => {
-  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value);
+  if (e.target.matches('[data-design-map]')) saveDesign('designmap', e.target.dataset.designMap, e.target.value, selected);
 });
 $('design').addEventListener('click', (e) => {
   const choice = e.target.closest('[data-design-box]');

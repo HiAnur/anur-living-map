@@ -63,7 +63,7 @@ export const COMMANDS = /** @type {const} */ ({
   add: { label: 'text?', x: 'number', y: 'number', view: 'string?', w: 'text?', h: 'text?', from: 'id?', out: 'any?', in: 'any?', reflow: 'array?' },
   move: { id: 'id?', moves: 'array?', x: 'number?', y: 'number?', view: 'string?' },
   reparent: { id: 'id?', ids: 'array?', parent: 'id', view: 'string?', parents: 'array?', parentsById: 'object?', moves: 'array?' },
-  designmap: { field: 'string', value: 'string' },
+  designmap: { id: 'id?', field: 'string', value: 'string' },
   designbox: { id: 'id', field: 'string', value: 'string' },
   resize: { id: 'id', x: 'number', y: 'number', w: 'text?', h: 'text?' },
   connect: { from: 'id', to: 'id', label: 'text?', out: 'any?', in: 'any?', view: 'string?' },

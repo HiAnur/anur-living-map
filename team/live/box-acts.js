@@ -2,7 +2,8 @@
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
-import { savedDesign, validDesignValue } from './page-design.js';
+import { numberingGroupOf } from './numbering.js';
+import { savedDesign, savedNumbering, validDesignValue } from './page-design.js';
 import { tidy, tidyLevel } from './project.js';
 
 
@@ -75,8 +76,14 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     /** @param {Act<'designmap'>} a */
     designmap(a) {
       if (!['format', 'level'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
-      const state = getState();
-      state.numbering = { ...savedDesign(state.numbering, ['format', 'level']), [a.field]: a.value };
+      const state = getState(), saved = savedNumbering(state.numbering);
+      if (a.id !== undefined) {
+        if (a.field !== 'format' || !nodeOf(a.id)) return false;
+        const group = numberingGroupOf(state, a.id);
+        const sees = seesOf(a.by);
+        if (!group || group.ids.some((id) => sees !== 'all' && nodeOf(id)?.area !== sees)) return false;
+        state.numbering = { ...saved, groups: { ...saved.groups, [group.key]: a.value } };
+      } else state.numbering = { ...saved, [a.field]: a.value };
       return true;
     },
     /** @param {Act<'designbox'>} a */
