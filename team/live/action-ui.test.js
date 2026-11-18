@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { actionCancellable } from './action-stages.js';
-import { actionScreens } from './page-action.js';
+import { actionScreens, actionStatus, pmActionStatus } from './page-action.js';
 
 const esc=s=>String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 // the Action screens as Duy sees them, with the page's helpers stood in for; `box` and `open` stand for the map
@@ -42,6 +42,22 @@ describe('planned Action controls',()=>{
 });
 
 describe('Action box status pills',()=>{
+  it('uses PM labels on its map without changing the panel or Engineer labels',()=>{
+    const p=panel();
+    for(const [stage,label] of Object.entries({draft:'Draft',gathering:'Preparing',clarify:'Needs answer',waiting:'Waiting',ready:'Ready for review',running:'Running',blocked:'Blocked',error:"Couldn't prepare",cancelled:'Cancelled',unconfirmed:'Unconfirmed'})){
+      const a={stage};
+      expect(p.actionStatusPill(a,false,true)).toContain(`Action status: ${label}`);
+      const normal=actionStatus(a);
+      if(normal) expect(p.actionStatusPill(a)).toContain(`Action status: ${normal.label}`);
+      else expect(p.actionStatusPill(a)).toBe('');
+    }
+    expect(pmActionStatus({stage:'waiting'}).tone).toBe('neutral');
+    expect(pmActionStatus({stage:'ready'}).tone).toBe('waiting');
+    expect(pmActionStatus({stage:'finished',completion:{status:'completed',evidence:['report.md']}})).toEqual({label:'Done',tone:'completed'});
+    for(const completion of [{status:'completed',evidence:[]},{status:'unverified'},undefined]){
+      expect(pmActionStatus({stage:'finished',completion}).tone).not.toBe('completed');
+    }
+  });
   it('uses one box name and the same status pill through every stage',()=>{
     const p=panel();
     expect(p.actionStatusPill()).toBe('');expect(p.actionStatusPill({stage:'draft'})).toBe('');
