@@ -239,6 +239,8 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 #newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none}
 #newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
 #newbox textarea{text-align:left;padding:15px 12px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
+/* a main PM topic is shorter than the full-sized name editor */
+#newbox.mind-draft:not(.mind-words) textarea{padding-block:9px}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
