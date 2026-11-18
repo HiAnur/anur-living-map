@@ -41,17 +41,22 @@ export function visitorRole(v, email) {
   if (!v.owner) return { role: ['view', 'edit'].includes(v.mode) ? v.mode : null, owner: false };
   if (email && email === v.owner.email) return { role: 'edit', owner: true };
   const listed = email ? v.people?.[email] : undefined;
-  if (listed === 'edit' || listed === 'view') return { role: listed, owner: false };
-  return { role: v.linkView ? 'view' : null, owner: false };
+  if (listed === 'edit') return { role: 'edit', owner: false };
+  if (v.linkView) return { role: v.linkRole === 'edit' ? 'edit' : 'view', owner: false };
+  return { role: listed === 'view' ? 'view' : null, owner: false };
 }
 
 /** What the owner's Mac is told about a copy's access; the same shape it sends back to the Share dialog. */
 /** @param {any} v */
-export const accessOf = (v) => v.owner ? { owner: v.owner, people: v.people || {}, linkView: !!v.linkView } : null;
+export const accessOf = (v) => v.owner ? { owner: v.owner, people: v.people || {}, linkView: !!v.linkView, ...(v.linkRole ? { linkRole: v.linkRole } : {}) } : null;
 
 // The owner's change to who has access, checked field by field: anything from a page is untrusted.
 /** @param {any} v @param {any} change @returns {string} what is wrong, or '' once applied */
 export function applyAccess(v, change) {
+  if (change.linkRole !== undefined) {
+    if (!['view', 'edit'].includes(change.linkRole)) return 'Choose Can view or Can edit.';
+    v.linkRole = change.linkRole;
+  }
   if (change.linkView !== undefined) {
     if (typeof change.linkView !== 'boolean') return 'Choose on or off.';
     v.linkView = change.linkView;

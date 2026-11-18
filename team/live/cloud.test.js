@@ -190,12 +190,12 @@ it('asks for Google before publishing or changing access, and keeps the list the
   await expect(mirror.publish('view', { idToken: '', needs: 'update' })).rejects.toThrow('must be updated');
   expect(app.store.records.size).toBe(0);
   const published = await mirror.publish('view', GOOGLE);
-  expect(published).toMatchObject({ published: true, access: { owner: { email: 'owner@example.com' }, people: {}, linkView: false } });
+  expect(published).toMatchObject({ published: true, access: { owner: { email: 'owner@example.com' }, people: {}, linkView: true } });
   await expect(mirror.share({ linkView: true })).rejects.toMatchObject({ needs: 'signin' });
   // a token the cloud no longer takes sends you back through Google
   await expect(mirror.share({ linkView: true }, { idToken: google.token('owner@example.com', { exp: 1 }) })).rejects.toMatchObject({ needs: 'signin' });
   const shared = await mirror.share({ person: { email: 'teammate@example.com', role: 'edit' }, linkView: true }, GOOGLE);
-  expect(shared.access).toEqual({ owner: { email: 'owner@example.com', name: 'Owner' }, people: { 'teammate@example.com': 'edit' }, linkView: true });
+  expect(shared.access).toEqual({ owner: { email: 'owner@example.com', name: 'Owner' }, people: { 'teammate@example.com': 'edit' }, linkView: true, linkRole: 'view' });
   expect(JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home, 'cloud.json')))).access.people).toEqual({ 'teammate@example.com': 'edit' });
   await expect(mirror.remove()).rejects.toMatchObject({ needs: 'signin' });
   expect((await mirror.remove(GOOGLE)).published).toBe(false);
