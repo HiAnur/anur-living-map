@@ -62,6 +62,35 @@ async function usePm(page: Page) {
   await page.getByRole("radio", { name: "PM", exact: true }).click();
 }
 
+test("PM topic names stay vertically centered while typing", async ({
+  page,
+}) => {
+  await openSample(page);
+  await usePm(page);
+  for (const parent of ["Launch plan", "Pricing"]) {
+    await box(page, parent).click();
+    await page.keyboard.press("Tab");
+    const editor = page.locator("#newbox textarea");
+    await expect(editor).toBeVisible();
+    await page.keyboard.type("Customer");
+    const offset = await editor.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const textMiddle =
+        parseFloat(style.borderTopWidth) +
+        parseFloat(style.paddingTop) +
+        parseFloat(style.lineHeight) / 2;
+      return Math.abs(textMiddle - parseFloat(style.height) / 2);
+    });
+    await page.screenshot({
+      path: test
+        .info()
+        .outputPath(`${parent.toLowerCase().replaceAll(" ", "-")}-name.png`),
+    });
+    expect(offset, `name under ${parent}`).toBeLessThan(1);
+    await page.keyboard.press("Escape");
+  }
+});
+
 async function dragTo(page: Page, source: Locator, x: number, y: number) {
   const start = await middle(source);
   await page.mouse.move(start.x, start.y);
