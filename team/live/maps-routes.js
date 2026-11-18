@@ -177,7 +177,10 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       return json(200, {});
     }
     if (url.pathname === '/api/maps') {
-      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => ({ name, href: `/${name}/`, deletable: m.canDelete(who), pinned: isPinned(who, name), ...m.summary() }));
+      const list = everyMap().filter(([, m]) => m.allowed(who, req)).map(([name, m]) => {
+        const project = folders.get(name);
+        return { name, href: `/${name}/`, deletable: m.canDelete(who), pinned: isPinned(who, name), ...m.summary(), folder: path.resolve(project || MAPS, project ? '.living-map' : name) };
+      });
       return res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(list));
     }
     // a chat opening the map from another code folder adds that folder to the list, and it stays there
