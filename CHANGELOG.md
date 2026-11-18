@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Box titles line up on the left</strong></dt>
+<dd>
+
+Titles keep the same left padding in both map views while you rename them or add a flag or progress marker. <!-- source: https://github.com/HiAnur/anur-living-map/pull/554 --> <!-- merged-at: 2026-11-18T01:12:51Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Design your map</strong></dt>
 <dd>
 
