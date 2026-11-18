@@ -14,6 +14,23 @@ Choose **Share → Copy link** and confirm the first upload to Google Cloud. The
 </dl>
 
 <dl>
+<dt><strong>✨ [New feature] Duplicate a map</strong></dt>
+<dd>
+
+Open a map’s **⋯** menu and choose **Duplicate** to make an independent copy you can edit. <!-- source: https://github.com/HiAnur/anur-living-map/pull/568 --> <!-- merged-at: 2026-11-18T21:42:39Z -->
+
+</dd>
+<dt><strong>🧹 [Layout cleanup] A clearer map list</strong></dt>
+<dd>
+
+Map rows keep the name, pending answers, cloud status and edit time together, with **Pin**, **Copy folder location** and other details in **⋯**. <!-- source: https://github.com/HiAnur/anur-living-map/pull/568 --> <!-- merged-at: 2026-11-18T21:42:39Z -->
+
+<img src="docs/shipping/2026-11-18/map-library.png" alt="A sample map list shows compact rows, a cloud before the edit time, and a More menu with separate System map and Local folder sections, folder copying, Pin, Duplicate and Trash." width="650">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Choose your map type</strong></dt>
 <dd>
 
