@@ -26,7 +26,7 @@ export function signInRoutes({ users, googleFinish, googleOn, googleStart, page,
     if (url.pathname === '/auth/google' && req.method === 'GET') {
       if (!who) return refuse();
       if (!googleOn()) return back('Google sign-in is not set up on this map.');
-      const host = LOCAL_HOST.test(req.headers.host || '') ? req.headers.host : `localhost:${PORT}`;
+      const host = /^(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(req.headers.host || '') ? req.headers.host : `localhost:${PORT}`;
       const next = url.searchParams.get('next') || '/settings';
       return res.writeHead(302, { location: googleStart(`http://${host}`, next.startsWith('/') && !next.startsWith('//') ? next : '/settings') }).end();
     }

@@ -7,15 +7,15 @@
 /** @param {any} status @param {{ cloud?: boolean, file?: boolean, uploading?: boolean, owner?: boolean }} [where] */
 export function sharingLocation(status, {cloud = false, file = false, uploading = false, owner = false} = {}){
   if (file) return {label:'Downloaded file', detail:'You are viewing a saved file. Its original map may also be shared online.'};
-  if (cloud || status?.published){
+  if (cloud || (status?.published && status.configured !== false)){
     if (status?.mode === 'restricted') return {label:'In cloud · link off', detail:'Link access is off. A cloud copy of this map is still stored.', online:true};
     if (status?.access?.owner) return {label:'Shared online', detail:status.access.linkView ? `This map is stored in Google Cloud. Anyone with the link can ${status.access.linkRole === 'edit' ? 'edit' : 'view'} it, even when this Mac is off.` : 'This map is stored in Google Cloud. Link sharing is off.', online:true};
     return {label:'Shared online', detail:'A cloud copy is available through the shared link, even when this Mac is off.', online:true};
   }
   if (uploading) return {label:'Uploading to cloud…', detail:'Creating the shared copy. Your private chats stay on this Mac.'};
   if (!status) return {label:'Checking sharing status…', detail:'Confirming whether this map has a cloud copy.'};
-  const online = !status.configured ? '' : owner ? 'publish it online (your private chats stay here), or ' : 'ask an owner to publish it online, or ';
-  return {label:'Only this Mac can open this link', detail:`This map runs on this Mac, so its link opens only here. To share it with someone else, ${online}send it as a file.`, publish:!!status.configured && owner};
+  if (!status.configured) return {label:'Cloud sharing unavailable', detail:'You can download this map and send it as a file.', publish:false};
+  return {label:'Stored on this Mac', detail:owner ? 'Copy a link to upload this map to Google Cloud. Your private chats stay on this Mac.' : 'Ask the owner to share a cloud link, or send the map as a file.', publish:owner};
 }
 // What the owner's Share shows of the online link: its owner, whether anyone with the link can view, and
 // whether it is on. A copy without a recorded owner keeps its earlier link mode.
