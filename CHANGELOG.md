@@ -12,6 +12,15 @@ In PM view, clicking the main box now highlights it in blue, including inside an
 </dl>
 
 <dl>
+<dt><strong>Clearer drop markers in PM view</strong></dt>
+<dd>
+
+PM drop markers appear below existing child branches and shrink to fit narrow gaps, keeping topic text visible while you drag. <!-- source: https://github.com/HiAnur/anur-living-map/pull/585 --> <!-- merged-at: 2026-11-19T01:18:42Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Maps follow your chosen sort order</strong></dt>
 <dd>
 
