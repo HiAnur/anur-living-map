@@ -8,6 +8,7 @@ export const NUMBER_LEVELS = [
 ];
 export const BOX_ALIGNMENTS = [['top', 'Top'], ['center', 'Center'], ['bottom', 'Bottom']];
 export const BOX_FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'purple'];
+export const BOX_PEOPLE = BOX_FLAGS;
 export const BOX_PROGRESS = ['0', '12.5', '25', '37.5', '50', '62.5', '75', '87.5', '100'];
 
 const DESIGN_FIELDS = {
@@ -15,6 +16,7 @@ const DESIGN_FIELDS = {
   level: NUMBER_LEVELS.map(([key]) => key),
   align: BOX_ALIGNMENTS.map(([key]) => key),
   flag: ['', ...BOX_FLAGS],
+  person: ['', ...BOX_PEOPLE],
   progress: ['', ...BOX_PROGRESS],
 };
 
@@ -136,6 +138,12 @@ export function numberTopics(nodes, depth, parents, settings, view = 'system') {
 export function flagIcon(color) {
   if (!BOX_FLAGS.includes(color)) return '';
   return `<span class="design-mark flag" data-flag="${color}" role="img" aria-label="${color} flag" title="${color} flag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 13V3m0 .5c3-2 4 2 8 0V9c-4 2-5-2-8 0" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>`;
+}
+
+/** @param {string} color */
+export function personIcon(color) {
+  if (!BOX_PEOPLE.includes(color)) return '';
+  return `<span class="design-mark person" data-flag="${color}" role="img" aria-label="${color} person" title="${color} person"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="2.5" fill="currentColor"/><path d="M3.5 12c0-2.2 2-3.5 4.5-3.5s4.5 1.3 4.5 3.5v1h-9z" fill="currentColor"/></svg></span>`;
 }
 
 /** @param {string} value */
