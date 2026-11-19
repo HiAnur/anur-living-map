@@ -89,12 +89,12 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     /** @param {Act<'designbox'>} a */
     designbox(a) {
       const ids = Array.isArray(a.ids) ? a.ids : [a.id], sees = seesOf(a.by);
-      if (!ids.length || !['align', 'flag', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      if (!ids.length || !['align', 'flag', 'person', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
       const nodes = ids.map((id) => nodeOf(id));
       // Check the whole selection before changing any box, so a refused edit leaves them all as they were.
       if (nodes.some((n) => !n || (sees !== 'all' && n.area !== sees))) return false;
       for (const n of nodes) {
-        const design = savedDesign(n.design, ['align', 'flag', 'progress']);
+        const design = savedDesign(n.design, ['align', 'flag', 'person', 'progress']);
         if (a.value && !(a.field === 'align' && a.value === 'center')) design[a.field] = a.value;
         else delete design[a.field];
         if (Object.keys(design).length) n.design = design;

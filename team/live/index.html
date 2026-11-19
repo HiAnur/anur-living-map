@@ -300,7 +300,7 @@ body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
 /* Design marks travel with the box when it moves or is exported. */
 .design-mark{display:inline-grid;place-items:center;flex:none;width:16px;height:16px}
 .design-mark svg{display:block;width:100%;height:100%}
-.design-mark.flag{border-radius:50%;background:var(--flag-color);color:var(--box);padding:1px}
+.design-mark.flag,.design-mark.person{border-radius:50%;background:var(--flag-color);color:var(--box);padding:1px}
 [data-flag="red"]{--flag-color:var(--flag-red)}
 [data-flag="orange"]{--flag-color:var(--flag-orange)}
 [data-flag="yellow"]{--flag-color:var(--flag-yellow)}
@@ -1213,7 +1213,7 @@ import { layoutFor } from './page-layout.js';
 import { searchBoxes } from './page-search.js';
 import { imageExportSize, onlineAccess, sharingLocation } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
-import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, progressIcon, savedDesign } from './page-design.js';
+import { BOX_ALIGNMENTS, BOX_FLAGS, BOX_PEOPLE, BOX_PROGRESS, NUMBER_FORMATS, flagIcon, numberingFormat, numberingGroup, numberingTree, numberTopics, personIcon, progressIcon, savedDesign } from './page-design.js';
 import { actionExecuted, actionHistory, actionScreens, actionStatus, actionUnmakeable, pmActionStatus } from './page-action.js';
 import { commentScreens } from './page-comments.js';
 import { allBoxesOf, allLinesOf, graphsOf, parentBoxOf, pathTo } from './map-walk.js';
@@ -1411,7 +1411,7 @@ const cam = { x: 0, y: 0, z: 1 };
 const BASE = (n) => n.kind === 'actor' ? 110 : 140, H = 50;
 const ruler = document.createElement('canvas').getContext('2d'), wraps = new Map();
 const topicTitle = (n) => n.topicNumber ? `${n.topicNumber} ${n.label}` : String(n.label || '');
-const designWidth = (n) => (n.design?.flag ? 22 : 0) + (n.design?.progress ? 22 : 0);
+const designWidth = (n) => (n.design?.flag ? 22 : 0) + (n.design?.person ? 22 : 0) + (n.design?.progress ? 22 : 0);
 const W = (n) => {
   if (n.mindW) return n.mindW;
   if (hubbed(n)) return HUB_SIZE;
@@ -2448,8 +2448,8 @@ function render(){
     // a box outside your reach shows nothing of what was decided on it, unless a question on it waits on you
     const going = !decisionMap() && !locked(n) && (n.state === 'assumed-gone' || n.state === 'gone');
     const cls = ['node', sc.mind ? ['mind-root', 'mind-topic', 'mind-leaf'][Math.min(2, n.mindDepth)] : '', n.pending ? 'mind-pending' : '', pmAction ? 'mind-action' : '', naming?.edit === n.id ? (naming.field === 'sub' ? 'editing-description' : 'editing-name') : '', n.kind || '', (n.action || n.proposed && n.boxType === 'action') && !locked(n) ? 'action-node' : '', isHubBox ? 'hub' : '', n.ghost ? 'ghost' : '', n.proposed ? 'proposed new' : '', decisionMap() ? (locked(n) && !mine ? '' : boxDecision(n)) : n.state || '', going && !guessGone(n) ? 'settled' : '', n.state === 'new' && !n.proposed && settledPlan() ? 'still' : '', selected === n.id || lit === n.id || group.has(n.id) ? 'sel' : '', delAsk === n.id || (delAsk === '*' && n.id === groupLead()) ? 'deleting' : '', locked(n) ? 'locked' : '', focused(n) || view !== 'system' || !hasFocus ? '' : 'faint'].join(' ');
-    const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'progress']);
-    const marks = flagIcon(design.flag || '') + progressIcon(design.progress || '');
+    const design = locked(n) || n.virtual ? {} : savedDesign(n.design, ['align', 'flag', 'person', 'progress']);
+    const marks = flagIcon(design.flag || '') + personIcon(design.person || '') + progressIcon(design.progress || '');
     html += `<div class="${cls}" data-id="${n.id}" ${design.align ? `data-align="${design.align}"` : ''} ${isHubBox ? `role="button" aria-label="${esc(n.label)}" ` : ''}data-box-summary="${esc(isHubBox ? hubHint(n.label, boxSummary(n), folded, !!S.drawing) : boxSummary(n))}" style="left:${n.x}px;top:${n.y}px;width:${W(n)}px;height:${HT(n)}px" ${locked(n) ? `title="${n.hiddenRepo ? 'A repo you can\'t read on GitHub' : `No access: ask ${S.people.find((p) => p.role === 'Admin')?.id || 'an admin'}`}"` : ''}>
       ${!sc.mind && !locked(n) && (n.action || n.proposed && n.boxType === 'action') ? `<div class="action-tag">Action box</div>` : ''}
       ${isHubBox ? (marks ? `<span class="hub-marks">${marks}</span>` : '') : `<div class="n">${pmAction ? '<span class="mind-action-arrow" aria-hidden="true">›</span>' : ''}${locked(n) ? ICON.lock : n.icon === 'db' ? ICON.db : ''}<span class="nt">${esc(topicTitle(n))}</span>${marks}${pmAction ? actionView().actionStatusPill(n.action, false, true) : ''}</div>`}
@@ -3418,7 +3418,7 @@ function renderDesign(){
   const available = !READ_ONLY && !FILE && !PREVIEW;
   const targets = designBoxes(), target = targets.length === 1 ? targets[0] : null;
   const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
-  const designs = targets.map((n) => savedDesign(n.design, ['align', 'flag', 'progress']));
+  const designs = targets.map((n) => savedDesign(n.design, ['align', 'flag', 'person', 'progress']));
   const matches = (field, value) => designs.length > 0 && designs.every((design) => (design[field] || (field === 'align' ? 'center' : '')) === value);
   const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
   const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
@@ -3427,6 +3427,7 @@ function renderDesign(){
   const align = BOX_ALIGNMENTS.map(([value, label], i) => choice('align', value, `${label} align`,
     `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, matches('align', value), label)).join('');
   const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), matches('flag', value))).join('');
+  const people = BOX_PEOPLE.map((value) => choice('person', value, `${value[0].toUpperCase() + value.slice(1)} person`, personIcon(value), matches('person', value))).join('');
   const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), matches('progress', value))).join('');
   const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
@@ -3443,6 +3444,7 @@ function renderDesign(){
       ${targets.length ? `<div class="design-target" title="${esc(targets.map((n) => n.label).join(', '))}">${target ? esc(target.label) : `${targets.length} boxes`}</div>
         ${mindOn() || targets.every((n) => !hubbed(n)) ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
         <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', matches('flag', ''), 'None')}</div>
+        <h3 id="design-person">Person</h3><div class="design-options" role="group" aria-labelledby="design-person">${people}${choice('person', '', 'Clear person', '', matches('person', ''), 'None')}</div>
         <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', matches('progress', ''), 'None')}</div>`
       : '<p class="design-note">Select a box to change its design.</p>'}
     </section>`;

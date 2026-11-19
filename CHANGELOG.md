@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Colored person icons</strong></dt>
+<dd>
+
+Select one or more boxes and open **Design → Person** to add a person icon in one of seven colors beside your flags and progress. Choose **None** to remove it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/600 --> <!-- merged-at: 2026-11-19T07:04:00Z -->
+
+<img src="docs/shipping/2026-11-18/person-markers.jpg" alt="A sample Pricing box shows a green flag, blue person and 50% progress beside the Design panel's Person color choices." width="900">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Share links open on other devices</strong></dt>
 <dd>
 
