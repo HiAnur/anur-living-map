@@ -10,12 +10,12 @@ import { expect, it } from 'vitest';
 const html = fs.readFileSync(new URL('./maps.html', import.meta.url), 'utf8');
 const index = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 
-it('keeps pinned maps first, then system maps, in either sort order', () => {
+it('keeps pinned maps first and sorts every map type by the chosen order', () => {
   const ctx = vm.createContext({});
   vm.runInContext(`const titleOf = (m) => m.title || m.name;\n${html.slice(html.indexOf('function ordered('), html.indexOf('function list('))}`, ctx);
-  const maps = [{ name: 'system', system: 'done', at: 1 }, { name: 'beta', at: 5 }, { name: 'alpha', at: 3, pinned: true }, { name: 'zulu', at: 9 }, { name: 'older', at: 2, pinned: true }];
-  expect(ctx.ordered(maps, 'time').map((/** @type {any} */ m) => m.name)).toEqual(['alpha', 'older', 'system', 'zulu', 'beta']);
-  expect(ctx.ordered(maps, 'name').map((/** @type {any} */ m) => m.name)).toEqual(['alpha', 'older', 'system', 'beta', 'zulu']);
+  const maps = [{ name: 'system', system: 'done', at: 1 }, { name: 'beta', at: 5 }, { name: 'alpha', at: 3, pinned: true }, { name: 'zulu', at: 9 }, { name: 'older', system: 'done', at: 2, pinned: true }, { name: 'recent-system', system: 'done', at: 7 }];
+  expect(ctx.ordered(maps, 'time').map((/** @type {any} */ m) => m.name)).toEqual(['alpha', 'older', 'zulu', 'recent-system', 'beta', 'system']);
+  expect(ctx.ordered(maps, 'name').map((/** @type {any} */ m) => m.name)).toEqual(['alpha', 'older', 'beta', 'recent-system', 'system', 'zulu']);
 });
 
 it('offers your own account menu on the list of maps, with Settings and no sign-out, and lists only people on a map', () => {
