@@ -19,7 +19,7 @@ function fixture(branch = "dev") {
     merged_at: "2026-01-01T00:00:00Z" as string | null,
     merge_commit_sha: merged,
     head: { sha: head },
-    base: { ref: branch, repo: { full_name: repository } },
+    base: { ref: branch, sha: parent, repo: { full_name: repository } },
   };
   const run = {
     id: 34,
@@ -87,6 +87,14 @@ describe("reusing a PR check after merge", () => {
       expect(api).not.toHaveBeenCalled();
     },
   );
+
+  it("accepts a rebase merge whose parent is a rewritten feature commit", async () => {
+    const f = fixture();
+    f.commit.parents[0]!.sha = "e".repeat(40);
+    await expect(
+      verifyMergedPR(repository, merged, "dev", f.api),
+    ).resolves.toMatchObject({ pull: 12, run: 56 });
+  });
 
   it("rejects a direct push with no merged PR", async () => {
     const f = fixture();

@@ -10,7 +10,7 @@ type Pull = {
   merged_at: string | null;
   merge_commit_sha: string;
   head: { sha: string };
-  base: { ref: string; repo: { full_name: string } };
+  base: { ref: string; sha: string; repo: { full_name: string } };
 };
 type Run = {
   id: number;
@@ -71,14 +71,15 @@ export async function verifyMergedPR(
       p.base.ref === branch &&
       p.base.repo.full_name === repository,
   );
-  const parent = commit.parents[0]?.sha;
-  if (!pull || commit.sha !== sha || !parent)
+  if (!pull || commit.sha !== sha || !commit.parents.length)
     throw new Error("This commit is not the merge of a PR into this branch.");
 
+  // The PR keeps its base at merge time. A rebase merge's immediate parent
+  // can be a rewritten feature commit rather than that target branch tip.
   const compared = (await api(
-    `${root}/compare/${parent}...${pull.head.sha}`,
+    `${root}/compare/${pull.base.sha}...${pull.head.sha}`,
   )) as { merge_base_commit: { sha: string } };
-  if (compared.merge_base_commit.sha !== parent)
+  if (compared.merge_base_commit.sha !== pull.base.sha)
     throw new Error(
       "The PR was not up to date with the branch before merging.",
     );
