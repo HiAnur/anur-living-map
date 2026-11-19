@@ -1,7 +1,7 @@
 name: Release
 
-# Makes a release that every copy on the stable channel (customers') updates to: a commit on main whose push passed
-# CI gets the tag v<major.minor>.<that CI run's number> and a GitHub release. main holds only what is ready (daily
+# Makes a release that every copy on the stable channel (customers') updates to: a commit on main whose push verified
+# its passing PR checks gets the tag v<major.minor>.<that CI run's number> and a GitHub release. main holds only what is ready (daily
 # work merges into dev, and a ready fix is copied to main by a pull request), so a release never carries work the
 # team is still testing. Only run by hand (Actions → Release → Run workflow), and only by someone with admin or
 # maintain rights on this repository: GitHub lets only people with write access run it at all, and the first step
@@ -50,7 +50,8 @@ jobs:
             echo "::error::There is no commit \"$COMMIT\"."; exit 1
           fi
           git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main."; exit 1; }
-          # the checks must have passed on that very commit, in the CI run its push to main started
+          # The push's CI verifies that the merged code matches its passing, up-to-date PR checks.
+          # Older commits remain eligible when their push ran the full checks itself.
           run=$(gh run list -R "${{ github.repository }}" -w ci.yml -b main -e push -c "$sha" --json number,conclusion \
             --jq '[.[] | select(.conclusion == "success")][0].number // empty')
           [ -n "$run" ] || { echo "::error::CI has not passed on $sha after its push to main."; exit 1; }
