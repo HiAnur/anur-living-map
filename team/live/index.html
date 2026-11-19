@@ -2344,6 +2344,7 @@ function hubbed(n){
 // when only they show. It picks a start box drawn as the circle without opening its card, so Delete and the arrow keys
 // work from it; a circle standing for the level is no box to pick
 function tapHub(n){
+  if (mindOn()){ pick(n); return; }
   clearTimeout(tapTimer); nameSession++;
   selected = n.virtual ? null : n.id; pickedLine = null; delAsk = null; keyboardSelection = true;
   setLevel(hubLevel(shownLevel(), maxLevel(), !!S.drawing));
