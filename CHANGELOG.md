@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Share links open on other devices</strong></dt>
+<dd>
+
+**Share → Copy link** copies a cloud link. When cloud sharing is unavailable, you can download the map and send it as a file. <!-- source: https://github.com/HiAnur/anur-living-map/pull/584 --> <!-- merged-at: 2026-11-19T01:33:28Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Main box selection in PM view</strong></dt>
 <dd>
 
