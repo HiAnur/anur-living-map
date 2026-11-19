@@ -227,8 +227,7 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 #newbox.mind-draft{transform:translate(0,-50%)}
 #newbox.mind-draft textarea,body.mind-view #newbox.inline textarea{text-align:left}
 /* a new deeper topic is typed as words on its underline, no box */
-#newbox.mind-words{height:28px!important}
-#newbox.mind-words textarea{min-height:0;padding:4px 5px;border:0;border-radius:0;background:transparent;box-shadow:none;font:400 13.5px/20px var(--plex)}
+#newbox.mind-words textarea{min-height:0;padding:5.5px 5px;border:0;border-radius:0;background:transparent;box-shadow:none;font:400 13.5px/1.25 var(--plex)}
 #newbox.inline input,#newbox.inline textarea{min-height:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;text-align:center;line-height:1.25}
 #newbox.line input{font:12px var(--plex);color:var(--text-2);background:var(--canvas)}
 .node.editing-name .nt,.node.editing-description .s{visibility:hidden}
@@ -237,6 +236,8 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 #newbox input.draft,#newbox textarea.draft{caret-color:transparent;user-select:none}
 #newbox input::placeholder,#newbox textarea::placeholder{font-weight:400;color:var(--text-3)}
 #newbox textarea{text-align:left;padding:15px 12px;line-height:17px;resize:none;overflow:hidden;overflow-wrap:anywhere}
+/* a main PM topic is shorter than the full-sized name editor */
+#newbox.mind-draft:not(.mind-words) textarea{padding:8.75px 14px;font:500 14px/1.25 var(--plex)}
 /* Delete this box, at the foot of its card: asks once, in red, then the box and its lines go for everyone */
 .d-del{margin-top:16px;font-size:12.5px}
 .d-del .d-more{margin-left:0;color:var(--gone)}
@@ -286,7 +287,7 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 .node.mind-leaf:hover{box-shadow:none}
 .node.mind-leaf.sel{outline:none;box-shadow:inset 0 -2px 0 var(--new)}
 .node.mind-leaf.sel .n{color:var(--new)}
-.node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:pre-wrap;overflow:visible}
 .node.mind-root.sel{outline-offset:2px}
 .node.mind-pending{pointer-events:none}
 body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
@@ -1610,6 +1611,11 @@ const mindActionHeight = (n) => {
   if (!mindAction(n)) return 0;
   return Math.max(40, 18 + nameLines(n, mindActionRoom(n), '500 14px') * 17.5);
 };
+// Extra title lines make the topic and its branch taller together.
+const mindWrappedHeight = (n, depth) => {
+  const font = MIND_FONT[Math.min(depth, 2)], room = mindTextWidth(topicTitle(n), font);
+  return Math.max(0, nameLines(n, room, font) - 1) * parseFloat(font.split(' ')[1]) * 1.25;
+};
 // the topic being named with Tab or Enter is placed in the mind map like any other, so its editor opens where it will sit
 const MIND_DRAFT = '@draft';
 // a topic saved a moment ago and not yet back from the server keeps its place, so the next Tab hangs under it
@@ -1642,7 +1648,7 @@ function mindScope(sc){
     nodes = [...nodes, { id: MIND_DRAFT, label: typed || naming.text || 'Sub-topic', x: naming.x, y: naming.y }];
     if (draftParent) lines = [...lines, { from: draftParent, to: MIND_DRAFT }];
   }
-  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords, mindActionHeight, MIND_LAYOUT);
+  const { at, parent, via } = mindLayout({ nodes, lines, centre: sc.centre }, mindWords, mindActionHeight, MIND_LAYOUT, mindWrappedHeight);
   // what you are working on stays where it is on screen while the map grows round it: the topic getting a new
   // topic, the one being renamed, the one picked, else the start
   const before = mindLevel === view ? mindPos : new Map();
