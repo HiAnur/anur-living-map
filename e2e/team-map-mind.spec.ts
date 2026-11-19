@@ -51,11 +51,18 @@ test("remembers the last map view across local addresses", async ({ page }) => {
   await expect(page.locator("body")).toHaveClass(/mind-view/);
 });
 
-const middle = (node: Locator) =>
-  node.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-  });
+const middle = async (node: Locator) => {
+  let point: { x: number; y: number } | undefined;
+  await expect
+    .poll(async () => {
+      const r = await node.boundingBox();
+      if (r && r.width && r.height)
+        point = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      return !!point;
+    })
+    .toBe(true);
+  return point!;
+};
 
 async function usePm(page: Page) {
   await page.locator("#peopleb").click();

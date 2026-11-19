@@ -75,6 +75,17 @@ describe('cloud map boundary', () => {
     remote.nodes[0].label = 'Conflict'; expect(() => mergeMap(original, local, remote)).toThrow('both places');
     expect(() => mapData({ ...base(), nodes: [] })).toThrow('endpoint');
   });
+  it('preserves the shared layout when an older Mac syncs another edit', async () => {
+    const { call, publish, route } = await start();
+    await publish('edit');
+    expect((await call(route('api/act'), { type: 'designmap', field: 'layout', value: 'left', revision: 1 })).status).toBe(200);
+    const local = base(); local.nodes[0].label = 'Edited on the older Mac';
+    const response = await call(route('api/sync'), { base: { ...base(), mindLayout: 'left' }, data: local }, true);
+    expect(response.status).toBe(200);
+    const { data } = await response.json();
+    expect(data.mindLayout).toBe('left');
+    expect(data.nodes[0].label).toBe('Edited on the older Mac');
+  });
   it('requires publisher credentials, blocks missing links and protects view links', async () => {
     const { call, publish, route } = await start();
     expect((await call('/api/maps', { data: base() })).status).toBe(401);
