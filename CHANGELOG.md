@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Design several topics at once</strong></dt>
+<dd>
+
+Select several topics and open **Design** to apply or clear flags, progress icons or vertical alignment for the whole selection. Previously, these controls required one selected topic. <!-- source: https://github.com/HiAnur/anur-living-map/pull/582 --> <!-- merged-at: 2026-11-19T01:00:41Z -->
+
+<img src="docs/shipping/2026-11-18/bulk-topic-design.png" alt="A sample map has three topics selected, each with a green flag and 50% progress, beside Design controls for all three boxes." width="900">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Full topic names in PM view</strong></dt>
 <dd>
 
