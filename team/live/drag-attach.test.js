@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { branchIds, editHistory, editSnapshot, reparentTopic } from './editing.js';
 import { layoutFor } from './page-layout.js';
+import { mindBranch, mindLayout } from './page-mind.js';
 
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const fixture = () => ({nodes:[
@@ -24,6 +25,39 @@ function page(/** @type {any} */ state = fixture()) {
   return {ctx,rubber,state,plan:()=>ctx.planTopicAttach(ctx.drag.source,'branch','new',1)};
 }
 describe('drag attachment preview',()=>{
+  it.each([{layout:'right',nested:false},{layout:'left',nested:false},{layout:'right',nested:true},{layout:'left',nested:true}])('puts a PM child drop below the existing subtree ($layout, nested: $nested)', ({layout,nested})=>{
+    const h=page();
+    h.state.nodes.push({id:'deep',label:'Deep child',x:630,y:205});
+    h.state.edges.push({from:'existing',to:'deep'});
+    if(nested){
+      for(const n of h.state.nodes.filter(n=>['new','existing','deep','lower','lower-child'].includes(n.id)))n.x+=210;
+      h.state.nodes.push({id:'container',label:'Container',x:210,y:170});
+      h.state.edges=h.state.edges.map(e=>e.from==='root'&&['new','lower'].includes(e.to)?{...e,from:'container'}:e);
+      h.state.edges.push({from:'root',to:'container'});
+    }
+    h.ctx.drag.source=structuredClone(h.state);
+    const {at,parent}=mindLayout({nodes:h.state.nodes,lines:h.state.edges,centre:'root'},()=>80,()=>0,layout);
+    const nodes=h.state.nodes.map(n=>{const p=at.get(n.id);if(!p)throw Error('Missing topic position');return {...n,x:p.x,y:p.y,mindW:p.w,mindH:p.h,mindDepth:p.depth};});
+    h.ctx.scope=()=>({nodes,mind:{parent,layout},centre:'root'});
+    h.ctx.onMap=n=>nodes.find(b=>b.id===n.id);
+    h.ctx.W=n=>n.mindW||140;h.ctx.HT=n=>n.mindH||50;
+    h.ctx.mindBranch=mindBranch;h.ctx.MIND_LAYOUT=layout;h.ctx.drag.mind=true;
+    const target=nodes.find(n=>n.id==='new'),before=structuredClone(h.state);
+    h.ctx.previewTopicAttach(target.x,target.y);
+    const marker=/<rect class="attach-box[^\"]*" x="([^\"]+)" y="([^\"]+)" width="([^\"]+)" height="([^\"]+)"/.exec(h.rubber.innerHTML);
+    expect(marker).not.toBeNull();
+    if(!marker)throw Error('Missing drop marker');
+    const [,x,y,w,height]=marker.map(Number);
+    const bottom=Math.max(...nodes.filter(n=>['existing','deep'].includes(n.id)).map(n=>n.y+h.ctx.HT(n)/2));
+    expect(y).toBeGreaterThan(bottom);
+    for(const n of nodes.filter(n=>!['branch','child'].includes(n.id)))expect(
+      x+w<=n.x-h.ctx.W(n)/2 || x>=n.x+h.ctx.W(n)/2 || y+height<=n.y-h.ctx.HT(n)/2 || y>=n.y+h.ctx.HT(n)/2,
+      `drop marker overlaps ${n.id}`,
+    ).toBe(true);
+    expect(h.state).toEqual(before);
+    expect(reparentTopic(h.state,{id:'branch',...h.ctx.drag.attach})).toBe(true);
+    expect(h.ctx.nodeById('branch').y).toBeGreaterThan(h.ctx.nodeById('deep').y);
+  });
   it.each([-1,1])('previews and saves a sibling on the vertical side %s', direction=>{
     const h=page(),before=editSnapshot(h.state);
     h.ctx.moveTopicDrag(210,170+direction*35);

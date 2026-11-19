@@ -230,6 +230,56 @@ test("dropping a PM branch onto a topic saves the new parent and carries its chi
   expect((await middle(trial)).x).toBeGreaterThan((await middle(pricing)).x);
 });
 
+for (const layout of ["Right", "Left"]) {
+  test(`${layout} PM child drop marks the space below existing children`, async ({
+    page,
+  }) => {
+    const state = {
+      ...SAMPLE,
+      edges: [
+        { from: "launch", to: "pricing" },
+        { from: "launch", to: "audience" },
+        { from: "audience", to: "trial" },
+      ],
+    };
+    const name = await openSample(page, state);
+    await usePm(page);
+    await page.getByRole("button", { name: "Design", exact: true }).click();
+    await page.getByRole("button", { name: layout, exact: true }).click();
+    await page.keyboard.press("Escape");
+    const target = await middle(box(page, "Audience"));
+    const child = box(page, "Free trial");
+    const before = await child.boundingBox();
+    await dragTo(page, box(page, "Pricing"), target.x, target.y);
+    const marker = page.locator("#rubber .attach-box");
+    await expect(marker).toBeVisible();
+    const hint = await marker.boundingBox();
+    expect(hint!.y).toBeGreaterThan(before!.y + before!.height);
+    expect(await child.boundingBox()).toEqual(before);
+    await page.screenshot({
+      path: test.info().outputPath("child-drop-marker.png"),
+    });
+    await page.mouse.up();
+    await expect
+      .poll(async () => {
+        const saved = await (
+          await page.request.get(`${server.origin}/${name}/api/state`)
+        ).json();
+        return saved.edges.some(
+          (edge: { from: string; to: string }) =>
+            edge.from === "audience" && edge.to === "pricing",
+        );
+      })
+      .toBe(true);
+    await expect
+      .poll(
+        async () =>
+          (await middle(box(page, "Pricing"))).y - (await middle(child)).y,
+      )
+      .toBeGreaterThan(0);
+  });
+}
+
 test("PM vertical drops reorder siblings and keep their line labels", async ({
   page,
 }) => {
