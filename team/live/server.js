@@ -298,7 +298,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     const hidden = hiddenFor(who);
     if (!hidden.size) return false;
     const group = a.type === 'designmap' && a.id ? numberingGroupOf(state, a.id)?.ids || [] : [];
-    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into, ...group].filter((x) => typeof x === 'string');
+    const boxes = a.type === 'designbox' && Array.isArray(a.ids) ? a.ids : [];
+    const ids = [a.id, a.node, a.from, a.to, a.about, a.parent, a.into, ...group, ...boxes].filter((x) => typeof x === 'string');
     return ids.some((id) => { const n = nodeOf(id); return n && hidden.has(String(repoOf(state, n))); });
   };
   /** Where an Action's work on a box happens: on a system map, the box's repo; elsewhere the map's own folder (null). @param {any} n @param {string} by @param {boolean} build */

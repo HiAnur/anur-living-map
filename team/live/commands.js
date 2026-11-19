@@ -64,7 +64,7 @@ export const COMMANDS = /** @type {const} */ ({
   move: { id: 'id?', moves: 'array?', x: 'number?', y: 'number?', view: 'string?' },
   reparent: { id: 'id?', ids: 'array?', parent: 'id', view: 'string?', parents: 'array?', parentsById: 'object?', moves: 'array?' },
   designmap: { id: 'id?', field: 'string', value: 'string' },
-  designbox: { id: 'id', field: 'string', value: 'string' },
+  designbox: { id: 'id?', ids: 'array?', field: 'string', value: 'string' },
   resize: { id: 'id', x: 'number', y: 'number', w: 'text?', h: 'text?' },
   connect: { from: 'id', to: 'id', label: 'text?', out: 'any?', in: 'any?', view: 'string?' },
   relabel: { from: 'id', to: 'id', label: 'text?', view: 'string?' },
@@ -94,6 +94,7 @@ export const COMMANDS = /** @type {const} */ ({
 const ALSO = {
   move: (a) => Array.isArray(a.moves) || (a.id != null && KINDS.number(a.x) && KINDS.number(a.y)) ? null : 'move needs moves, or id with x and y.',
   remove: (a) => Array.isArray(a.ids) || a.id != null ? null : 'remove needs id or ids.',
+  designbox: (a) => Array.isArray(a.ids) || a.id != null ? null : 'designbox needs id or ids.',
   reparent: (a) => Array.isArray(a.ids) || a.id != null ? null : 'reparent needs id or ids.',
 };
 

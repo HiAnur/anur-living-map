@@ -4,6 +4,123 @@ import { box, openSample, SAMPLE, useTeamServer } from "./team-map.harness.ts";
 
 useTeamServer();
 
+for (const view of ["Engineer", "PM"]) {
+  test(`applies and clears designs on three selected boxes in ${view}`, async ({
+    page,
+  }) => {
+    await openSample(page, {
+      ...SAMPLE,
+      nodes: SAMPLE.nodes.map((node, i) =>
+        i === 0
+          ? node
+          : {
+              ...node,
+              x: 300,
+              y: (i - 2) * 100,
+              design: [
+                {},
+                { flag: "red" },
+                { progress: "0" },
+                { align: "top" },
+              ][i],
+            },
+      ),
+      edges: SAMPLE.nodes
+        .slice(1)
+        .map((node) => ({ from: "launch", to: node.id })),
+    });
+    await page.getByRole("button", { name: "Design", exact: true }).click();
+    const panel = page.getByRole("complementary", { name: "Design" });
+    if (view === "PM")
+      await panel.getByRole("button", { name: "Right", exact: true }).click();
+    const topics = page.locator('#nodes .node:not([data-id="launch"])');
+    const bounds = await topics.evaluateAll((nodes) => {
+      const rects = nodes.map((node) => node.getBoundingClientRect());
+      return {
+        left: Math.min(...rects.map((r) => r.left)) - 12,
+        top: Math.min(...rects.map((r) => r.top)) - 12,
+        right: Math.max(...rects.map((r) => r.right)) + 12,
+        bottom: Math.max(...rects.map((r) => r.bottom)) + 12,
+      };
+    });
+    await page.mouse.move(bounds.left, bounds.top);
+    await page.mouse.down();
+    await page.mouse.move(bounds.right, bounds.bottom, { steps: 12 });
+    await page.mouse.up();
+    await expect(page.locator("#nodes .node.sel")).toHaveCount(3);
+    await expect(panel.getByText("3 boxes", { exact: true })).toBeVisible();
+    for (const name of ["Flag", "Progress", "Vertical alignment"]) {
+      await expect(
+        panel
+          .getByRole("group", { name, exact: true })
+          .locator('[aria-pressed="true"]'),
+      ).toHaveCount(0);
+    }
+
+    await panel.getByRole("button", { name: "Green flag" }).click();
+    await expect(topics.getByRole("img", { name: "green flag" })).toHaveCount(
+      3,
+    );
+    await expect(
+      panel.getByRole("button", { name: "Green flag" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await panel
+      .getByRole("button", { name: "50% progress", exact: true })
+      .click();
+    await expect(
+      topics.getByRole("img", { name: "50% progress", exact: true }),
+    ).toHaveCount(3);
+    await panel.getByRole("button", { name: "Bottom align" }).click();
+    await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
+      3,
+    );
+    await expect(box(page, "Launch plan").locator(".design-mark")).toHaveCount(
+      0,
+    );
+    await page.screenshot({
+      path: test.info().outputPath("three-selected.png"),
+    });
+
+    await panel.getByRole("button", { name: "Clear flag" }).click();
+    await expect(topics.locator(".design-mark.flag")).toHaveCount(0);
+    await expect(
+      panel.getByRole("button", { name: "Clear flag" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await panel.getByRole("button", { name: "Clear progress" }).click();
+    await expect(topics.locator(".design-mark.progress")).toHaveCount(0);
+    await expect(
+      panel.getByRole("button", { name: "Clear progress" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(
+      topics.getByRole("img", { name: "50% progress", exact: true }),
+    ).toHaveCount(3);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(topics.getByRole("img", { name: "green flag" })).toHaveCount(
+      3,
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
+      0,
+    );
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
+      3,
+    );
+
+    await page.reload();
+    await expect(topics.getByRole("img", { name: "green flag" })).toHaveCount(
+      3,
+    );
+    await expect(
+      topics.getByRole("img", { name: "50% progress", exact: true }),
+    ).toHaveCount(3);
+    await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
+      3,
+    );
+  });
+}
+
 test("designs a map and its selected boxes, with changes saved on reload", async ({
   page,
 }) => {
