@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Main box selection in PM view</strong></dt>
+<dd>
+
+In PM view, clicking the main box now highlights it in blue, including inside an expanded map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/592 --> <!-- merged-at: 2026-11-19T01:23:10Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Maps follow your chosen sort order</strong></dt>
 <dd>
 
