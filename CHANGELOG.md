@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Collapse PM branches</strong></dt>
+<dd>
+
+Click the minus beside a topic to hide its branch, then click the count of its immediate children to show it again. Only topics with child branches show a minus, and collapsed branches stay after a refresh. <!-- source: https://github.com/HiAnur/anur-living-map/pull/610 --> <!-- merged-at: 2026-11-19T22:53:15Z -->
+
+<img src="docs/shipping/2026-11-19/pm-branch-collapse.jpg" alt="A sample Reading map shows minus buttons beside Categories and Books, with a straight line connecting them and Books branching into Industry Related and Personal Growth." width="700">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Open Share without signing in again</strong></dt>
 <dd>
 
@@ -12,14 +23,6 @@ Copy your link or check its current permission right away. Living Map asks you t
 </dl>
 
 <dl>
-<dt><strong>✨ [New feature] Collapse PM branches</strong></dt>
-<dd>
-
-Click the minus beside a topic to hide its branch, then click the count to show it again. Your collapsed branches stay after a refresh. <!-- source: https://github.com/HiAnur/anur-living-map/pull/603 --> <!-- merged-at: 2026-11-19T20:34:55Z -->
-
-<img src="docs/shipping/2026-11-19/pm-branch-collapse.jpg" alt="A sample Reading map shows minus buttons beside Categories and Books, with a straight line connecting them and Books branching into Industry Related and Personal Growth." width="700">
-
-</dd>
 <dt><strong>Straight connections to PM topics</strong></dt>
 <dd>
 
