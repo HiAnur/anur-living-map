@@ -2347,6 +2347,7 @@ function hubbed(n){
 // when only they show. It picks a start box drawn as the circle without opening its card, so Delete and the arrow keys
 // work from it; a circle standing for the level is no box to pick
 function tapHub(n){
+  if (mindOn()){ pick(n); return; }
   clearTimeout(tapTimer); nameSession++;
   selected = n.virtual ? null : n.id; pickedLine = null; delAsk = null; keyboardSelection = true;
   setLevel(hubLevel(shownLevel(), maxLevel(), !!S.drawing));
@@ -3405,6 +3406,11 @@ function renderChat(){
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
 let designPanelHtml = '';
+function designBoxes(){
+  if (flowBox() || diagramBox()) return [];
+  const boxes = (group.size > 1 ? [...group] : selected ? [selected] : []).map((id) => nodeById(id));
+  return boxes.every((n) => n && !locked(n) && !n.virtual && !n.proposed) ? boxes : [];
+}
 function renderDesign(){
   const panel = $('design'), open = railTab === 'design';
   panel.hidden = !open;
@@ -3413,18 +3419,18 @@ function renderDesign(){
   designRail().setAttribute('aria-expanded', String(open));
   if (!open) return;
   const available = !READ_ONLY && !FILE && !PREVIEW;
-  const box = selected && group.size <= 1 && nodeById(selected);
-  const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
+  const targets = designBoxes(), target = targets.length === 1 ? targets[0] : null;
   const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
-  const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
+  const designs = targets.map((n) => savedDesign(n.design, ['align', 'flag', 'progress']));
+  const matches = (field, value) => designs.length > 0 && designs.every((design) => (design[field] || (field === 'align' ? 'center' : '')) === value);
   const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
   const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
   const choice = (field, value, label, icon, active, visible = '') =>
     `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
   const align = BOX_ALIGNMENTS.map(([value, label], i) => choice('align', value, `${label} align`,
-    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, value === (design.align || 'center'), label)).join('');
-  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), value === design.flag)).join('');
-  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
+    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, matches('align', value), label)).join('');
+  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), matches('flag', value))).join('');
+  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), matches('progress', value))).join('');
   const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
     <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
@@ -3436,11 +3442,11 @@ function renderDesign(){
         <label><span>Format</span><select id="design-format" data-design-map="format" ${available && numberGroup && numberGroup.ids.every((id) => !locked(nodeById(id))) ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
       </div>
     </section>
-    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
-      ${target ? `<div class="design-target" title="${esc(target.label)}">${esc(target.label)}</div>
-        ${!hubbed(target) || mindOn() ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
-        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', !design.flag, 'None')}</div>
-        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', !design.progress, 'None')}</div>`
+    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected ${targets.length > 1 ? 'boxes' : 'box'}</h3>
+      ${targets.length ? `<div class="design-target" title="${esc(targets.map((n) => n.label).join(', '))}">${target ? esc(target.label) : `${targets.length} boxes`}</div>
+        ${mindOn() || targets.every((n) => !hubbed(n)) ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
+        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', matches('flag', ''), 'None')}</div>
+        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', matches('progress', ''), 'None')}</div>`
       : '<p class="design-note">Select a box to change its design.</p>'}
     </section>`;
   if (html === designPanelHtml) return;
@@ -3457,7 +3463,7 @@ function closeDesign(){
   designRail().focus();
 }
 function saveDesign(type, field, value, id){
-  act(type, { field, value, ...(id ? { id } : {}) }).then((response) => {
+  act(type, { field, value, ...(Array.isArray(id) ? { ids: id } : id ? { id } : {}) }).then((response) => {
     if (!response?.ok){
       designPanelHtml = ''; renderDesign();
       if (!CLOUD){ toast('That design change could not be saved. Try again.'); refreshMap(); }
@@ -3477,7 +3483,10 @@ $('design').addEventListener('click', (e) => {
     return;
   }
   const choice = e.target.closest('[data-design-box]');
-  if (choice && selected) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, selected);
+  if (choice){
+    const boxes = designBoxes();
+    if (boxes.length) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, boxes.length === 1 ? boxes[0].id : boxes.map((n) => n.id));
+  }
 });
 document.addEventListener('keydown', (e) => {
   if (railTab !== 'design' || e.key !== 'Escape' || !e.target.closest('#design, [data-rail="design"]')) return;
@@ -4213,15 +4222,15 @@ function planMindSibling(sc, graph, roots, target, above){
   const plan = planTopicSibling({nodes, edges}, roots, target, above);
   return plan && {...plan, reorder: true, moves: plan.moves.filter((m) => m.id !== LEVEL_CENTRE)};
 }
-function mindSiblingHint(sc, ids, target, parentId, direction){
+function mindSiblingHint(sc, ids, target, parentId, direction, room = Infinity){
   const parent = sc.nodes.find((n) => n.id === parentId);
   const side = target.x < parent.x ? -1 : 1;
   const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && Math.sign(n.x-parent.x) === side && direction*(n.y-target.y) > 0)
     .sort((a, b) => direction*(a.y-b.y))[0];
   const edge = target.y + direction*HT(target)/2;
-  const h = 16, w = Math.max(96, W(target)), x = target.x-W(target)/2;
+  const h = Math.min(16, Math.max(2, room-2)), w = Math.max(96, W(target)), x = target.x-W(target)/2;
   // Center the marker in a gap, or give it its own space at the end of the branch.
-  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
+  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+Math.min(7,(room-h)/2));
   const pw = W(parent), ph = HT(parent);
   const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth, boxed:parent.mindBoxed}, {x:side < 0 ? x+w : x, y, w:0, h:0, depth:target.mindDepth});
   return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
@@ -4268,6 +4277,18 @@ function previewTopicAttach(sx, sy){
     if (vertical){ $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, target, plan.parent, sy < target.y ? -1 : 1); return; }
     const shownParent = sc.nodes.find((p) => p.id === sc.mind.parent.get(target.id));
     const direction = shownParent ? Math.sign(target.x-shownParent.x) || 1 : MIND_LAYOUT === 'left' ? -1 : 1;
+    const children = sc.nodes.filter((p) => !ids.has(p.id) && sc.mind.parent.get(p.id) === target.id && Math.sign(p.x-target.x) === direction).sort((a,b) => a.y-b.y);
+    if (children.length){
+      // Append below the whole visible branch, including its deeper topics.
+      const under = new Set(children.map((p) => p.id));
+      for (const id of under) for (const [child, parent] of sc.mind.parent) if (parent === id && !ids.has(child)) under.add(child);
+      const last = children.at(-1), bottom = Math.max(...sc.nodes.filter((p) => under.has(p.id)).map((p) => p.y+HT(p)/2));
+      const left = last.x-W(last)/2, right = left+Math.max(96,W(last));
+      const next = Math.min(...sc.nodes.filter((p) => !ids.has(p.id) && !under.has(p.id) && p.x+W(p)/2 > left && p.x-W(p)/2 < right)
+        .map((p) => p.y-HT(p)/2).filter((top) => top >= bottom));
+      $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, {...last,y:bottom-HT(last)/2}, target.id, 1, next-bottom);
+      return;
+    }
     const edgeX = target.x + direction*(W(target)/2+padding), landingX = edgeX + direction*20;
     const landing = `<path class="attach-line" d="M${edgeX} ${target.y}H${landingX}"/><rect class="attach-box" x="${direction < 0 ? landingX-W(n) : landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
     $('rubber').innerHTML = preview + targetOutline + landing;
