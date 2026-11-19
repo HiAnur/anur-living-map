@@ -47,6 +47,36 @@ export function mindView(saved) {
 const MIND_PAD = [48, 32, 12], MIND_TALL = [48, 38, 28], MIND_COL = [64, 44, 36], MIND_ROW = [0, 22, 6];
 const mindAt = (/** @type {number[]} */ list, /** @type {number} */ depth) => list[Math.min(depth, list.length - 1)];
 
+/** The single-parent tree shared by PM layout and branch folding.
+ * @param {{ nodes: any[], lines: any[], centre: string | null }} level
+ */
+export function mindTree({ nodes, lines, centre }) {
+  const parent = new Map(), via = new Map(), depth = new Map(), by = new Map(nodes.map((n) => [n.id, n]));
+  const root = centre && by.has(centre) ? centre : nodes[0]?.id;
+  /** @type {Map<string, string[]>} */
+  const kids = new Map();
+  if (!root) return { root: null, by, kids, parent, via, depth };
+  /** @type {Map<string, any[]>} */
+  const out = new Map();
+  const seen = new Set([root]), q = [root];
+  for (const e of lines) if (by.has(e.from) && by.has(e.to) && e.from !== e.to) out.set(e.from, [...(out.get(e.from) || []), e]);
+  const adopt = (/** @type {string} */ from, /** @type {string} */ to, /** @type {any} */ line) => {
+    seen.add(to); parent.set(to, from); via.set(to, line); kids.set(from, [...(kids.get(from) || []), to]); q.push(to);
+  };
+  while (q.length) {
+    const id = /** @type {string} */ (q.shift());
+    for (const e of out.get(id) || []) if (!seen.has(e.to)) adopt(id, e.to, e);
+    if (!q.length) { const loose = nodes.find((n) => !seen.has(n.id)); if (loose) adopt(root, loose.id, null); }
+  }
+  depth.set(root, 0);
+  for (const id of [...parent.keys()]) {
+    let d = 0, up = id;
+    while (parent.has(up)) { up = /** @type {string} */ (parent.get(up)); d++; }
+    depth.set(id, d);
+  }
+  return { root, by, kids, parent, via, depth };
+}
+
 /**
  * Where every topic of a level sits in the PM view. The tree is the one the Engineer view draws: lines followed out
  * from the level's centre, the first line to reach a box making it that box's child; a box no line reaches hangs off
@@ -62,27 +92,9 @@ const mindAt = (/** @type {number[]} */ list, /** @type {number} */ depth) => li
  */
 export function mindLayout({ nodes, lines, centre }, words, actionHeight = () => 0, layout = 'right', wrappedHeight = () => 0) {
   /** @type {Map<string, any>} */
-  const at = new Map(), parent = new Map(), via = new Map();
-  const by = new Map(nodes.map((n) => [n.id, n]));
-  const root = centre && by.has(centre) ? centre : nodes[0]?.id;
+  const at = new Map();
+  const { root, by, kids, parent, via, depth } = mindTree({ nodes, lines, centre });
   if (!root) return { at, parent, via };
-  /** @type {Map<string, string[]>} */
-  const kids = new Map(), out = new Map(), seen = new Set([root]), q = [root];
-  for (const e of lines) if (by.has(e.from) && by.has(e.to) && e.from !== e.to) out.set(e.from, [...(out.get(e.from) || []), e]);
-  const adopt = (/** @type {string} */ from, /** @type {string} */ to, /** @type {any} */ line) => {
-    seen.add(to); parent.set(to, from); via.set(to, line); kids.set(from, [...(kids.get(from) || []), to]); q.push(to);
-  };
-  while (q.length) {
-    const id = /** @type {string} */ (q.shift());
-    for (const e of out.get(id) || []) if (!seen.has(e.to)) adopt(id, e.to, e);
-    if (!q.length) { const loose = nodes.find((n) => !seen.has(n.id)); if (loose) adopt(root, loose.id, null); }
-  }
-  const depth = new Map([[root, 0]]);
-  for (const id of [...parent.keys()]) {
-    let d = 0, up = id;
-    while (parent.has(up)) { up = /** @type {string} */ (parent.get(up)); d++; }
-    depth.set(id, d);
-  }
   const num = (/** @type {any} */ v) => (Number.isFinite(v) ? v : 0);
   for (const [from, list] of kids) {
     const p = by.get(from);
