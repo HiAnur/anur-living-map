@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Open Share without signing in again</strong></dt>
+<dd>
+
+Copy your link or check its current permission right away. Living Map asks you to verify your account only if a change to link access requires it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/607 --> <!-- merged-at: 2026-11-19T20:57:47Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Collapse PM branches</strong></dt>
 <dd>
 
