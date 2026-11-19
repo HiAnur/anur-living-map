@@ -62,6 +62,84 @@ async function usePm(page: Page) {
   await page.getByRole("radio", { name: "PM", exact: true }).click();
 }
 
+for (const id of ["trial", "pricing", "launch"]) {
+  test(`PM wraps the full long ${id} name while typing and after saving`, async ({
+    page,
+  }) => {
+    await openSample(page);
+    await usePm(page);
+    const title =
+      "Understanding is still needed in the world of Claude and other AI tools";
+    const fits = (element: Locator) =>
+      element.evaluate(
+        (el) =>
+          el.isConnected &&
+          el.clientHeight > 0 &&
+          el.scrollWidth <= el.clientWidth + 1 &&
+          el.scrollHeight <= el.clientHeight + 1,
+      );
+    const node = page.locator(`#nodes .node[data-id="${id}"]`);
+    await node.click();
+    await page.keyboard.press("F2");
+    const editor = page.locator("#newbox textarea");
+    await editor.fill(title);
+    await expect.poll(() => fits(editor)).toBe(true);
+    await expect(editor).toHaveValue(title);
+    await page.keyboard.press("Enter");
+    const name = node.locator(".nt");
+    await expect(name).toHaveText(title);
+    await expect.poll(() => fits(name)).toBe(true);
+    await expect
+      .poll(() =>
+        name.evaluate(
+          (el) =>
+            el.isConnected &&
+            el.clientHeight >
+              parseFloat(getComputedStyle(el).lineHeight) * 1.5 &&
+            el.clientWidth <= 302,
+        ),
+      )
+      .toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`full-${id}-name.png`),
+    });
+    await page.reload();
+    await expect(name).toHaveText(title);
+    await expect.poll(() => fits(name)).toBe(true);
+  });
+}
+
+for (const parent of ["Launch plan", "Pricing"]) {
+  test(`a new PM topic under ${parent} wraps while typing`, async ({
+    page,
+  }) => {
+    await openSample(page);
+    await usePm(page);
+    await box(page, parent).click();
+    await page.keyboard.press("Tab");
+    const title =
+      "Understanding is still needed in the world of Claude and other AI tools";
+    const editor = page.locator("#newbox textarea");
+    await page.keyboard.type(title);
+    await expect(editor).toHaveValue(title);
+    const size = await editor.evaluate((el) => ({
+      clipped:
+        el.scrollHeight > el.clientHeight + 1 ||
+        el.scrollWidth > el.clientWidth + 1,
+      lines: el.clientHeight / parseFloat(getComputedStyle(el).lineHeight),
+      width: el.clientWidth,
+    }));
+    expect(size.clipped).toBe(false);
+    expect(size.lines).toBeGreaterThan(1.5);
+    expect(size.width).toBeLessThanOrEqual(332);
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#nodes .nt", { hasText: title })).toHaveText(
+      title,
+    );
+  });
+}
+
 test("PM topic names stay vertically centered while typing", async ({
   page,
 }) => {
