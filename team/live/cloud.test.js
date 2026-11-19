@@ -49,8 +49,10 @@ describe('cloud map boundary', () => {
     data.nodes[0].desc = '- maps/<name>/state.json holds each map\n- Budget < $100 & size > 2';
     data.nodes[0].sub = 'A < B & C > D';
     data.nodes[0].label = 'Plan <draft>';
+    data.nodes[0].design = { flag: 'red', person: 'blue', progress: '50' };
     data.edges[0].label = '<request>';
     data.nodes[0].inside = { nodes: [{id:'nested',label:'Nested <topic>',desc:'List<T>',x:0,y:0}],edges:[] };
+    data.nodes[0].inside.nodes[0].design = { person: 'orange' };
     expect((await call('/api/maps', {id,data,ownerKey:owner,linkKey:link,mode:'edit'},true)).status).toBe(201);
     expect((await call(`/m/${id}/api/sharing`, { person: { email: 'teammate@example.com', role: 'view' } }, true)).status).toBe(200);
     const shared = await (await call(route('api/state'))).json();
@@ -92,6 +94,22 @@ describe('cloud map boundary', () => {
     const snapshot = await (await second.call(second.route('api/state'))).json(); expect(snapshot.nodes[0].label).toBe('Changed');
     expect((await second.call(second.route('api/act'), { type: 'undo', revision: 2 })).status).toBe(200);
     expect((await (await first.call(first.route('api/state'))).json()).nodes[0].label).toBe('Parent');
+  });
+  it('keeps person, flag and progress edits through sync, restart and clearing one marker', async () => {
+    const first = await start(); await first.publish('edit');
+    let revision = 1;
+    for (const [field, value] of [['person', 'purple'], ['flag', 'green'], ['progress', '100']]) {
+      expect((await first.call(first.route('api/act'), { type:'designbox', id:'a', field, value, revision:revision++ })).status).toBe(200);
+    }
+    const expected = { person:'purple', flag:'green', progress:'100' };
+    const state = await (await first.call(first.route('api/state'))).json();
+    expect(state.nodes[0].design).toEqual(expected);
+    const synced = await first.call(first.route('api/sync'), { base:state, data:state }, true);
+    expect(synced.status).toBe(200); expect((await synced.json()).data.nodes[0].design).toEqual(expected);
+    const second = await start(first.store);
+    expect((await (await second.call(second.route('api/state'))).json()).nodes[0].design).toEqual(expected);
+    expect((await second.call(second.route('api/act'), { type:'designbox', id:'a', field:'person', value:'', revision })).status).toBe(200);
+    expect((await (await first.call(first.route('api/state'))).json()).nodes[0].design).toEqual({ flag:'green', progress:'100' });
   });
   it('blocks cross-origin edits and preserves text without treating it as markup', async () => {
     const { call, publish, route } = await start(); await publish('edit');

@@ -64,6 +64,10 @@ for (const view of ["Engineer", "PM"]) {
     await expect(
       panel.getByRole("button", { name: "Green flag" }),
     ).toHaveAttribute("aria-pressed", "true");
+    await panel.getByRole("button", { name: "Blue person" }).click();
+    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
+      3,
+    );
     await panel
       .getByRole("button", { name: "50% progress", exact: true })
       .click();
@@ -118,6 +122,19 @@ for (const view of ["Engineer", "PM"]) {
     await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
       3,
     );
+    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
+      3,
+    );
+    await topics.first().click();
+    await page.getByRole("button", { name: "Design", exact: true }).click();
+    await panel.getByRole("button", { name: "Clear person" }).click();
+    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
+      2,
+    );
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
+      3,
+    );
   });
 }
 
@@ -157,6 +174,10 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await expect(pricing).toHaveAttribute("data-align", "top");
   await panel.getByRole("button", { name: "Green flag" }).click();
   await expect(pricing.getByRole("img", { name: "green flag" })).toBeVisible();
+  await panel.getByRole("button", { name: "Orange person" }).click();
+  await expect(
+    pricing.getByRole("img", { name: "orange person" }),
+  ).toBeVisible();
   await panel.getByRole("button", { name: "62.5% progress" }).click();
   await expect(
     pricing.getByRole("img", { name: "62.5% progress" }),
@@ -189,6 +210,9 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await page.reload();
   await expect(pricing.locator(".nt")).toHaveText("I. Pricing");
   await expect(pricing).toHaveAttribute("data-align", "top");
+  await expect(
+    pricing.getByRole("img", { name: "orange person" }),
+  ).toBeVisible();
   await expect(
     pricing.getByRole("img", { name: "62.5% progress" }),
   ).toBeVisible();
