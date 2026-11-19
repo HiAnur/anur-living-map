@@ -52,7 +52,7 @@ describe('adding topics in the PM view', () => {
       document: { querySelector: () => null, body: { classList: { toggle() {} } } }, localStorage: { getItem: () => 'pm', setItem() {} },
       $: () => ({ querySelector: () => null }), topicTitle: (/** @type {{label: string}} */ n) => n.label, designWidth: () => 0, wraps: new Map(), ruler: { measureText: (/** @type {string} */ t) => ({ width: t.length * 8 }) },
       getComputedStyle: () => ({ getPropertyValue: () => '' }),
-      locked: () => false, pmActionStatus,
+      locked: () => false, pmActionStatus, nameLines: () => 1,
     });
     vm.runInContext(`${html.slice(start, end)}\nthis.scope = mindScope;`, ctx);
     return ctx;
@@ -228,5 +228,16 @@ describe('the five mind map layouts', () => {
       expect(side(-1), layout).toEqual(left);
     }
     expect(mindLayoutChoice('unknown')).toBe('right');
+  });
+
+  it('keeps wrapped topics and their descendants clear of nearby branches in every direction', () => {
+    for (const [layout] of MIND_LAYOUTS) {
+      const { at } = mindLayout(graph, words, undefined, layout, () => 60);
+      expect(at.get('root')).toMatchObject({ h: 108, boxed: false });
+      expect(at.get('child')).toMatchObject({ h: 88, boxed: false });
+      const all = [...at.values()];
+      for (const [i, p] of all.entries()) for (const q of all.slice(i + 1))
+        expect(Math.abs(p.x - q.x) * 2 < p.w + q.w && Math.abs(p.y - q.y) * 2 < p.h + q.h, layout).toBe(false);
+    }
   });
 });

@@ -56,10 +56,11 @@ const mindAt = (/** @type {number[]} */ list, /** @type {number} */ depth) => li
  * @param {(n: any, depth: number) => number} words how wide a topic's name is, at its depth, in map pixels
  * @param {(n: any) => number} [actionHeight] an Action’s height after wrapping its title, or zero for information
  * @param {string} [layout] the branches' direction and reading order
+ * @param {(n: any, depth: number) => number} [wrappedHeight] extra height for a topic's title beyond its first line
  * @returns {{ at: Map<string, { x: number, y: number, w: number, h: number, depth: number, boxed: boolean }>, parent: Map<string, string>, via: Map<string, any> }}
  *   `via` is the line that made each topic its parent's child
  */
-export function mindLayout({ nodes, lines, centre }, words, actionHeight = () => 0, layout = 'right') {
+export function mindLayout({ nodes, lines, centre }, words, actionHeight = () => 0, layout = 'right', wrappedHeight = () => 0) {
   /** @type {Map<string, any>} */
   const at = new Map(), parent = new Map(), via = new Map();
   const by = new Map(nodes.map((n) => [n.id, n]));
@@ -94,7 +95,7 @@ export function mindLayout({ nodes, lines, centre }, words, actionHeight = () =>
   const size = new Map(nodes.filter((n) => depth.has(n.id)).map((n) => {
     const d = /** @type {number} */ (depth.get(n.id));
     const h = actionHeight(n);
-    return [n.id, { w: Math.ceil(words(n, d)) + (h ? 26 : mindAt(MIND_PAD, d)), h: h || mindAt(MIND_TALL, d), depth: d, boxed: h > 0 }];
+    return [n.id, { w: Math.ceil(words(n, d)) + (h ? 26 : mindAt(MIND_PAD, d)), h: h || mindAt(MIND_TALL, d) + wrappedHeight(n, d), depth: d, boxed: h > 0 }];
   }));
   // The ready Action's Execute button sits below it. Its siblings leave room for that existing control.
   const gapOf = (/** @type {string[]} */ list) => list.length ? Math.max(mindAt(MIND_ROW, size.get(list[0]).depth), list.some((id) => size.get(id).boxed && by.get(id).action?.stage === 'ready') ? 36 : 0) : 0;
