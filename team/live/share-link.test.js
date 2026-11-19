@@ -17,18 +17,16 @@ function harness(sharing = {}) {
   vm.runInContext(source, ctx);
   return { ctx, copied, calls };
 }
-it('creates a view link on first copy and excludes unrelated page parameters', async () => {
-  const h = harness(); await h.ctx.copyMapLink();
-  expect(h.calls).toEqual([['api/sharing', { mode: 'view', publish: false }]]);
-  expect(h.copied).toEqual(['http://localhost:4323/example/?share=test-token&view=engineer']);
+it('leaves the clipboard and map untouched when only a local address exists', async () => {
+  for (const sharing of [{}, { mode: 'edit', token: 'old-local' }]){
+    const h = harness(sharing); await h.ctx.copyMapLink();
+    expect(h.calls).toEqual([]); expect(h.copied).toEqual([]);
+  }
 });
-it('copies an existing edit link without changing its permission', async () => {
-  const h = harness({ mode: 'edit', token: 'edit-token' }); await h.ctx.copyMapLink();
-  expect(h.calls).toEqual([]); expect(h.copied[0]).toContain('?share=edit-token');
-});
-it('does not copy a broken address if link creation fails', async () => {
-  const h = harness(); h.ctx.fetch = async () => ({ ok: false }); await h.ctx.copyMapLink();
-  expect(h.copied).toEqual([]);
+it('copies the cloud guest link with the current view and no unrelated parameters', async () => {
+  const h = harness(); h.ctx.CLOUD = true; h.ctx.LINK = 'guest-key';
+  h.ctx.location.origin = 'https://maps.example'; await h.ctx.copyMapLink();
+  expect(h.copied).toEqual(['https://maps.example/example/?share=guest-key&view=engineer']);
 });
 
 it('publishes an existing local link and copies the cloud address', async () => {
@@ -93,7 +91,7 @@ it('never copies a local address after confirming an online upload', async () =>
 const statusContext={ sharingLocation };
 it('labels storage truthfully before upload, online, and with a revoked link',()=>{
   const label=(s,o)=>statusContext.sharingLocation(s,o).label;
-  expect(label({configured:true,published:false})).toBe('Only this Mac can open this link');
+  expect(label({configured:true,published:false})).toBe('Stored on this Mac');
   expect(label(null)).toBe('Checking sharing status…');
   expect(label({published:false},{uploading:true})).toBe('Uploading to cloud…');
   expect(label({published:true,mode:'view',error:'Offline'})).toBe('Shared online');
@@ -103,11 +101,11 @@ it('labels storage truthfully before upload, online, and with a revoked link',()
 });
 it('says plainly who can open a map kept on this Mac, and offers Publish online only where it can happen',()=>{
   const where=(s,o)=>sharingLocation(s,o);
-  expect(where({configured:false,published:false},{owner:true})).toMatchObject({publish:false,detail:'This map runs on this Mac, so its link opens only here. To share it with someone else, send it as a file.'});
+  expect(where({configured:false,published:false},{owner:true})).toMatchObject({publish:false,detail:'You can download this map and send it as a file.'});
   expect(where({configured:true,published:false},{owner:true})).toMatchObject({publish:true});
-  expect(where({configured:true,published:false},{owner:true}).detail).toContain('publish it online');
+  expect(where({configured:true,published:false},{owner:true}).detail).toContain('upload this map to Google Cloud');
   expect(where({configured:true,published:false})).toMatchObject({publish:false});
-  expect(where({configured:true,published:false}).detail).toContain('ask an owner to publish it online');
+  expect(where({configured:true,published:false}).detail).toContain('Ask the owner');
 });
 
 it('confirms online deletion, can cancel, and keeps failures retryable', async () => {
