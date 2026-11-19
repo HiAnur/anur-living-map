@@ -292,7 +292,7 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 .node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:pre-wrap;overflow:visible}
 .node.mind-root.sel{outline-offset:2px}
 .node.mind-pending{pointer-events:none}
-body.mind-view #tidyb,body.mind-view #pins{display:none}
+body.mind-view #tidyb,body.mind-view #pins,body.mind-view #tools [data-tool="box"],body.mind-view #tools [data-tool="arrow"],body.mind-view #tools .drawing-divider{display:none}
 /* the account menu's choice of how maps are drawn */
 .pm-view{display:flex;align-items:center;gap:8px;margin-top:4px;padding:8px;border-top:1px solid var(--rule)}
 .pm-view > span{flex:1;font-size:12.5px;color:var(--text-2)}
@@ -1174,10 +1174,10 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select (⌘ V)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg><kbd class="tk">⌘ V</kbd></span>
   <span class="tb" data-tool="hand" title="Pan: drag the map (⌘ H)"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg><kbd class="tk">⌘ H</kbd></span>
-  <i class="tdiv"></i>
+  <i class="tdiv drawing-divider"></i>
   <span class="tb" data-tool="box" title="Box: drag one out (⌘ R)"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">⌘ R</kbd></span>
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (⌘ A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">⌘ A</kbd></span>
-  <i class="tdiv"></i>
+  <i class="tdiv drawing-divider"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (⌘ C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">⌘ C</kbd></span>
   <i class="tdiv"></i>
   <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
