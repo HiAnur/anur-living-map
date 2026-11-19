@@ -38,6 +38,7 @@ export function shareRoutes({ getState, cloud, save, push, cursors, clients, vie
     if (!who || req.headers.origin !== `http://${req.headers.host}` || !req.headers['content-type']?.startsWith('application/json')) return deny();
     let a = await jsonBody(req, undefined);
     if (role !== 'owner' || !['view','edit','restricted'].includes(a?.mode)) return deny();
+    if (a.publish === true && !cloud?.status().configured) { res.writeHead(409, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'Cloud sharing is unavailable.' })); return true; }
     if (cloud?.status().configured && (a.publish === true || cloud.status().published)) {
       // the online copy is the whole map, for anyone with its link: a private repo's contents never go there
       if (holdsPrivate()) { res.writeHead(409, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'This system map holds private repos, so it can\'t go online: its link would show their contents to anyone.' })); return true; }
