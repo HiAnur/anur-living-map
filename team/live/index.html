@@ -4208,15 +4208,15 @@ function planMindSibling(sc, graph, roots, target, above){
   const plan = planTopicSibling({nodes, edges}, roots, target, above);
   return plan && {...plan, reorder: true, moves: plan.moves.filter((m) => m.id !== LEVEL_CENTRE)};
 }
-function mindSiblingHint(sc, ids, target, parentId, direction){
+function mindSiblingHint(sc, ids, target, parentId, direction, room = Infinity){
   const parent = sc.nodes.find((n) => n.id === parentId);
   const side = target.x < parent.x ? -1 : 1;
   const neighbor = sc.nodes.filter((n) => !ids.has(n.id) && sc.mind.parent.get(n.id) === parentId && Math.sign(n.x-parent.x) === side && direction*(n.y-target.y) > 0)
     .sort((a, b) => direction*(a.y-b.y))[0];
   const edge = target.y + direction*HT(target)/2;
-  const h = 16, w = Math.max(96, W(target)), x = target.x-W(target)/2;
+  const h = Math.min(16, Math.max(2, room-2)), w = Math.max(96, W(target)), x = target.x-W(target)/2;
   // Center the marker in a gap, or give it its own space at the end of the branch.
-  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+7);
+  const y = neighbor ? (edge + neighbor.y - direction*HT(neighbor)/2)/2 : edge + direction*(h/2+Math.min(7,(room-h)/2));
   const pw = W(parent), ph = HT(parent);
   const line = mindBranch({x:parent.x, y:parent.y, w:pw, h:ph, depth:parent.mindDepth, boxed:parent.mindBoxed}, {x:side < 0 ? x+w : x, y, w:0, h:0, depth:target.mindDepth});
   return `<rect class="attach-target" x="${parent.x-pw/2-4}" y="${parent.y-ph/2-4}" width="${pw+8}" height="${ph+8}" rx="${parent.mindDepth === 0 ? ph/2+4 : 8}"/><path class="attach-line" d="${line}"/><rect class="attach-box mind-drop-slot" x="${x}" y="${y-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`;
@@ -4263,6 +4263,18 @@ function previewTopicAttach(sx, sy){
     if (vertical){ $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, target, plan.parent, sy < target.y ? -1 : 1); return; }
     const shownParent = sc.nodes.find((p) => p.id === sc.mind.parent.get(target.id));
     const direction = shownParent ? Math.sign(target.x-shownParent.x) || 1 : MIND_LAYOUT === 'left' ? -1 : 1;
+    const children = sc.nodes.filter((p) => !ids.has(p.id) && sc.mind.parent.get(p.id) === target.id && Math.sign(p.x-target.x) === direction).sort((a,b) => a.y-b.y);
+    if (children.length){
+      // Append below the whole visible branch, including its deeper topics.
+      const under = new Set(children.map((p) => p.id));
+      for (const id of under) for (const [child, parent] of sc.mind.parent) if (parent === id && !ids.has(child)) under.add(child);
+      const last = children.at(-1), bottom = Math.max(...sc.nodes.filter((p) => under.has(p.id)).map((p) => p.y+HT(p)/2));
+      const left = last.x-W(last)/2, right = left+Math.max(96,W(last));
+      const next = Math.min(...sc.nodes.filter((p) => !ids.has(p.id) && !under.has(p.id) && p.x+W(p)/2 > left && p.x-W(p)/2 < right)
+        .map((p) => p.y-HT(p)/2).filter((top) => top >= bottom));
+      $('rubber').innerHTML = preview + mindSiblingHint(sc, ids, {...last,y:bottom-HT(last)/2}, target.id, 1, next-bottom);
+      return;
+    }
     const edgeX = target.x + direction*(W(target)/2+padding), landingX = edgeX + direction*20;
     const landing = `<path class="attach-line" d="M${edgeX} ${target.y}H${landingX}"/><rect class="attach-box" x="${direction < 0 ? landingX-W(n) : landingX}" y="${target.y-HT(n)/2}" width="${W(n)}" height="${HT(n)}" rx="6"/>`;
     $('rubber').innerHTML = preview + targetOutline + landing;
