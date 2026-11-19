@@ -3683,13 +3683,30 @@ function cursorPoint(x, y){
   const base = mindPos.get(anchor);
   return { x: Math.round(x - (base?.x || 0)), y: Math.round(y - (base?.y || 0)), view: cursorView(), anchor };
 }
+const cursorElements = new Map();
 function renderCursors(){
   clearTimeout(expireCursors);
-  const now = Date.now();
-  const expires = Object.values(cursors).map((c) => c.at + 15000 - now).filter((ms) => ms > 0);
-  if (expires.length) expireCursors = setTimeout(renderCursors, Math.min(...expires) + 1);
-  $('curs').innerHTML = Object.entries(cursors).filter(([who, c]) => (c.name || who !== ME) && c.view === cursorView() && (!c.anchor || mindPos.has(c.anchor)) && now - c.at < 15000)
-    .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x + (mindPos.get(c.anchor)?.x || 0)}px,${c.y + (mindPos.get(c.anchor)?.y || 0)}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${pcol(c.name || who)}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag" style="background:${pcol(c.name || who)}">${esc(c.name || who)}</span></div>`).join('');
+  const now = Date.now(), visible = new Set();
+  let nextExpiry = Infinity;
+  for (const [id, c] of Object.entries(cursors)){
+    const remaining = c.at + 15000 - now, base = mindPos.get(c.anchor);
+    if (remaining <= 0 || (!c.name && id === ME) || c.view !== cursorView() || (c.anchor && !base)) continue;
+    let el = cursorElements.get(id);
+    if (!el){
+      const name = c.name || id;
+      const colors = ['blue','purple','green','orange','indigo'];
+      const hash = Array.from(name).reduce((n, letter) => (31 * n + letter.charCodeAt(0)) >>> 0, 0);
+      const color = Object.hasOwn(PCOL, name) ? PCOL[name] : 'var(--flag-' + colors[hash % colors.length] + ')';
+      el = document.createElement('div'); el.className = 'cur'; el.style.color = color;
+      el.innerHTML = '<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="currentColor" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag"></span>';
+      const tag = el.lastElementChild; tag.textContent = name; tag.style.background = color;
+      $('curs').append(el); cursorElements.set(id, el);
+    }
+    el.style.transform = `translate(${c.x + (base?.x || 0)}px,${c.y + (base?.y || 0)}px)`;
+    visible.add(id); nextExpiry = Math.min(nextExpiry, remaining);
+  }
+  for (const [id, el] of cursorElements) if (!visible.has(id)){ el.remove(); cursorElements.delete(id); }
+  if (visible.size) expireCursors = setTimeout(renderCursors, nextExpiry + 1);
 }
 
 /* comments */
@@ -4473,7 +4490,7 @@ canvas.addEventListener('pointerdown', (e) => {
   else { const [sx, sy] = toStage(e.clientX, e.clientY); marquee = { x0: sx, y0: sy, x1: sx, y1: sy }; }
   canvas.setPointerCapture(e.pointerId);
 });
-let lastCur = 0, pointerKey = '', pointerSending = false, newestPointer;
+let lastCur = 0, trailingPointer, pendingPosition, pointerKey = '', pointerSending = false, newestPointer;
 async function sendPointer(value){
   if (FILE || PREVIEW) return;
   if (!CLOUD){ if (!READ_ONLY) act('cursor', value); return; }
@@ -4491,7 +4508,12 @@ async function sendPointer(value){
 }
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
-  if (Date.now() - lastCur > 50){ lastCur = Date.now(); sendPointer(cursorPoint(sx, sy)); }
+  pendingPosition = [sx, sy];
+  if (!trailingPointer){
+    const flush = () => { trailingPointer = null; lastCur = Date.now(); sendPointer(cursorPoint(...pendingPosition)); };
+    const wait = 50 - (Date.now() - lastCur);
+    if (wait <= 0) flush(); else trailingPointer = setTimeout(flush, wait);
+  }
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
     if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
     drawRubber(); return; }
@@ -4620,7 +4642,7 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; pickedLine = null; render(); } }
 });
-canvas.addEventListener('pointerleave', () => sendPointer({ x: null }));
+canvas.addEventListener('pointerleave', () => { clearTimeout(trailingPointer); trailingPointer = null; sendPointer({ x: null }); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){

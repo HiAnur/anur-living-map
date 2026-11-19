@@ -262,12 +262,28 @@ test("the owner shares view and edit links, with people shown only while they ar
 
   // The owner and a view-only visitor can point at the map without changing its contents.
   await share.locator("[data-close-share]").click();
+  await visitor.getByRole("button", { name: "Zoom in" }).click();
   await expect(async () => {
     await box(visitor, "Pricing").hover();
     await expect(
       page.locator("#curs .tag").filter({ hasText: /^Guest / }),
     ).toBeVisible({ timeout: 600 });
   }).toPass({ timeout: 6000 });
+  await expect
+    .poll(async () => {
+      const node = await box(page, "Pricing").boundingBox();
+      const tip = await page.locator("#curs .cur svg").first().boundingBox();
+      return node && tip
+        ? Math.hypot(
+            tip.x - node.x - node.width / 2,
+            tip.y - node.y - node.height / 2,
+          )
+        : Infinity;
+    })
+    .toBeLessThan(8);
+  await page.screenshot({
+    path: test.info().outputPath("shared-pm-cursor.png"),
+  });
   await expect(async () => {
     await box(page, "Pricing").hover();
     await expect(
