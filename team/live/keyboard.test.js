@@ -34,6 +34,7 @@ function harness(pm = false){
     act:async(type,a)=>({ok:true,json:async()=>({id:type==='add'?a.label.toLowerCase():a.id})}),
   });
   ctx.canvas.querySelectorAll=()=>[];
+  ctx.pmFolded=new Set();ctx.activeFolds=()=>vm.runInContext('mindOn()',ctx)?ctx.pmFolded:ctx.folded;
   // the page's sizes, looked up each time, so a test that changes them changes what the layout sees
   Object.assign(ctx, layoutFor({ W:(n)=>ctx.W(n), HT:(n)=>ctx.HT(n) }));
   vm.runInContext(source,ctx);
@@ -67,15 +68,20 @@ describe('keyboard brainstorming',()=>{
     expect(h.ctx.folded.has('child')).toBe(true);
     expect(h.ctx.folded.has('other')).toBe(true);
   });
-  it('shows all saved folded topics in PM without a badge, restoring folds in Engineer',()=>{
+  it('shows a PM collapse button without inheriting saved Engineer folds',()=>{
     const h=harness(true);
     h.ctx.S.nodes.push({id:'child',label:'Child',x:210,y:0},{id:'grandchild',label:'Grandchild',x:420,y:0});
     h.ctx.S.edges.push({from:'root',to:'child'},{from:'child',to:'grandchild'});h.ctx.folded.add('child');
-    const start=html.indexOf('function foldButton('),end=html.indexOf('\n}',start)+2;
+    const start=html.indexOf('function foldSide('),end=html.indexOf('\n}',html.indexOf('function foldButton('))+2;
+    h.ctx.esc=s=>s;
     vm.runInContext(html.slice(start,end),h.ctx);
     expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child','grandchild']);
     expect(h.ctx.fold.hides.size).toBe(0);
-    expect(h.ctx.foldButton(h.ctx.nodeById('child'),{})).toBe('');
+    expect(h.ctx.foldButton(h.ctx.nodeById('child'),{})).toContain('aria-label="Collapse Child"');
+    h.ctx.pmFolded.add('child');
+    expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child']);
+    expect(h.ctx.foldButton(h.ctx.shown(h.ctx.nodeById('child')),{})).toContain('aria-label="Expand Child: show 1 hidden topic"');
+    h.ctx.pmFolded.clear();
     vm.runInContext("VIEW_MODE = 'engineer'",h.ctx);
     expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child']);
     expect(h.ctx.fold.hides.get('child')).toEqual(['grandchild']);
@@ -94,7 +100,7 @@ describe('keyboard brainstorming',()=>{
       h.edit('Tab');await h.ctx.naming.link.id;
       const nodes=h.ctx.scope().nodes;
       expect(nodes,`visible topics after Tab ${i}`).toHaveLength(i+1);
-      expect(nodes.map(n=>n.y)).toEqual(nodes.map(()=>0));
+      expect(nodes.map(n=>n.y+(n.mindDepth>=2?n.mindH/2:0))).toEqual(nodes.map(()=>0));
       expect(h.ctx.fold.hides.size).toBe(0);
     }
   });
@@ -130,11 +136,12 @@ describe('keyboard brainstorming',()=>{
     const h=harness(true);h.ctx.cam={x:120,y:710,z:1};
     h.ctx.S.nodes.push({id:'branch',label:'Branch',x:210,y:0},{id:'leaf',label:'Leaf',x:420,y:0});
     h.ctx.S.edges.push({from:'root',to:'branch'},{from:'branch',to:'leaf'});h.ctx.selected='leaf';h.ctx.render();
+    const y=h.ctx.shown(h.ctx.nodeById('leaf')).y;
     for(let i=0;i<10;i++){
       if(i===0)h.key('Tab');else h.edit('Tab');
       expect(h.ctx.cam.y).toBe(710);
       const at=h.ctx.editor(h.ctx.naming);
-      expect(at.y*h.ctx.cam.z+h.ctx.cam.y).toBe(710);
+      expect(at.y*h.ctx.cam.z+h.ctx.cam.y).toBe(710+y);
       const style=h.ctx.$('newbox').style;
       expect(Number.parseFloat(style.width)).toBe(at.mindW);
       expect(Number.parseFloat(style.height)).toBe(at.mindH);

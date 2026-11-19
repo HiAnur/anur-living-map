@@ -99,28 +99,32 @@ export function mindLayout({ nodes, lines, centre }, words, actionHeight = () =>
   }));
   // The ready Action's Execute button sits below it. Its siblings leave room for that existing control.
   const gapOf = (/** @type {string[]} */ list) => list.length ? Math.max(mindAt(MIND_ROW, size.get(list[0]).depth), list.some((id) => size.get(id).boxed && by.get(id).action?.stage === 'ready') ? 36 : 0) : 0;
-  // how tall each topic's branch is: the topic itself, or its children stacked with a gap between them
+  // A boxed topic joins at its middle; words join at their underline. Measure around that join so mixed
+  // branches stay aligned without letting a taller title or an Action overlap its siblings.
   /** @type {Map<string, number>} */
-  const tall = new Map();
+  const tall = new Map(), join = new Map(), childrenTop = new Map();
   const tallOf = (/** @type {string} */ id) => tall.get(id) || 0;
+  const offsetOf = (/** @type {any} */ s) => s.depth >= 2 && !s.boxed ? s.h / 2 : 0;
+  /** @type {(id: string) => number} */
   const measure = (/** @type {string} */ id) => {
-    const list = kids.get(id) || [], gap = gapOf(list);
+    const s = size.get(id), list = kids.get(id) || [], gap = gapOf(list);
     const under = list.reduce((s, k) => s + measure(k), 0) + gap * Math.max(0, list.length - 1);
-    const t = Math.max(size.get(id).h, under);
-    tall.set(id, t); return t;
+    const above = s.h / 2 + offsetOf(s), below = s.h - above;
+    const last = list[list.length - 1];
+    const middle = list.length ? (join.get(list[0]) + under - tallOf(last) + join.get(last)) / 2 : above;
+    const top = Math.min(0, middle - above), t = Math.max(under, middle + below) - top;
+    tall.set(id, t); join.set(id, middle - top); childrenTop.set(id, -top); return t;
   };
   measure(root);
   const place = (/** @type {string} */ id, /** @type {number} */ left, /** @type {number} */ top, direction = 1) => {
     const s = size.get(id), list = kids.get(id) || [];
     const x = left + direction * s.w / 2;
-    let y = top + tallOf(id) / 2;
+    const y = top + join.get(id) - offsetOf(s);
     if (list.length) {
       const gap = gapOf(list);
-      const under = list.reduce((sum, k) => sum + tallOf(k), 0) + gap * (list.length - 1);
-      let t = top + (tallOf(id) - under) / 2;
+      let t = top + childrenTop.get(id);
       const next = left + direction * (s.w + mindAt(MIND_COL, s.depth));
       for (const k of list) { place(k, next, t, direction); t += tallOf(k) + gap; }
-      y = (at.get(list[0]).y + at.get(list[list.length - 1]).y) / 2;
     }
     at.set(id, { x: Math.round(x), y: Math.round(y), ...s });
   };
