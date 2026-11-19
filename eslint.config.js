@@ -36,6 +36,7 @@ export default defineConfig([
   },
   {
     files: [
+      ".github/agent-tools/**/*.ts",
       "server/**/*.ts",
       "eval/**/*.ts",
       "ledger/**/*.ts",

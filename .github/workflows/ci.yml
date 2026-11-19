@@ -10,6 +10,11 @@ on:
       - docs/shipping/**
   pull_request:
 
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
 jobs:
   app:
     runs-on: ubuntu-latest
@@ -19,19 +24,33 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      # Protected branches require an up-to-date PR. A push only verifies that
+      # its merged code is exactly what that PR's full checks already tested.
+      - name: Verify the merged PR's checks
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .github/agent-tools/verified-pr.ts "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_REF_NAME"
       # the husky hook is for local commits; CI runs the same checks directly
-      - run: npm ci --ignore-scripts
-      - run: npm run check
+      - if: github.event_name == 'pull_request'
+        run: npm ci --ignore-scripts
+      - if: github.event_name == 'pull_request'
+        run: npm run check
       # the tests again, failing when the ledger's coverage drops under its floor
-      - run: npm run coverage
-      - run: npm run build
+      - if: github.event_name == 'pull_request'
+        run: npm run coverage
+      - if: github.event_name == 'pull_request'
+        run: npm run build
       # the map's screen in a real browser, on the fixture map
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:ui
+      - if: github.event_name == 'pull_request'
+        run: npx playwright install --with-deps chromium
+      - if: github.event_name == 'pull_request'
+        run: npm run test:ui
       # the agent docs (AGENTS.md, CLAUDE.md, skills) still match the code
-      - run: python3 .github/agent-docs/check.py .
+      - if: github.event_name == 'pull_request'
+        run: python3 .github/agent-docs/check.py .
 
-  # Every push to dev that passes the checks becomes a dev build, tagged
+  # Every push to dev whose PR checks are verified becomes a dev build, tagged
   # dev-<major.minor from package.json>.<run number>: copies on the dev
   # channel (team/live/channel.js) update to it. Customers' copies follow
   # main, which holds only what is ready; a push there runs the checks, and
