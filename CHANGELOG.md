@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Maps follow your chosen sort order</strong></dt>
+<dd>
+
+Choose **Time** on the home page to sort all map types by last changed, or **Name** for A to Z. Pinned maps stay first. <!-- source: https://github.com/HiAnur/anur-living-map/pull/583 --> <!-- merged-at: 2026-11-19T01:09:02Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>Full topic names in PM view</strong></dt>
 <dd>
 
