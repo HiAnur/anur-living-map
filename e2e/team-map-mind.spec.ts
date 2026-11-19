@@ -271,9 +271,12 @@ for (const layout of ["Right", "Left"]) {
         );
       })
       .toBe(true);
-    expect((await middle(box(page, "Pricing"))).y).toBeGreaterThan(
-      (await middle(child)).y,
-    );
+    await expect
+      .poll(
+        async () =>
+          (await middle(box(page, "Pricing"))).y - (await middle(child)).y,
+      )
+      .toBeGreaterThan(0);
   });
 }
 
