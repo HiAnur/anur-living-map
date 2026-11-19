@@ -98,10 +98,20 @@ describe('the PM view layout', () => {
     expect(left('a1')).toBe(left('a2'));
   });
 
-  it('keeps the Engineer view order, top to bottom, and centres a parent on its children', () => {
+  it('keeps the Engineer view order and centres a parent on its children\'s line joins', () => {
     expect(at.get('a').y).toBeLessThan(at.get('b').y);
     expect(at.get('a1').y).toBeLessThan(at.get('a2').y);
-    expect(at.get('a').y).toBe(Math.round((at.get('a1').y + at.get('a2').y) / 2));
+    expect(at.get('a').y).toBe(Math.round((at.get('a1').y + at.get('a1').h / 2 + at.get('a2').y + at.get('a2').h / 2) / 2));
+  });
+
+  it.each(['right', 'left', 'balanced'])('keeps a single child\'s underline level with its boxed parent (%s)', (layout) => {
+    const graph = { centre:'root', nodes:[box('root'),box('categories'),box('books'),box('industry'),box('growth')],
+      lines:[{from:'root',to:'categories'},{from:'categories',to:'books'},{from:'books',to:'industry'},{from:'books',to:'growth'}] };
+    const { at } = mindLayout(graph, words, undefined, layout);
+    const categories = /** @type {any} */ (at.get('categories')), books = /** @type {any} */ (at.get('books'));
+    expect(categories.y).toBe(books.y + books.h / 2);
+    const line = mindBranch(categories, books), ys = [...line.matchAll(/-?\d+(?:\.\d+)?/g)].map(([n]) => Number(n)).slice(1, 8).filter((_, i) => i % 2 === 0);
+    expect(ys).toEqual(ys.map(() => categories.y));
   });
 
   it('sizes the start as a pill, main topics as boxes and deeper topics as words on a line', () => {

@@ -411,12 +411,15 @@ body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
 .node .fold{position:absolute;z-index:2;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid var(--box-line);color:var(--text-2);font:500 11px/16px var(--plex);text-align:center;cursor:pointer;opacity:0;transition:opacity .15s}
 .node:hover .fold,.node .fold.shut{opacity:1}
 .node .fold:hover{border-color:var(--text-2);color:var(--text)}
+.node .fold:focus-visible{opacity:1;outline:2px solid var(--new);outline-offset:2px}
 .node .fold.shut{background:#141413;border-color:#141413;color:#fff}
 .node .fold.shut:hover{background:#3d3c39}
 .node .fold.r{right:-10px;top:50%;margin-top:-9px}
 .node .fold.l{left:-10px;top:50%;margin-top:-9px}
 .node .fold.b{bottom:-10px;left:50%;margin-left:-9px}
 .node .fold.t{top:-10px;left:50%;margin-left:-9px}
+body.mind-view .node .fold{opacity:1;border-color:var(--text-2)}
+body.mind-view .node.mind-leaf:not(.mind-action) .fold{top:100%}
 .node.new .expand{border-color:var(--new);color:var(--new)}
 /* who the box waits on: their name as a pill in their colour, top-right */
 .node .mk.p{left:auto;right:8px;top:-10px;width:auto;height:18px;line-height:16px;padding:0 8px;border-radius:999px;border:1px solid #fff;font-size:10.5px;letter-spacing:.02em;box-shadow:0 1px 3px rgba(0,0,0,.15)}
@@ -1685,14 +1688,18 @@ function setViewMode(mode){
    A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
    What you fold is yours alone: this browser keeps it for this map. */
 const FOLD_KEY = `lm.folded:${location.pathname}`;
+const PM_FOLD_KEY = `lm.pm-folded:${location.pathname}`;
 let folded = new Set();
 try { folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch {}
-const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); } catch {} };
+let pmFolded = new Set();
+try { pmFolded = new Set(JSON.parse(localStorage.getItem(PM_FOLD_KEY) || '[]')); } catch {}
+const activeFolds = () => mindOn() ? pmFolded : folded;
+const saveFolds = () => { try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); localStorage.setItem(PM_FOLD_KEY, JSON.stringify([...pmFolded])); } catch {} };
 // each box's children, and for each folded box the boxes it hides, as of the last drawing
 let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
 function unfolded({ nodes, edges, lines = edges, centre = null }){
-  // PM always shows the whole branch; keep saved folds for the Engineer view.
-  const collapsed = mindOn() ? new Set() : folded;
+  // Each view remembers its own branches, so existing Engineer folds do not hide PM topics.
+  const collapsed = activeFolds();
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
   // a box's children are what the tree hangs under it, a person under the repo they use among them
   for (const e of lines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
@@ -1718,7 +1725,7 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
 }
 const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
 // a box you go to (from a question, a search) comes out from under whatever folded it away
-const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ folded.delete(f); out = true; } if (out) saveFolds(); return out; };
+const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ activeFolds().delete(f); out = true; } if (out) saveFolds(); return out; };
 let searchOpen = false, searchMatches = [], searchIndex = 0;
 function closeMapSearch(){
   searchOpen = false; $('search-popover').hidden = true;
@@ -1775,13 +1782,15 @@ document.addEventListener('keydown', (e) => {
   }
 }, true);
 function toggleFold(id){
-  if (mindOn()) return;
-  if (folded.has(id)) folded.delete(id); else folded.add(id);
+  const focused = document.activeElement?.dataset.fold === id;
+  const collapsed = activeFolds();
+  if (collapsed.has(id)) collapsed.delete(id); else collapsed.add(id);
   saveFolds(); scope();
   // folding away the box you had open closes it, rather than unfolding again at once
   if (foldedAway(selected)) selected = null;
   if (foldedAway(lit)) lit = null;
   render();
+  if (focused) [...nodesEl.querySelectorAll('[data-fold]')].find((el) => el.dataset.fold === id)?.focus({ preventScroll: true });
 }
 /* Level − + at the bottom of the map: level 0 shows only where the map starts, 1 the boxes right off it as well, 2 one
    ring further, and so on; + at the deepest shows every box. A level folds every box at that level that has boxes under it. */
@@ -1810,16 +1819,17 @@ document.addEventListener('click', (e) => { const b = e.target.closest('[data-le
 // the side of a box its fold button sits on: the side its boxes hang from; null for a box with nothing under it
 function foldSide(n, at){
   const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return null;
+  if (mindOn()) return n.x < (mindPos.get(fold.start)?.x ?? 0) ? 'l' : 'r';
   const ks = kids.map((k) => at[k] || nodeById(k)).filter(Boolean); if (!ks.length) return null;
   const dx = ks.reduce((s, k) => s + k.x, 0) / ks.length - n.x, dy = ks.reduce((s, k) => s + k.y, 0) / ks.length - n.y;
   const side = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'b' : 't');
   return side === 'b' && n.inside ? 'r' : side;
 }
 function foldButton(n, at){
-  if (mindOn()) return '';
   const side = foldSide(n, at); if (!side) return '';
-  const shut = folded.has(n.id), hid = fold.hides.get(n.id)?.length || 0;
-  return `<span class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${n.id}" title="${shut ? `Unfold: show the ${hid} box${hid === 1 ? '' : 'es'} under ${esc(n.label)}` : `Fold: hide the boxes under ${esc(n.label)}`}">${shut ? hid || '+' : '−'}</span>`;
+  const shut = activeFolds().has(n.id), hid = fold.hides.get(n.id)?.length || 0;
+  const label = shut ? `Expand ${n.label}: show ${hid} hidden topic${hid === 1 ? '' : 's'}` : `Collapse ${n.label}`;
+  return `<button type="button" class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${esc(n.id)}" aria-label="${esc(label)}" aria-expanded="${!shut}" title="${esc(label)}">${shut ? hid || '+' : '−'}</button>`;
 }
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
 // and dashed where Apply will put them. Only you see them; Apply makes them everyone's, Not now takes them away.
@@ -3906,7 +3916,7 @@ function topicDraft(n, child){
   const children = graph.edges.filter((e) => e.from === graph.key(parent?.id)).map((e) => graph.nodes.find((b) => b.id === e.to)).filter((b) => b && (b.x >= parent.x) === right).sort((a,b) => a.y-b.y);
   const x = child ? children[0]?.x ?? current.x + (right ? 1 : -1) * (W(current) / 2 + 140) : current.x;
   const at = { x, y:current.y, link:parent, after:child ? null : n.id, keyboard:true, text:'Sub-topic', returnTo:n.id, returnTopic:n, view };
-  if (!mindOn() && parent?.id && typeof parent.id === 'string'){ folded.delete(parent.id); saveFolds(); }
+  if (parent?.id && typeof parent.id === 'string'){ activeFolds().delete(parent.id); saveFolds(); }
   updateTopicLayout(at); askName(at);
 }
 function keepEditorVisible(at, width, height){
@@ -4341,6 +4351,7 @@ function marqueeHits(m){
 }
 // a right-button drag moves the map, from anywhere on it, whatever the tool; the browser's own menu stays shut on the map
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+canvas.addEventListener('click', (e) => { const button = e.target.closest('[data-fold]'); if (button) toggleFold(button.dataset.fold); });
 canvas.addEventListener('pointerdown', (e) => {
   if (e.button === 2){ moved = true; panning = { x: e.clientX - cam.x, y: e.clientY - cam.y }; canvas.classList.add('grabbing'); try { canvas.setPointerCapture(e.pointerId); } catch {} return; }
   const pin = e.target.closest('.pinc');
@@ -4352,7 +4363,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const ex = e.target.closest('.expand');
   if (ex){ if (ex.dataset.dgx) openDiagram(ex.dataset.dgx); else enter(ex.dataset.expand); return; }
   const fo = e.target.closest('.fold');
-  if (fo){ toggleFold(fo.dataset.fold); return; }
+  if (fo) return;
   // picking a line with the Select tool (a click on a line picks it, a second click lets go)
   const cd = tool === 'select' && !READ_ONLY && !PREVIEW && e.target.closest('[data-cd]');
   if (cd){ const n = nodeById(cd.closest('.node').dataset.id); if (n && !locked(n)){ const [sx, sy] = toStage(e.clientX, e.clientY);
@@ -4538,7 +4549,7 @@ canvas.addEventListener('pointerup', (e) => {
       const reorder = plan.reorder || (d.mind && roots.every((id) => { const before = plan.parentsById?.[id] || plan.parents; return before.length === 1 && before[0] === plan.parent; }));
       if (all && !reorder) all.edges = [...all.edges.filter((e) => !roots.includes(e.to)),...roots.map((id) => ({from:plan.parent,to:id}))];
       if (d.mind) mindPos.delete(d.n.id);
-      folded.delete(plan.parent); saveFolds(); selected = d.n.id; keyboardSelection = true; render();
+      activeFolds().delete(plan.parent); saveFolds(); selected = d.n.id; keyboardSelection = true; render();
       const save = reorder ? act('move',{moves:plan.moves}) : act('reparent',{id:roots[0],...plan,view});
       save.then(async (r) => { if (!r?.ok){ await refreshMap(); toast('That branch changed. Please try the move again.'); } });
       return;
