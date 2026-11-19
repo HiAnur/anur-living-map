@@ -46,7 +46,7 @@ describe('double click topic editing',()=>{
 function pointerHarness({zoom=1,proposed=false,many=false}={}){
   const h=harness(),handlers={},calls=[],renders=[],node={id:'child',label:'Child',x:210,y:0};
   Object.assign(h.ctx,{
-    tool:'select',view:'flow:test',group:new Set(many?['child','sibling']:[]),spaceDown:false,
+    tool:'select',view:'flow:test',CLOUD:false,cursorPoint:(x,y)=>({x,y,view:'flow:test'}),group:new Set(many?['child','sibling']:[]),spaceDown:false,
     nodeById:()=>node,proposedBox:()=>node,toStage:(x,y)=>[x/zoom,y/zoom],
     render:()=>renders.push('render'),act:(...args)=>calls.push(args),
     moveTopicDrag(){h.ctx.moved=true;renders.push('drag');},
@@ -66,7 +66,7 @@ describe('click movement tolerance',()=>{
       const h=pointerHarness({zoom,proposed,many});
       h.move(100,100);h.move(102,102);h.move(104,100);h.up();
       expect(h.ctx.selected).toBe('child');expect(h.ctx.moved).toBe(false);
-      expect(h.renders).toEqual([]);expect(h.calls).toEqual([]);
+      expect(h.renders).toEqual([]);expect(h.calls.filter(([type])=>type!=='cursor')).toEqual([]);
     }
   });
   it('starts a drag beyond four screen pixels and keeps dragging when the pointer returns',()=>{
