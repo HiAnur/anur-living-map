@@ -178,6 +178,46 @@ test("the owner shares view and edit links, with people shown only while they ar
   expect(shared.href).toBe(status.url);
   expect(status.url).not.toContain("example.com");
 
+  // A remembered owner can inspect permissions and copy the link after verification expires.
+  await oldWindow.route("**/api/cloud", async (route) => {
+    const response = await route.fetch();
+    const cloud = await response.json();
+    await route.fulfill({
+      json: { ...cloud, google: { ready: false, needs: "signin" } },
+    });
+  });
+  let attempts = 0;
+  await oldWindow.route("**/api/sharing", async (route) => {
+    attempts++;
+    await route.fulfill({
+      status: 401,
+      json: { needs: "signin", error: "Verify your account." },
+    });
+  });
+  const oldShare = oldWindow.locator("#share");
+  const signIn = oldShare.getByRole("link", { name: "Sign in with Google" });
+  const permission = oldShare.getByRole("button", {
+    name: "Anyone with the link can view",
+  });
+  await oldWindow.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(permission).toBeEnabled();
+  await expect(signIn).toHaveCount(0);
+  await oldShare.getByRole("button", { name: "Copy online link" }).click();
+  await permission.click();
+  await oldShare.getByRole("menuitemradio", { name: "Can view" }).click();
+  await expect(signIn).toHaveCount(0);
+  expect(attempts).toBe(0);
+  await permission.click();
+  await oldShare.getByRole("menuitemradio", { name: "Can edit" }).click();
+  await expect(signIn).toBeVisible();
+  expect(attempts).toBe(1);
+  await expect(permission).toBeEnabled();
+  await oldShare.locator("[data-close-share]").click();
+  await oldWindow.getByRole("button", { name: "Share", exact: true }).click();
+  await expect(permission).toBeEnabled();
+  await expect(signIn).toHaveCount(0);
+  await oldShare.locator("[data-close-share]").click();
+
   // A recipient opens the copied link directly, with no Google account or email invitation.
   const guest = await browser.newContext();
   const visitor = await guest.newPage();
