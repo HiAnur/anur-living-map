@@ -20,6 +20,7 @@
     "paths": { "@shared/*": ["./shared/*"] }
   },
   "include": [
+    ".github/agent-tools/*.ts",
     "web",
     "shared",
     "server",

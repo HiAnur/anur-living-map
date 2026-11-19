@@ -553,9 +553,7 @@ const pinIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3
 function ordered(maps, sortBy){
   return [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
     : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
-    // system maps stay at the top, whichever way the list is sorted
-    .sort((a, b) => Number(!!b.system) - Number(!!a.system))
-    // and the maps you pinned stay above those
+    // only maps you pinned take priority over the chosen sort order
     .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
 }
 function list(){
