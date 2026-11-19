@@ -3,6 +3,15 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>Full topic names in PM view</strong></dt>
+<dd>
+
+Long topic names wrap in full while you type and after saving, with room between branches. <!-- source: https://github.com/HiAnur/anur-living-map/pull/577 --> <!-- merged-at: 2026-11-19T00:39:54Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Share a map in PM or Engineer view</strong></dt>
 <dd>
 
