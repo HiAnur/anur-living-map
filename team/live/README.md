@@ -122,4 +122,6 @@ Map boxes show their title without the description underneath. Hover a box to re
 
 ### Mind map layout
 
+Select one or more boxes, then open **Design → Person** to add a colored person marker. **None** clears the person marker while keeping the box's flag and progress. Person markers are saved with the map and appear in both PM and Engineer views.
+
 **Design**, first in the right-hand rail, opens the **Mindmap (Logic Map)** choices: clockwise, counterclockwise, both sides, right and left. Choosing one switches to the PM view and redraws the same topics and branches. The choice stays in this browser for this map, including after a reload. When dragging in PM, the nearest available topic shows a green drop marker before the pointer reaches it. Drops above or below a topic also work a little to either side of its title. It changes only how the map is drawn; the Engineer positions and the map’s content stay as saved.
