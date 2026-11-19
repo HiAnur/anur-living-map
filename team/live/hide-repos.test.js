@@ -85,6 +85,8 @@ describe('a real system map', () => {
   it('refuses any change to a box in a repo the person may not read', async () => {
     const map = open();
     expect((await send(map, 'Duy', { type: 'renamebox', id: 'api-users', label: 'Mine now' })).status).toBe(400);
+    expect((await send(map, 'Duy', { type: 'designbox', ids: ['system-web', 'api-users'], field: 'flag', value: 'green' })).status).toBe(400);
+    expect(allBoxesOf(map.snapshot()).every((n) => !n.design?.flag)).toBe(true);
     expect((await send(map, 'Duy', { type: 'renamebox', id: 'system-web', label: 'Website' })).status).toBe(200);
     map.close();
   });

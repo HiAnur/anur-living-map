@@ -3403,6 +3403,11 @@ function renderChat(){
    a box's name opens that box on its History tab. One panel shows beside the rail at a time; a box you open takes its place. */
 let railTab = null;
 let designPanelHtml = '';
+function designBoxes(){
+  if (flowBox() || diagramBox()) return [];
+  const boxes = (group.size > 1 ? [...group] : selected ? [selected] : []).map((id) => nodeById(id));
+  return boxes.every((n) => n && !locked(n) && !n.virtual && !n.proposed) ? boxes : [];
+}
 function renderDesign(){
   const panel = $('design'), open = railTab === 'design';
   panel.hidden = !open;
@@ -3411,18 +3416,18 @@ function renderDesign(){
   designRail().setAttribute('aria-expanded', String(open));
   if (!open) return;
   const available = !READ_ONLY && !FILE && !PREVIEW;
-  const box = selected && group.size <= 1 && nodeById(selected);
-  const target = box && !locked(box) && !flowBox() && !diagramBox() ? box : null;
+  const targets = designBoxes(), target = targets.length === 1 ? targets[0] : null;
   const numberGroup = target && numberingGroup(scope().nodes, fold.parents, target.id, view);
-  const design = savedDesign(target?.design, ['align', 'flag', 'progress']);
+  const designs = targets.map((n) => savedDesign(n.design, ['align', 'flag', 'progress']));
+  const matches = (field, value) => designs.length > 0 && designs.every((design) => (design[field] || (field === 'align' ? 'center' : '')) === value);
   const format = numberGroup ? numberingFormat(S.numbering, numberGroup.key, fold.depth.get(target.id) || 0) : 'none';
   const options = (items, value) => items.map(([key, text]) => `<option value="${key}"${key === value ? ' selected' : ''}>${text}</option>`).join('');
   const choice = (field, value, label, icon, active, visible = '') =>
     `<button type="button" id="design-${field}-${value || 'clear'}" data-design-box="${field}" data-value="${value}" aria-pressed="${active}" aria-label="${label}" title="${label}" ${available ? '' : 'disabled'}>${icon}${visible}</button>`;
   const align = BOX_ALIGNMENTS.map(([value, label], i) => choice('align', value, `${label} align`,
-    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, value === (design.align || 'center'), label)).join('');
-  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), value === design.flag)).join('');
-  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), value === design.progress)).join('');
+    `<svg class="align-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2h12M2 14h12M4 ${4 + i * 2}h8M6 ${6 + i * 2}h4"/></svg>`, matches('align', value), label)).join('');
+  const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), matches('flag', value))).join('');
+  const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), matches('progress', value))).join('');
   const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
     <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
@@ -3434,11 +3439,11 @@ function renderDesign(){
         <label><span>Format</span><select id="design-format" data-design-map="format" ${available && numberGroup && numberGroup.ids.every((id) => !locked(nodeById(id))) ? '' : 'disabled'}>${options(NUMBER_FORMATS, format)}</select></label>
       </div>
     </section>
-    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected box</h3>
-      ${target ? `<div class="design-target" title="${esc(target.label)}">${esc(target.label)}</div>
-        ${!hubbed(target) || mindOn() ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
-        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', !design.flag, 'None')}</div>
-        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', !design.progress, 'None')}</div>`
+    <section aria-labelledby="design-selected"><h3 id="design-selected">Selected ${targets.length > 1 ? 'boxes' : 'box'}</h3>
+      ${targets.length ? `<div class="design-target" title="${esc(targets.map((n) => n.label).join(', '))}">${target ? esc(target.label) : `${targets.length} boxes`}</div>
+        ${mindOn() || targets.every((n) => !hubbed(n)) ? `<h3 id="design-align">Vertical alignment</h3><div class="design-options" role="group" aria-labelledby="design-align">${align}</div>` : ''}
+        <h3 id="design-flag">Flag</h3><div class="design-options" role="group" aria-labelledby="design-flag">${flags}${choice('flag', '', 'Clear flag', '', matches('flag', ''), 'None')}</div>
+        <h3 id="design-progress">Progress</h3><div class="design-options" role="group" aria-labelledby="design-progress">${progress}${choice('progress', '', 'Clear progress', '', matches('progress', ''), 'None')}</div>`
       : '<p class="design-note">Select a box to change its design.</p>'}
     </section>`;
   if (html === designPanelHtml) return;
@@ -3455,7 +3460,7 @@ function closeDesign(){
   designRail().focus();
 }
 function saveDesign(type, field, value, id){
-  act(type, { field, value, ...(id ? { id } : {}) }).then((response) => {
+  act(type, { field, value, ...(Array.isArray(id) ? { ids: id } : id ? { id } : {}) }).then((response) => {
     if (!response?.ok){
       designPanelHtml = ''; renderDesign();
       if (!CLOUD){ toast('That design change could not be saved. Try again.'); refreshMap(); }
@@ -3475,7 +3480,10 @@ $('design').addEventListener('click', (e) => {
     return;
   }
   const choice = e.target.closest('[data-design-box]');
-  if (choice && selected) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, selected);
+  if (choice){
+    const boxes = designBoxes();
+    if (boxes.length) saveDesign('designbox', choice.dataset.designBox, choice.dataset.value, boxes.length === 1 ? boxes[0].id : boxes.map((n) => n.id));
+  }
 });
 document.addEventListener('keydown', (e) => {
   if (railTab !== 'design' || e.key !== 'Escape' || !e.target.closest('#design, [data-rail="design"]')) return;
