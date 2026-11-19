@@ -2594,8 +2594,8 @@ function renderShare(){
   const canManage = !CLOUD && !FILE && SIGNED_IN && S.people.some((p) => p.id === ME && p.role === 'Admin');
   const uploading = cloudPublishing && !!CLOUD_STATUS?.configured && !CLOUD_STATUS.published;
   const storage = sharingLocation(CLOUD_STATUS, {cloud:CLOUD,file:FILE,uploading,owner:canManage});
-  const copyLabel = uploading ? 'Uploading…' : CLOUD || CLOUD_STATUS?.url ? 'Copy online link'
-    : !CLOUD_STATUS || storage.publish && !LINK ? 'Copy link' : 'Copy local link';
+  const canCopy = CLOUD ? !!LINK : canManage && !LINK && !!CLOUD_STATUS?.configured;
+  const copyLabel = uploading ? 'Uploading…' : CLOUD || CLOUD_STATUS?.url ? 'Copy online link' : 'Copy link';
   const access = (p) => CLOUD || !p.role ? '' : p.role === 'Admin' ? 'owner' : p.sees && p.sees !== 'all' ? `${p.sees} only` : 'can edit';
   const ownerName = CLOUD_STATUS?.access?.owner?.name;
   // A local tab opened before a name change still carries this Mac owner's earlier name.
@@ -2608,7 +2608,7 @@ function renderShare(){
   const publish = storage.publish && !LINK ? (googleReady() ? `<button type="button" class="gb sh-delete" data-publish-online ${cloudPublishing || cloudDeleting ? 'disabled' : ''}>Publish online</button>`
     : GOOGLE && CLOUD_STATUS?.google?.needs !== 'update' ? `<a class="gb sh-delete" data-google-signin href="${esc(googleSignIn('publish'))}">Sign in with Google to publish</a>` : '') : '';
   const publishNote = storage.publish && !LINK && !googleReady() && !(GOOGLE && CLOUD_STATUS?.google?.needs !== 'update') ? googleFirst('publish online') : '';
-  $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${copyLabel}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
+  $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE && canCopy ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${copyLabel}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
       <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${publish}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(CLOUD ? `${storage.detail} You can ${READ_ONLY ? 'view' : 'edit'} it${SIGNED_IN ? ` as ${SIGNED_IN}` : ''}.` : storage.detail)}</p>${CLOUD && CLOUD_SIGNIN ? `<p>Have edit access? <a href="${esc(CLOUD_SIGNIN)}" data-cloud-signin>Sign in with Google</a></p>` : ''}${publishNote}${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
@@ -2623,11 +2623,13 @@ function renderShare(){
   if (restorePermissionFocus) document.querySelector(restorePermissionFocus)?.focus({ preventScroll: true });
 }
 function shareAddress(){
-  const url = new URL(CLOUD_STATUS?.url || location.pathname, location.origin);
-  if (!CLOUD_STATUS?.url){
-    const token = LINK || S.linkSharing?.token;
-    if (LINK || (token && ['view', 'edit'].includes(S.linkSharing?.mode))) url.searchParams.set('share', token);
-  }
+  let url;
+  if (CLOUD && LINK){
+    url = new URL(location.pathname, location.origin);
+    url.searchParams.set('share', LINK);
+  } else if (CLOUD_STATUS?.configured && CLOUD_STATUS.published && CLOUD_STATUS.url && CLOUD_STATUS.mode !== 'restricted' && (!CLOUD_STATUS.access?.owner || CLOUD_STATUS.access.linkView)){
+    url = new URL(CLOUD_STATUS.url);
+  } else return null;
   url.searchParams.set('view', VIEW_MODE);
   return url.href;
 }
@@ -2646,8 +2648,8 @@ async function copyMapLink(confirmed = false){
   cloudPublishConfirm = false;
   cloudPublishing = true; renderShare();
   try {
-    if (owner && (!S.linkSharing?.token || needsOnlineLink)){
-      const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: S.linkSharing?.mode === 'edit' ? 'edit' : 'view', publish: confirmed && !!CLOUD_STATUS?.configured }) });
+    if (needsOnlineLink && confirmed){
+      const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: S.linkSharing?.mode === 'edit' ? 'edit' : 'view', publish: true }) });
       if (!response.ok){
         const why = await response.json().catch(() => ({}));
         // Google must say who you are (again) first: Share offers the sign-in in place of Publish online
@@ -2656,10 +2658,10 @@ async function copyMapLink(confirmed = false){
       }
       const got = await response.json(); S.linkSharing = got; CLOUD_STATUS = got.cloud || CLOUD_STATUS; renderShare();
     }
-    const online = CLOUD || !!CLOUD_STATUS?.url;
-    if (confirmed && !online) throw new Error('An online link is unavailable. Open Share to check the map’s status.');
-    const copied = await copyText(shareAddress());
-    if (copied) toast(online ? uploading ? 'Uploaded to Google Cloud. Online link copied.' : 'Online link copied.' : 'Local link copied. It opens only on this Mac.');
+    const address = shareAddress();
+    if (!address) throw new Error('Cloud link unavailable. Nothing was copied.');
+    const copied = await copyText(address);
+    if (copied) toast(uploading ? 'Uploaded to Google Cloud. Online link copied.' : 'Online link copied.');
     else toast(uploading ? 'Uploaded to Google Cloud. Try Copy online link again.' : 'Could not copy the link. Try again.');
   } catch (e) { toast(e.message || 'The link could not be created. Try again.'); }
   finally { cloudPublishing = false; renderShare(); }

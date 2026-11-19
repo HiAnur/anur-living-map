@@ -131,9 +131,7 @@ test("the owner shares view and edit links, with people shown only while they ar
   ).toBeVisible();
   expect(await copied()).toBeNull();
   await confirm.getByRole("button", { name: "Keep local" }).click();
-  await expect(
-    share.getByText("Only this Mac can open this link"),
-  ).toBeVisible();
+  await expect(share.getByText("Stored on this Mac")).toBeVisible();
   expect(await copied()).toBeNull();
 
   // Once signed in, Copy link goes straight to the same upload confirmation.
