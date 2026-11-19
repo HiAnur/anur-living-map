@@ -88,13 +88,18 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     },
     /** @param {Act<'designbox'>} a */
     designbox(a) {
-      const n = nodeOf(a.id), sees = seesOf(a.by);
-      if (!n || (sees !== 'all' && n.area !== sees) || !['align', 'flag', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
-      const design = savedDesign(n.design, ['align', 'flag', 'progress']);
-      if (a.value && !(a.field === 'align' && a.value === 'center')) design[a.field] = a.value;
-      else delete design[a.field];
-      if (Object.keys(design).length) n.design = design;
-      else delete n.design;
+      const ids = Array.isArray(a.ids) ? a.ids : [a.id], sees = seesOf(a.by);
+      if (!ids.length || !['align', 'flag', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      const nodes = ids.map((id) => nodeOf(id));
+      // Check the whole selection before changing any box, so a refused edit leaves them all as they were.
+      if (nodes.some((n) => !n || (sees !== 'all' && n.area !== sees))) return false;
+      for (const n of nodes) {
+        const design = savedDesign(n.design, ['align', 'flag', 'progress']);
+        if (a.value && !(a.field === 'align' && a.value === 'center')) design[a.field] = a.value;
+        else delete design[a.field];
+        if (Object.keys(design).length) n.design = design;
+        else delete n.design;
+      }
       return true;
     },
     // a box resized from a corner: its new middle and size; a person put it there, so Tidy up keeps it
