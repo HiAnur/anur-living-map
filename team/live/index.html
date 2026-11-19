@@ -1227,7 +1227,7 @@ import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
 import { HUB_SIZE, LEVEL_CENTRE, hubHint, hubLevel, isHub, levelGraph } from './page-hub.js';
-import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindView } from './page-mind.js';
+import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindTree, mindView } from './page-mind.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1703,9 +1703,11 @@ let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
 function unfolded({ nodes, edges, lines = edges, centre = null }){
   // Each view remembers its own branches, so existing Engineer folds do not hide PM topics.
   const collapsed = activeFolds();
+  const tree = mindOn() ? mindTree({ nodes, lines, centre }) : null;
+  const branchLines = tree ? [...tree.parent].map(([to, from]) => ({ from, to })) : lines;
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
   // a box's children are what the tree hangs under it, a person under the repo they use among them
-  for (const e of lines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
+  for (const e of branchLines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
   const walk = (starts, stop = () => false) => {
     const seen = new Set(starts), q = [...starts];
     while (q.length){ const id = q.shift(); if (stop(id)) continue; for (const k of kids.get(id) || []) if (!seen.has(k)){ seen.add(k); q.push(k); } }
@@ -1716,7 +1718,7 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
   const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const { depth, parents } = numberingTree({ nodes, lines, centre });
+  const { depth, parents } = tree ? { depth: tree.depth, parents: tree.parent } : numberingTree({ nodes, lines, centre });
   // the level's start: its circle
   fold = { start: centre, kids, depth, parents, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
@@ -1818,7 +1820,7 @@ function renderLevels(){
   el.innerHTML = `<span class="lv-h">Level ${now}</span><button data-level="${now - 1}" ${now <= 0 ? 'disabled' : ''} title="One level less" aria-label="One level less">−</button><button data-level="${Math.min(now + 1, max)}" ${now >= max && !hidden ? 'disabled' : ''} title="One level more" aria-label="One level more">+</button>`;
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-level]'); if (b) setLevel(Number(b.dataset.level)); });
-// the button sits on the side a box's lines leave from: − shows on hover, a folded box shows how many it hides
+// The button sits where the children branch out. Its count is direct children, not every descendant it hides.
 // the side of a box its fold button sits on: the side its boxes hang from; null for a box with nothing under it
 function foldSide(n, at){
   const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return null;
@@ -1830,8 +1832,8 @@ function foldSide(n, at){
 }
 function foldButton(n, at){
   const side = foldSide(n, at); if (!side) return '';
-  const shut = activeFolds().has(n.id), hid = fold.hides.get(n.id)?.length || 0;
-  const label = shut ? `Expand ${n.label}: show ${hid} hidden topic${hid === 1 ? '' : 's'}` : `Collapse ${n.label}`;
+  const shut = activeFolds().has(n.id), hid = new Set(fold.kids.get(n.id) || []).size;
+  const label = shut ? `Expand ${n.label}: show ${hid} child topic${hid === 1 ? '' : 's'}` : `Collapse ${n.label}`;
   return `<button type="button" class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${esc(n.id)}" aria-label="${esc(label)}" aria-expanded="${!shut}" title="${esc(label)}">${shut ? hid || '+' : '−'}</button>`;
 }
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
