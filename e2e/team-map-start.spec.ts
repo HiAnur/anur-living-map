@@ -173,34 +173,17 @@ for (const source of ["local", "github"]) {
   });
 }
 
-test("Share says only this Mac can open the link, and offers no invite", async ({
+test("Share offers file export when a cloud link is unavailable", async ({
   page,
 }) => {
   await openSample(page);
   await page.getByRole("button", { name: "Share" }).click();
-  await expect(
-    page.getByText("Only this Mac can open this link"),
-  ).toBeVisible();
+  await expect(page.getByText("Cloud sharing unavailable")).toBeVisible();
   await expect(page.locator("#share")).toContainText("send it as a file");
   await expect(page.getByText("Send as a file", { exact: true })).toBeVisible();
   await expect(page.locator("#share input")).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Publish online" }),
   ).toHaveCount(0);
-  await page.evaluate(() => {
-    Object.defineProperty(navigator, "clipboard", {
-      value: {
-        writeText: async (text: string) =>
-          sessionStorage.setItem("copied-link", text),
-      },
-    });
-  });
-  await page.getByRole("button", { name: "Copy local link" }).click();
-  await expect(page.locator("#toast")).toHaveText(
-    "Local link copied. It opens only on this Mac.",
-  );
-  const copied = await page.evaluate(() =>
-    sessionStorage.getItem("copied-link"),
-  );
-  expect(new URL(copied!).origin).toBe(new URL(page.url()).origin);
+  await expect(page.locator("[data-copy-link]")).toHaveCount(0);
 });

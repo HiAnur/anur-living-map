@@ -9,7 +9,10 @@ export function cloudConfig() {
   try {
     const config = JSON.parse(fs.readFileSync(process.env.LIVING_MAP_CLOUD_CONFIG || path.join(DATA, 'cloud.json'), 'utf8'));
     const url = new URL(config.url);
-    if (url.protocol !== 'https:' && !(process.env.LIVING_MAP_CLOUD_TEST === '1' && ['localhost','127.0.0.1'].includes(url.hostname))) return null;
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    const loopback = host === 'localhost' || host.endsWith('.localhost') || host.startsWith('127.') || host === '[::1]';
+    const testServer = process.env.LIVING_MAP_CLOUD_TEST === '1' && ['localhost', '127.0.0.1'].includes(host) && url.protocol === 'http:';
+    if (!testServer && (url.protocol !== 'https:' || loopback)) return null;
     if (!/^[a-f0-9]{64}$/.test(config.publishKey || '')) return null;
     return { ...config, url: url.origin };
   } catch { return null; }
@@ -36,7 +39,9 @@ export function installCloudData(state, data) {
  *   config?: { url: string, publishKey: string, [more: string]: any } | null }} map
  */
 export function cloudMirror({ home, read, write, notify, config = cloudConfig() }) {
-  const file = path.join(home, 'cloud.json');
+  // An explicitly cloud-enabled preview owns separate records, even when its map folder was copied from the everyday app.
+  const records = process.env.LIVING_MAP_CLOUD_COPIES;
+  const file = records ? path.join(records, crypto.createHash('sha256').update(path.resolve(home)).digest('hex') + '.json') : path.join(home, 'cloud.json');
   /** @type {any} what cloud.json holds for this map */
   let saved; try { saved = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* not shared to the cloud yet */ }
   /** @type {Promise<void> | null} */
@@ -47,7 +52,7 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
   // Keep deletion, publication and polling in order so an in-flight sync cannot restore deleted sharing.
   /** @param {() => Promise<any>} task */
   const exclusive = (task) => { queued++; const next = pending.then(task); pending = next.catch(() => { /* the caller gets the error from `next`; the queue goes on */ }); return next.finally(() => { queued--; }); };
-  const persist = () => { if (closed) return; fs.mkdirSync(home, { recursive: true }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
+  const persist = () => { if (closed) return; fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 }); const temp = `${file}.tmp`; fs.writeFileSync(temp, JSON.stringify(saved), { mode: 0o600 }); fs.renameSync(temp, file); };
   const address = () => config && saved?.published && saved.mode !== 'restricted' ? `${config?.url}/m/${saved.id}/?share=${signedLink(saved.id, saved.linkKey, config.publishKey)}` : null;
   // `access`: who the online copy belongs to and who it is shared with, as the cloud last said; none for a copy
   // published before Google sign-in, which anyone with its link may open until this Mac claims it

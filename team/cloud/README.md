@@ -54,7 +54,7 @@ selected permission. Do not place them in public issues or deployment logs.
 
 The private file `cloud.json` in the team map's data folder (`~/.anur-living-map`, see `data-dir.js`; mode 0600) contains `url` (the service's
 HTTPS origin) and `publishKey` (64 random hex characters). `LIVING_MAP_CLOUD_CONFIG`
-can select another file. Per-map `cloud.json` keeps its private owner key and last
+can select another file. An explicitly cloud-enabled preview can set `LIVING_MAP_CLOUD_COPIES` to a private directory of its own to keep its published copies separate from the source maps. Per-map `cloud.json` keeps its private owner key and last
 synchronized graph beside `state.json`; it must never be committed or shared.
 Only local map owners can publish, change permissions, or receive sharing status.
 `cloud.json` also keeps the copy's `access` as the cloud last answered, for Share.

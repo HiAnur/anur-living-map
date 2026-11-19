@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { sealer } from '../cloud/access.js';
 import { fakeGoogle } from '../cloud/google-id.harness.js';
 import { createCloudServer } from '../cloud/server.js';
 import { mapData, mergeMap, signedLink } from './cloud-data.js';
-import { cloudMirror, installCloudData } from './cloud-client.js';
+import { cloudConfig, cloudMirror, installCloudData } from './cloud-client.js';
 
 const base = () => ({ title: 'Sample map', desc: '', nodes: [{ id: 'a', label: 'Parent', x: 0, y: 0 }, { id: 'b', label: 'Child', x: 200, y: 0 }], edges: [{ from: 'a', to: 'b' }], comments: [] });
 const publisher = '1'.repeat(64), owner = '2'.repeat(64), link = '3'.repeat(64), id = '4'.repeat(32), visitor = '5'.repeat(32);
@@ -199,4 +199,38 @@ it('asks for Google before publishing or changing access, and keeps the list the
   expect(JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home, 'cloud.json')))).access.people).toEqual({ 'teammate@example.com': 'edit' });
   await expect(mirror.remove()).rejects.toMatchObject({ needs: 'signin' });
   expect((await mirror.remove(GOOGLE)).published).toBe(false);
+});
+
+it('accepts a public HTTPS cloud address and reserves localhost for explicit tests', () => {
+  const home = fs.mkdtempSync(path.resolve('cache/cloud-config-')); homes.push(home);
+  const file = path.join(home, 'config.json');
+  const configure = (url) => fs.writeFileSync(file, JSON.stringify({ url, publishKey: publisher }));
+  try {
+    vi.stubEnv('LIVING_MAP_CLOUD_CONFIG', file); vi.stubEnv('LIVING_MAP_CLOUD_TEST', '');
+    for (const url of ['http://maps.example', 'https://localhost', 'https://branch.localhost', 'https://127.0.0.2', 'https://[::1]']) {
+      configure(url); expect(cloudConfig()).toBeNull();
+    }
+    configure('https://maps.example/'); expect(cloudConfig()?.url).toBe('https://maps.example');
+    vi.stubEnv('LIVING_MAP_CLOUD_TEST', '1'); configure('http://127.0.0.1:1234');
+    expect(cloudConfig()?.url).toBe('http://127.0.0.1:1234');
+  } finally { vi.unstubAllEnvs(); }
+});
+
+it('keeps a preview publication separate from the original map across restarts', async () => {
+  const app = await start(), home = fs.mkdtempSync(path.resolve('cache/cloud-preview-')); homes.push(home);
+  const local = base();
+  const options = { home, read: () => local, write: (data) => installCloudData(local, data), notify() {}, config: { url: app.url, publishKey: publisher } };
+  const original = cloudMirror(options); mirrors.push(original);
+  const first = await original.publish('view', GOOGLE); original.close();
+  const originalRecord = fs.readFileSync(path.join(home, 'cloud.json'), 'utf8');
+  try {
+    vi.stubEnv('LIVING_MAP_CLOUD_COPIES', path.join(home, 'preview'));
+    const preview = cloudMirror(options); mirrors.push(preview);
+    expect(preview.status().published).toBe(false);
+    const second = await preview.publish('edit', GOOGLE); preview.close();
+    expect(second.url).not.toBe(first.url);
+    const reopened = cloudMirror(options); mirrors.push(reopened);
+    expect(reopened.status().url).toBe(second.url);
+    expect(fs.readFileSync(path.join(home, 'cloud.json'), 'utf8')).toBe(originalRecord);
+  } finally { vi.unstubAllEnvs(); }
 });
