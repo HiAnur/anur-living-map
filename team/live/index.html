@@ -2532,16 +2532,19 @@ function googleFirst(what){
 const googleReady = () => !CLOUD_STATUS?.google || !!CLOUD_STATUS.google.ready;
 // Link permissions use the same control for every published copy. Existing restricted copies open by link
 // only when their owner chooses a link permission.
+let linkAccessNeedsGoogle = false;
+function currentLinkMode(online){
+  return online.linkOn !== false && (online.old || online.linkView) ? online.mode : 'restricted';
+}
 function onlinePanel(canManage){
   if (!canManage) return '';
   const online = onlineAccess(CLOUD_STATUS);
   if (!online) return '';
-  const ready = googleReady();
-  const mode = online.linkOn !== false && (online.old || online.linkView) ? online.mode : 'restricted';
-  const off = !ready || linkSaving || cloudDeleting || cloudPublishing ? 'disabled' : '';
+  const mode = currentLinkMode(online);
+  const off = linkSaving || cloudDeleting || cloudPublishing ? 'disabled' : '';
   const label = mode === 'restricted' ? 'Link sharing is off' : `Anyone with the link can ${mode}`;
   return `<div class="sh-h">Link access</div>
-    ${ready ? '' : googleFirst('change link access')}
+    ${linkAccessNeedsGoogle && !googleReady() ? googleFirst('change link access') : ''}
     <div class="sh-row"><span class="sh-who">Anyone with the link</span><div class="sh-permission">
       <button type="button" class="sh-access" data-link-menu aria-haspopup="menu" aria-expanded="${linkMenuOpen}" aria-controls="link-permission-menu" aria-label="${label}" ${off}>
         <span>${mode === 'restricted' ? 'Off' : mode === 'edit' ? 'Can edit' : 'Can view'}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
@@ -2562,7 +2565,7 @@ function renderSave(){
 // Share opens at once, then asks again where the map is kept and whether Google has said who you are, which
 // only a request from this browser can learn
 function openShare(resumePublish = false){
-  shareOpen = true; cloudPublishConfirm = false; cloudDeleteConfirm = false; renderShare();
+  shareOpen = true; linkAccessNeedsGoogle = false; cloudPublishConfirm = false; cloudDeleteConfirm = false; renderShare();
   if (CLOUD || FILE || LINK || !SIGNED_IN || !S?.people.some((p) => p.id === ME && p.role === 'Admin')) return;
   fetch('api/cloud').then((r) => r.ok ? r.json() : null).then((got) => {
     if (!got) return;
@@ -2613,12 +2616,10 @@ function renderShare(){
     .map((id) => S.people.find((p) => p.id === id) || { id });
   const canManagePerson = (p) => canManage && S.people.includes(p) && p.id !== ME && p.role !== 'Admin';
   // publishing needs Google: before it says who you are, Share offers the sign-in in place of Publish online
-  const publish = storage.publish && !LINK ? (googleReady() ? `<button type="button" class="gb sh-delete" data-publish-online ${cloudPublishing || cloudDeleting ? 'disabled' : ''}>Publish online</button>`
-    : GOOGLE && CLOUD_STATUS?.google?.needs !== 'update' ? `<a class="gb sh-delete" data-google-signin href="${esc(googleSignIn('publish'))}">Sign in with Google to publish</a>` : '') : '';
-  const publishNote = storage.publish && !LINK && !googleReady() && !(GOOGLE && CLOUD_STATUS?.google?.needs !== 'update') ? googleFirst('publish online') : '';
+  const publish = storage.publish && !LINK ? `<button type="button" class="gb sh-delete" data-publish-online ${cloudPublishing || cloudDeleting ? 'disabled' : ''}>Publish online</button>` : '';
   $('share').innerHTML = `<div class="sh-head"><b>Share this map</b>${!FILE && canCopy ? `<button type="button" class="sh-link" data-copy-link ${cloudPublishing || cloudDeleting || cloudDeleteConfirm ? 'disabled' : ''}><svg viewBox="0 0 20 20"><path d="M8.6 11.4a3 3 0 0 0 4.2 0l2.7-2.7a3 3 0 0 0-4.2-4.2l-1 1"/><path d="M11.4 8.6a3 3 0 0 0-4.2 0l-2.7 2.7a3 3 0 0 0 4.2 4.2l1-1"/></svg>${copyLabel}</button>` : ''}<span class="x" data-close-share aria-label="Close">×</span></div>
     <div class="sh-body">
-      <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${publish}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(CLOUD ? `${storage.detail} You can ${READ_ONLY ? 'view' : 'edit'} it${SIGNED_IN ? ` as ${SIGNED_IN}` : ''}.` : storage.detail)}</p>${CLOUD && CLOUD_SIGNIN ? `<p>Have edit access? <a href="${esc(CLOUD_SIGNIN)}" data-cloud-signin>Sign in with Google</a></p>` : ''}${publishNote}${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
+      <div class="sh-storage" role="status"><div class="sh-storage-head"><strong class="${storage.online ? 'online' : ''}">${esc(storage.label)}</strong>${publish}${canManage && CLOUD_STATUS?.published && !cloudDeleteConfirm ? `<button type="button" class="gb sh-delete" data-delete-cloud ${cloudPublishing || linkSaving || cloudDeleting ? 'disabled' : ''}>${cloudDeleting ? 'Deleting…' : 'Delete online copy'}</button>` : ''}</div><p>${esc(CLOUD ? `${storage.detail} You can ${READ_ONLY ? 'view' : 'edit'} it${SIGNED_IN ? ` as ${SIGNED_IN}` : ''}.` : storage.detail)}</p>${CLOUD && CLOUD_SIGNIN ? `<p>Have edit access? <a href="${esc(CLOUD_SIGNIN)}" data-cloud-signin>Sign in with Google</a></p>` : ''}${CLOUD_STATUS?.error ? `<p class="sh-sync-error">${esc(CLOUD_STATUS.error)}</p>` : ''}</div>
       <div ${cloudPublishConfirm || cloudDeleteConfirm ? 'hidden' : ''}>
       ${onlinePanel(canManage)}
       ${sharePeople.length ? '<div class="sh-h">Here now</div>' : ''}
@@ -2693,12 +2694,18 @@ async function deleteOnlineCopy(confirmed = false){
 }
 async function setLinkRole(mode){
   if (linkSaving || cloudDeleting || cloudDeleteConfirm) return;
+  const online = onlineAccess(CLOUD_STATUS);
+  linkAccessNeedsGoogle = false;
+  if (!online || mode === currentLinkMode(online)){ closeLinkMenu(); return; }
   linkMenuOpen = false; linkSaving = true; renderShare();
   try {
     const response = await fetch('api/sharing', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode }) });
     if (!response.ok){
       const why = await response.json().catch(() => ({}));
-      if (why.needs && CLOUD_STATUS) CLOUD_STATUS = { ...CLOUD_STATUS, google: { ...CLOUD_STATUS.google, ready: false, needs: why.needs } };
+      if (why.needs && CLOUD_STATUS){
+        CLOUD_STATUS = { ...CLOUD_STATUS, google: { ...CLOUD_STATUS.google, ready: false, needs: why.needs } };
+        linkAccessNeedsGoogle = true;
+      }
       throw new Error(why.error);
     }
     const got = await response.json(); S.linkSharing = got; CLOUD_STATUS = got.cloud || CLOUD_STATUS;
