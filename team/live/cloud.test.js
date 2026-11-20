@@ -106,13 +106,13 @@ describe('cloud map boundary', () => {
     expect((await second.call(second.route('api/act'), { type: 'undo', revision: 2 })).status).toBe(200);
     expect((await (await first.call(first.route('api/state'))).json()).nodes[0].label).toBe('Parent');
   });
-  it('keeps person, flag and progress edits through sync, restart and clearing one marker', async () => {
+  it('keeps person, flag, progress and priority edits through sync, restart and clearing one marker', async () => {
     const first = await start(); await first.publish('edit');
     let revision = 1;
-    for (const [field, value] of [['person', 'purple'], ['flag', 'green'], ['progress', '100']]) {
+    for (const [field, value] of [['person', 'purple'], ['flag', 'green'], ['progress', '100'], ['priority', 'medium']]) {
       expect((await first.call(first.route('api/act'), { type:'designbox', id:'a', field, value, revision:revision++ })).status).toBe(200);
     }
-    const expected = { person:'purple', flag:'green', progress:'100' };
+    const expected = { person:'purple', flag:'green', progress:'100', priority:'medium' };
     const state = await (await first.call(first.route('api/state'))).json();
     expect(state.nodes[0].design).toEqual(expected);
     const synced = await first.call(first.route('api/sync'), { base:state, data:state }, true);
@@ -120,7 +120,7 @@ describe('cloud map boundary', () => {
     const second = await start(first.store);
     expect((await (await second.call(second.route('api/state'))).json()).nodes[0].design).toEqual(expected);
     expect((await second.call(second.route('api/act'), { type:'designbox', id:'a', field:'person', value:'', revision })).status).toBe(200);
-    expect((await (await first.call(first.route('api/state'))).json()).nodes[0].design).toEqual({ flag:'green', progress:'100' });
+    expect((await (await first.call(first.route('api/state'))).json()).nodes[0].design).toEqual({ flag:'green', progress:'100', priority:'medium' });
   });
   it('blocks cross-origin edits and preserves text without treating it as markup', async () => {
     const { call, publish, route } = await start(); await publish('edit');
@@ -228,6 +228,21 @@ it('asks for Google before publishing or changing access, and keeps the list the
   expect(JSON.parse(/** @type {any} */ (fs.readFileSync(path.join(home, 'cloud.json')))).access.people).toEqual({ 'teammate@example.com': 'edit' });
   await expect(mirror.remove()).rejects.toMatchObject({ needs: 'signin' });
   expect((await mirror.remove(GOOGLE)).published).toBe(false);
+});
+
+it('adds an email to a revoked copy using a fresh private link', async () => {
+  const app = await start(), home = fs.mkdtempSync(path.resolve('cache/cloud-email-')); homes.push(home);
+  const local = base();
+  const mirror = cloudMirror({ home, read: () => local, write: (data) => installCloudData(local, data), notify() {}, config: { url: app.url, publishKey: publisher } }); mirrors.push(mirror);
+  const before = await mirror.publish('view', GOOGLE);
+  await mirror.publish('restricted', GOOGLE);
+  const shared = await mirror.share({ person: { email: 'teammate@example.com', role: 'edit' } }, GOOGLE);
+  expect(shared.url).not.toBe(before.url);
+  expect(shared.access.linkView).toBe(false);
+  expect((await fetch(before.url)).status).toBe(403);
+  expect((await fetch(shared.url)).status).toBe(401);
+  const response = await fetch(shared.url, {headers:{cookie:`lm_cloud_session=${teammate}`}});
+  expect(response.status).toBe(200);
 });
 
 it('accepts a public HTTPS cloud address and reserves localhost for explicit tests', () => {

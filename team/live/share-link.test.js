@@ -55,20 +55,15 @@ it('copies an already-published link without asking again', async () => {
   const h=harness({mode:'view',token:'local'});h.ctx.CLOUD_STATUS={configured:true,published:true,url:'https://maps.example/shared'};
   await h.ctx.copyMapLink();expect(h.ctx.cloudPublishConfirm).toBe(false);expect(h.calls).toEqual([]);expect(h.copied).toEqual(['https://maps.example/shared?view=engineer']);
 });
-it('asks before opening an existing restricted cloud copy to anyone with the link', async () => {
+it('copies a private email-access link without making it public', async () => {
   const h = harness({ mode: 'view', token: 'local' });
   h.ctx.CLOUD_STATUS = { configured: true, published: true, url: 'https://maps.example/shared', google: { ready: true },
-    access: { owner: { email: 'duy@example.com' }, linkView: false } };
+    access: { owner: { email: 'duy@example.com' }, people: { 'sam@example.com': 'edit' }, linkView: false } };
   await h.ctx.copyMapLink();
-  expect(h.ctx.cloudPublishConfirm).toBe(true);
-  expect(h.calls).toEqual([]); expect(h.copied).toEqual([]);
-  h.ctx.fetch = async (url, options) => {
-    h.calls.push([url, JSON.parse(options.body)]);
-    return { ok: true, json: async () => ({ mode: 'view', token: 'local', cloud: { configured: true, published: true, url: 'https://maps.example/shared', access: { owner: { email: 'duy@example.com' }, linkView: true } } }) };
-  };
-  await h.ctx.copyMapLink(true);
-  expect(h.calls).toEqual([['api/sharing', { mode: 'view', publish: true }]]);
+  expect(h.ctx.cloudPublishConfirm).toBe(false);
+  expect(h.calls).toEqual([]);
   expect(h.copied).toEqual(['https://maps.example/shared?view=engineer']);
+  expect(h.ctx.CLOUD_STATUS.access.linkView).toBe(false);
 });
 it('checks unknown status before asking, and never uploads on a failed check', async () => {
   const h=harness();h.ctx.CLOUD_STATUS=null;h.ctx.fetch=async ()=>{throw new Error('offline');};

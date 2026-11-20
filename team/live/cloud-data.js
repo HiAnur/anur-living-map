@@ -26,7 +26,7 @@ export function mapData(input, depth = 0) {
     for (const k of ['sub', 'desc', 'state', 'kind', 'icon', 'area']) if (k in out && !plain(out[k])) throw new Error('A box contains unsupported text.');
     for (const k of ['state','kind','icon']) if (k in out && !/^[\w -]*$/.test(out[k])) throw new Error('A box has an invalid style.');
     for (const k of ['x','y','w','h']) if (k in out && (!Number.isFinite(out[k]) || Math.abs(out[k]) > 1e7)) throw new Error('A box has an invalid size or position.');
-    const design = savedDesign(n.design, ['align', 'flag', 'person', 'progress']);
+    const design = savedDesign(n.design, ['align', 'flag', 'person', 'progress', 'priority']);
     if (Object.keys(design).length) out.design = design;
     if (n.inside) out.inside = mapData(n.inside, depth + 1);
     return out;
