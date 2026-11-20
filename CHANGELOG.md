@@ -3,6 +3,17 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Folders and notes for your maps</strong></dt>
+<dd>
+
+Organize local maps in folders, save Bookmarks, and restore deleted files from Trash. Switch between Map and Note; headings arrange boxes while paragraphs and lists stay with their box. <!-- source: https://github.com/HiAnur/anur-living-map/pull/622 --> <!-- merged-at: 2026-11-20T17:47:16Z -->
+
+<img src="docs/shipping/2026-11-20/folders-and-notes.png" alt="A sample Launch plan file shows the file sidebar and a continuous note with Company, Product, Roadmap and Team headings." width="900">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Live collaboration on shared maps</strong></dt>
 <dd>
 
