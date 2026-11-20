@@ -3,6 +3,25 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Email sharing, personal tasks and priorities</strong></dt>
+<dd>
+
+In **Share**, add people by email with **Can view** or **Can edit**, then copy the link to send them. Turn off **Anyone with the link** to limit access to the added Google accounts. <!-- source: https://github.com/HiAnur/anur-living-map/pull/628 --> <!-- merged-at: 2026-11-20T19:07:37Z -->
+
+<img src="docs/shipping/2026-11-20/email-sharing.png" alt="A sample map's Share dialog lists people by email, with editable permissions and link access turned off." width="800">
+
+**Design → Person** shows the people you added as initial icons, with names on hover. **Design → Priority** adds **One thing**, **High**, **Medium** or **Low**, shown as purple, red, yellow or blue dots. Tap a selected flag, person, progress or priority again to remove it.
+
+<img src="docs/shipping/2026-11-20/people-and-priorities.png" alt="A sample Review pricing topic shows Sam's initial and a purple priority dot beside the Design panel's named people and four priority choices." width="800">
+
+**To-do** in the right sidebar shows topics assigned to your signed-in email. Check a topic off, reopen it, or click its title to open it on the map.
+
+<img src="docs/shipping/2026-11-20/personal-todos.png" alt="The To-do sidebar on a sample map lists Write launch note for the signed-in person with a checkbox." width="800">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>✨ [New feature] Live collaboration on shared maps</strong></dt>
 <dd>
 
@@ -49,17 +68,6 @@ Copy your link or check its current permission right away. Living Map asks you t
 <dd>
 
 Single-child branches now meet topic underlines without dipping, while branches to several topics keep their curves. <!-- source: https://github.com/HiAnur/anur-living-map/pull/603 --> <!-- merged-at: 2026-11-19T20:34:55Z -->
-
-</dd>
-</dl>
-
-<dl>
-<dt><strong>✨ [New feature] Colored person icons</strong></dt>
-<dd>
-
-Select one or more boxes and open **Design → Person** to add a person icon in one of seven colors beside your flags and progress. Choose **None** to remove it. <!-- source: https://github.com/HiAnur/anur-living-map/pull/600 --> <!-- merged-at: 2026-11-19T07:04:00Z -->
-
-<img src="docs/shipping/2026-11-18/person-markers.jpg" alt="A sample Pricing box shows a green flag, blue person and 50% progress beside the Design panel's Person color choices." width="900">
 
 </dd>
 </dl>
