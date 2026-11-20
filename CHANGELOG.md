@@ -3,6 +3,19 @@
 New features and improvements to help you plan, work and share with Living Map. Update your app to get the latest changes.
 
 <dl>
+<dt><strong>✨ [New feature] Live collaboration on shared maps</strong></dt>
+<dd>
+
+Open the same online link to see edits and branch layout changes as they happen. <!-- source: https://github.com/HiAnur/anur-living-map/pull/614 --> <!-- merged-at: 2026-11-19T23:53:09Z -->
+
+Each person can pan, zoom and type independently while seeing the other person’s cursor move across the map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/620 --> <!-- merged-at: 2026-11-20T01:12:37Z -->
+
+<img src="docs/shipping/2026-11-19/cloud-collaboration.png" alt="A guest’s orange cursor points at Pricing on the shared Launch plan map." width="700">
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🧹 [Layout cleanup] A simpler PM toolbar</strong></dt>
 <dd>
 
@@ -73,7 +86,7 @@ In PM view, clicking the main box now highlights it in blue, including inside an
 <dt><strong>Clearer drop markers in PM view</strong></dt>
 <dd>
 
-PM drop markers appear below existing child branches and shrink to fit narrow gaps, keeping topic text visible while you drag. <!-- source: https://github.com/HiAnur/anur-living-map/pull/591 --> <!-- merged-at: 2026-11-19T01:22:46Z -->
+PM drop markers appear below existing child branches and shrink to fit narrow gaps, keeping topic text visible while you drag. <!-- source: https://github.com/HiAnur/anur-living-map/pull/585 --> <!-- merged-at: 2026-11-19T01:18:42Z -->
 
 </dd>
 </dl>
@@ -103,6 +116,15 @@ Select several topics and open **Design** to apply or clear flags, progress icon
 <dd>
 
 Long topic names wrap in full while you type and after saving, with room between branches. <!-- source: https://github.com/HiAnur/anur-living-map/pull/577 --> <!-- merged-at: 2026-11-19T00:39:54Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Even spacing when naming PM topics</strong></dt>
+<dd>
+
+New main topics in PM view keep their names centered vertically as you type. <!-- source: https://github.com/HiAnur/anur-living-map/pull/575 --> <!-- merged-at: 2026-11-18T22:58:59Z -->
 
 </dd>
 </dl>
@@ -255,10 +277,28 @@ In the top-right account menu, choose **Map view → PM** to draw your map as br
 </dl>
 
 <dl>
+<dt><strong>✨ [New feature] System maps draw Mac apps and websites</strong></dt>
+<dd>
+
+**Draw this repo** now reads Mac apps (their Swift package, app settings, permissions and the servers they call) and websites (their pages, what they link to and where they are published), and links them to the other repos they call or use. Test files are no longer read, so sample code from tests never shows up as part of your system. <!-- source: https://github.com/HiAnur/anur-living-map/pull/541 --> <!-- merged-at: 2026-11-14T08:33:53Z -->
+
+</dd>
+</dl>
+
+<dl>
+<dt><strong>Tidy up stays quick on large maps</strong></dt>
+<dd>
+
+**Tidy up**, and placing new boxes, now finish in about a second even on a large, tangled map, where they could freeze the map before. <!-- source: https://github.com/HiAnur/anur-living-map/pull/539 --> <!-- merged-at: 2026-11-14T07:42:30Z -->
+
+</dd>
+</dl>
+
+<dl>
 <dt><strong>🚀 [Major feature] Share a map online with people by email</strong></dt>
 <dd>
 
-**Share → Publish online** puts your map online, open even while your Mac is off, once you sign in with Google; the online copy is yours, and changes sync both ways. Add people by email as **Can view** or **Can edit**: they sign in with Google to open it, and anyone else sees that they need to ask you. **Anyone with the link can view** is off unless you turn it on, and copies you shared before keep their old link until you choose who can open them. <!-- source: https://github.com/HiAnur/anur-living-map/pull/148 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/524 --> <!-- merged-at: 2026-11-14T02:30:19Z -->
+**Share → Publish online** puts your map online, open even while your Mac is off, once you sign in with Google; the online copy is yours, and changes sync both ways. Add people by email as **Can view** or **Can edit**: they sign in with Google to open it, and anyone else sees that they need to ask you. **Anyone with the link can view** is off unless you turn it on, a map you haven't published has no link setting at all, and copies you shared before keep their old link until you choose who can open them. <!-- source: https://github.com/HiAnur/anur-living-map/pull/148 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/524 --> <!-- source: https://github.com/HiAnur/anur-living-map/pull/528 --> <!-- merged-at: 2026-11-14T02:54:42Z -->
 
 <img src="docs/shipping/2026-11-14/share-by-email.jpg" alt="A sample map's Share dialog, shared online: Duy as owner, teammate@example.com who can edit, the Anyone with the link can view switch off, and Turn off link." width="560">
 
