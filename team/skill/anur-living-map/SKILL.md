@@ -7,7 +7,7 @@ description: Opens the team's Living Map of this repo's system (boxes and lines 
 
 This skill runs the same in a Claude Code chat and a Pi chat. Where they differ (the chat's id, how the listener runs), each step says both.
 
-The map is drawn from the repo's own files by the server in `$ANUR_LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `ANUR_LIVING_MAP_HOME`, or the older `LIVING_MAP_HOME`, says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off.
+The map is drawn from the repo's own files by the server in `$ANUR_LIVING_MAP_HOME/team/live` (`~/anur-living-map` unless `ANUR_LIVING_MAP_HOME`, or the older `LIVING_MAP_HOME`, says otherwise), on port 4323. Every repo it is opened from joins the list of maps at `localhost:4323` and keeps its own map at `localhost:4323/<map name>/`, the folder's name in lowercase letters, digits and dashes (acme at `/acme/`, PiTrade at `/pitrade/`, Anur Web App at `/anur-web-app/`); opening it from another repo never takes the others off. When the Living Map app is running, its own server answers on 4323 and `open-map.sh` uses it as it is (it says `server: the Living Map app's, already running`): no clone is made, pulled or started, since the app brings its updates.
 
 ## A new map started from a prompt
 

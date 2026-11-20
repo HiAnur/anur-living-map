@@ -27,8 +27,9 @@ DATA=${ANUR_LIVING_MAP_DATA:-$HOME/.anur-living-map}
 # says which branch a tab shows (codex/fix-x on 4402 is http://codex-fix-x.localhost:4402)
 link() { local n; n=$(printf %s "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,\}/-/g; s/^-//; s/-$//' | cut -c1-50 | sed 's/-$//'); echo "http://${n:-preview}.localhost:$2"; }
 # the folder a preview server on `port` was started from, or nothing
-served_from() { ps -o command= -p "$(lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -1)" 2>/dev/null | sed -n 's#^node \(.*\)/team/live/server\.js .*#\1#p'; }
+served_from() { ps -o command= -p "$(lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -1)" 2>/dev/null | sed -n 's#^[^ ]*node \(.*\)/team/live/server\.js .*#\1#p'; }
 listening() { lsof -nP -t -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+preview_port() { [[ "$1" =~ ^[1-9][0-9]{0,4}$ ]] && [ "$1" -ge "$FIRST" ] && [ "$1" -le "$LAST" ]; }
 
 # stop previews whose worktree is gone (a session that ended, a folder deleted by hand)
 for port in $(seq "$FIRST" "$LAST"); do
@@ -55,6 +56,8 @@ P="$WT/.preview"
 branch() { git -C "$1" branch --show-current 2>/dev/null | grep . || git -C "$1" rev-parse --short HEAD 2>/dev/null || echo '?'; }
 stop_own() {
   local port; port=$(cat "$P/port" 2>/dev/null) || return 0
+  # A saved port is not permission to stop an everyday or installed test copy.
+  preview_port "$port" || return 0
   [ "$(served_from "$port")" = "$WT" ] && kill "$(lsof -nP -t -iTCP:"$port" -sTCP:LISTEN)" 2>/dev/null
   for _ in $(seq 50); do listening "$port" || break; sleep 0.1; done
 }
@@ -65,6 +68,8 @@ fi
 
 # its port: the one it kept, unless something else took it; else the first one free and kept by no other worktree
 port=$(cat "$P/port" 2>/dev/null || true)
+# Old or hand-written settings must not turn a reserved port into a preview.
+preview_port "$port" || port=""
 if [ -n "$port" ] && listening "$port" && [ "$(served_from "$port")" != "$WT" ]; then port=""; fi
 if [ -z "$port" ]; then
   kept=$(git -C "$WT" worktree list --porcelain | sed -n 's/^worktree //p' | while read -r w; do [ "$w" != "$WT" ] && cat "$w/.preview/port" 2>/dev/null; done)

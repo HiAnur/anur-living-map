@@ -2,6 +2,7 @@
 import { forgetPrerequisites, leaving } from './action-leave.js';
 import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
+import { MIND_LAYOUTS } from './page-mind.js';
 import { numberingGroupOf } from './numbering.js';
 import { savedDesign, savedNumbering, validDesignValue } from './page-design.js';
 import { tidy, tidyLevel } from './project.js';
@@ -75,6 +76,11 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     },
     /** @param {Act<'designmap'>} a */
     designmap(a) {
+      if (a.field === 'layout') {
+        if (a.id !== undefined || !MIND_LAYOUTS.some(([id]) => id === a.value)) return false;
+        getState().mindLayout = a.value;
+        return true;
+      }
       if (!['format', 'level'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
       const state = getState(), saved = savedNumbering(state.numbering);
       if (a.id !== undefined) {

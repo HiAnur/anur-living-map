@@ -105,8 +105,12 @@ test("the owner shares view and edit links, with people shown only while they ar
   await openSample(page);
   await page.locator("#peopleb").click();
   await page.getByRole("radio", { name: "PM", exact: true }).click();
+  await page.locator("#rail .ri").first().click();
+  await page
+    .getByRole("button", { name: "Counterclockwise", exact: true })
+    .click();
   const oldWindow = await page.context().newPage();
-  await openSample(oldWindow);
+  await oldWindow.goto(page.url());
   await page.getByRole("button", { name: "Share" }).click();
   const share = page.locator("#share");
 
@@ -180,7 +184,13 @@ test("the owner shares view and edit links, with people shown only while they ar
 
   // A remembered owner can inspect permissions and copy the link after verification expires.
   await oldWindow.route("**/api/cloud", async (route) => {
-    const response = await route.fetch();
+    const response = await route.fetch({
+      headers: {
+        ...route.request().headers(),
+        origin: new URL(page.url()).origin,
+        "sec-fetch-site": "same-origin",
+      },
+    });
     const cloud = await response.json();
     await route.fulfill({
       json: { ...cloud, google: { ready: false, needs: "signin" } },
@@ -225,6 +235,11 @@ test("the owner shares view and edit links, with people shown only while they ar
   await expect(visitor.locator("body")).toHaveClass(/mind-view/);
   await expect(box(visitor, "Pricing")).toBeVisible();
   await expect(visitor.locator("body")).toHaveClass(/view-only/);
+  // The owner's branch layout reaches a fresh browser, including one with a view-only link.
+  await visitor.locator("#rail .ri").first().click();
+  await expect(
+    visitor.getByRole("button", { name: "Counterclockwise", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   const editStatus = await visitor.evaluate(() =>
     fetch("api/act" + location.search, {
       method: "POST",
@@ -245,6 +260,67 @@ test("the owner shares view and edit links, with people shown only while they ar
   await expect(share.getByText(/^Guest [a-f0-9]{6}$/)).toBeVisible();
   await expect(share.getByText("Duy", { exact: true })).toHaveCount(0);
 
+  // The owner and a view-only visitor can point at the map without changing its contents.
+  await share.locator("[data-close-share]").click();
+  await visitor.getByRole("button", { name: "Zoom in" }).click();
+  await expect(async () => {
+    await box(visitor, "Pricing").hover();
+    await expect(
+      page.locator("#curs .tag").filter({ hasText: /^Guest / }),
+    ).toBeVisible({ timeout: 600 });
+  }).toPass({ timeout: 6000 });
+  await expect
+    .poll(async () => {
+      const node = await box(page, "Pricing").boundingBox();
+      const tip = await page.locator("#curs .cur svg").first().boundingBox();
+      return node && tip
+        ? Math.hypot(
+            tip.x - node.x - node.width / 2,
+            tip.y - node.y - node.height / 2,
+          )
+        : Infinity;
+    })
+    .toBeLessThan(8);
+  await page.screenshot({
+    path: test.info().outputPath("shared-pm-cursor.png"),
+  });
+  await expect(async () => {
+    await box(page, "Pricing").hover();
+    await expect(
+      visitor.locator("#curs .tag").filter({ hasText: "Owner" }),
+    ).toBeVisible({ timeout: 600 });
+  }).toPass({ timeout: 6000 });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+
+  // Reconnecting to a view link fetches the layout saved while the visitor was offline.
+  await guest.setOffline(true);
+  await share.locator("[data-close-share]").click();
+  if (
+    !(await page
+      .getByRole("button", { name: "Both sides", exact: true })
+      .isVisible())
+  ) {
+    await page.getByRole("button", { name: "Design", exact: true }).click();
+  }
+  await page.getByRole("button", { name: "Both sides", exact: true }).click();
+  await expect
+    .poll(async () => {
+      const response = await guest.request.get(
+        new URL("api/state" + shared.search, shared).href,
+      );
+      return (await response.json()).mindLayout;
+    })
+    .toBe("balanced");
+  await guest.setOffline(false);
+  await expect(
+    visitor.getByRole("button", { name: "Both sides", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Left", exact: true }).click();
+  await expect(
+    visitor.getByRole("button", { name: "Left", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true", { timeout: 2000 });
+  await page.getByRole("button", { name: "Share", exact: true }).click();
+
   // Changing link permission applies to the anonymous recipient already viewing it.
   await share
     .getByRole("button", { name: "Anyone with the link can view", exact: true })
@@ -261,23 +337,43 @@ test("the owner shares view and edit links, with people shown only while they ar
   await expect(visitor.locator("body")).not.toHaveClass(/view-only/, {
     timeout: 10000,
   });
-  const changed = await visitor.evaluate(async () => {
-    const state = await fetch("api/state" + location.search).then((r) =>
-      r.json(),
-    );
-    return fetch("api/act" + location.search, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type: "renamebox",
-        id: "pricing",
-        label: "Updated pricing",
-        revision: state.cloudRevision,
-      }),
-    }).then((r) => r.status);
-  });
-  expect(changed).toBe(200);
-  await expect(box(visitor, "Updated pricing")).toBeVisible();
+  // Both editors use the cloud link. One can keep typing while the other pans and edits.
+  const second = await browser.newPage();
+  await second.goto(publishedUrl!);
+  await box(second, "Audience").click();
+  await second.keyboard.press("F2");
+  const draft = second.locator("#newbox textarea");
+  await draft.fill("Audience draft");
+  await draft.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(2, 6));
+  const camera = () =>
+    second.locator("#stage").evaluate((el) => el.style.transform);
+  const before = await camera();
+  await box(visitor, "Pricing").hover();
+  await visitor.mouse.wheel(0, 50);
+  const arrow = second.locator("#curs .cur svg").first();
+  await expect(arrow).toBeVisible();
+  await expect
+    .poll(async () => (await arrow.boundingBox())?.width)
+    .toBeCloseTo(16);
+  await box(visitor, "Pricing").click();
+  await visitor.keyboard.press("F2");
+  await visitor.locator("#newbox textarea").fill("Updated pricing");
+  await visitor.keyboard.press("Enter");
+  await expect(box(second, "Updated pricing")).toBeVisible({ timeout: 2000 });
+  expect(await camera()).toBe(before);
+  await expect(draft).toBeFocused();
+  await expect(draft).toHaveValue("Audience draft");
+  expect(
+    await draft.evaluate((el: HTMLTextAreaElement) => [
+      el.selectionStart,
+      el.selectionEnd,
+    ]),
+  ).toEqual([2, 6]);
+  await second.keyboard.type("new");
+  await second.keyboard.press("Enter");
+  await expect(box(visitor, "Aunewce draft")).toBeVisible({ timeout: 2000 });
+  await second.close();
+  await expect(box(page, "Updated pricing")).toHaveCount(1, { timeout: 2000 });
 
   await share
     .getByRole("button", { name: "Anyone with the link can edit", exact: true })

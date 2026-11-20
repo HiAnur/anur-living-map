@@ -3,17 +3,17 @@
 CDK constructs (Class(scope, "Id", ...)) with their deployed names, handlers and settings; grants, event sources and
 policy statements; and in the code that runs, its imports of the repo's own modules, AWS clients and calls, settings
 read, URLs, and function names it invokes. Every fact says where it came from as path:line. Part of drawing a
-system map from code: system-facts-python.js runs it as `python3 -I system_facts.py <repo>` and reads the JSON.
+system map from code: system-facts.js runs it as `python3 -I system_facts.py <repo>`, hands it the repo's Python files
+on stdin (one per line, tests already left out) and reads the JSON.
 """
 import ast
 import json
 import os
 import re
-import subprocess
 import sys
 
 ROOT = os.path.abspath(sys.argv[1])
-SKIP = re.compile(r"(^|/)(tests?|\.venv|venv|node_modules|cdk\.out|__pycache__|\.git|build|dist)(/|$)")
+SKIP = re.compile(r"(^|/)(\.venv|venv|node_modules|cdk\.out|__pycache__|\.git|build|dist)(/|$)")
 facts = []
 
 
@@ -29,13 +29,8 @@ def text(node):
 
 
 def files():
-    try:
-        listed = subprocess.run(["git", "-C", ROOT, "ls-files", "*.py"], capture_output=True, text=True, timeout=60).stdout.split()
-    except Exception:
-        listed = []
-    if not listed:
-        listed = [os.path.relpath(os.path.join(d, f), ROOT) for d, _, fs in os.walk(ROOT) for f in fs if f.endswith(".py")]
-    return sorted(f for f in listed if not SKIP.search(f) and not os.path.basename(f).startswith("test_"))[:3000]
+    listed = [f for f in sys.stdin.read().split("\n") if f.endswith(".py")]
+    return sorted(f for f in listed if not SKIP.search(f))[:3000]
 
 
 PY = files()

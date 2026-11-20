@@ -74,8 +74,9 @@ service's `/exchange`; nothing else leaves it. The public service's application 
 link permissions; IAM public invocation alone never grants access to a map.
 
 Use request billing, minimum instances 0, maximum instances 1, 256 MiB memory,
-1 CPU, concurrency 20 and a 60-second timeout. Map pages poll with short requests
-rather than holding billable streaming connections open. Firestore writes use
+1 CPU, concurrency 20 and a 60-second timeout. Open maps use a billable event stream for edit notifications and temporary cursor positions.
+The local mirror connects while a map window is open. Reconnecting reads the latest saved
+revision. Periodic reads also keep older clients and disconnected streams up to date. Firestore writes use
 update-time preconditions, so concurrent requests and overlapping revisions cannot
 silently overwrite one another. A successful response follows durable storage.
 The cloud service uses no local disk for map storage.

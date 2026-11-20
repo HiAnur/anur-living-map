@@ -141,6 +141,8 @@ body.blank-repo #tidyb{display:none}
 .tbtn.ver{display:inline-flex;align-items:center;gap:6px}
 .tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
+/* inside the Mac app the pill is only the version: the app brings updates, so there is nothing to check or click */
+.tbtn.ver.app::before{display:none}
 .tbtn.ver.due{background:var(--claude);color:#fff;border-color:transparent;font-weight:600}
 .tbtn.ver.due:disabled{opacity:.75;cursor:progress}
 .tbtn.ver.no{color:var(--text-2);border-color:var(--rule-2);background:#f3f2ee}
@@ -290,7 +292,7 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 .node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:pre-wrap;overflow:visible}
 .node.mind-root.sel{outline-offset:2px}
 .node.mind-pending{pointer-events:none}
-body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs,body.mind-view #tools [data-tool="box"],body.mind-view #tools [data-tool="arrow"],body.mind-view #tools .drawing-divider{display:none}
+body.mind-view #tidyb,body.mind-view #pins,body.mind-view #tools [data-tool="box"],body.mind-view #tools [data-tool="arrow"],body.mind-view #tools .drawing-divider{display:none}
 /* the account menu's choice of how maps are drawn */
 .pm-view{display:flex;align-items:center;gap:8px;margin-top:4px;padding:8px;border-top:1px solid var(--rule)}
 .pm-view > span{flex:1;font-size:12.5px;color:var(--text-2)}
@@ -433,7 +435,10 @@ body.mind-view .node.mind-leaf:not(.mind-action) .fold{top:100%}
 .warn{position:absolute;font:500 12px/1.35 var(--plex);color:#8a6100;white-space:normal;overflow-wrap:break-word;pointer-events:none}
 .d-warn{margin:10px 0;padding:8px 10px;border:1px solid rgba(217,164,0,.55);border-radius:8px;background:#fff8e1;font:13px/1.4 var(--plex);color:var(--text)}
 .d-warn b{display:block;font-weight:500;color:#8a6100}.d-warn span{display:block;margin-top:2px;color:var(--text-2)}
-.cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
+#curs{pointer-events:none}
+#curs .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform 45ms linear;z-index:5}
+#curs .cur-mark{display:block;position:relative;transform-origin:0 0;transform:scale(calc(1 / var(--map-zoom,1)))}
+@media (prefers-reduced-motion:reduce){#curs .cur{transition:none}}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
 
 /* cards over the map */
@@ -1265,7 +1270,8 @@ function reloadWhenIdle(){
   location.reload();
 }
 function renderVer(){
-  const b = $('verb'); b.hidden = !VER || VER.latest === null; if (b.hidden) return;
+  const b = $('verb'); b.hidden = !VER || VER.latest === null && !VER.bundled; if (b.hidden) return;
+  if (VER.bundled){ b.textContent = `v${VER.version}`; b.className = 'tbtn ver ok app'; b.dataset.tip = `Living Map ${VER.version}\nUpdates come with the app`; return; }
   const line = `Living Map ${VER.version} · build ${VER.build}${VER.commit ? ` · ${VER.commit}` : ''}`;
   if (VER.latest){
     // just after an update the pill says so for a few seconds, then settles on Latest
@@ -1284,7 +1290,7 @@ async function loadVer(check){
 // the server's last answer shows at once; the fresh check (a round trip to GitHub) replaces it when it lands
 loadVer(false).then(() => loadVer(true)); setInterval(() => loadVer(false), 60_000);
 $('verb').onclick = async () => {
-  if (!VER || VER.latest) return;
+  if (!VER || VER.latest || VER.bundled) return;
   const b = $('verb'), was = VER.started;
   // each step shows on the button: the download, the restart on the new code, then the page reloads to Latest
   const fail = (why) => {
@@ -1504,6 +1510,7 @@ const place = () => {
   stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
   // Keep the dots anchored to the same map coordinates as the boxes.
   canvas.style.setProperty('--map-zoom', String(cam.z));
+  if (CLOUD && pointerScreen) schedulePointer();
   canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
   positionDeletePrompt();
   if (S && (openThread || draft)) renderComments();
@@ -1557,8 +1564,8 @@ const scope = () => {
 /* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
    never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
 const MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
-let MIND_LAYOUT = 'right';
-try { MIND_LAYOUT = mindLayoutChoice(localStorage.getItem(MIND_LAYOUT_KEY)); } catch { /* the choice still applies to this page */ }
+let MIND_LAYOUT = 'right', migrateLayout = false;
+try { const saved = localStorage.getItem(MIND_LAYOUT_KEY); MIND_LAYOUT = mindLayoutChoice(saved); migrateLayout = !!saved && !CLOUD && !SHARED && !FILE; } catch { /* the choice still applies to this page */ }
 let VIEW_MODE = 'engineer', mindPos = new Map();
 const savedMapView = document.querySelector('meta[name="lm-map-view"]');
 let browserMapView = null;
@@ -2364,6 +2371,13 @@ function tapHub(n){
 function render(){
   hideBoxHint();
   if (!S) return;
+  if (S.mindLayout) {
+    MIND_LAYOUT = mindLayoutChoice(S.mindLayout);
+    if (!CLOUD && !SHARED && !FILE && !PREVIEW && LIVE?.mindLayout) {
+      try { localStorage.removeItem(MIND_LAYOUT_KEY); } catch { /* browser storage can be unavailable */ }
+    }
+  }
+  else if (!migrateLayout && !FILE) MIND_LAYOUT = 'right';
   renderMapSearch();
   if (selected && nodeById(selected)) lastTopics.set(view, selected);
   const fb = flowBox();
@@ -3448,7 +3462,7 @@ function renderDesign(){
   const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), matches('flag', value))).join('');
   const people = BOX_PEOPLE.map((value) => choice('person', value, `${value[0].toUpperCase() + value.slice(1)} person`, personIcon(value), matches('person', value))).join('');
   const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), matches('progress', value))).join('');
-  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
+  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" ${READ_ONLY || PREVIEW ? 'disabled' : ''} aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
     <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
       <div class="design-layouts" role="group" aria-labelledby="design-layout">${layouts}</div>
@@ -3495,7 +3509,9 @@ $('design').addEventListener('click', (e) => {
   const layout = e.target.closest('[data-mind-layout]');
   if (layout){
     MIND_LAYOUT = mindLayoutChoice(layout.dataset.mindLayout);
-    try { localStorage.setItem(MIND_LAYOUT_KEY, MIND_LAYOUT); } catch { /* the choice still applies to this page */ }
+    if (READ_ONLY || PREVIEW) return;
+    S.mindLayout = MIND_LAYOUT;
+    if (!FILE) saveDesign('designmap', 'layout', MIND_LAYOUT);
     mindLevel = null;
     setViewMode('pm');
     return;
@@ -3659,9 +3675,42 @@ function renderPrs(){
     <div class="mono" style="margin-top:6px">${p.files.join(' · ')}</div></div>`).join('');
 }
 
+const cursorView = () => mindOn() ? 'pm:' + view : view;
+let expireCursors;
+function cursorPoint(x, y){
+  let anchor, nearest = Infinity;
+  if (mindOn()) for (const [id, point] of mindPos){
+    if (id === MIND_DRAFT) continue;
+    const distance = Math.hypot(x - point.x, y - point.y);
+    if (distance < nearest){ nearest = distance; anchor = id; }
+  }
+  const base = mindPos.get(anchor);
+  return { x: Math.round(x - (base?.x || 0)), y: Math.round(y - (base?.y || 0)), view: cursorView(), anchor };
+}
+const cursorElements = new Map();
 function renderCursors(){
-  $('curs').innerHTML = Object.entries(cursors).filter(([who, c]) => who !== ME && c.view === view && Date.now() - c.at < 15000)
-    .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x}px,${c.y}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${pcol(who)}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag" style="background:${pcol(who)}">${who}</span></div>`).join('');
+  clearTimeout(expireCursors);
+  const now = Date.now(), visible = new Set();
+  let nextExpiry = Infinity;
+  for (const [id, c] of Object.entries(cursors)){
+    const remaining = CLOUD && pointerKey && pointerLimit > 1 ? Infinity : c.at + 15000 - now, base = mindPos.get(c.anchor);
+    if (remaining <= 0 || (!c.name && id === ME) || c.view !== cursorView() || (c.anchor && !base)) continue;
+    let el = cursorElements.get(id);
+    if (!el){
+      const name = c.name || id;
+      const colors = ['blue','purple','green','orange','indigo'];
+      const hash = Array.from(name).reduce((n, letter) => (31 * n + letter.charCodeAt(0)) >>> 0, 0);
+      const color = Object.hasOwn(PCOL, name) ? PCOL[name] : 'var(--flag-' + colors[hash % colors.length] + ')';
+      el = document.createElement('div'); el.className = 'cur'; el.style.color = color;
+      el.innerHTML = '<span class="cur-mark"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="currentColor" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag"></span></span>';
+      const tag = el.querySelector('.tag'); tag.textContent = name; tag.style.background = color;
+      $('curs').append(el); cursorElements.set(id, el);
+    }
+    el.style.transform = `translate(${c.x + (base?.x || 0)}px,${c.y + (base?.y || 0)}px)`;
+    visible.add(id); nextExpiry = Math.min(nextExpiry, remaining);
+  }
+  for (const [id, el] of cursorElements) if (!visible.has(id)){ el.remove(); cursorElements.delete(id); }
+  if (Number.isFinite(nextExpiry)) expireCursors = setTimeout(renderCursors, nextExpiry + 1);
 }
 
 /* comments */
@@ -3870,7 +3919,7 @@ function takeTopicState(apply){
 }
 function flushTopicState(){ const apply = heldTopicState; heldTopicState = null; if (apply) takeTopicState(apply); }
 async function refreshMap(){
-  try { const r = await fetch('api/state'); if (!r.ok) return; const next = await r.json(); takeTopicState(() => { LIVE = next; hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); }); } catch {}
+  try { const r = await fetch('api/state'); if (!r.ok) return; const next = await r.json(); takeTopicState(() => { if (CLOUD && LIVE?.cloudRevision > next.cloudRevision) return; LIVE = next; hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); }); } catch {}
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
@@ -4445,9 +4494,36 @@ canvas.addEventListener('pointerdown', (e) => {
   else { const [sx, sy] = toStage(e.clientX, e.clientY); marquee = { x0: sx, y0: sy, x1: sx, y1: sy }; }
   canvas.setPointerCapture(e.pointerId);
 });
-let lastCur = 0;
+let lastCur = 0, trailingPointer, pointerScreen, pointerKey = '', pointerLimit = 1, pointerSequence = 0, pointerRequests = 0, newestPointer;
+function sendPointer(value){
+  if (FILE || PREVIEW) return;
+  if (!CLOUD){ if (!READ_ONLY) act('cursor', value); return; }
+  if (!pointerKey) return;
+  newestPointer = value;
+  flushPointer();
+}
+function flushPointer(){
+  if (!pointerKey || !newestPointer || pointerRequests >= pointerLimit) return;
+  const body = JSON.stringify({ ...newestPointer, sequence: ++pointerSequence });
+  newestPointer = null; pointerRequests++;
+  fetch('api/pointer', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pointer-key': pointerKey }, body })
+    .catch(() => { /* later samples replace dropped positions */ })
+    .finally(() => { pointerRequests--; flushPointer(); });
+}
+function schedulePointer(){
+  if (!pointerScreen || trailingPointer) return;
+  // Convert at send time: panning or zooming can move the map under a stationary mouse.
+  const flush = () => {
+    trailingPointer = null; lastCur = Date.now();
+    if (pointerScreen) sendPointer(cursorPoint(...toStage(...pointerScreen)));
+  };
+  const wait = (CLOUD ? 33 : 50) - (Date.now() - lastCur);
+  if (wait <= 0) flush(); else trailingPointer = setTimeout(flush, wait);
+}
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
+  pointerScreen = [e.clientX, e.clientY];
+  schedulePointer();
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
     if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
     drawRubber(); return; }
@@ -4464,7 +4540,6 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
   else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
-  if (!mindOn() && Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
 // Recognize double clicks even if a live update replaces a box between taps.
 let lastTap = { id: null, at: 0 };
@@ -4577,7 +4652,7 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; pickedLine = null; render(); } }
 });
-canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
+canvas.addEventListener('pointerleave', () => { clearTimeout(trailingPointer); trailingPointer = null; pointerScreen = null; sendPointer({ x: null }); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){
@@ -4978,7 +5053,7 @@ window.addEventListener('message', (e) => {
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
   fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
-    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, ...content }; selected = null; renderHistBar(); render();
+    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, mindLayout: undefined, ...content }; selected = null; renderHistBar(); render();
   }).catch(() => toast('That version could not be opened.'));
 }
 function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHistBar(); render(); }
@@ -4986,24 +5061,51 @@ function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHist
 let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); }
 
 function cloudEvents(){
-  const listeners = new Map(); let stopped = false, revision = -1, etag = '', timer;
-  const es = { addEventListener: (name, fn) => listeners.set(name, fn), close(){ stopped = true; clearTimeout(timer); } };
-  const poll = async () => {
+  const listeners = new Map(), pointers = Object.create(null);
+  let stopped = false, revision = -1, etag = '', reading = false, again = false, timer;
+  let stream;
+  function emit(name, value){ listeners.get(name)?.({ data: JSON.stringify(value) }); }
+  function close(){ stopped = true; window.removeEventListener('online', connect); clearTimeout(timer); stream.close(); pointerKey = ''; newestPointer = null; }
+  async function read(){
+    if (stopped) return;
+    if (reading){ again = true; return; }
+    reading = true; clearTimeout(timer);
     try {
       const r = await fetch('api/state', { headers: etag ? { 'if-none-match': etag } : {} });
-      if (r.status === 304) { if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 3000); return; }
-      if (r.status === 401 || r.status === 403 || r.status === 404){ stopped = true; toast('This shared link is no longer available to you.'); document.body.classList.add('view-only'); return; }
+      if (stopped || r.status === 304) return;
+      if ([401,403,404].includes(r.status)){ close(); location.reload(); return; }
       if (!r.ok) throw new Error();
       etag = r.headers.get('etag') || '';
       const next = await r.json();
-      // who else has this copy open, by name, for the faces in the top bar
-      if (next.here) listeners.get('here')?.({ data: JSON.stringify(next.here) });
-      if (next.linkSharing.mode !== (READ_ONLY ? 'view' : 'edit')){ location.reload(); return; }
-      if (revision !== next.cloudRevision){ revision = next.cloudRevision; listeners.get('state')?.({ data: JSON.stringify(next) }); }
+      if (next.here) emit('here', next.here);
+      if (next.linkSharing.mode !== (READ_ONLY ? 'view' : 'edit')){ close(); location.reload(); return; }
+      if (revision !== next.cloudRevision){ revision = next.cloudRevision; emit('state', next); }
     } catch { toast('Reconnecting to the cloud…'); }
-    if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 3000);
-  };
-  setTimeout(poll, 0); return es;
+    finally {
+      reading = false;
+      if (!stopped){ timer = setTimeout(read, again ? 0 : pointerKey ? 12000 : 3000); again = false; }
+    }
+  }
+  function connect(){
+    stream?.close(); pointerKey = ''; newestPointer = null;
+    stream = new EventSource(mapURL('api/live'));
+    stream.onmessage = (event) => {
+      const m = JSON.parse(event.data);
+      if (m.kind === 'cursor'){
+        if (m.x === null) delete pointers[m.pointer];
+        else pointers[m.pointer] = { ...m, at: Date.now() };
+        emit('cursors', pointers);
+      } else {
+        if (m.kind === 'ready'){ pointerKey = m.key; pointerLimit = m.orderedPointers ? 2 : 1; schedulePointer(); for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); }
+        read();
+      }
+    };
+    stream.onerror = () => { pointerKey = ''; newestPointer = null; for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); read(); };
+    read();
+  }
+  window.addEventListener('online', connect);
+  connect();
+  return { addEventListener: (name, fn) => listeners.set(name, fn), close };
 }
 /* follow the server */
 // A browser keeps six connections to one site, and a map's live line holds one for as long as it is open: with six
@@ -5028,6 +5130,7 @@ function listen(){
   es.addEventListener('state', (m) => {
     const next = JSON.parse(m.data);
     takeTopicState(() => {
+    if (CLOUD && LIVE?.cloudRevision > next.cloudRevision) return;
     const arrived = new Set(allBoxesOf(next).map((n) => n.id));
     for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
     for (const id of pendingRemovals) if (!allBoxesOf(next).some((n) => n.id === id)) pendingRemovals.delete(id);
@@ -5042,14 +5145,18 @@ function listen(){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value, start: ae.selectionStart, end: ae.selectionEnd, direction: ae.selectionDirection } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, ...PREVIEW.content } : next;
+    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, mindLayout: undefined, ...PREVIEW.content } : next;
     if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();
-    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
+    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el && typeof typing.val === 'string'){ if (el.value !== typing.val) el.value = typing.val;
+      el.focus({ preventScroll: true }); if (typeof typing.start === 'number') el.setSelectionRange(typing.start, typing.end, typing.direction);
+      if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (firstState){
+      if (migrateLayout && !next.mindLayout && MIND_LAYOUT !== 'right') saveDesign('designmap', 'layout', MIND_LAYOUT);
+      migrateLayout = false;
       firstState = false; fit(); openBrainBox(); openNewMap();
       const resumePublish = location.hash === '#publish';
       if (resumePublish || location.hash === '#share'){ history.replaceState(null, '', location.pathname + location.search); openShare(resumePublish); }
