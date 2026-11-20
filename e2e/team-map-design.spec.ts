@@ -312,7 +312,7 @@ test("numbering changes only the selected siblings and survives undo and reload"
   await expect(grandchild.locator(".nt")).toHaveText("Trial length");
 });
 
-test("Design is first and its five layouts redraw the map without changing its content", async ({
+test("Design is the first labeled tool and its five layouts redraw the map without changing its content", async ({
   page,
 }) => {
   await openSample(page);
@@ -339,6 +339,13 @@ test("Design is first and its five layouts redraw the map without changing its c
     return { nodes: state.nodes, edges: state.edges };
   };
   const before = await content();
+  const search = page.getByRole("button", { name: "Search", exact: true });
+  await expect(search).toBeVisible();
+  await expect(search).toHaveText("");
+  await expect(page.locator("#rail [data-map-search]")).toHaveCount(0);
+  const searchBox = await search.boundingBox(),
+    railBox = await page.locator("#rail").boundingBox();
+  expect(searchBox!.x + searchBox!.width).toBeLessThan(railBox!.x);
   const rail = page.locator("#rail .ri").first();
   await expect(rail).toHaveText("Design");
   await rail.click();

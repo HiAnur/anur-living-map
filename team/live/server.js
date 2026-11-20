@@ -45,6 +45,9 @@ import { numberingGroupOf } from './numbering.js';
 import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapStore, moveMaps } from './map-store.js';
+import { libraryRoutes } from './library.js';
+import { noteActs } from './note-acts.js';
+import { fileDates } from './file-dates.js';
 import { mapsRoutes } from './maps-routes.js';
 import { meetingJob } from './meeting.js';
 import { systemRoutes } from './system-routes.js';
@@ -152,6 +155,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // a chat that is this person's: the one open now, one in their history, or one on a box
   const existed = !!initialState || fs.existsSync(STATE);
   let state = withDefaults(initialState ? structuredClone(initialState) : fs.existsSync(STATE) ? JSON.parse(fs.readFileSync(STATE, 'utf8')) : fresh());
+  const stateStat = fs.statSync(STATE, { throwIfNoEntry: false }), homeStat = fs.statSync(home, { throwIfNoEntry: false });
+  const updateFileDates = fileDates(state, { created: homeStat?.birthtimeMs || stateStat?.mtimeMs, modified: stateStat?.mtimeMs });
   // A map from before maps recorded who made them keeps its Admins, written down once so a name someone takes
   // later never becomes one. A new map starts with none: whoever makes it, or else first opens it, is its Admin.
   if ((project || name) && !Array.isArray(state.admins)) {
@@ -186,7 +191,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   /** @param {string} by @param {() => any} change */
   const actingAs = (by, change) => { const was = acting; acting = by; try { return change(); } finally { acting = was; } };
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); };
+  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); updateFileDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); };
   const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -346,10 +351,14 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   /**
    * A blank map, owned by whoever made it; one that builds on a system map names it, and its chats read that map
    * as background.
-   * @param {{ buildsOn?: { name: string, title: string }, by?: string }} [o]
+   * @param {{ buildsOn?: { name: string, title: string }, by?: string, title?: string }} [o]
    */
-  function blank({ buildsOn, by } = {}) {
-    state.title = state.renamed = 'Untitled map';
+  function blank({ buildsOn, by, title } = {}) {
+    state.title = state.renamed = title || 'Untitled map';
+    if (title) {
+      const id = `note-${crypto.randomUUID()}`;
+      state.nodes = [{ id, label: title, x: 0, y: 0, by, source: { kind: 'map' } }]; state.edges = []; state.start = id;
+    }
     if (by) state.admins = [by];
     if (buildsOn) { state.buildsOn = buildsOn; state.contextMapIds = [buildsOn.name]; }
     save();
@@ -607,11 +616,12 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     ...(state.renamed ? { title: state.renamed, renamed: state.renamed } : {}), ...(state.autosave === false ? { autosave: false } : {}) });
 
   const edits = editHistory(undoState);
-  const UNDOABLE = new Set(['designmap', 'designbox', 'move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename']);
+  const UNDOABLE = new Set(['designmap', 'designbox', 'move', 'reparent', 'tidy', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'pointbox', 'rename', 'writenote']);
   const chatting = chatActs({ getState: () => state, project, name, home, nodeOf, systemCode: system.codeFor, seesOf, askPrompt, proposal, check, checkAutoPlan, pendingProposals,
     selectedContextMaps, askAgent, agent, activeAsks, stamp, save, push, tell, ownsChat, mineChat, ownerOf, placeProposed, draw, actions,
     relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords });
   const ACTS = {
+    ...noteActs({ getState: () => state }),
     ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
     ...chatting,
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering,
@@ -758,7 +768,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (touchesHidden(a, guest ? null : a.by)) { res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'That box is in a repo you can\'t read on GitHub.' })); return true; }
       told = null;
       // what a handler says back about the action (edit's proposal, or why it refused) is its own, never the sender's
-      delete a.proposed; delete a.refused; delete a.outcomes;
+      delete a.proposed; delete a.refused; delete a.outcomes; delete a.sectionIds;
       // going back or starting over always makes a version; with Auto-save off, what was not saved yet is kept first
       const big = a.type === 'restore' || a.type === 'reset';
       if (big && state.autosave === false) saveNow(a.by, 'Changes not saved yet, kept before going back', Date.now() - 1);
@@ -774,7 +784,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
         return done;
       });
       if (result.ok) push();
-      const made = { ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}), ...(a.outcomes ? { items: a.outcomes } : {}) };
+      const made = { ...(a.type === 'writenote' ? { sectionIds: a.sectionIds } : {}), ...(a.created ? { id: a.created } : {}), ...(a.proposed ? { proposed: a.proposed.id, ops: a.proposed.ops, dropped: a.proposed.dropped } : {}), ...(a.outcomes ? { items: a.outcomes } : {}) };
       res.writeHead(result.ok ? 200 : 400, { 'content-type': 'application/json' }).end(JSON.stringify(result.ok ? made : { error: result.error || 'That change could not be saved.' }));
       return true;
     }
@@ -787,7 +797,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     const shared = inCloud ? ['view', 'edit'].includes(online.mode)
       : !!state.linkSharing?.token && ['view', 'edit'].includes(state.linkSharing.mode);
     return { title: state.title, boxes: state.nodes.length, open: state.calls.filter((/** @type {any} */ c) => c.status === 'open').length,
-      at: fs.existsSync(STATE) ? fs.statSync(STATE).mtimeMs : 0, shared, cloud: inCloud,
+      at: state.modifiedAt, created: state.createdAt, shared, cloud: inCloud,
       // a system map says how many repos it was drawn from and when, so the list shows how current it is
       ...(state.drawing ? { system: state.drawing.status, repos: state.drawing.repos || 0,
         ...(state.drawing.at ? { drawn: state.drawing.at + (state.drawing.ms || 0) } : {}), ...(state.drawing.newCommits?.length ? { newCommits: state.drawing.newCommits.length } : {}) } : {}) };
@@ -880,6 +890,7 @@ const teamRole = (/** @type {string | null} */ who) => who && who === users.me()
 const googleOf = (/** @type {any} */ _req) => googleIdentity(users.googleEmail() || '');
 const signIns = signInRoutes({ users, googleFinish, googleOn, googleStart, page, PORT, roleOf: teamRole });
 const mapRoutes = mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO });
+const filesRoutes = libraryRoutes({ maps });
 // you may draw a system map before any map makes you an Admin
 const systemMaps = systemRoutes({ maps, team: () => [{ id: users.me(), role: 'Admin' }] });
 
@@ -900,6 +911,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/') && url.pathname !== '/api/version' && !who && !localTool(req) && !rootLinkAPI) return json(403, { error: 'Open Living Map in a browser on this Mac.' });
   // / lists every map to choose from: the code folders' own, then each named one; only the demo shows its story there
   if (!DEMO && url.pathname === '/') return page(res, 'maps.html', who, 'edit', false, teamRole(who));
+  if (await filesRoutes(req, res, url, who, json)) return;
   if (await mapRoutes(req, res, url, who, json)) return;
   if (await systemMaps(req, res, url, who, json)) return;
   // which code this server runs: the package version, the build (commits in the clone), and whether main holds

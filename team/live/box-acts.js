@@ -12,6 +12,8 @@ import { tidy, tidyLevel } from './project.js';
  *   pendingProposals: (by?: any) => any[], unlinkEdge: (from: any, to: any) => boolean, placeProposed: Function }} deps
  */
 export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }) {
+  /** @param {string[]} ids */
+  const clearOutlineOrder = (ids) => { for (const graph of graphsOf(getState())) if (graph.nodes.some((/** @type {any} */ n) => ids.includes(n.id))) for (const n of graph.nodes) delete n.outlineOrder; };
   return {
     /** @param {Act<'add'>} a */
     add(a) {
@@ -48,6 +50,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       if (Array.isArray(a.moves)){
         const sees = seesOf(a.by), moves = a.moves;
         if (!moves.length || new Set(moves.map((/** @type {any} */ m) => m?.id)).size !== moves.length || moves.some((/** @type {any} */ m) => { const n = nodeOf(m?.id); return !n || (sees !== 'all' && n.area !== sees) || ![m.fromX,m.fromY,m.x,m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY; })) return false;
+        clearOutlineOrder(moves.map((m) => m.id));
         for (const m of moves) Object.assign(nodeOf(m.id),{x:Math.round(m.x),y:Math.round(m.y),moved:true});
         return true;
       }
@@ -55,7 +58,7 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
       const n = nodeOf(a.id) || pendingProposals(a.by).flatMap((p) => p.plan.nodes).find((x) => x.id === a.id && Number.isFinite(x.x));
       if (!n) return false; n.x = Math.round(/** @type {number} */ (a.x)); n.y = Math.round(/** @type {number} */ (a.y));
       // put there by a person: Tidy up keeps its side and order (a box still only proposed is not on the map yet)
-      if (nodeOf(a.id)) n.moved = true;
+      if (nodeOf(a.id)) { clearOutlineOrder([String(a.id)]); n.moved = true; }
       return true;
     },
     // drawn by hand on the map: a box where it was drawn (a.view: inside that box; box-acts.js), a line from one box to another

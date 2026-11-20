@@ -16,6 +16,7 @@ import { managesAccess } from './access.js';
 /** @typedef {'link' | 'member' | 'whole' | 'admin'} Standing */
 /** @type {Record<string, { standing: Standing, then: string }>} */
 export const WHO = {
+  writenote: { standing: 'admin', then: 'the full document still matches its saved base; every existing box stays in its graph and keeps its links' },
   // drawing by hand
   move: { standing: 'link', then: 'a drag of several boxes: each is in their area. One box moved by its id is not checked.' },
   reparent: { standing: 'link', then: 'the branch, its old parents and its new parent are in their area' },

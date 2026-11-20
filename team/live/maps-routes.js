@@ -85,7 +85,7 @@ export function mapsRoutes({ maps, PROJECT, PROJECTS, mapName, DEMO = false }) {
       let s = null; try { s = JSON.parse(JSON.parse(await body(req)).data); } catch { /* not a map file: s stays null and the answer says so */ }
       if (!s || typeof s !== 'object' || !Array.isArray(s.nodes) || !Array.isArray(s.edges)) return json(400, { error: 'Not a map file. Share as a file on a map makes one.' });
       // the map belongs to whoever loads it, whoever the file says made it
-      delete s.linkSharing; s.admins = [who];
+      delete s.linkSharing; delete s.createdAt; delete s.modifiedAt; s.admins = [who];
       const name = freeName(String(s.title || 'map'));
       const dir = path.join(MAPS, name);
       fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'state.json'), JSON.stringify(s));

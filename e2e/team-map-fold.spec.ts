@@ -82,10 +82,12 @@ for (const layout of ["right", "left"]) {
     await expandCategories.click();
     await expect(expand).toBeVisible();
     await expect(growth).toHaveCount(0);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
     await page.getByLabel("Search map").fill("Personal Growth");
     await page.keyboard.press("Enter");
     await expect(growth).toBeVisible();
     await expect(collapse).toBeVisible();
+    await page.getByRole("button", { name: "Reset zoom", exact: true }).click();
     await page
       .getByRole("button", { name: "Collapse Categories", exact: true })
       .click();

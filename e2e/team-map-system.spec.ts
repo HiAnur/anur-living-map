@@ -266,7 +266,7 @@ test("a PM Map opens empty at once, even with a system map there", async ({
   openState(systemMap({ title: "Builds-on base" }), {}, "builds-on-base");
   await page.goto(`${server.origin}/maps.html`);
   await expect(
-    page.locator(".row", { hasText: "Builds-on base" }),
+    page.locator("#files-tree .files-row", { hasText: "Builds-on base" }),
   ).toBeVisible();
   await page.locator("#new-map").click();
   await page.getByRole("button", { name: /PM Map/ }).click();

@@ -50,7 +50,7 @@ export function startOf(nodes, edges, start = null) {
 export function levelGraph(level, { top, start = null, label = '' }) {
   const nodes = level.nodes || [], edges = level.edges || [];
   if (!nodes.length) return { nodes, edges, lines: edges, centre: null };
-  const ids = new Set(nodes.map((n) => n.id)), own = edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to);
+  const ids = new Set(nodes.map((n) => n.id)), own = edges.filter((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to && !e.sideLink);
   const first = top ? startOf(nodes, own, start) : null, box = nodes.find((n) => n.id === first);
   /** @type {any[]} */
   const all = [...nodes], drawn = [];
