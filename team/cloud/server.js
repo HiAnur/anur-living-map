@@ -9,6 +9,7 @@ import { LINK_EDITS } from '../live/sharing.js';
 import { mapData, mergeMap, viewData, signedLink } from '../live/cloud-data.js';
 import { accessOf, applyAccess, cookie, gatePage, notePage, sealer, SESSION_DAYS, visitorRole } from './access.js';
 import { idTokenChecker } from './google-id.js';
+import { liveRooms } from './live-room.js';
 import { FirestoreStore } from './store.js';
 
 const LOGIN = 'https://living-map-login-572969880390.us-west1.run.app';
@@ -21,10 +22,10 @@ const hash = (/** @type {any} */ s) => crypto.createHash('sha256').update(String
 const equal = (/** @type {any} */ a, /** @type {any} */ b) => typeof a === 'string' && typeof b === 'string' && a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 const fail = (/** @type {any} */ status, /** @type {any} */ message) => Object.assign(new Error(message), { status });
 /** @param {any} req */
-async function body(req) {
+async function body(req, limit = 6 * 1024 * 1024) {
   if (!req.headers['content-type']?.startsWith('application/json')) throw fail(415, 'Send JSON.');
   let size = 0, chunks = [];
-  for await (const chunk of req) { size += chunk.length; if (size > 6 * 1024 * 1024) throw fail(413, 'This map is too large.'); chunks.push(chunk); }
+  for await (const chunk of req) { size += chunk.length; if (size > limit) throw fail(413, 'This map is too large.'); chunks.push(chunk); }
   try { return JSON.parse(/** @type {any} */ (Buffer.concat(chunks))); } catch { throw fail(400, 'Invalid JSON.'); }
 }
 /**
@@ -38,6 +39,7 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
   const origin = new URL(publicUrl).origin;
   const checkId = checkIdToken || idTokenChecker({ audience: googleClientId });
   const cookies = sealer(publishKey);
+  const rooms = liveRooms();
   /** @type {Map<string, Map<string, { name: string, at: number }>>} */
   const here = new Map();
   const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8'), read = (/** @type {string} */ f) => fs.readFileSync(path.join(DIR, f), 'utf8');
@@ -109,14 +111,14 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
             if (!v.owner) Object.assign(v, { owner: who, people: {}, linkView: false });
             if (a.linkView !== undefined) v.linkView = a.linkView;
             if (a.linkRole !== undefined) v.linkRole = a.linkRole;
-            await store.put(id, v, existing.version);
+            await store.put(id, v, existing.version); rooms.revoke(id);
           }
-          return json(200, { data: v.data, revision: v.revision, mode: v.mode, access: accessOf(v) });
+          return json(200, { sharedLayout: true, data: v.data, revision: v.revision, mode: v.mode, access: accessOf(v) });
         }
         // Only a client that confirmed sharing by link opens a new map to people holding that link.
         const value = { data, ownerHash: hash(a.ownerKey), linkHash: hash(a.linkKey), mode: 'view', owner: who, people: {}, linkView: a.linkView === true, ...(a.linkRole ? { linkRole: a.linkRole } : {}), undo: [], revision: 1 };
         await store.put(id, value, null);
-        return json(201, { data, revision: 1, mode: value.mode, access: accessOf(value) });
+        return json(201, { sharedLayout: true, data, revision: 1, mode: value.mode, access: accessOf(value) });
       }
       const match = url.pathname.match(/^\/m\/([a-f0-9]{32})(\/.*)?$/);
       if (!match) throw fail(404, 'Map not found.');
@@ -124,6 +126,14 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       // the page's own modules are its code, the same for every map: they load before the link check, since the
       // browser's imports never carry the link's key
       if (PAGE_MODULES.includes(p.slice(1)) && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(read(p.slice(1)));
+      // The stream grants a random, short-lived pointer-only key. Moving a mouse does no database I/O.
+      if (p === '/api/pointer' && req.method === 'POST') {
+        if (!publisher && req.headers.origin !== origin) throw fail(403, 'Open this map first.');
+        const key = req.headers['x-pointer-key'];
+        if (!rooms.hasWriter(id, key)) throw fail(403, 'Reconnect to the map first.');
+        const accepted = rooms.cursor(id, key, await body(req, 1024));
+        return json(accepted ? 200 : 403, {});
+      }
       const suppliedLink = url.searchParams.get('share') || '';
       const linkKey = suppliedLink.split('.')[0];
       // Reject invented links before a billable database read.
@@ -160,12 +170,16 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         return htmlPage(200, html.replace('</head>', `${metas.join('')}</head>`));
       }
       if (p === '/editing.js' && req.method === 'GET') return res.writeHead(200, { 'content-type': 'text/javascript' }).end(fs.readFileSync(path.join(DIR, 'editing.js')));
+      if (p === '/api/live' && req.method === 'GET') {
+        if (!mac && !viewer) throw fail(401, 'Open the shared map first.');
+        return rooms.join(id, res, mac ? v.owner?.name || 'Owner' : viewer?.name);
+      }
       if (p === '/api/state' && req.method === 'GET') {
         if (mac) {
           const names = present(id, null);
-          const etag = `"${v.revision}.${v.mode}.${v.linkRole || 'view'}.${v.linkView ? 1 : 0}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
+          const etag = `"layout.${v.revision}.${v.mode}.${v.linkRole || 'view'}.${v.linkView ? 1 : 0}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
           if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
-          return json(200, { ...viewData(v.data, v.mode), cloudRevision: v.revision, access: accessOf(v), here: names });
+          return json(200, { ...viewData(v.data, v.mode), sharedLayout: true, cloudRevision: v.revision, access: accessOf(v), here: names });
         }
         const names = v.owner ? present(id, viewer) : [];
         const etag = `"${v.revision}.${role}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
@@ -184,11 +198,15 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       const a = await body(req);
       if (p === '/api/sync' && mac) {
         const local = mapData(a.data), base = mapData(a.base);
+        // Older Macs omit layout from the graph they send, even after receiving it from the cloud.
+        if (!a.sharedLayout) {
+          delete base.mindLayout; delete local.mindLayout;
+        }
         const merged = mergeMap(base, local, v.data);
         if (JSON.stringify(merged) !== JSON.stringify(v.data)) {
-          v.data = merged; v.revision++; await store.put(id, v, record.version);
+          v.data = merged; v.revision++; await store.put(id, v, record.version); rooms.changed(id);
         }
-        return json(200, { data: v.data, revision: v.revision, access: accessOf(v), here: present(id, null) });
+        return json(200, { sharedLayout: true, data: v.data, revision: v.revision, access: accessOf(v), here: present(id, null) });
       }
       // Who may open the copy. Once it has an owner, only that Google account changes it; a copy from before
       // Google sign-in is claimed by the first change made while signed in, and until then keeps its link modes.
@@ -207,12 +225,12 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         }
         if (v.owner) { const wrong = applyAccess(v, a); if (wrong) throw fail(400, wrong); }
         // the map itself is unchanged, so its revision stays: a visitor's page sees a new role by its own etag
-        await store.put(id, v, record.version);
+        await store.put(id, v, record.version); rooms.revoke(id);
         return json(200, { mode: v.mode, access: accessOf(v) });
       }
       if (p === '/api/delete' && mac) {
         if (v.owner && (await google()).email !== v.owner.email) throw fail(403, 'This online copy belongs to another Google account. Sign in with that account to delete it.');
-        await store.delete(id, record.version); here.delete(id); return json(200, {});
+        await store.delete(id, record.version); here.delete(id); rooms.revoke(id); return json(200, {});
       }
       if (p !== '/api/act' || role !== 'edit' || !LINK_EDITS.has(a.type)) throw fail(403, 'This link does not allow that change.');
       if (a.type === 'cursor') return json(200, {});
@@ -226,7 +244,7 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         if (!result.ok) throw fail(400, result.error || 'That change could not be saved.');
         v.data = mapData(engine.snapshot());
         v.undo = engine.undoSnapshot().slice(-20).map(([person, history]) => [person, { undo: history.undo.slice(-20), redo: history.redo.slice(-20) }]);
-        v.revision++; await store.put(id, v, record.version);
+        v.revision++; await store.put(id, v, record.version); rooms.changed(id);
         return json(200, { ...(result.id ? { id: result.id } : {}), revision: v.revision });
       } finally { engine.close(); }
     } catch (/** @type {any} */ e) {

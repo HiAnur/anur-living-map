@@ -15,8 +15,8 @@ const SCRIPT = path.join(REPO, 'team', 'skill', 'anur-living-map', 'scripts', 'o
 const dirs = /** @type {string[]} */ ([]);
 const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-open-')); dirs.push(d); return d; };
 
-/** what the stand-in server was asked, what it says about system maps, and the boxes on a map @type {{ asked: string[], systemOf: object, nodes: object[] }} */
-const stub = { asked: [], systemOf: {}, nodes: [{ id: 'web' }, { id: 'api' }] };
+/** what the stand-in server was asked, what it says about system maps, the boxes on a map, and its version @type {{ asked: string[], systemOf: object, nodes: object[], version: object }} */
+const stub = { asked: [], systemOf: {}, nodes: [{ id: 'web' }, { id: 'api' }], version: { version: '0.1.3' } };
 let port = 0;
 /** @type {http.Server} */
 let server;
@@ -26,6 +26,7 @@ beforeAll(async () => {
     const url = new URL(req.url || '/', 'http://x');
     const json = (/** @type {any} */ v) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
     if (url.pathname === '/api/maps') return json([]);
+    if (url.pathname === '/api/version') return json(stub.version);
     if (url.pathname === '/api/projects') return json({ name: 'shop-api', href: '/shop-api/' });
     if (url.pathname === '/api/maps/system-of') return json(stub.systemOf);
     if (url.pathname.endsWith('/api/history')) return json([{ id: 'v1' }, { id: 'v2' }]);
@@ -38,8 +39,8 @@ beforeAll(async () => {
 });
 afterAll(() => { server.close(); for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
 
-/** Runs the script in a repo of its own, as a chat in that repo would. @returns {Promise<string>} what it printed */
-function open() {
+/** Runs the script in a repo of its own, as a chat in that repo would. @param {NodeJS.ProcessEnv} [more] @returns {Promise<string>} what it printed */
+function open(more = {}) {
   const home = tmp(), repo = path.join(tmp(), 'shop-api');
   fs.mkdirSync(repo);
   execFileSync('git', ['init', '-q', repo]);
@@ -47,7 +48,7 @@ function open() {
   fs.mkdirSync(path.join(home, '.anur-living-map'), { recursive: true });
   fs.writeFileSync(path.join(home, '.anur-living-map', 'server.rev'), `${execFileSync('git', ['-C', REPO, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n`);
   const env = { ...process.env, HOME: home, ANUR_LIVING_MAP_HOME: REPO, ANUR_LIVING_MAP_PORT: String(port), ANUR_LIVING_MAP_NO_UPDATE: '1',
-    ANUR_LIVING_MAP_NO_BROWSER: '1', CLAUDE_CODE_SESSION_ID: '' };
+    ANUR_LIVING_MAP_NO_BROWSER: '1', CLAUDE_CODE_SESSION_ID: '', ...more };
   return new Promise((resolve, reject) => {
     const child = spawn('bash', [SCRIPT], { cwd: repo, env });
     let out = '';
@@ -86,5 +87,21 @@ describe('opening the map from a repo', () => {
     const out = await open();
     stub.nodes = [{ id: 'web' }, { id: 'api' }];
     expect(out).toContain('/shop-api/, as it was left, 2 versions in History, no boxes yet: it offers Draw this repo');
+  });
+  it('uses the Living Map app\'s server as it is: no clone, no pull, and never a restart', async () => {
+    stub.asked.length = 0; stub.systemOf = {}; stub.version = { version: '0.1.3', bundled: true };
+    // no clone on this Mac, and the stand-ins for git and lsof say if the script reaches for either
+    const bin = tmp(), said = path.join(bin, 'said');
+    const realGit = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+    fs.writeFileSync(path.join(bin, 'git'), `#!/bin/sh\ncase "$1" in clone|fetch|merge) echo "git $1" >> '${said}'; exit 1;; esac\nexec '${realGit}' "$@"\n`, { mode: 0o755 });
+    fs.writeFileSync(path.join(bin, 'lsof'), `#!/bin/sh\necho lsof >> '${said}'\n`, { mode: 0o755 });
+    const out = await open({ ANUR_LIVING_MAP_HOME: path.join(bin, 'no-clone'), ANUR_LIVING_MAP_NO_UPDATE: '', PATH: `${bin}:${process.env.PATH}` });
+    stub.version = { version: '0.1.3' };
+    expect(out).toContain('update: comes with the Living Map app');
+    expect(out).toContain("server: the Living Map app's, already running");
+    expect(out).toContain('map: http://localhost:' + port + '/shop-api/');
+    expect(out).not.toMatch(/install:|restarted|not found/);
+    expect(fs.existsSync(said)).toBe(false);
+    expect(fs.existsSync(path.join(bin, 'no-clone'))).toBe(false);
   });
 });

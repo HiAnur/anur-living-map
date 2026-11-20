@@ -51,11 +51,18 @@ test("remembers the last map view across local addresses", async ({ page }) => {
   await expect(page.locator("body")).toHaveClass(/mind-view/);
 });
 
-const middle = (node: Locator) =>
-  node.evaluate((el) => {
-    const r = el.getBoundingClientRect();
-    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-  });
+const middle = async (node: Locator) => {
+  let point: { x: number; y: number } | undefined;
+  await expect
+    .poll(async () => {
+      const r = await node.boundingBox();
+      if (r && r.width && r.height)
+        point = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      return !!point;
+    })
+    .toBe(true);
+  return point!;
+};
 
 async function usePm(page: Page) {
   await page.locator("#peopleb").click();
@@ -139,6 +146,35 @@ for (const parent of ["Launch plan", "Pricing"]) {
     );
   });
 }
+
+test("PM topic names stay vertically centered while typing", async ({
+  page,
+}) => {
+  await openSample(page);
+  await usePm(page);
+  for (const parent of ["Launch plan", "Pricing"]) {
+    await box(page, parent).click();
+    await page.keyboard.press("Tab");
+    const editor = page.locator("#newbox textarea");
+    await expect(editor).toBeVisible();
+    await page.keyboard.type("Customer");
+    const offset = await editor.evaluate((el) => {
+      const style = getComputedStyle(el);
+      const textMiddle =
+        parseFloat(style.borderTopWidth) +
+        parseFloat(style.paddingTop) +
+        parseFloat(style.lineHeight) / 2;
+      return Math.abs(textMiddle - parseFloat(style.height) / 2);
+    });
+    await page.screenshot({
+      path: test
+        .info()
+        .outputPath(`${parent.toLowerCase().replaceAll(" ", "-")}-name.png`),
+    });
+    expect(offset, `name under ${parent}`).toBeLessThan(1);
+    await page.keyboard.press("Escape");
+  }
+});
 
 async function dragTo(page: Page, source: Locator, x: number, y: number) {
   const start = await middle(source);
@@ -449,6 +485,7 @@ for (const layout of ["Right", "Left"]) {
     }
     const pricing = box(page, "Pricing"),
       audience = box(page, "Audience");
+    await expect(audience).toBeVisible();
     const target = await audience.boundingBox();
     expect(target).not.toBeNull();
     // Begin the preview while still 90 screen pixels below the topic and outside its title column.

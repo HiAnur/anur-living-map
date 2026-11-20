@@ -29,7 +29,7 @@ describe('the team map\'s data folder', () => {
     expect(dataDir(h, {})).toBe(path.join(h, picked));
     expect(fromScript(h)).toBe(path.join(h, picked));
   });
-  it('is the folder ANUR_LIVING_MAP_DATA names, for a preview that keeps its maps separate', () => {
+  it('is the folder ANUR_LIVING_MAP_DATA names, for an app that starts the server itself', () => {
     const h = home('.anur-living-map'), mine = path.join(h, 'app-data');
     expect(dataDir(h, { ANUR_LIVING_MAP_DATA: mine })).toBe(mine);
   });

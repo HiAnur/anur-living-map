@@ -46,6 +46,7 @@ import { chatActs } from './chat-acts.js';
 import { mapList } from './map-list.js';
 import { mapStore, moveMaps } from './map-store.js';
 import { mapsRoutes } from './maps-routes.js';
+import { meetingJob } from './meeting.js';
 import { systemRoutes } from './system-routes.js';
 import { PAGE_MODULES } from './page-modules.js';
 import { signInRoutes } from './signin-routes.js';
@@ -155,11 +156,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // later never becomes one. A new map starts with none: whoever makes it, or else first opens it, is its Admin.
   if ((project || name) && !Array.isArray(state.admins)) {
     state.admins = existed ? adminsOf(state, { before: before() }) : [];
-    if (existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
+    if (existed && !memory) writeWhole(STATE, JSON.stringify(state));
   }
   // A system map drawn before it had a centre gets one now, written down at once, so it shows on first open
   // and its levels, laid out in rows before every level was laid out round its circle, are laid out again, once
-  if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) fs.writeFileSync(STATE, JSON.stringify(state));
+  if (state.drawing && [withCentre(state, state.title), withTreeLayout(state)].some(Boolean) && existed && !memory) writeWhole(STATE, JSON.stringify(state));
   // A map is usable as extra context only while it remains checked in Context.
   const selectedContextMaps = (/** @type {any} */ who) => (contextMaps?.(who) || []).filter((/** @type {any} */ m) => state.contextMapIds?.includes(m.id)).map((/** @type {any} */ m) => ({...m, allowed: () => state.contextMapIds?.includes(m.id) && m.allowed()}));
   const updateBoxDates = boxDates(state, !initialState && !fs.existsSync(STATE));
@@ -171,6 +172,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   for (const n of allBoxesOf(state)) recoverAction(n);
   oneChat(state);
   const clients = new Set();
+  /** @type {Record<string, any>} */ const remotePointers = Object.create(null);
   const activeAsks = new Set();
   const clientAccess = new Map();
   const cursors = /** @type {Record<string, any>} */ ({}); // by name: {x, y, view, at}; never saved
@@ -185,7 +187,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   /** @param {string} by @param {() => any} change */
   const actingAs = (by, change) => { const was = acting; acting = by; try { return change(); } finally { acting = was; } };
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); fs.writeFileSync(STATE, JSON.stringify(state)); };
+  let scheduleCloud = () => {};
+  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); scheduleCloud(); };
   const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -196,8 +199,15 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
     write: (data) => { actingAs('Guest', () => { installCloudData(state, data); save(); }); push(); },
+    pointer: (m) => {
+      if (!m) { for (const id of Object.keys(remotePointers)) delete remotePointers[id]; }
+      else if (m.x === null) delete remotePointers[m.pointer];
+      else remotePointers[m.pointer] = { name: m.name, anchor: m.anchor, x: m.x, y: m.y, view: m.view, at: Date.now() };
+      for (const r of clients) send(r, 'cursors', { ...cursors, ...remotePointers });
+    },
     notify: () => { for (const r of clients) send(r, 'cloud', cloudFor(clientAccess.get(r)?.role)); }
   }) : null;
+  if (cloud) scheduleCloud = cloud.changed;
   // Everyone's Share says where the map is kept; only an owner, who can publish or delete the online copy, is sent
   // its link and what went wrong with it.
   const cloudFor = (/** @type {any} */ role) => {
@@ -287,6 +297,21 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       }, 500);
     }
   }
+  // A meeting drawn live (meeting.js): what the recorder hears is asked about with no tools, checked by code
+  // (meeting-draw.js) and drawn as Claude; each step's one-line summary goes into the recorder's own chat.
+  const meeting = meetingJob({ home, memory, getState: () => state, save, push,
+    answer: (job) => agent.answer(job),
+    draw: (p) => actingAs('Claude', () => draw(p, 'Claude', { kind: 'meeting' })),
+    say: (to, text) => { if (!to) return; (state.threads[`@${to}`] ??= []).push({ who: 'Claude', text, at: stamp() }); },
+    fromWords: (source, proposed) => fromWords(source, proposed),
+    people: () => (state.people || []).map((/** @type {any} */ p) => p.id),
+    // once it ends, the meeting's map is laid out the way Tidy up lays it out, keeping where people dragged boxes
+    layout: () => { tidyLevel(state, { top: true, start: state.start, label: state.title }, { chosen: (n) => Number.isFinite(n.x) && !!n.moved }); } });
+  // a meeting's map is owned by whoever records it, as a blank map is by whoever made it
+  /** @param {{ title: string, app?: string, by: string }} o */
+  function startMeeting(o) { state.admins = [o.by]; meeting.start(o); }
+  /** @param {{ title: string, text: string, me?: string, by: string }} o */
+  function importMeeting(o) { const r = meeting.importText(o); if (!r.error) { state.admins = [o.by]; save(); } return r; }
   // a system map drawing from code folders in the background, its progress in `state.drawing`
   const system = systemJob({ home, getState: () => state, save, push, agent });
   // a system map notices new commits in its repos while nobody has it open
@@ -530,7 +555,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
-  const CONTENT = ['desc', 'numbering', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
+  const CONTENT = ['desc', 'numbering', 'mindLayout', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
   const contentOf = (/** @type {any} */ s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
   const clock = (/** @type {any} */ t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
@@ -540,7 +565,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     fs.mkdirSync(HIST, { recursive: true }); fs.writeFileSync(path.join(HIST, `${v.id}.json`), json);
     history = [v, ...history.filter((/** @type {any} */ h) => h.id !== v.id)].sort((x, y) => y.at - x.at);
     for (const old of history.splice(KEEP_VERSIONS)) try { fs.unlinkSync(path.join(HIST, `${old.id}.json`)); } catch (e) { removeFailed(e, 'an old version'); }
-    fs.writeFileSync(HIST_LIST, JSON.stringify(history));
+    writeWhole(HIST_LIST, JSON.stringify(history));
   }
   // dragging boxes about, or tidying again and again, is one version while the same person keeps at it
   const RUNS = new Set(['move', 'tidy', 'resize']), RUN_MS = 3 * 60_000;
@@ -620,6 +645,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (!file || !fs.existsSync(file)) return false;
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
+      if (!restored.mindLayout) delete state.mindLayout;
       if (!restored.numbering) delete state.numbering;
       Object.assign(state, restored);
       // a version from before the system map had its centre comes back with it
@@ -687,10 +713,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (one && (one.picture || '') !== face) { if (face) one.picture = face; else delete one.picture; save(); push(); }
       const mine = access(who, req);
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
+      send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', { ...cursors, ...remotePointers });
       if (cloud) send(res, 'cloud', cloudFor(mine));
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role: mine, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
+      cloud?.watch(true); res.on('close', () => { if (!clients.size) cloud?.watch(false); });
       if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
@@ -729,8 +756,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       // a chat linked from this Mac is yours, whatever name the script sent
       if (a.type === 'link' && !guest && !who) a.by = me() || a.by;
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
-        if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
-        for (const r of clients) send(r, 'cursors', cursors);
+        if (a.x !== null && !(Number.isFinite(a.x) && Number.isFinite(a.y) && typeof a.view === 'string' && /^[\w:.-]{1,160}$/.test(a.view))) return deny();
+        const anchor = typeof a.anchor === 'string' && /^[\w.@-]{1,120}$/.test(a.anchor) ? a.anchor : undefined;
+        if (!guest && who && access(who, req) === 'owner') void cloud?.move({ x: a.x, y: a.y, view: a.view, anchor });
+        if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { anchor, x: a.x, y: a.y, view: a.view, at: Date.now() };
+        for (const r of clients) send(r, 'cursors', { ...cursors, ...remotePointers });
         res.writeHead(200).end('{}');
         return true;
       }
@@ -786,6 +816,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     cloud?.close();
     mirror?.f.stop(); mirror = null;
     building?.(); queued.length = 0;
+    meeting.close();
     system.cancel(); stopWatching();
     for (const r of clients) r.end();
   }
@@ -813,7 +844,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     save(); push();
     return out;
   }
-  return { handle, summary, build, blank, close, allowed, access, canDelete, editShared, drawSystem, busy, fromWords,
+  return { handle, summary, build, blank, close, startMeeting, importMeeting, meeting, allowed, access, canDelete, editShared, drawSystem, busy, fromWords,
     /** may redraw this system map or stop its drawing: an Engineer (an Admin among them) or whoever drew it @param {string} who */
     mayRedraw: (who) => !!who && (state.drawing?.by === who || isEngineer(state, who)),
     cancelDrawing: system.cancel, retryDrawing: system.retry,
@@ -826,6 +857,10 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     snapshotFor: (who) => withoutRepos(structuredClone(state), hiddenFor(who)) };
 }
 
+// A map's state is written beside it and moved into place, so a stop at any moment (the app quitting, a kill, a
+// crash) leaves the last whole version, never half of one.
+/** @param {string} file @param {string} text */
+function writeWhole(file, text) { fs.writeFileSync(`${file}.tmp`, text); fs.renameSync(`${file}.tmp`, file); }
 // A file to remove that is already gone is fine; anything else (permissions, a full disk) is said once.
 /** @param {any} e @param {string} what */
 const removeFailed = (e, what) => { if (e?.code !== 'ENOENT' && e?.code !== 'ENOTEMPTY') console.error(`[map] could not remove ${what}: ${e?.message}`); };
@@ -888,7 +923,7 @@ const server = http.createServer(async (req, res) => {
   // to main. The answer comes once the download is done, so the page can show each step; then the server restarts
   if (url.pathname === '/api/update' && req.method === 'POST') {
     const send = (/** @type {any} */ a) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(a));
-    const why = (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
+    const why = VERSION.bundled ? 'updates come with the app' : (await checkLatest()) === null ? 'this copy is not a git clone' : VERSION.latest ? 'already the latest' : await cannotUpdate();
     if (why) return send({ ok: false, why });
     const got = await pull();
     if (!got) return send({ ok: false, why: 'GitHub could not be reached' });
@@ -926,9 +961,20 @@ const server = http.createServer(async (req, res) => {
 
 // an update waits while Claude is at work on any map, so a restart never cuts a reply, an Action or a drawing short
 const { VERSION, checkLatest, cannotUpdate, pull, restart, whenListening } = selfUpdate(server, () => maps.everyMap().some(([, m]) => m.busy?.()));
-for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => process.exit(0));
+// SIGTERM (the Mac app quitting, a kill) or Ctrl-C: no new requests, the pages' live connections end, then it exits.
+// Every change is already on disk, whole (writeWhole), so nothing waits to be saved.
+for (const signal of ['SIGTERM','SIGINT']) process.once(signal, () => {
+  server.close(() => process.exit(0)); server.closeAllConnections();
+  setTimeout(() => process.exit(0), 2000).unref();
+});
+// a port already taken is another Living Map (a clone's, or the Mac app's) or another program: this one says so and
+// stops, so there is never a second server on the same maps
+server.on('error', (/** @type {any} */ e) => {
+  console.error(e?.code === 'EADDRINUSE' ? `Port ${PORT} is taken: another Living Map, or another program, is already running there. Open http://localhost:${PORT}/ or pick another port.` : `[map] the server could not start: ${e?.message}`);
+  process.exit(1);
+});
 server.listen(PORT, '127.0.0.1', async () => {
-  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : DEMO ? '  (demo)' : ''}`);
+  console.log(`Living Map on http://localhost:${PORT}${PROJECT ? `  (${PROJECT})` : DEMO ? '  (demo)' : ''}${VERSION.bundled ? '  (bundled: updates come with the app)' : ''}`);
   await whenListening();
 });
 
