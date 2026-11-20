@@ -6,7 +6,9 @@ New features and improvements to help you plan, work and share with Living Map. 
 <dt><strong>✨ [New feature] Live collaboration on shared maps</strong></dt>
 <dd>
 
-Open the same online link to see edits and branch layout changes as they happen. Named cursors show where others are pointing, even when you zoom in separately. <!-- source: https://github.com/HiAnur/anur-living-map/pull/614 --> <!-- merged-at: 2026-11-19T23:53:09Z -->
+Open the same online link to see edits and branch layout changes as they happen. <!-- source: https://github.com/HiAnur/anur-living-map/pull/614 --> <!-- merged-at: 2026-11-19T23:53:09Z -->
+
+Each person can pan, zoom and type independently while seeing the other person’s cursor move across the map. <!-- source: https://github.com/HiAnur/anur-living-map/pull/620 --> <!-- merged-at: 2026-11-20T01:12:37Z -->
 
 <img src="docs/shipping/2026-11-19/cloud-collaboration.png" alt="A guest’s orange cursor points at Pricing on the shared Launch plan map." width="700">
 
