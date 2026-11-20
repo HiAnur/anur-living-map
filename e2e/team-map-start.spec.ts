@@ -17,9 +17,11 @@ test("with no maps yet, the first screen says to make one and New map opens", as
     r.fulfill({ contentType: "application/json", body: "[]" }),
   );
   await page.goto(`${server.origin}/`);
-  await expect(page.getByText("No maps yet — make one")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Start a new map" }),
+  ).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/acme/i);
-  await page.locator("[data-empty-new]").click();
+  await page.getByRole("button", { name: "New map", exact: true }).click();
   await expect(
     page.getByRole("button", { name: /Engineering Map/ }),
   ).toBeVisible();

@@ -51,7 +51,8 @@ function harness(pm = false){
     ctx.render=()=>ctx.scope();
     Object.assign(ctx,{drag:null,pendingOpen:null,railTab:null,firstState:false,lineHasMap:false,CLOUD:false,
       es:{addEventListener(_name,fn){ctx.receiveState=state=>fn({data:JSON.stringify(state)});}}});
-    const listener=html.indexOf("  es.addEventListener('state', (m) => {");
+    ctx.line=ctx.es;
+    const listener=html.indexOf("  const receive = (m) => {");
     vm.runInContext(html.slice(listener,html.indexOf("  // the server's push",listener)),ctx);
   }
   vm.runInContext(html.slice(html.indexOf('const DBL ='),html.indexOf("canvas.addEventListener('pointerup'")),ctx);

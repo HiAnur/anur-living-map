@@ -100,7 +100,7 @@ export function mindLayout({ nodes, lines, centre }, words, actionHeight = () =>
     const p = by.get(from);
     list.sort((a, b) => {
       const A = by.get(a), B = by.get(b), sa = num(A.x) < num(p.x) ? 1 : 0, sb = num(B.x) < num(p.x) ? 1 : 0;
-      return sa - sb || num(A.y) - num(B.y);
+      return (Number.isFinite(A.outlineOrder) && Number.isFinite(B.outlineOrder) ? A.outlineOrder - B.outlineOrder : 0) || sa - sb || num(A.y) - num(B.y);
     });
   }
   /** @type {Map<string, any>} */

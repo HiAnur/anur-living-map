@@ -48,6 +48,7 @@ export const COMMANDS = /** @type {const} */ ({
   redo: {},
   contextmap: { id: 'string', include: 'boolean' },
   describemap: { description: 'string' },
+  writenote: { base: 'string', title: 'string', description: 'string', sections: 'array', structure: 'boolean?' },
   rename: { title: 'text?' },
   restore: { id: 'id' },
   comment: { text: 'text?', x: 'number', y: 'number', view: 'string?', node: 'id?' },

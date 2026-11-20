@@ -11,7 +11,7 @@ export function copyMap({ state, title, who, source, dir }) {
   const copy = structuredClone(state);
   copy.title = copy.renamed = title;
   Object.assign(copy, { admins: [who], people: [], removedPeople: [], linkSharing: { mode: 'restricted' }, linked: [], said: {}, threads: {}, proposals: [] });
-  for (const key of ['starting', 'redraw', 'meeting', 'saves', 'itemNotes']) delete copy[key];
+  for (const key of ['starting', 'redraw', 'meeting', 'saves', 'itemNotes', 'createdAt', 'modifiedAt']) delete copy[key];
   // An Action in the copy starts its own execution chat, and needs its own approval to run unattended.
   const boxes = [...allBoxesOf(copy), ...(copy.archived || []).flatMap((/** @type {any} */ a) => a.box ? allBoxesOf({ nodes: [a.box] }) : [])];
   for (const n of boxes) if (n.action) {
