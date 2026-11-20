@@ -142,6 +142,10 @@ Map boxes show their title without the description underneath. Hover a box to re
 
 ### Mind map layout
 
-Select one or more boxes, then open **Design → Person** to add a colored person marker. **None** clears the person marker while keeping the box's flag and progress. Person markers are saved with the map and appear in both PM and Engineer views.
+After publishing a map, **Share → People with access** adds people by email with **Can view** or **Can edit**. Change or remove their access in the same list. **Copy online link** copies the address to send them; adding an email does not send a notification. Turn off **Anyone with the link** to require the invited Google account. Copying that private link keeps access private.
+
+Select one or more boxes, then open **Design → Person** to choose the owner or someone added by email in Share. Compact initial icons show their name on hover, using the part before @ until a name is available. Their initial marks the topic, with their email on hover. Tap a selected Flag, Person, Progress or Priority choice again to clear that marker while keeping the others. **Design → Priority** offers **One thing**, **High**, **Medium** and **Low**; the priority appears beside the topic in both views and is kept when the map is shared or downloaded. Assignments stay with the map in both PM and Engineer views, online and in downloaded files. Earlier color markers remain readable.
+
+**To-do** in the right sidebar lists topics assigned to your signed-in Google email, including topics inside other boxes. A checkbox marks a topic done and updates its progress; unchecking reopens it. Click its title to open the topic. View-only recipients can read their list. People who are not signed in are offered Google sign-in.
 
 **Design**, first in the right-hand tool rail, opens the **Mindmap (Logic Map)** choices: clockwise, counterclockwise, both sides, right and left. Choosing one switches to the PM view and redraws the same topics and branches. The choice stays in this browser for this map, including after a reload. When dragging in PM, the nearest available topic shows a green drop marker before the pointer reaches it. Drops above or below a topic also work a little to either side of its title. It changes only how the map is drawn; the Engineer positions and the map’s content stay as saved.

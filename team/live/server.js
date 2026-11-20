@@ -631,7 +631,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
     relayout, keepMemory, chats, startMirror, linkOf, savePicture, converse, sendMirror, fromWords, ownWords });
   const ACTS = {
     ...noteActs({ getState: () => state }),
-    ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }),
+    ...boxActs({ getState: () => state, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed,
+      assignmentEmails: () => { const a = cloud?.status().access; return a?.owner ? [a.owner.email, ...Object.keys(a.people || {})] : (state.assignmentPeople || []).map((/** @type {any} */ p) => p.email); } }),
     ...chatting,
     ...planActs({ getState: () => state, name, nodeOf, seesOf, draw, stamp, waiters, tell, relayout, keepMemory, isAnswering,
       proposeFor: (a) => chatting.propose(a, 40) }),
@@ -896,6 +897,7 @@ const { deletedMaps, projects, mapCalled } = maps;
 const page = (/** @type {any} */ res, /** @type {any} */ file, /** @type {any} */ who, access = 'edit', shared = false, role = '') => res.writeHead(200, { 'content-type': 'text/html', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' })
   .end(fs.readFileSync(path.join(DIR, file), 'utf8').replace('</head>', [who && `<meta name="lm-user" content="${who.replace(/[^\p{L}\p{N} ._-]/gu, '')}">`,
     who && file === 'index.html' && `<meta name="lm-map-view" content="${users.mapView()}">`,
+    who && !shared && `<meta name="lm-email" content="${users.googleEmail().replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)}">`,
     role && `<meta name="lm-role" content="${role.replace(/[^\w .,-]/g, '')}">`, who && users.pictureOf(who) && `<meta name="lm-picture" content="${users.pictureOf(who)}">`, googleOn() && '<meta name="lm-google" content="1">', `<meta name="lm-access" content="${access}">`, shared && '<meta name="lm-shared" content="1">', '</head>'].filter(Boolean).join('\n')));
 // your role on the team, which the list of maps and Settings show: no one map is there to ask
 const teamRole = (/** @type {string | null} */ who) => who && who === users.me() ? 'Owner' : '';

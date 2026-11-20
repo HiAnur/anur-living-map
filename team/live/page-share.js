@@ -26,6 +26,33 @@ export function onlineAccess(status){
   if (!a?.owner) return {old:true, mode:status.mode === 'edit' ? 'edit' : status.mode === 'restricted' ? 'restricted' : 'view'};
   return {old:false, owner:a.owner, mode:a.linkRole === 'edit' ? 'edit' : 'view', linkView:!!a.linkView, linkOn:status.mode !== 'restricted'};
 }
+
+/** The email list is kept apart from presence, so people remain assignable while away.
+ * @param {any} access
+ * @returns {{ email: string, role: string, name: string }[]}
+ */
+export function emailPeople(access){
+  if (!access?.owner) return [];
+  return [{ email: access.owner.email, name: access.owner.name || access.owner.email, role: 'owner' },
+    ...Object.entries(access.people || {}).filter(([, role]) => role === 'view' || role === 'edit')
+      .sort(([a], [b]) => a.localeCompare(b)).map(([email, role]) => ({ email, role: String(role), name: email }))];
+}
+
+/** @param {any} state @param {string} email */
+export function todosForEmail(state, email){
+  /** @type {{ id: string, label: string, view: string, done: boolean }[]} */
+  const tasks = [];
+  if (!email) return tasks;
+  const walk = (/** @type {any[]} */ nodes, /** @type {string} */ view) => {
+    for (const n of nodes){
+      if (n.hiddenRepo || n.proposed) continue;
+      if (n.design?.person?.toLowerCase() === email.toLowerCase()) tasks.push({ id:n.id, label:n.label, view, done:n.design.progress === '100' });
+      if (n.inside?.nodes) walk(n.inside.nodes, n.id);
+    }
+  };
+  walk(state?.nodes || [], 'system');
+  return tasks.sort((a, b) => Number(a.done) - Number(b.done));
+}
 // The exported picture: up to twice the view's size, within a browser canvas's limits (8192 px a side, 16 million
 // pixels in all).
 /** @param {number} width @param {number} height */

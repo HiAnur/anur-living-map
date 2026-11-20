@@ -4,15 +4,16 @@ import { branchIds, reparentTopic } from './editing.js';
 import { allBoxesOf, allLinesOf, graphsOf } from './map-walk.js';
 import { MIND_LAYOUTS } from './page-mind.js';
 import { numberingGroupOf } from './numbering.js';
-import { savedDesign, savedNumbering, validDesignValue } from './page-design.js';
+import { personEmail, savedDesign, savedNumbering, validDesignValue } from './page-design.js';
 import { tidy, tidyLevel } from './project.js';
 
 
 /**
  * @param {{ getState: () => any, nodeOf: (id: any) => any, seesOf: (by: any) => string, sideOf: (v: any) => any, tell: Function,
- *   pendingProposals: (by?: any) => any[], unlinkEdge: (from: any, to: any) => boolean, placeProposed: Function }} deps
+ *   pendingProposals: (by?: any) => any[], unlinkEdge: (from: any, to: any) => boolean, placeProposed: Function,
+ *   assignmentEmails?: () => string[] }} deps
  */
-export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed }) {
+export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposals, unlinkEdge, placeProposed, assignmentEmails = () => [] }) {
   /** @param {string[]} ids */
   const clearOutlineOrder = (ids) => { for (const graph of graphsOf(getState())) if (graph.nodes.some((/** @type {any} */ n) => ids.includes(n.id))) for (const n of graph.nodes) delete n.outlineOrder; };
   return {
@@ -98,12 +99,13 @@ export function boxActs({ getState, nodeOf, seesOf, sideOf, tell, pendingProposa
     /** @param {Act<'designbox'>} a */
     designbox(a) {
       const ids = Array.isArray(a.ids) ? a.ids : [a.id], sees = seesOf(a.by);
-      if (!ids.length || !['align', 'flag', 'person', 'progress'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      if (!ids.length || !['align', 'flag', 'person', 'progress', 'priority'].includes(a.field) || !validDesignValue(a.field, a.value)) return false;
+      if (a.field === 'person' && personEmail(a.value) && !assignmentEmails().includes(a.value)) return false;
       const nodes = ids.map((id) => nodeOf(id));
       // Check the whole selection before changing any box, so a refused edit leaves them all as they were.
       if (nodes.some((n) => !n || (sees !== 'all' && n.area !== sees))) return false;
       for (const n of nodes) {
-        const design = savedDesign(n.design, ['align', 'flag', 'person', 'progress']);
+        const design = savedDesign(n.design, ['align', 'flag', 'person', 'progress', 'priority']);
         if (a.value && !(a.field === 'align' && a.value === 'center')) design[a.field] = a.value;
         else delete design[a.field];
         if (Object.keys(design).length) n.design = design;
