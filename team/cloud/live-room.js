@@ -21,10 +21,11 @@ export function liveRooms() {
     /** @param {string} id @param {any} res @param {string} name */
     join(id, res, name) {
       const room = rooms.get(id) || new Set(), key = crypto.randomBytes(24).toString('hex');
-      const peer = { res, id, key, name, pointer: crypto.randomUUID() };
+      const peer = { res, id, key, name, sequence: 0, pointer: crypto.randomUUID() };
       room.add(peer); rooms.set(id, room); writers.set(key, peer);
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
-      send(peer, { kind: 'ready', key });
+      send(peer, { kind: 'ready', key, orderedPointers: true });
+      for (const other of room) if (other.position) send(peer, other.position);
       const expire = setTimeout(() => res.end(), 55000);
       const beat = setInterval(() => res.write(': keepalive\n\n'), 15000);
       res.once('close', () => {
@@ -40,8 +41,16 @@ export function liveRooms() {
       const peer = writers.get(key);
       if (!peer || peer.id !== id) return false;
       if (a?.x !== null && !(Number.isFinite(a?.x) && Number.isFinite(a.y) && Math.abs(a.x) <= 1e7 && Math.abs(a.y) <= 1e7 && typeof a.view === 'string' && /^[\w:.-]{1,160}$/.test(a.view))) return false;
+      // A late position, including one sent before the pointer left the canvas, must never rewind it.
+      if (a.sequence !== undefined) {
+        if (!Number.isSafeInteger(a.sequence) || a.sequence < 1) return false;
+        if (a.sequence <= peer.sequence) return true;
+        peer.sequence = a.sequence;
+      }
       const anchor = typeof a.anchor === 'string' && /^[\w.@-]{1,120}$/.test(a.anchor) ? a.anchor : undefined;
-      broadcast(id, { kind: 'cursor', pointer: peer.pointer, anchor, name: peer.name, x: a.x, y: a.x === null ? null : a.y, view: a.x === null ? '' : a.view }, peer);
+      const position = { kind: 'cursor', pointer: peer.pointer, anchor, name: peer.name, x: a.x, y: a.x === null ? null : a.y, view: a.x === null ? '' : a.view };
+      peer.position = a.x === null ? null : position;
+      broadcast(id, position, peer);
       return true;
     },
     /** @param {string} id */

@@ -435,7 +435,10 @@ body.mind-view .node.mind-leaf:not(.mind-action) .fold{top:100%}
 .warn{position:absolute;font:500 12px/1.35 var(--plex);color:#8a6100;white-space:normal;overflow-wrap:break-word;pointer-events:none}
 .d-warn{margin:10px 0;padding:8px 10px;border:1px solid rgba(217,164,0,.55);border-radius:8px;background:#fff8e1;font:13px/1.4 var(--plex);color:var(--text)}
 .d-warn b{display:block;font-weight:500;color:#8a6100}.d-warn span{display:block;margin-top:2px;color:var(--text-2)}
-.cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
+#curs{pointer-events:none}
+#curs .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform 45ms linear;z-index:5}
+#curs .cur-mark{display:block;position:relative;transform-origin:0 0;transform:scale(calc(1 / var(--map-zoom,1)))}
+@media (prefers-reduced-motion:reduce){#curs .cur{transition:none}}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
 
 /* cards over the map */
@@ -1507,6 +1510,7 @@ const place = () => {
   stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
   // Keep the dots anchored to the same map coordinates as the boxes.
   canvas.style.setProperty('--map-zoom', String(cam.z));
+  if (CLOUD && pointerScreen) schedulePointer();
   canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
   positionDeletePrompt();
   if (S && (openThread || draft)) renderComments();
@@ -3689,7 +3693,7 @@ function renderCursors(){
   const now = Date.now(), visible = new Set();
   let nextExpiry = Infinity;
   for (const [id, c] of Object.entries(cursors)){
-    const remaining = c.at + 15000 - now, base = mindPos.get(c.anchor);
+    const remaining = CLOUD && pointerKey && pointerLimit > 1 ? Infinity : c.at + 15000 - now, base = mindPos.get(c.anchor);
     if (remaining <= 0 || (!c.name && id === ME) || c.view !== cursorView() || (c.anchor && !base)) continue;
     let el = cursorElements.get(id);
     if (!el){
@@ -3698,15 +3702,15 @@ function renderCursors(){
       const hash = Array.from(name).reduce((n, letter) => (31 * n + letter.charCodeAt(0)) >>> 0, 0);
       const color = Object.hasOwn(PCOL, name) ? PCOL[name] : 'var(--flag-' + colors[hash % colors.length] + ')';
       el = document.createElement('div'); el.className = 'cur'; el.style.color = color;
-      el.innerHTML = '<svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="currentColor" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag"></span>';
-      const tag = el.lastElementChild; tag.textContent = name; tag.style.background = color;
+      el.innerHTML = '<span class="cur-mark"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="currentColor" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag"></span></span>';
+      const tag = el.querySelector('.tag'); tag.textContent = name; tag.style.background = color;
       $('curs').append(el); cursorElements.set(id, el);
     }
     el.style.transform = `translate(${c.x + (base?.x || 0)}px,${c.y + (base?.y || 0)}px)`;
     visible.add(id); nextExpiry = Math.min(nextExpiry, remaining);
   }
   for (const [id, el] of cursorElements) if (!visible.has(id)){ el.remove(); cursorElements.delete(id); }
-  if (visible.size) expireCursors = setTimeout(renderCursors, nextExpiry + 1);
+  if (Number.isFinite(nextExpiry)) expireCursors = setTimeout(renderCursors, nextExpiry + 1);
 }
 
 /* comments */
@@ -4490,30 +4494,36 @@ canvas.addEventListener('pointerdown', (e) => {
   else { const [sx, sy] = toStage(e.clientX, e.clientY); marquee = { x0: sx, y0: sy, x1: sx, y1: sy }; }
   canvas.setPointerCapture(e.pointerId);
 });
-let lastCur = 0, trailingPointer, pendingPosition, pointerKey = '', pointerSending = false, newestPointer;
-async function sendPointer(value){
+let lastCur = 0, trailingPointer, pointerScreen, pointerKey = '', pointerLimit = 1, pointerSequence = 0, pointerRequests = 0, newestPointer;
+function sendPointer(value){
   if (FILE || PREVIEW) return;
   if (!CLOUD){ if (!READ_ONLY) act('cursor', value); return; }
   if (!pointerKey) return;
   newestPointer = value;
-  if (pointerSending) return;
-  pointerSending = true;
-  try {
-    while (newestPointer && pointerKey){
-      const body = JSON.stringify(newestPointer); newestPointer = null;
-      await fetch('api/pointer', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pointer-key': pointerKey }, body });
-    }
-  } catch { /* a newer pointer supersedes this one after a reconnect */ }
-  finally { pointerSending = false; }
+  flushPointer();
+}
+function flushPointer(){
+  if (!pointerKey || !newestPointer || pointerRequests >= pointerLimit) return;
+  const body = JSON.stringify({ ...newestPointer, sequence: ++pointerSequence });
+  newestPointer = null; pointerRequests++;
+  fetch('api/pointer', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pointer-key': pointerKey }, body })
+    .catch(() => { /* later samples replace dropped positions */ })
+    .finally(() => { pointerRequests--; flushPointer(); });
+}
+function schedulePointer(){
+  if (!pointerScreen || trailingPointer) return;
+  // Convert at send time: panning or zooming can move the map under a stationary mouse.
+  const flush = () => {
+    trailingPointer = null; lastCur = Date.now();
+    if (pointerScreen) sendPointer(cursorPoint(...toStage(...pointerScreen)));
+  };
+  const wait = (CLOUD ? 33 : 50) - (Date.now() - lastCur);
+  if (wait <= 0) flush(); else trailingPointer = setTimeout(flush, wait);
 }
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
-  pendingPosition = [sx, sy];
-  if (!trailingPointer){
-    const flush = () => { trailingPointer = null; lastCur = Date.now(); sendPointer(cursorPoint(...pendingPosition)); };
-    const wait = 50 - (Date.now() - lastCur);
-    if (wait <= 0) flush(); else trailingPointer = setTimeout(flush, wait);
-  }
+  pointerScreen = [e.clientX, e.clientY];
+  schedulePointer();
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
     if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
     drawRubber(); return; }
@@ -4642,7 +4652,7 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; pickedLine = null; render(); } }
 });
-canvas.addEventListener('pointerleave', () => { clearTimeout(trailingPointer); trailingPointer = null; sendPointer({ x: null }); });
+canvas.addEventListener('pointerleave', () => { clearTimeout(trailingPointer); trailingPointer = null; pointerScreen = null; sendPointer({ x: null }); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){
@@ -5086,11 +5096,11 @@ function cloudEvents(){
         else pointers[m.pointer] = { ...m, at: Date.now() };
         emit('cursors', pointers);
       } else {
-        if (m.kind === 'ready'){ pointerKey = m.key; for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); }
+        if (m.kind === 'ready'){ pointerKey = m.key; pointerLimit = m.orderedPointers ? 2 : 1; schedulePointer(); for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); }
         read();
       }
     };
-    stream.onerror = () => { pointerKey = ''; read(); };
+    stream.onerror = () => { pointerKey = ''; newestPointer = null; for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); read(); };
     read();
   }
   window.addEventListener('online', connect);
@@ -5135,13 +5145,15 @@ function listen(){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value, start: ae.selectionStart, end: ae.selectionEnd, direction: ae.selectionDirection } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
     LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, mindLayout: undefined, ...PREVIEW.content } : next;
     if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();
-    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
+    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el && typeof typing.val === 'string'){ if (el.value !== typing.val) el.value = typing.val;
+      el.focus({ preventScroll: true }); if (typeof typing.start === 'number') el.setSelectionRange(typing.start, typing.end, typing.direction);
+      if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (firstState){
       if (migrateLayout && !next.mindLayout && MIND_LAYOUT !== 'right') saveDesign('designmap', 'layout', MIND_LAYOUT);
       migrateLayout = false;
