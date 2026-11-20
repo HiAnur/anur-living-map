@@ -94,6 +94,8 @@ interface Box {
 type LayoutBox = any;
 
 interface Line {
+  /** A relationship to draw without using it as the outline parent. */
+  sideLink?: boolean;
   from: string;
   to: string;
   label?: string;

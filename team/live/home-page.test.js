@@ -30,7 +30,7 @@ it('with no project, shows the list of maps at / and never the story, and lists 
   const s = await serve([]);
   try {
     const home = await (await s.get('/')).text();
-    expect(home).toContain('Or pick a map you have');
+    expect(home).toContain('Start a new map');
     expect(home).not.toMatch(/acme/i);
     expect(await (await s.get('/api/maps')).json()).toEqual([]);
     // the server's own address holds no map

@@ -64,9 +64,16 @@ test("search finds a box by its words, and Enter selects it", async ({
   page,
 }) => {
   await openSample(page);
-  await page.getByLabel("Search map").click();
+  await expect(page.getByLabel("Search map", { exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByLabel("Search map", { exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#map-search")).toBeHidden();
+  await page.keyboard.press("Control+f");
+  await expect(page.getByLabel("Search map", { exact: true })).toBeFocused();
   await page.keyboard.type("fourteen");
   await expect(page.locator("#search-results")).toContainText("Free trial");
+  await page.screenshot({ path: test.info().outputPath("search-in-rail.png") });
   await page.keyboard.press("Enter");
   await expect(page.locator("#nodes .node.sel")).toHaveText(/Free trial/);
 });
@@ -310,7 +317,9 @@ test("the map starts at an empty circle, with its main topics as ordinary boxes 
   await openSample(page);
   const circle = hub(page);
   await expect(circle).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Launch plan" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Launch plan", exact: true }),
+  ).toBeVisible();
   await expect(circle).toHaveText("");
   const size = await circle.boundingBox();
   expect(size!.width).toBeLessThan(40);

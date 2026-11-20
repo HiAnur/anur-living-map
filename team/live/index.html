@@ -139,6 +139,7 @@ body.blank-repo #tidyb{display:none}
 /* the version, before the faces, Share keeps the corner: "Latest" with a green dot when this copy matches main (hover shows the version
    and build); "Update" in Claude's colour when main holds newer commits, one click pulls everything and restarts */
 .tbtn.ver{display:inline-flex;align-items:center;gap:6px}
+.tbtn.ver[hidden]{display:none}
 .tbtn.ver.ok{color:var(--text-2);border-color:transparent;background:transparent;cursor:default}
 .tbtn.ver.ok::before{content:'';width:7px;height:7px;border-radius:50%;background:#3aa655}
 /* inside the Mac app the pill is only the version: the app brings updates, so there is nothing to check or click */
@@ -1060,7 +1061,7 @@ body.previewing .node.proposed{display:none}
 #tools{max-width:calc(100% - 104px);overflow-x:auto;scrollbar-width:thin}
 body.paned #tools{max-width:calc(100% - 104px - var(--pane-width))}
 #tools > *,#foot > *{flex-shrink:0}
-#tidyb{position:fixed;top:calc(var(--topbar) + 16px);right:88px;z-index:10;white-space:nowrap;background:var(--claude);border-color:var(--claude);color:var(--box);height:36px;padding:0 14px;font-weight:500}
+#tidyb{position:fixed;top:calc(var(--topbar) + 16px);right:132px;z-index:10;white-space:nowrap;background:var(--claude);border-color:var(--claude);color:var(--box);height:36px;padding:0 14px;font-weight:500}
 #tidyb kbd{font:500 11px var(--plex);margin-left:8px;opacity:.85}
 #tidyb:hover{filter:brightness(.94)}
 #tidyb:focus-visible{outline:2px solid var(--claude);outline-offset:3px}
@@ -1161,23 +1162,30 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 }
 .cloud-map #savew,.cloud-map #verb,.cloud-map .mapb,.cloud-map #bot,.cloud-map [data-rail="history"],.cloud-map .topic-actions{display:none!important}
 
-/* Search stays beside the map title; its results leave the map visible. */
-#map-search{position:relative;width:210px}
-.search-field{display:flex;align-items:center;gap:6px;height:30px;padding:0 9px;border:1px solid var(--rule-2);border-radius:7px;background:var(--card)}
+/* Search belongs to the canvas corner; the rail holds the map's other tools. */
+#map-search-button{position:fixed;right:88px;top:calc(var(--topbar) + 16px);z-index:16;display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--rule-2);border-radius:8px;background:var(--card);color:var(--text-2);cursor:pointer}
+#map-search-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+#map-search-button:hover,#map-search-button.on{background:var(--canvas);color:var(--text)}
+body.paned #map-search-button{right:calc(88px + var(--pane-width))}
+body.paned #tidyb{right:calc(132px + var(--pane-width))}
+@media(max-width:720px){body.paned #map-search-button{display:none}}
+#map-search{position:fixed;right:88px;top:calc(var(--topbar) + 60px);z-index:19;width:360px;max-width:calc(100vw - 96px);border:1px solid var(--rule-2);border-radius:10px;background:var(--card);box-shadow:0 8px 28px var(--rule-2);white-space:normal;overflow:hidden}
+#map-search[hidden]{display:none}
+.search-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 8px;font-size:13px;font-weight:500}
+#search-close{border:0;border-radius:4px;background:none;color:var(--text-2);font:20px/1 var(--plex);cursor:pointer;padding:2px 4px}
+.search-field{display:flex;align-items:center;gap:6px;height:34px;margin:0 12px 8px;padding:0 9px;border:1px solid var(--rule-2);border-radius:7px;background:var(--card)}
 .search-field:focus-within{border-color:var(--new);box-shadow:0 0 0 2px var(--new-tint)}
 .search-field svg{width:15px;height:15px;fill:none;stroke:var(--text-2);stroke-width:1.6;flex:none}
 #map-query{width:100%;min-width:0;border:0;outline:0;background:transparent;font-size:12.5px;user-select:text}
-.search-field kbd{font:11px var(--plex);color:var(--text-3)}
-#search-popover{position:absolute;right:0;top:38px;width:360px;max-width:calc(100vw - 32px);border:1px solid var(--rule-2);border-radius:10px;background:var(--card);box-shadow:0 8px 28px var(--rule-2);white-space:normal;overflow:hidden}
-#search-status{padding:10px 12px;font-size:12px;color:var(--text-2);border-bottom:1px solid var(--rule)}
+.search-field kbd{font:11px var(--plex);color:var(--text-3);white-space:nowrap}
+#search-status{padding:10px 12px;font-size:12px;color:var(--text-2);border-top:1px solid var(--rule)}
 #search-results{max-height:min(440px,60vh);overflow-y:auto;padding:4px}
 .search-result{padding:9px 10px;border-radius:6px;cursor:pointer;overflow-wrap:anywhere}
 .search-result[aria-selected="true"]{background:var(--new-tint);outline:1px solid var(--new);outline-offset:-1px}
 .search-result strong{display:block;font-weight:500;font-size:13px}
 .search-result small{display:block;color:var(--text-2);font-size:12px;margin-top:2px}
 .search-result .search-location{font-size:11px;color:var(--text-3)}
-@media(max-width:800px){#map-search{width:150px}.search-field kbd{display:none}}
-@media(max-width:540px){#map-search{width:110px}#search-popover{position:fixed;top:var(--topbar);right:8px;max-width:calc(100vw - 16px)}}
+#search-close:focus-visible,[data-map-search]:focus-visible{outline:2px solid var(--new);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -1187,14 +1195,16 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
   <div class="savew" id="savew"></div>
   <div id="crumbs"></div>
   <button class="tbtn ver" id="verb" hidden></button>
-  <div id="map-search">
-    <div class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="map-query" type="search" placeholder="Search map" aria-label="Search map" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results" autocomplete="off"><kbd>⌘ F</kbd></div>
-    <div id="search-popover" hidden><div id="search-status" role="status"></div><div id="search-results" role="listbox" aria-label="Matching boxes"></div></div>
-  </div>
   <div id="ticket"></div>
   <div class="faces" id="faces"></div>
   <button class="tbtn share" id="shareb">Share</button>
 </div>
+  <button id="map-search-button" type="button" data-map-search aria-label="Search" aria-expanded="false" aria-controls="map-search" aria-keyshortcuts="Meta+F Control+F" title="Search map (⌘F / Ctrl+F)"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg></button>
+  <section id="map-search" aria-label="Search" hidden>
+    <div class="search-head"><span>Search</span><button id="search-close" type="button" aria-label="Close search">×</button></div>
+    <div class="search-field"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="map-query" type="search" placeholder="Search map" aria-label="Search map" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-results" autocomplete="off"><kbd>⌘ F</kbd></div>
+    <div id="search-popover" hidden><div id="search-status" role="status"></div><div id="search-results" role="listbox" aria-label="Matching boxes"></div></div>
+  </section>
 <div id="canvas"><div id="stage"><svg id="edges"></svg><div id="nodes"></div><svg id="rubber"></svg><div id="newbox"></div><div id="pins"></div><div id="curs"></div></div></div>
 <button class="panel" id="backb" title="Esc"></button>
 <div class="panel" id="side"></div>
@@ -1247,6 +1257,12 @@ body.rec #foot,body.rec #tidyb,body.rec #plan,body.rec #legend,body.rec #bot,bod
 <div id="box-hint" role="tooltip" hidden></div>
 <script type="module">
 import { layoutFor } from './page-layout.js';
+import { mountFiles } from './page-files.js';
+import { documentNavigation } from './page-document-nav.js';
+import { FILE_SORTS, fileSort, orderFiles, mountFileInfo } from './page-file-info.js';
+import { noteDocument } from './page-note.js';
+import { mountNoteEditor } from './page-note-editor.js';
+import { noteRich } from './page-note-rich.js';
 import { searchBoxes } from './page-search.js';
 import { emailPeople, imageExportSize, onlineAccess, sharingLocation, todosForEmail } from './page-share.js';
 import { actionCancellable, actionLeaving } from './action-stages.js';
@@ -1282,8 +1298,9 @@ document.body.classList.toggle('view-only', READ_ONLY);
 document.body.classList.toggle('link-guest', SHARED);
 document.body.classList.toggle('cloud-map', CLOUD);
 // Keep the link's permission on map requests without sending it to other sites or maps.
-const mapURL = (path) => { const url = new URL(path, location.href); if (LINK) url.searchParams.set('share', LINK); return url.href; };
-const fetch = (input, init) => window.fetch(typeof input === 'string' && input.startsWith('api/') ? mapURL(input) : input, init);
+const documentNav = !CLOUD && !SHARED && !LINK && !document.querySelector('meta[name="lm-file"]') ? documentNavigation({ beforeSwitch: prepareFileSwitch, leaving: () => dropLine(), commit: applyFileSwitch, busy: (on) => { document.body.classList.toggle('file-switching', on); $('file-heading')?.setAttribute('aria-busy', String(on)); for (const id of ['canvas', 'note-pane', 'file-heading', 'side', 'chat', 'mem', 'hist', 'cpanel', 'design', 'document-bar', 'note-save', 'map-search', 'savew', 'shareb']) if ($(id)) $(id).inert = on; }, failed: (message) => { toast(message); if (!line) listen(); } }) : null;
+const mapURL = (path) => { const url = new URL(path, documentNav?.url() || location.href); if (LINK) url.searchParams.set('share', LINK); return url.href; };
+const fetch = (input, init) => (documentNav?.fetch || window.fetch.bind(window))(typeof input === 'string' && input.startsWith('api/') ? mapURL(input) : input, init);
 // A saved file: this same page with the map's data written into it (Share as a file). It draws that data and
 // nothing else; no server is asked, and nothing on it changes until it is loaded into Living Map.
 const FILE = document.querySelector('meta[name="lm-file"]')?.content || '';
@@ -1425,7 +1442,7 @@ function md(t){
 }
 // while an earlier version is showing, nothing on the map changes: Back to now first, or Restore that version
 const FROZEN_SAYS = 'This is an earlier version. Go back to now to change the map.';
-const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'designmap', 'designbox', 'undo', 'redo']);
+const FROZEN = new Set(['move', 'reparent', 'tidy', 'call', 'apply', 'drop', 'rename', 'reset', 'plan', 'edit', 'add', 'connect', 'remove', 'unlink', 'resize', 'relabel', 'renamebox', 'describebox', 'describemap', 'writenote', 'designmap', 'designbox', 'undo', 'redo']);
 const pendingActions = new Set();
 let cloudWriteQueue = Promise.resolve();
 const act = (type, extra = {}) => {
@@ -1441,6 +1458,7 @@ const act = (type, extra = {}) => {
 
 let keyboardSelection = false;
 const lastTopics = new Map();
+let fileFolder = null;
 let S = null, view = 'system', selected = null, prsOpen = false, cursors = {}, hereNow = [];
 // History: its versions, the one on show (null: the live map) and the live map underneath it
 let HIST = [], PREVIEW = null, LIVE = null, histAsk = 0;
@@ -1593,7 +1611,7 @@ const scope = () => {
 };
 /* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
    never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
-const MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
+let MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
 let MIND_LAYOUT = 'right', migrateLayout = false;
 try { const saved = localStorage.getItem(MIND_LAYOUT_KEY); MIND_LAYOUT = mindLayoutChoice(saved); migrateLayout = !!saved && !CLOUD && !SHARED && !FILE; } catch { /* the choice still applies to this page */ }
 let VIEW_MODE = 'engineer', mindPos = new Map();
@@ -1724,8 +1742,8 @@ function setViewMode(mode){
 /* folding, as in a mind map: a box with boxes hanging off it (lines out of it) folds them away and unfolds them.
    A box under a folded one hides, and what hangs off it too, unless a line from a box still showing reaches it.
    What you fold is yours alone: this browser keeps it for this map. */
-const FOLD_KEY = `lm.folded:${location.pathname}`;
-const PM_FOLD_KEY = `lm.pm-folded:${location.pathname}`;
+let FOLD_KEY = `lm.folded:${location.pathname}`;
+let PM_FOLD_KEY = `lm.pm-folded:${location.pathname}`;
 let folded = new Set();
 try { folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); } catch {}
 let pmFolded = new Set();
@@ -1767,8 +1785,14 @@ const foldedAway = (id) => [...fold.hides.values()].some((h) => h.includes(id));
 const reveal = (id) => { let out = false; for (const [f, h] of fold.hides) if (h.includes(id)){ activeFolds().delete(f); out = true; } if (out) saveFolds(); return out; };
 let searchOpen = false, searchMatches = [], searchIndex = 0;
 function closeMapSearch(){
-  searchOpen = false; $('search-popover').hidden = true;
+  searchOpen = false; $('map-search').hidden = true; $('search-popover').hidden = true;
+  const button = document.querySelector('[data-map-search]'); button.setAttribute('aria-expanded','false'); button.classList.remove('on');
   $('map-query').setAttribute('aria-expanded','false'); $('map-query').removeAttribute('aria-activedescendant');
+}
+function openMapSearch(){
+  searchOpen = true; $('map-search').hidden = false;
+  const button = document.querySelector('[data-map-search]'); button.setAttribute('aria-expanded','true'); button.classList.add('on');
+  $('map-query').focus(); $('map-query').select(); renderMapSearch();
 }
 function renderMapSearch(){
   if (!searchOpen) return;
@@ -1784,6 +1808,7 @@ function renderMapSearch(){
 function openSearchResult(index, keepOpen = false){
   const row = searchMatches[index]; if (!row) return;
   if (!keepOpen){ closeMapSearch(); $('map-query').blur(); backTo = null; }
+  if (document.body.classList.contains('note-open')){ noteWorkspace.reveal(row.id, !keepOpen); return; }
   view = row.container; selected = row.id; sideFor = row.id; sideTab = 'box'; keyboardSelection = keepOpen;
   group.clear(); pickedLine = null; setTool('select'); render();
   // Use preview positions too, so a pending plan cannot send search to the old location.
@@ -1792,27 +1817,29 @@ function openSearchResult(index, keepOpen = false){
   let cx = r.width / 2, cy = r.height / 2;
   if (keepOpen){
     // Leave the result visible beside the search list, or below it on a narrow screen.
-    const popup = $('search-popover').getBoundingClientRect(), left = popup.left - r.left - 20;
+    const popup = $('map-search').getBoundingClientRect(), left = popup.left - r.left - 20;
     if (left >= W(n) * cam.z + 32) cx = left / 2;
     else cy = Math.min(r.height - HT(n) * cam.z / 2 - 16, (popup.bottom - r.top + r.height) / 2);
   }
   cam.x = cx - n.x * cam.z; cam.y = cy - n.y * cam.z; place();
 }
+document.querySelector('[data-map-search]').addEventListener('click', () => { if (searchOpen) closeMapSearch(); else openMapSearch(); });
+$('search-close').addEventListener('click', () => { closeMapSearch(); document.querySelector('[data-map-search]').focus(); });
 $('map-query').addEventListener('focus', () => { searchOpen = true; renderMapSearch(); });
 $('map-query').addEventListener('input', () => { searchOpen = true; searchIndex = 0; searchMatches = []; renderMapSearch(); });
 $('search-results').addEventListener('mousedown', (e) => e.preventDefault());
 $('search-results').addEventListener('click', (e) => { const el = e.target.closest('[data-search-result]'); if (el) openSearchResult(Number(el.dataset.searchResult)); });
-document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#map-search')) closeMapSearch(); });
-document.addEventListener('focusin', (e) => { if (!e.target.closest('#map-search')) closeMapSearch(); });
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#map-search, [data-map-search]')) closeMapSearch(); });
+document.addEventListener('focusin', (e) => { if (!e.target.closest('#map-search, [data-map-search]')) closeMapSearch(); });
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f'){
-    e.preventDefault(); e.stopImmediatePropagation(); $('map-query').focus(); $('map-query').select(); searchOpen = true; renderMapSearch(); return;
+    e.preventDefault(); e.stopImmediatePropagation(); openMapSearch(); return;
   }
   if (e.target !== $('map-query')) return;
   // Search keystrokes must not reach the map's creation, navigation, or deletion shortcuts.
   e.stopImmediatePropagation();
-  if (e.key === 'Escape'){ e.preventDefault(); closeMapSearch(); $('map-query').blur(); }
+  if (e.key === 'Escape'){ e.preventDefault(); closeMapSearch(); document.querySelector('[data-map-search]').focus(); }
   else if (e.key === 'Enter'){ e.preventDefault(); openSearchResult(searchIndex); }
   else if (['ArrowDown','ArrowUp'].includes(e.key)){
     e.preventDefault(); if (!searchMatches.length) return;
@@ -2401,6 +2428,8 @@ function tapHub(n){
 function render(){
   hideBoxHint();
   if (!S) return;
+  noteWorkspace?.update(S);
+  noteFiles?.renameCurrent(S.title, { at: S.modifiedAt, created: S.createdAt });
   if (S.mindLayout) {
     MIND_LAYOUT = mindLayoutChoice(S.mindLayout);
     if (!CLOUD && !SHARED && !FILE && !PREVIEW && LIVE?.mindLayout) {
@@ -2408,6 +2437,7 @@ function render(){
     }
   }
   else if (!migrateLayout && !FILE) MIND_LAYOUT = 'right';
+
   renderMapSearch();
   if (selected && nodeById(selected)) lastTopics.set(view, selected);
   const fb = flowBox();
@@ -2959,10 +2989,10 @@ function renderTop(){
   const fb = flowBox();
   const inside = fb ? parentBoxOf(S, fb.id) : view !== 'system' ? nodeById(view) : null;
   // the map's folder, then its name, which you click to rename; inside a box, a Back button first and the box last
-  const folder = S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title);
+  const folder = fileFolder ?? (S.project ? S.project.replace(/\/+$/, '').split('/').pop() : decodeURIComponent(location.pathname.split('/')[1] || S.title));
   // a map that builds on a system map says which, and links to it
   const base = S.buildsOn ? ` <a class="builds" href="/${encodeURIComponent(S.buildsOn.name)}/" title="This map builds on that system map; its chats read it as background">builds on ${esc(S.buildsOn.title)}</a>` : '';
-  const where = `<b class="dir" title="${esc(S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>${base}`;
+  const where = `<b class="dir" title="${esc(fileFolder || S.project || `maps/${folder}`)}">${esc(folder)}</b><span class="slash">/</span><b class="nm" data-rename title="Click to rename">${esc(S.title)}</b>${base}`;
   // while you type a new name, a redraw leaves the box alone
   const db = diagramBox();
   if (!$('renamei')) $('crumbs').innerHTML = db
@@ -3358,7 +3388,12 @@ const setChatW = (w) => { w = Math.round(Math.min(Math.max(w, 320), Math.max(320
 const fitTools = () => document.body.classList.toggle('tight', $('tools').getBoundingClientRect().right + 12 > $('foot').getBoundingClientRect().left);
 window.addEventListener('resize', fitTools);
 // the map makes room while a pane is open: Claude, a box's card, Decisions or Comments
-const fitPane = () => { document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel', 'design', 'todos'].some((id) => $(id).classList.contains('on'))); fitTools(); };
+const fitPane = () => {
+  const was = document.body.classList.contains('paned');
+  document.body.classList.toggle('paned', ['chat', 'side', 'decs', 'hist', 'mem', 'scs', 'cpanel', 'design', 'todos'].some((id) => $(id).classList.contains('on')));
+  fitTools();
+  if (S && was !== document.body.classList.contains('paned') && document.body.classList.contains('files-open') && !document.body.classList.contains('note-open')) fit();
+};
 try { const w = Number(localStorage.getItem('lm.chatw')); if (w) setChatW(w); } catch {}
 $('chatgrip').addEventListener('pointerdown', (e) => {
   e.preventDefault(); const g = e.currentTarget; let w = 0;
@@ -3412,7 +3447,7 @@ const claudes = (html) => `<div class="msg cm">${html}</div>`;
 let chatPics = [];
 // what you typed in a chat and have not sent, by chat (a box's Side Chat, the Claude pane): it stays when you
 // switch to something else and come back, and through a reload in this browser, until you send it
-const DRAFTS_KEY = `lm-drafts-${location.pathname.split('/')[1] || ''}`;
+let DRAFTS_KEY = `lm-drafts-${location.pathname.split('/')[1] || ''}`;
 const drafts = (() => { try { return new Map(Object.entries(JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}'))); } catch { return new Map(); } })(); // storage blocked: drafts last until the page reloads
 const draftOf = (key) => drafts.get(key) || '';
 function keepDraft(key, text){
@@ -5022,7 +5057,7 @@ const fetchHist = () => { const n = ++histAsk; fetch('api/history').then((r) => 
 const vtime = (t) => { const d = new Date(t), today = d.toDateString() === new Date().toDateString(); return `${today ? 'Today' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${d.toTimeString().slice(0, 5)}`; };
 // the History panel's HTML (historyScreens in page-history.js), with what it needs of the page
 // a system map drawing from code: its panel stays until whoever sees it closes it; the clock ticks while it draws
-const SYS_MAP = location.pathname.split('/')[1] || '';
+let SYS_MAP = location.pathname.split('/')[1] || '';
 let sdAsking = false;
 // who may redraw a system map or stop its drawing, as the server decides it: an Engineer, an Admin, whoever drew it
 const mayRedraw = () => !READ_ONLY && !SHARED && (S?.drawing?.by === ME || S?.people?.some((p) => p.id === ME && (p.role === 'Admin' || p.engineer === true || /\bengineer\b/i.test(p.role || ''))));
@@ -5234,16 +5269,17 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden){ if (!line) listen(); }
   else if (lineHasMap) dropLine();
 });
-function listen(){
+function listen(prepared = null){
   if (FILE){ LIVE = S = FILE_DATA; renderHistBar(); render(); fit(); return; }
   if (line) return;
-  const es = line = CLOUD ? cloudEvents() : new EventSource(mapURL('api/events'));
+  const es = line = prepared?.es || (CLOUD ? cloudEvents() : new EventSource(mapURL('api/events')));
   lineHasMap = false;
   // the live connection comes back after the server restarts: ask which server answers now
   es.onopen = () => loadVer(false);
-  es.addEventListener('access-changed', () => { es.close(); location.reload(); });
-  es.addEventListener('access-removed', () => { es.close(); location.replace('/'); });
-  es.addEventListener('state', (m) => {
+  es.addEventListener('access-changed', () => { if (line !== es) return; es.close(); location.reload(); });
+  es.addEventListener('access-removed', () => { if (line !== es) return; es.close(); location.replace('/'); });
+  const receive = (m) => {
+    if (line !== es) return;
     const next = JSON.parse(m.data);
     takeTopicState(() => {
     if (CLOUD && LIVE?.cloudRevision > next.cloudRevision) return;
@@ -5281,17 +5317,19 @@ function listen(){
     lineHasMap = true;
     if (document.hidden && !CLOUD) dropLine();
     });
-  });
+  };
+  es.addEventListener('state', receive);
   // the server's push carries no Google sign-in, which only a request from this browser can ask: keep the last one
-  es.addEventListener('cloud', (m) => { CLOUD_STATUS = { ...JSON.parse(m.data), ...(CLOUD_STATUS?.google ? { google: CLOUD_STATUS.google } : {}) }; if (shareOpen) renderShare(); renderDesign(); renderTodos(); });
-  es.addEventListener('cursors', (m) => { cursors = JSON.parse(m.data); renderCursors(); });
+  es.addEventListener('cloud', (m) => { if (line !== es) return; CLOUD_STATUS = { ...JSON.parse(m.data), ...(CLOUD_STATUS?.google ? { google: CLOUD_STATUS.google } : {}) }; if (shareOpen) renderShare(); renderDesign(); renderTodos(); noteFiles?.refresh(); });
+  es.addEventListener('cursors', (m) => { if (line !== es) return; cursors = JSON.parse(m.data); renderCursors(); });
   // your Claude Code chat, synced into the Claude pane; typing in the pane survives the redraw
-  es.addEventListener('mirror', (m) => {
+  es.addEventListener('mirror', (m) => { if (line !== es) return;
     const v = JSON.parse(m.data); MIRROR = v.owner === ME ? v : null;
     redrawChat();
   });
-  es.addEventListener('here', (m) => { hereNow = JSON.parse(m.data); if (S){ renderTop(); if (shareOpen) renderShare(); } });
-  es.onerror = () => { es.close(); if (line !== es) return; line = null; setTimeout(listen, 1500); };
+  es.addEventListener('here', (m) => { if (line !== es) return; hereNow = JSON.parse(m.data); if (S){ renderTop(); if (shareOpen) renderShare(); } });
+  es.onerror = () => { es.close(); if (line !== es) return; line = null; setTimeout(() => listen(), 1500); };
+  if (prepared) receive({ data: JSON.stringify(prepared.state) });
 }
 // a resize can come before the map has loaded
 window.addEventListener('resize', () => { if (S) fit(); });
@@ -5304,6 +5342,63 @@ document.addEventListener('keydown', (e) => {
 });
 const fitBox = (t) => { t.style.height = 'auto'; t.style.height = `${t.scrollHeight}px`; };
 document.addEventListener('input', (e) => { const t = e.target.closest?.('form[data-chat] textarea, form[data-ask] textarea, form[data-action-start] textarea, form[data-action-answer] textarea, form[data-action-continue] textarea'); if (t) fitBox(t); const key = t && draftKey(t); if (key) keepDraft(key, t.value); });
+const noteWorkspace = !FILE && !CLOUD && !SHARED && !LINK ? mountNoteEditor({
+  project: noteDocument,
+  rich: noteRich.createRichNote,
+  editable: () => !PREVIEW && !!S?.people?.some((p) => p.id === ME && p.role === 'Admin'),
+  save: async (payload) => {
+    const r = await act('writenote', payload);
+    if (!r?.ok) { const error = await r?.json().catch(() => ({})); throw new Error(error?.error || 'Your note could not be saved. Your draft is kept.'); }
+    const saved = await r.json(); await refreshMap(); return { ...LIVE, noteSectionIds: saved.sectionIds };
+  },
+  changed: () => { if (S) { render(); fit(); } },
+}) : null;
+const noteFiles = !FILE && !CLOUD && !SHARED && !LINK ? mountFiles({
+  current: decodeURIComponent(location.pathname.split('/')[1] || ''),
+  fileUI: { mount: mountFileInfo, sorts: FILE_SORTS, normalize: fileSort, order: orderFiles },
+  beforeNavigate: () => noteWorkspace?.flush() || Promise.resolve(true),
+  navigate: (href) => documentNav?.navigate(href) || Promise.resolve(false),
+  resized: () => { if (S) fit(); },
+  // Updating the folder path leaves an account menu or title edit you already opened alone.
+  folderChanged: (folder) => { fileFolder = folder; const crumb = $('crumbs').querySelector('.dir'); if (crumb) { crumb.textContent = folder; crumb.title = folder; } },
+}) : null;
+// Opening another local file reuses the editor and its sidebar. Each file owns its drafts, folds and camera.
+const filePlaces = new Map();
+async function prepareFileSwitch(){
+  if (naming) await endName(true, false);
+  await topicSaveQueue; await undoQueue; await Promise.all([...pendingActions]);
+  return await noteWorkspace.flush();
+}
+async function applyFileSwitch(url, prepared){
+  if (!prepared){ await noteWorkspace.open(url.searchParams.get('document') === 'note' ? 'note' : 'map'); return; }
+  filePlaces.set(SYS_MAP, { view, selected, cam:{...cam}, chatPics });
+  dropLine(); clearTimeout(tapTimer); clearTimeout(sendingTimer); hideBoxHint(); nameSession++; histAsk++;
+  keyboardSelection = false; fileFolder = null; view = 'system'; selected = null; prsOpen = false; cursors = {}; hereNow = [];
+  HIST = []; PREVIEW = null; LIVE = S = null; CLOUD_STATUS = null;
+  mindPos = new Map(); mindLevel = null; dgSize = {w:0,h:0}; dgBack = null; dgFresh = false;
+  searchOpen = false; searchMatches = []; searchIndex = 0; $('map-query').value = '';
+  shareOpen = peopleOpen = linkMenuOpen = linkSaving = cloudPublishing = cloudPublishConfirm = cloudDeleting = cloudDeleteConfirm = linkAccessNeedsGoogle = saveOpen = xAsk = renaming = false;
+  sideTab = 'box'; sideFor = null; sideSeen = ''; sideRename = delAsk = pickedLine = backTo = null; decsScroll = 0; baseBoxes = null; loginState = '';
+  chatOpen = false; chatSeen = 0; chatAbout = null; chatHist = false; MIRROR = null; chatPics = [];
+  railTab = null; designPanelHtml = ''; mapDescriptionEdit = false; mapDescriptionDraft = ''; contextChoices = null; contextLoading = contextError = false; memEdit = null;
+  tool = 'select'; openThread = draft = null; panelQuery = ''; pendingOpen = showResolved = false; lit = drawing = naming = null; lineTap = {id:null,at:0};
+  heldTopicState = drag = panning = marquee = null; moved = spaceDown = sdAsking = false; lastCur = 0; lastTap = {id:null,at:0};
+  lockWhy = {asked:false,linked:null,pending:null}; rcSystem = undefined; rcBusy = false; rcError = rcShown = ''; sdNews = {at:0,asked:0,repos:[]};
+  for (const cache of [lastTopics, wraps, routes, histOpen, infoMore, openSecs, autoPlanning, decOpen, pendingRemovals, pendingTopics, topicIds, group]) cache.clear();
+  const path = url.pathname; SYS_MAP = path.split('/')[1]; MIND_LAYOUT_KEY = `lm.mind-layout:${path}`; FOLD_KEY = `lm.folded:${path}`; PM_FOLD_KEY = `lm.pm-folded:${path}`; DRAFTS_KEY = `lm-drafts-${SYS_MAP}`;
+  MIND_LAYOUT = 'right'; migrateLayout = false; folded = new Set(); pmFolded = new Set(); drafts.clear();
+  try { const saved = localStorage.getItem(MIND_LAYOUT_KEY); MIND_LAYOUT = mindLayoutChoice(saved); migrateLayout = !!saved; folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); pmFolded = new Set(JSON.parse(localStorage.getItem(PM_FOLD_KEY) || '[]')); for (const [key,value] of Object.entries(JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}'))) drafts.set(key,value); } catch { /* each file still opens with its own empty local preferences */ }
+  $('newbox').classList.remove('on'); $('newbox').innerHTML = ''; $('rubber').innerHTML = ''; $('box-metadata')?.hidePopover();
+  canvas.classList.remove('drawing', 'hand', 'grabbing', 'spacepan', 'commenting'); document.querySelectorAll('.tb').forEach((b) => b.classList.toggle('on', b.dataset.tool === 'select'));
+  document.body.classList.remove('previewing', 'paned', 'design-open'); LIVE = S = prepared.state; renderHistBar(); noteWorkspace.reset(path); noteFiles.setCurrent(SYS_MAP);
+  const remembered = filePlaces.get(SYS_MAP);
+  if (remembered){ view = remembered.view; selected = allBoxesOf(prepared.state).some((n) => n.id === remembered.selected) ? remembered.selected : null; chatPics = remembered.chatPics; }
+  firstState = false; listen(prepared);
+  if (migrateLayout && !prepared.state.mindLayout && MIND_LAYOUT !== 'right') saveDesign('designmap', 'layout', MIND_LAYOUT);
+  migrateLayout = false;
+  if (remembered){ Object.assign(cam,remembered.cam); place(); }
+  else fit();
+}
 listen();
 </script>
 </body>

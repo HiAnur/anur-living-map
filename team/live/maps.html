@@ -7,7 +7,7 @@
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231f1b14'/%3E%3Crect x='19' y='19' width='26' height='26' rx='4' fill='%23f8f6f1' transform='rotate(45 32 32)'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
 :root{ --plex:"IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
   --canvas:#fbfaf7; --text:#141413; --text-2:#6c6a64; --rule:rgba(0,0,0,.10); --rule-2:rgba(0,0,0,.16); --claude:#C96442; --pending:#a74426; --cloud:#448bb8; --cloud-fill:#e0f2ff; }
@@ -41,22 +41,12 @@ body{background:var(--canvas);color:var(--text);font:14px/1.5 var(--plex)}
 :root{--profile:#0E7490}
 main{width:100%;max-width:640px;margin:48px auto;padding:0 16px}
 h1{font-size:18px;font-weight:500;margin-bottom:16px}
-a.map{display:flex;align-items:center;gap:20px;padding:16px 52px 16px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;color:inherit;text-decoration:none;min-height:58px}
-a.map:hover{border-color:var(--text)}
-.t{font-weight:500}
-.map-name{flex:1;min-width:0;overflow-wrap:anywhere}
 .map-cloud{position:relative;display:inline-flex;align-items:center;flex:none;color:var(--cloud)}
 .map-cloud svg{width:18px;height:18px;fill:var(--cloud-fill);stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .map-cloud:focus-visible{outline:2px solid var(--text);outline-offset:3px;border-radius:3px}
 .cloud-tip{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:5;width:220px;padding:8px 10px;border-radius:6px;background:var(--text);color:#fff;font:400 12px/1.4 var(--plex);white-space:normal;text-align:left;box-shadow:0 4px 14px var(--rule)}
 .map-cloud:hover .cloud-tip,.map-cloud:focus .cloud-tip{display:block}
 
-.map-meta{display:flex;flex:none;align-items:center;gap:12px}
-.map-pending{font-size:12.5px;font-weight:500;white-space:nowrap}
-.map-pending,#brain .map-pending{color:var(--pending)}
-.last-edit{flex:none;color:var(--text-2);font-size:12.5px;white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
-@media(max-width:600px){a.map{gap:12px}.last-edit{font-size:12px}}
-.none{color:var(--text-2)}
 /* a new map from a prompt, in a box like Claude's: Claude Code starts it on a blank canvas */
 #new{display:flex;align-items:flex-end;gap:8px;margin-bottom:28px;padding:12px 10px 10px 14px;background:#fff;border:1px solid var(--rule-2);border-radius:18px;box-shadow:0 1px 6px rgba(0,0,0,.04)}
 #new:focus-within{border-color:rgba(0,0,0,.3)}
@@ -71,8 +61,6 @@ a.map:hover{border-color:var(--text)}
 #load-map{display:inline-flex;align-items:center;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
 #load-map:hover,#load-map:focus-within{border-color:var(--text)}
 #lerr{margin:-18px 0 22px;color:#B42318;font-size:12.5px}
-/* the list sorts by time (last changed first) or by name; this browser remembers the choice. Maps you pinned
-   stay first either way */
 .head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
 .head h1{margin:0}
 #new-map{display:inline-flex;align-items:center;gap:6px;flex:none;font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
@@ -132,34 +120,6 @@ a.map:hover{border-color:var(--text)}
 .nm-fail{color:#B42318}
 .nm-wait{margin:0 0 12px;padding:10px 12px;border:1px solid var(--rule-2);border-radius:8px;background:var(--canvas);font-size:13px;color:var(--text)}
 #gh-org{display:block;width:100%;box-sizing:border-box;height:36px;margin:0 0 12px;padding:0 10px;border:1px solid var(--rule-2);border-radius:8px;font:13.5px var(--plex)}
-/* no maps yet: what to do first */
-.empty{padding:22px 20px;background:#fff;border:1px dashed var(--rule-2);border-radius:10px;color:var(--text-2)}
-.empty b{display:block;margin-bottom:4px;color:var(--text);font-weight:500;font-size:15px}
-.sort{display:inline-flex;gap:2px;padding:2px;background:#fff;border:1px solid var(--rule-2);border-radius:8px}
-.sort button{border:0;background:none;padding:3px 10px;border-radius:6px;font:12.5px var(--plex);color:var(--text-2);cursor:pointer}
-.sort button:hover{color:var(--text)}
-.sort button.on{background:#f0eee8;color:var(--text);font-weight:500}
-/* The list keeps the name, pending answers and last edit in view; each map's details and other actions open from More. */
-.row{position:relative;margin-bottom:10px}
-.row.menu-open{z-index:2}
-.map-more{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:none;color:var(--text-2);cursor:pointer}
-.map-more:hover,.map-more[aria-expanded="true"]{background:#f0eee8;color:var(--text)}
-.map-more svg{width:18px;height:18px;fill:currentColor}
-.map-more:focus-visible,.map-menu button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
-.map-menu{position:absolute;right:8px;top:calc(100% - 6px);width:min(292px,calc(100% - 16px));padding:6px;border:1px solid var(--rule-2);border-radius:10px;background:#fff;box-shadow:0 8px 24px var(--rule);font-size:13px}
-.map-details{display:grid;gap:6px;padding:8px 10px 12px;color:var(--text-2)}
-.map-details b{font-weight:500;color:var(--text)}
-.map-folder{display:grid;gap:6px}
-.map-details > .map-folder:not(:first-child){margin:6px -10px 0;padding:12px 10px 0;border-top:1px solid var(--rule)}
-.map-folder-path{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:11.5px/1.5 ui-monospace,Menlo,monospace;user-select:all}
-.map-menu .copy-folder{width:max-content;padding:5px 8px;border:1px solid var(--rule-2);font-size:12px}
-.map-menu-actions{border-top:1px solid var(--rule);padding-top:5px}
-.map-menu button{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;border-radius:6px;background:none;color:var(--text);text-align:left;font:13px var(--plex);cursor:pointer}
-.map-menu button:hover{background:var(--canvas)}
-.map-menu button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-/* Only pinned maps carry a marker; Pin and Unpin are actions in More. */
-.pin{position:absolute;top:-9px;right:-9px;width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--text);border-radius:50%;background:var(--text);color:#fff}
-.pin svg{width:13px;height:13px;fill:currentColor;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transform:rotate(40deg)}
 #brain{padding:28px 24px;background:#fff;border-left:1px solid var(--rule);overflow-wrap:anywhere}
 #brain .ct{font-weight:600;font-size:18px;margin-bottom:18px}
 #brain .gb{border:1px solid var(--rule-2);border-radius:7px;background:#fff;padding:5px 12px;cursor:pointer}
@@ -170,6 +130,7 @@ a.map:hover{border-color:var(--text)}
 #brain .brain-map strong{font-size:14px;display:block;min-width:0}
 #brain .brain-map-status{display:flex;align-items:center;gap:10px;flex:none}
 #brain .brain-map-status small{margin:0}
+.map-pending{color:var(--pending)}
 #brain small{display:block;color:var(--text-2);font-size:12px;margin-top:4px}
 #brain .brain-back{border:0;background:none;color:var(--new);padding:2px 0 14px;cursor:pointer}
 #brain h2{font-size:19px;margin:2px 0 12px;overflow-wrap:anywhere}
@@ -183,14 +144,6 @@ a.map:hover{border-color:var(--text)}
 #brain pre{max-height:45vh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;margin:8px 0 0;padding:10px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);font:12px/1.5 ui-monospace,monospace}
 #brain .brain-empty{font-size:13px;color:var(--text-3);margin:8px 0 16px}
 [hidden]{display:none!important}
-.trash-button{font:13px var(--plex);padding:6px 12px;background:#fff;color:var(--text);border:1px solid var(--rule-2);border-radius:7px;cursor:pointer}
-.trash-button:disabled,.map-menu button:disabled{opacity:.5;cursor:wait}
-#trash-open{margin-top:6px;background:none}
-#trash-panel>p{color:var(--text-2);font-size:13px;margin:10px 0 18px}
-.trash-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;margin:10px 0;background:#fff;border:1px solid var(--rule-2);border-radius:10px}
-.trash-row strong{font-weight:500}.trash-row small{display:block;color:var(--text-2);font-size:12px;margin-top:3px}
-#trash-status{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;max-width:calc(100% - 32px);padding:12px 16px;background:#fff;border:1px solid var(--rule-2);border-radius:10px;box-shadow:0 5px 20px var(--rule);z-index:10}
-.trash-dismiss{border:0;background:none;font-size:20px;color:var(--text-2);cursor:pointer}
 </style>
 </head>
 <body>
@@ -198,17 +151,13 @@ a.map:hover{border-color:var(--text)}
   <div id="account-menu" hidden><div class="am-row"><span class="am-face" aria-hidden="true"></span><span class="am-who"><b><span id="account-me"></span> <i>(You)</i></b><span id="account-role"></span></span></div><a class="am-row am-out" href="/settings">Settings</a></div></div></div>
 <div class="home">
 <main>
+<div id="home-new-map">
   <div class="head"><h1>Start a new map</h1><div class="head-actions"><label id="load-map" title="Open a map someone sent you as a file"><input type="file" accept=".html,text/html" hidden>Load a map file</label><button id="new-map" type="button" aria-haspopup="dialog"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New map</button></div></div>
   <form id="new"><textarea rows="2" maxlength="4000" placeholder="What should Claude map?" aria-label="What should Claude map?"></textarea>
     <button type="submit" title="Start the map" aria-label="Start the map"><svg viewBox="0 0 20 20"><path d="M10 16V4M5 9l5-5 5 5"/></svg></button></form>
   <div id="err" role="alert" hidden></div>
   <div id="lerr" hidden></div>
-  <div class="head"><h1>Or pick a map you have</h1>
-    <div class="sort" role="group" aria-label="Sort maps"><button type="button" data-sort="time" title="Last changed first">Time</button><button type="button" data-sort="name" title="A to Z">Name</button></div></div>
-  <div id="list" class="none">Loading…</div>
-  <button id="trash-open" type="button" class="trash-button">Trash</button>
-  <section id="trash-panel" hidden aria-label="Trash"><div class="head"><h1>Trash</h1><button id="trash-back" type="button" class="trash-button">Back to maps</button></div><p>Restore a map to put it back in your list. Code files and online copies are kept.</p><div id="trash-list"></div></section>
-  <div id="trash-status" role="status" hidden></div>
+</div>
 </main>
 <aside id="brain" aria-label="Context"></aside>
 <dialog id="newmap" aria-labelledby="nm-title">
@@ -231,7 +180,7 @@ a.map:hover{border-color:var(--text)}
   </form>
 </dialog>
 </div>
-<script>
+<script type="module">
 // every map this server holds; a click opens it, with ?as= carried along
 const $ = (id) => document.getElementById(id);
 const SIGNED_IN = document.querySelector('meta[name="lm-user"]')?.content || '';
@@ -255,7 +204,6 @@ if (SIGNED_IN){
 }
 const ago = (t) => { if (!t) return 'not opened yet'; const m = Math.round((Date.now() - t) / 60000);
   return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
-const shortAgo = (t) => ago(t).replace(/ (min|h|d) ago$/, (_, unit) => unit === 'min' ? 'm' : unit).replace('just now', 'now');
 // a repo's size from GitHub's kilobytes, in words a person reads at a glance
 const sizeOf = (kb) => kb < 1024 ? `${Math.max(1, Math.round(kb))} KB` : kb < 1024 * 1024 ? `${Math.round(kb / 1024)} MB` : `${(kb / 1024 / 1024).toFixed(1)} GB`;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -474,163 +422,10 @@ if (new URLSearchParams(location.search).has('load') && window.opener){
   });
   window.opener.postMessage('lm-ready', '*');
 }
-let trashItems = [], trashOpen = false;
-const trashIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M7 5V3h6v2M5 5l1 12h8l1-12M8 8v6M12 8v6"/></svg>';
-function trashNotice(message, id = ''){
-  $('trash-status').hidden = false;
-  $('trash-status').innerHTML = `<span>${esc(message)}</span>${id ? `<button type="button" class="trash-button" data-restore="${esc(id)}">Undo</button>` : ''}<button type="button" class="trash-dismiss" aria-label="Dismiss message">×</button>`;
-}
-async function trashRequest(route, data){
-  let response;
-  try { response = await fetch(route, data ? {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)} : undefined); }
-  catch { throw new Error('Could not reach Living Map. Try again when it reconnects.'); }
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'That change could not be saved. Try again.');
-  return result;
-}
-async function refreshMapList(){ maps = await trashRequest('/api/maps'); list(); loadBrain(); }
-async function moveToTrash(name, button){
-  const title = titleOf(maps.find((m) => m.name === name) || {name}); button.disabled = true;
-  try {
-    const result = await trashRequest('/api/maps/trash', {name});
-    maps = maps.filter((m) => m.name !== name); list(); loadBrain();
-    trashNotice(`Moved “${title}” to Trash.`, result.trashId);
-  } catch (e){
-    // A restart can interrupt the reply after the move has succeeded.
-    try {
-      await refreshMapList();
-      if (!maps.some((m) => m.name === name)) {
-        const items = await trashRequest('/api/maps/trash'), item = items.find((m) => m.name === name);
-        if (item) { trashNotice(`Moved “${title}” to Trash.`, item.id); return; }
-      }
-    } catch {}
-    button.disabled = false; trashNotice(e.message);
-  }
-}
-function renderTrash(){
-  $('trash-list').innerHTML = trashItems.length ? trashItems.map((m) => `<div class="trash-row"><span><strong>${esc(m.title)}</strong><small>Moved to Trash ${ago(m.at)}</small></span><button type="button" class="trash-button" data-restore="${esc(m.id)}">Restore</button></div>`).join('') : '<p class="none">Trash is empty.</p>';
-}
-async function showTrash(){
-  trashOpen = true; document.querySelector('main .head').hidden = true; $('list').hidden = true; $('trash-open').hidden = true; $('trash-panel').hidden = false;
-  $('trash-back').focus(); $('trash-list').textContent = 'Loading…';
-  try { trashItems = await trashRequest('/api/maps/trash'); renderTrash(); }
-  catch (e){ $('trash-list').innerHTML = `<p role="alert">${esc(e.message)}</p><button type="button" class="trash-button" data-trash-retry>Try again</button>`; }
-}
-async function restoreFromTrash(id, button){
-  button.disabled = true;
-  try {
-    const result = await trashRequest('/api/maps/restore', {id});
-    trashItems = trashItems.filter((m) => m.id !== id); if (trashOpen) renderTrash();
-    await refreshMapList(); trashNotice(`Restored “${result.title}”.`);
-  } catch (e){button.disabled = false; trashNotice(e.message);}
-}
-$('trash-open').addEventListener('click', showTrash);
-$('trash-back').addEventListener('click', () => {
-  trashOpen = false; $('trash-panel').hidden = true; document.querySelector('main .head').hidden = false; $('list').hidden = false; $('trash-open').hidden = false; $('trash-open').focus();
-});
-document.addEventListener('click', (e) => {
-  const restore = e.target.closest('[data-restore]');
-  if (restore) restoreFromTrash(restore.dataset.restore, restore);
-  else if (e.target.closest('[data-trash-retry]')) showTrash();
-  else if (e.target.closest('.trash-dismiss')) $('trash-status').hidden = true;
-});
-
-let maps = null, sortBy = 'time';
-try { if (localStorage.getItem('lm.sort') === 'name') sortBy = 'name'; } catch {}
-const titleOf = (m) => m.title || m.name;
 function cloudMark(m){
   return m.cloud ? '<span class="map-cloud" role="img" aria-label="Stored in the cloud" aria-description="A copy of this map is stored in the cloud." tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a5 5 0 1 1 0-10 6 6 0 0 1 11.5 1.5A4.3 4.3 0 0 1 18 18Z"/></svg><span class="cloud-tip" role="tooltip">A copy of this map is stored in the cloud.</span></span>' : '';
 }
-function shortFolder(folder){
-  const parts = String(folder).split(/[\\/]/).filter(Boolean);
-  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : String(folder);
-}
-function mapDetails(m){
-  return `<div class="map-details">${m.system ? `<b>${m.system === 'running' ? 'Drawing from code' : 'System map'}</b>` : ''}${m.system && m.repos ? `<span>${m.repos} ${m.repos === 1 ? 'repo' : 'repos'}${m.drawn ? ` · Drawn ${ago(m.drawn)}` : ''}</span>${m.newCommits ? `<span>${m.newCommits} ${m.newCommits === 1 ? 'repo' : 'repos'} changed since</span>` : ''}` : ''}${m.shared ? '<span>Shared by link</span>' : ''}${m.cloud ? '<span>Online copy stored in the cloud</span>' : ''}${m.folder ? `<div class="map-folder"><b>Local folder</b><code class="map-folder-path" title="${esc(m.folder)}">${esc(shortFolder(m.folder))}</code><button type="button" class="copy-folder" data-copy-folder="${esc(m.name)}">Copy folder location</button></div>` : ''}</div>`;
-}
-const duplicateIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M12 7V3H3v9h4"/></svg>';
-const pinIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3h4v5l2.5 3.5h-9L8 8zM10 11.5V17"/></svg>';
-function ordered(maps, sortBy){
-  return [...maps].sort(sortBy === 'name' ? (a, b) => titleOf(a).localeCompare(titleOf(b), undefined, { sensitivity: 'base', numeric: true }) || a.name.localeCompare(b.name)
-    : (a, b) => (b.at || 0) - (a.at || 0) || titleOf(a).localeCompare(titleOf(b)))
-    // only maps you pinned take priority over the chosen sort order
-    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
-}
-function list(){
-  const el = document.getElementById('list');
-  document.querySelectorAll('.sort button').forEach((b) => b.classList.toggle('on', b.dataset.sort === sortBy));
-  if (!maps) return;
-  if (!maps.length) { el.innerHTML = '<div class="empty"><b>No maps yet — make one</b>Say what Claude should map in the box above, or press <button type="button" class="nm-quiet" data-empty-new>New map</button> to draw a repo from its code or start from a blank canvas.</div>'; return; }
-  el.className = '';
-  const sorted = ordered(maps, sortBy);
-  el.innerHTML = sorted.map((m, i) => `<div class="row"><a class="map" href="${m.href}${location.search}"><span class="map-name t">${esc(titleOf(m))}</span><span class="map-meta">${m.open ? `<span class="map-pending">${m.open} to answer</span>` : ''}${cloudMark(m)}<span class="last-edit"${m.at ? ` title="${esc(new Date(m.at).toLocaleString())}"` : ''}>${m.at ? shortAgo(m.at) : 'Not edited yet'}</span></span></a>${m.pinned ? `<span class="pin" role="img" aria-label="Pinned" title="Pinned to the top">${pinIcon}</span>` : ''}<button type="button" class="map-more" data-map-menu="${esc(m.name)}" aria-expanded="false" aria-controls="map-menu-${i}" aria-label="More options for ${esc(titleOf(m))}" title="More options"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/><circle cx="16" cy="10" r="1.5"/></svg></button><div class="map-menu" id="map-menu-${i}" role="region" aria-label="${esc(titleOf(m))} details and actions" hidden>${mapDetails(m)}<div class="map-menu-actions"><button type="button" data-pin="${esc(m.name)}" aria-pressed="${m.pinned ? 'true' : 'false'}">${pinIcon}${m.pinned ? 'Unpin' : 'Pin to top'}</button>${m.deletable ? `<button type="button" class="duplicate" data-duplicate="${esc(m.name)}">${duplicateIcon}Duplicate</button><button type="button" class="del" data-trash="${esc(m.name)}">${trashIcon}Move to Trash</button>` : ''}</div></div></div>`).join('');
-}
-function closeMapMenus(focus = false){
-  const button = document.querySelector('[data-map-menu][aria-expanded="true"]');
-  if (!button) return;
-  button.setAttribute('aria-expanded', 'false');
-  $(button.getAttribute('aria-controls')).hidden = true;
-  button.closest('.row').classList.remove('menu-open');
-  if (focus) button.focus();
-}
-function toggleMapMenu(button){
-  const open = button.getAttribute('aria-expanded') !== 'true';
-  closeMapMenus();
-  if (!open) return;
-  button.setAttribute('aria-expanded', 'true');
-  $(button.getAttribute('aria-controls')).hidden = false;
-  button.closest('.row').classList.add('menu-open');
-}
-document.addEventListener('click', (e) => { if (!e.target.closest('.map-menu,[data-map-menu]')) closeMapMenus(); });
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeMapMenus(true);
-  if (e.key === 'ArrowDown' && e.target.closest('[data-map-menu]')) {
-    e.preventDefault();
-    const button = e.target.closest('[data-map-menu]');
-    if (button.getAttribute('aria-expanded') !== 'true') toggleMapMenu(button);
-    $(button.getAttribute('aria-controls')).querySelector('button')?.focus();
-  }
-});
-async function copyFolder(name, button){
-  const folder = maps.find((m) => m.name === name)?.folder;
-  if (!folder) return;
-  try {
-    await navigator.clipboard.writeText(folder);
-    button.textContent = 'Copied';
-    setTimeout(() => { button.textContent = 'Copy folder location'; }, 1800);
-  } catch { trashNotice('Could not copy the folder location. Select the path and copy it.'); }
-}
-async function duplicateMap(name, button){
-  button.disabled = true;
-  try {
-    const result = await trashRequest('/api/maps/duplicate', {name});
-    location.href = result.href;
-  } catch (e){ button.disabled = false; trashNotice(e.message); }
-}
-// a pin is saved for you on the server, so it is there in any browser on this Mac
-async function togglePin(name, button){
-  const map = maps.find((m) => m.name === name); if (!map) return;
-  button.disabled = true;
-  try {
-    map.pinned = (await trashRequest('/api/maps/pin', { name, pinned: !map.pinned })).pinned;
-    list(); $('trash-status').hidden = true;
-    // Pinning sorts the list again and closes the menu, so the keyboard returns to that map's More button.
-    [...document.querySelectorAll('[data-map-menu]')].find((b) => b.dataset.mapMenu === name)?.focus();
-  } catch (e){ button.disabled = false; trashNotice(e.message); }
-}
-$('list').addEventListener('click', (e) => {
-  if (e.target.closest('[data-empty-new]')) return blank.click();
-  const copy = e.target.closest('[data-copy-folder]'); if (copy) return copyFolder(copy.dataset.copyFolder, copy);
-  const more = e.target.closest('[data-map-menu]'); if (more) return toggleMapMenu(more);
-  const duplicate = e.target.closest('[data-duplicate]'); if (duplicate) return duplicateMap(duplicate.dataset.duplicate, duplicate);
-  const button = e.target.closest('[data-trash]'); if (button) return moveToTrash(button.dataset.trash, button);
-  const pin = e.target.closest('[data-pin]'); if (pin) togglePin(pin.dataset.pin, pin);
-});
-document.querySelector('.sort').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-sort]'); if (!b) return;
-  sortBy = b.dataset.sort; try { localStorage.setItem('lm.sort', sortBy); } catch {}
-  list();
-});
+window.addEventListener('lm-files-changed', () => { void loadBrain(); });
 function brainObjects(state, who, description){
   const sees = state.people?.find((p) => p.id === who)?.sees;
   const limited = sees && sees !== 'all', ids = new Set();
@@ -702,8 +497,11 @@ $('brain').addEventListener('click', (e) => {
   else if (e.target.closest('[data-brain-retry]')) loadBrain(brainMap);
 });
 loadBrain();
-list();
-fetch('api/maps').then((r) => r.json()).then((m) => { maps = m; list(); });
+</script>
+<script type="module">
+import { mountFiles } from './page-files.js';
+import { FILE_SORTS, fileSort, orderFiles, mountFileInfo } from './page-file-info.js';
+mountFiles({ fileUI: { mount: mountFileInfo, sorts: FILE_SORTS, normalize: fileSort, order: orderFiles } });
 </script>
 </body>
 </html>

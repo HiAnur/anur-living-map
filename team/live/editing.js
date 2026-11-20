@@ -35,6 +35,7 @@ export function reparentTopic(state, a, /** @type {(n?: any) => boolean} */ canE
     const n = graph.nodes.find((n) => n.id === m?.id);
     return !n || !canEdit(n) || ![m.fromX, m.fromY, m.x, m.y].every(Number.isFinite) || n.x !== m.fromX || n.y !== m.fromY;
   })) return false;
+  for (const n of graph.nodes) delete n.outlineOrder;
   for (const m of moves) Object.assign(/** @type {Box} */ (graph.nodes.find((n) => n.id === m.id)), { x: Math.round(m.x), y: Math.round(m.y), moved: true });
   graph.edges = [...(graph.edges || []).filter((e) => !roots.includes(e.to)), ...roots.map((id) => ({from:parent.id,to:id}))];
   return true;
@@ -73,7 +74,7 @@ export function boxDates(state, fresh = false, now = Date.now()) {
   });
 }
 /** @param {MapState} state */
-export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edges: state.edges, title: state.title, renamed: state.renamed, numbering: state.numbering, mindLayout: state.mindLayout });
+export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edges: state.edges, title: state.title, renamed: state.renamed, desc: state.desc, start: state.start, numbering: state.numbering, mindLayout: state.mindLayout });
 // Apply only the entities this action changed. Another person's unrelated edits stay intact;
 // a conflicting edit blocks the operation instead of being overwritten.
 /** @param {any} state @param {any} from @param {any} to two snapshots, read by field name @param {(n?: any) => boolean} canEdit */
@@ -95,7 +96,7 @@ function applyEdit(state, from, to, canEdit) {
     }
     next[field] = [...current.values()];
   }
-  for (const field of ['title', 'renamed', 'numbering', 'mindLayout']) if (!equal(from[field], to[field])) {
+  for (const field of ['title', 'renamed', 'desc', 'start', 'numbering', 'mindLayout']) if (!equal(from[field], to[field])) {
     if (!equal(state[field], from[field])) return false;
     next[field] = to[field];
   }

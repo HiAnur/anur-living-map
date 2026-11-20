@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -11,6 +11,11 @@ import {
 
 useTeamServer();
 
+const fileMore = (page: Page, name: string) =>
+  page.locator(`#files-tree [data-file-more="${name}"]`);
+const fileLink = (page: Page, name: string) =>
+  page.locator(`#files-tree [data-file="${name}"] a`);
+
 test("Duplicate opens a separate map with the same boxes and leaves the original unchanged", async ({
   page,
 }) => {
@@ -19,12 +24,13 @@ test("Duplicate opens a separate map with the same boxes and leaves the original
     await page.request.get(`${server.origin}/${original}/api/state`)
   ).json();
   await page.goto(`${server.origin}/`);
-  await page.locator(`[data-map-menu="${original}"]`).click();
-  await page.locator(`[data-duplicate="${original}"]`).click();
+  await fileMore(page, original).click();
+  await page.getByRole("button", { name: "Duplicate", exact: true }).click();
   await page.waitForURL((url) => url.pathname !== "/");
   expect(new URL(page.url()).pathname).not.toBe(`/${original}/`);
   await expect(page.locator("#nodes .node")).toHaveCount(4);
   const copyUrl = new URL(page.url());
+  copyUrl.search = "";
   const copy = await (await page.request.get(`${copyUrl}api/state`)).json();
   expect(copy.title).toBe("Launch plan (copy)");
   expect(copy.nodes).toEqual(state.nodes);
@@ -49,8 +55,8 @@ test("Duplicate opens a separate map with the same boxes and leaves the original
     unchanged.nodes.find((n: { id: string }) => n.id === "pricing").label,
   ).toBe("Pricing");
   await page.goto(`${server.origin}/`);
-  await expect(page.locator(`a.map[href="/${original}/"]`)).toBeVisible();
-  await expect(page.locator(`a.map[href="${copyUrl.pathname}"]`)).toContainText(
+  await expect(fileLink(page, original)).toBeVisible();
+  await expect(fileLink(page, copyUrl.pathname.split("/")[1])).toContainText(
     "Launch plan (copy)",
   );
 });
@@ -69,226 +75,178 @@ test("a failed duplicate explains the failure and lets you retry", async ({
       }),
     }),
   );
-  await page.locator(`[data-map-menu="${original}"]`).click();
-  const button = page.locator(`[data-duplicate="${original}"]`);
+  await fileMore(page, original).click();
+  const button = page.getByRole("button", { name: "Duplicate", exact: true });
   await button.click();
-  await expect(page.locator("#trash-status")).toContainText(
+  await expect(page.locator("#file-info [role=alert]")).toHaveText(
     "Could not duplicate the map. Try again.",
   );
   await expect(button).toBeEnabled();
   await expect(page).toHaveURL(`${server.origin}/`);
 });
 
-test("More keeps actions hidden and reachable by keyboard on a narrow screen", async ({
+test("file actions stay reachable by keyboard on a narrow screen", async ({
   page,
 }) => {
   const original = await openSample(page, { ...SAMPLE, title: "Mobile copy" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${server.origin}/`);
-  const row = page.locator(".row", {
-    has: page.locator(`[data-map-menu="${original}"]`),
-  });
-  await expect(row.locator(".duplicate")).toBeHidden();
-  await expect(row.locator(".del")).toBeHidden();
-  const edited = await row.locator(".last-edit").boundingBox();
-  const more = await row.locator(".map-more").boundingBox();
-  expect(edited).not.toBeNull();
-  expect(more).not.toBeNull();
-  expect(edited!.x + edited!.width).toBeLessThanOrEqual(more!.x);
-  await row.locator(".map-more").focus();
+  await expect(
+    page.getByRole("button", { name: "Duplicate", exact: true }),
+  ).toHaveCount(0);
+  await fileMore(page, original).focus();
   await page.keyboard.press("ArrowDown");
   await expect(
-    row.getByRole("button", { name: "Copy folder location", exact: true }),
+    page.getByRole("button", { name: "Copy folder location", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(row.locator("[data-pin]")).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Bookmark", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(row.locator(".duplicate")).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Move to folder", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "Duplicate", exact: true }),
+  ).toBeFocused();
   await page.keyboard.press("Enter");
   await page.waitForURL((url) => url.pathname !== "/");
   expect(new URL(page.url()).pathname).not.toBe(`/${original}/`);
 });
 
-test("rows show pending answers without box counts, and keep other details under More", async ({
+test("the home page uses the sidebar for files and keeps storage and system details in file information", async ({
   page,
 }) => {
   const original = await openSample(page, {
     ...SAMPLE,
     title: "A calmer list",
   });
-  await page.route("**/api/maps", (route) =>
+  const files = [
+    {
+      name: original,
+      title: "A calmer list",
+      href: `/${original}/`,
+      at: Date.now() - 86400000,
+      boxes: 4,
+      open: 1,
+      system: "done",
+      repos: 2,
+      drawn: Date.now() - 172800000,
+      shared: true,
+      cloud: true,
+      folder: path.join(server.root, "app", "maps", original),
+      deletable: true,
+    },
+    {
+      name: "another",
+      title: "Another map",
+      href: "/another/",
+      at: Date.now(),
+      shared: true,
+      cloud: false,
+      boxes: 0,
+      open: 0,
+      deletable: true,
+    },
+  ];
+  // These storage indicators stand in for cloud metadata; no map is uploaded.
+  await page.route("**/api/maps", (route) => route.fulfill({ json: files }));
+  await page.route("**/api/library", (route) =>
     route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify([
-        {
-          name: original,
-          title: "A calmer list",
-          href: `/${original}/`,
-          at: Date.now() - 86400000,
-          boxes: 4,
-          open: 1,
-          system: "done",
-          repos: 2,
-          drawn: Date.now() - 172800000,
-          shared: true,
-          cloud: true,
-          folder: path.join(server.root, "app", "maps", original),
-          deletable: true,
-        },
-        {
-          name: "another",
-          pinned: true,
-          title: "Another map",
-          shared: true,
-          cloud: false,
-          href: "/another/",
-          at: Date.now(),
-          boxes: 0,
-          deletable: true,
-        },
-      ]),
+      json: {
+        revision: 0,
+        folders: [],
+        files: files.map((f) => ({ ...f, parent: "", view: "map" })),
+      },
     }),
   );
   await page.goto(`${server.origin}/`);
-  const row = page.locator(".row", {
-    has: page.locator(`[data-map-menu="${original}"]`),
-  });
-  const more = row.locator(".map-more"),
-    details = row.locator(".map-menu");
-  await expect(row.locator(".last-edit")).toHaveText("1d");
-  await expect(row.locator(".pin")).toHaveCount(0);
-  await expect(row.locator(".map-name")).toHaveText("A calmer list");
-  await expect(row.locator(".map-name .map-cloud")).toHaveCount(0);
-  const pendingBounds = await row.locator(".map-pending").boundingBox();
-  const timeBounds = await row.locator(".last-edit").boundingBox();
-  const cloudBounds = await row.locator(".map-cloud").boundingBox();
-  expect(pendingBounds!.x + pendingBounds!.width).toBeLessThanOrEqual(
-    cloudBounds!.x,
-  );
-  expect(cloudBounds!.x + cloudBounds!.width).toBeLessThanOrEqual(
-    timeBounds!.x,
-  );
-  const midpoints = [pendingBounds!, timeBounds!, cloudBounds!].map(
-    (b) => b.y + b.height / 2,
-  );
-  expect(Math.max(...midpoints) - Math.min(...midpoints)).toBeLessThan(2);
+  await expect(page.locator("main a.map")).toHaveCount(0);
   await expect(
-    row.getByRole("img", { name: "Stored in the cloud" }),
-  ).toBeVisible();
-  const cloud = row.getByRole("img", { name: "Stored in the cloud" });
-  await cloud.hover();
-  await expect(cloud.getByRole("tooltip")).toBeVisible();
-  await expect(cloud.getByRole("tooltip")).toHaveText(
-    "A copy of this map is stored in the cloud.",
-  );
-  await row.locator(".map-name").hover();
-  await expect(cloud.getByRole("tooltip")).toBeHidden();
-  await expect(row.locator(".map-pending")).toHaveText("1 to answer");
-  const editedColor = await row
-    .locator(".last-edit")
-    .evaluate((element) => getComputedStyle(element).color);
-  await expect(row.locator(".map-pending")).not.toHaveCSS("color", editedColor);
-  await expect(page.locator("#brain")).toContainText("1 to answer");
-  await expect(page.locator(".home")).not.toContainText(/\d+ boxes/);
-  const clearRow = page.locator(".row", {
-    has: page.locator('[data-map-menu="another"]'),
-  });
-  await expect(clearRow.locator(".map-pending")).toHaveCount(0);
-  await expect(
-    clearRow.getByRole("img", { name: "Pinned", exact: true }),
-  ).toBeVisible();
-  const clearTimeBounds = await clearRow.locator(".last-edit").boundingBox();
-  expect(
-    Math.abs(
-      timeBounds!.x +
-        timeBounds!.width -
-        clearTimeBounds!.x -
-        clearTimeBounds!.width,
-    ),
-  ).toBeLessThan(1);
-  await expect(
-    clearRow.getByRole("img", { name: "Stored in the cloud" }),
+    page.getByRole("heading", { name: "Or pick a map you have", exact: true }),
   ).toHaveCount(0);
-  await expect(details).toBeHidden();
-  await expect(row.locator(".duplicate")).toBeHidden();
-  await expect(row.locator(".del")).toBeHidden();
-  await more.click();
-  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByLabel("Sort files", { exact: true })).toBeVisible();
+  await expect(page.locator("#brain")).toContainText("1 to answer");
+  const row = page.locator(`#files-tree [data-file="${original}"]`);
+  await expect(
+    row.getByRole("img", { name: "Stored in the cloud", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("#file-info")).toHaveCount(0);
+  await fileMore(page, original).click();
+  const details = page.locator("#file-info");
   for (const text of [
     "System map",
-    "2 repos · Drawn 2 d ago",
+    "2 repos · Drawn 2d ago",
     "Shared by link",
-    "Online copy stored in the cloud",
+    "A copy is stored in the cloud.",
     `…/maps/${original}`,
   ])
     await expect(details).toContainText(text);
   await expect(details).not.toContainText(/boxes|to answer/);
-  await expect(details.locator(".map-folder")).toContainText("Local folder");
-  await expect(details.locator(".map-address")).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(details).toBeHidden();
-  await expect(more).toBeFocused();
-  await more.click();
-  await page.locator('[data-map-menu="another"]').click();
-  await expect(details).toBeHidden();
-  await expect(page.locator('[data-map-menu="another"]')).toHaveAttribute(
-    "aria-expanded",
-    "true",
+  await expect(details).toHaveCount(0);
+  await expect(fileMore(page, original)).toBeFocused();
+  await fileMore(page, original).click();
+  await fileMore(page, "another").click();
+  await expect(details).toHaveAttribute(
+    "aria-label",
+    "Another map details and actions",
   );
-  await page.getByRole("heading", { name: "Or pick a map you have" }).click();
-  await expect(page.locator(".map-menu:visible")).toHaveCount(0);
+  await page
+    .getByRole("heading", { name: "Start a new map", exact: true })
+    .click();
+  await expect(details).toHaveCount(0);
 });
 
-test("Trash and Undo still work from the More menu", async ({ page }) => {
+test("Trash and Undo work from the file actions menu", async ({ page }) => {
   const original = await openSample(page, {
     ...SAMPLE,
     title: "Recover a map",
   });
   await page.goto(`${server.origin}/`);
-  const more = page.locator(`[data-map-menu="${original}"]`);
+  const more = fileMore(page, original);
   await more.click();
-  await page.locator(`[data-trash="${original}"]`).click();
+  await page
+    .getByRole("button", { name: "Move to Trash", exact: true })
+    .click();
   await expect(more).toHaveCount(0);
   await page
-    .locator("#trash-status")
+    .locator("#file-notice")
     .getByRole("button", { name: "Undo", exact: true })
     .click();
   await expect(more).toBeVisible();
 });
 
-test("pin markers appear only after pinning from More, and Unpin removes them", async ({
+test("bookmarks appear only after bookmarking a file and persist until removed", async ({
   page,
 }) => {
   const original = await openSample(page, {
     ...SAMPLE,
-    title: "Pin from the menu",
+    title: "Save this file",
   });
   await page.goto(`${server.origin}/`);
-  const row = page.locator(".row", {
-    has: page.locator(`[data-map-menu="${original}"]`),
-  });
-  const more = row.locator(".map-more");
-  await expect(row.locator(".pin")).toHaveCount(0);
-  await more.click();
-  await row.getByRole("button", { name: "Pin to top", exact: true }).click();
-  await expect(
-    row.getByRole("img", { name: "Pinned", exact: true }),
-  ).toBeVisible();
-  await expect(more).toBeFocused();
+  const saved = page.locator(`.files-bookmarks [data-file="${original}"]`);
+  await expect(saved).toHaveCount(0);
+  await fileMore(page, original).click();
+  await page.getByRole("button", { name: "Bookmark", exact: true }).click();
+  await expect(saved).toBeVisible();
+  await expect(fileMore(page, original)).toBeFocused();
   await page.reload();
-  await expect(
-    row.getByRole("img", { name: "Pinned", exact: true }),
-  ).toBeVisible();
-  await more.click();
-  await row.getByRole("button", { name: "Unpin", exact: true }).click();
-  await expect(row.locator(".pin")).toHaveCount(0);
-  await expect(more).toBeFocused();
+  await expect(saved).toBeVisible();
+  await fileMore(page, original).click();
+  await page
+    .getByRole("button", { name: "Remove bookmark", exact: true })
+    .click();
+  await expect(saved).toHaveCount(0);
+  await expect(fileMore(page, original)).toBeFocused();
   await page.reload();
-  await expect(row.locator("a.map")).toBeVisible();
-  await expect(row.locator(".pin")).toHaveCount(0);
+  await expect(fileLink(page, original)).toBeVisible();
+  await expect(saved).toHaveCount(0);
 });
 
-test("More shows and copies the folder holding each named or project map", async ({
+test("file information shows and copies the folder holding each named or project map", async ({
   page,
   context,
 }) => {
@@ -308,37 +266,26 @@ test("More shows and copies the folder holding each named or project map", async
   });
   expect(added.ok()).toBe(true);
   const projectMap = await added.json();
-  const list = await (
-    await page.request.get(`${server.origin}/api/maps`)
-  ).json();
   const namedFolder = path.join(server.root, "app", "maps", original);
-  expect(list.find((m: { name: string }) => m.name === original).folder).toBe(
-    namedFolder,
-  );
-  expect(
-    list.find((m: { name: string }) => m.name === projectMap.name).folder,
-  ).toBe(folder);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto(`${server.origin}/`);
   for (const [name, expected] of [
     [original, namedFolder],
     [projectMap.name, folder],
   ]) {
-    const row = page.locator(".row", {
-      has: page.locator(`[data-map-menu="${name}"]`),
-    });
-    await row.locator(".map-more").click();
+    await fileMore(page, name).click();
+    const details = page.locator("#file-info");
     const shortPath = `…/${expected.split(/[\\/]/).filter(Boolean).slice(-2).join("/")}`;
-    await expect(row.locator(".map-folder-path")).toHaveText(shortPath);
-    await expect(row.locator(".map-folder-path")).toHaveAttribute(
+    await expect(details.locator(".file-location code")).toHaveText(shortPath);
+    await expect(details.locator(".file-location code")).toHaveAttribute(
       "title",
       expected,
     );
-    await row
+    await details
       .getByRole("button", { name: "Copy folder location", exact: true })
       .click();
     await expect(
-      row.getByRole("button", { name: "Copied", exact: true }),
+      details.getByRole("button", { name: "Copied", exact: true }),
     ).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       expected,

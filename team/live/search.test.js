@@ -42,13 +42,13 @@ describe('map search',()=>{
 function previewHarness(){
   const calls=[];
   const query={blur:()=>calls.push('blur')};
-  const c=vm.createContext({searchMatches:[{id:'child',container:'system'}],
+  const c=vm.createContext({document:{body:{classList:{contains:()=>false}}},searchMatches:[{id:'child',container:'system'}],
     closeMapSearch:()=>calls.push('close'),$:id=>id==='map-query'?query:{getBoundingClientRect:()=>({left:700,bottom:400})},
     view:'system',selected:null,sideFor:null,sideTab:'chat',keyboardSelection:true,pickedLine:'line',backTo:'sidechats',
     group:new Set(['old']),setTool:()=>{},render:()=>calls.push('render'),
     scope:()=>({nodes:[{id:'child',x:1000,y:800}]}),W:()=>180,HT:()=>70,
     canvas:{getBoundingClientRect:()=>({left:0,top:44,width:1200,height:700})},cam:{x:0,y:0,z:.8},place:()=>calls.push('place')});
-  vm.runInContext(html.slice(html.indexOf('function openSearchResult('),html.indexOf("$('map-query').addEventListener('focus'")),c);
+  vm.runInContext(html.slice(html.indexOf('function openSearchResult('),html.indexOf("\ndocument.querySelector('[data-map-search]').addEventListener")),c);
   return {c,calls};
 }
 describe('search result preview',()=>{

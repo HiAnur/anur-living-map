@@ -115,7 +115,7 @@ it('opens a new install straight onto your maps, with no form, as the Mac\'s own
   const home = await map.get('/', { 'sec-fetch-site': 'none', 'sec-fetch-mode': 'navigate' });
   expect(home.status).toBe(200);
   const page = await home.text();
-  expect(page).toContain('Or pick a map you have');
+  expect(page).toContain('Start a new map');
   expect(page).not.toMatch(/type="password"|Create your account/);
   const you = await map.me();
   expect(you).toEqual({ name: expect.any(String), role: 'Owner', googleEmail: '', google: false, picture: '' });
