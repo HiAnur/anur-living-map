@@ -337,23 +337,42 @@ test("the owner shares view and edit links, with people shown only while they ar
   await expect(visitor.locator("body")).not.toHaveClass(/view-only/, {
     timeout: 10000,
   });
-  const changed = await visitor.evaluate(async () => {
-    const state = await fetch("api/state" + location.search).then((r) =>
-      r.json(),
-    );
-    return fetch("api/act" + location.search, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type: "renamebox",
-        id: "pricing",
-        label: "Updated pricing",
-        revision: state.cloudRevision,
-      }),
-    }).then((r) => r.status);
-  });
-  expect(changed).toBe(200);
-  await expect(box(visitor, "Updated pricing")).toBeVisible();
+  // Both editors use the cloud link. One can keep typing while the other pans and edits.
+  const second = await browser.newPage();
+  await second.goto(publishedUrl!);
+  await box(second, "Audience").click();
+  await second.keyboard.press("F2");
+  const draft = second.locator("#newbox textarea");
+  await draft.fill("Audience draft");
+  await draft.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(2, 6));
+  const camera = () =>
+    second.locator("#stage").evaluate((el) => el.style.transform);
+  const before = await camera();
+  await box(visitor, "Pricing").hover();
+  await visitor.mouse.wheel(0, 50);
+  const arrow = second.locator("#curs .cur svg").first();
+  await expect(arrow).toBeVisible();
+  await expect
+    .poll(async () => (await arrow.boundingBox())?.width)
+    .toBeCloseTo(16);
+  await box(visitor, "Pricing").click();
+  await visitor.keyboard.press("F2");
+  await visitor.locator("#newbox textarea").fill("Updated pricing");
+  await visitor.keyboard.press("Enter");
+  await expect(box(second, "Updated pricing")).toBeVisible({ timeout: 2000 });
+  expect(await camera()).toBe(before);
+  await expect(draft).toBeFocused();
+  await expect(draft).toHaveValue("Audience draft");
+  expect(
+    await draft.evaluate((el: HTMLTextAreaElement) => [
+      el.selectionStart,
+      el.selectionEnd,
+    ]),
+  ).toEqual([2, 6]);
+  await second.keyboard.type("new");
+  await second.keyboard.press("Enter");
+  await expect(box(visitor, "Aunewce draft")).toBeVisible({ timeout: 2000 });
+  await second.close();
   await expect(box(page, "Updated pricing")).toHaveCount(1, { timeout: 2000 });
 
   await share
