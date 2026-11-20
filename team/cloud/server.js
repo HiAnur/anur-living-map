@@ -8,6 +8,7 @@ import { PAGE_MODULES, inlineModules } from '../live/page-modules.js';
 import { LINK_EDITS } from '../live/sharing.js';
 import { mapData, mergeMap, viewData, signedLink } from '../live/cloud-data.js';
 import { accessOf, applyAccess, cookie, gatePage, notePage, sealer, SESSION_DAYS, visitorRole } from './access.js';
+import { emailPeople } from '../live/page-share.js';
 import { idTokenChecker } from './google-id.js';
 import { liveRooms } from './live-room.js';
 import { FirestoreStore } from './store.js';
@@ -165,6 +166,7 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
         res.setHeader('set-cookie', `lm_cloud_guest=${key}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
         const metas = ['<meta name="lm-cloud" content="1">', `<meta name="lm-access" content="${role}">`, '<meta name="lm-shared" content="1">',
           `<meta name="lm-user" content="${person.name}">`,
+          named ? `<meta name="lm-email" content="${named.email.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)}">` : '',
           // someone viewing through the link alone may have been invited to edit: Share offers them a sign-in
           v.owner && !named ? `<meta name="lm-cloud-signin" content="/auth/google?next=${encodeURIComponent(`/m/${id}/?share=${suppliedLink}`)}">` : ''];
         return htmlPage(200, html.replace('</head>', `${metas.join('')}</head>`));
@@ -177,15 +179,16 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       if (p === '/api/state' && req.method === 'GET') {
         if (mac) {
           const names = present(id, null);
-          const etag = `"layout.${v.revision}.${v.mode}.${v.linkRole || 'view'}.${v.linkView ? 1 : 0}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
+          const etag = `"layout.${v.revision}.${v.mode}.${v.linkRole || 'view'}.${v.linkView ? 1 : 0}.${hash(JSON.stringify([names, accessOf(v)])).slice(0, 12)}"`; res.setHeader('etag', etag);
           if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
           return json(200, { ...viewData(v.data, v.mode), sharedLayout: true, cloudRevision: v.revision, access: accessOf(v), here: names });
         }
         const names = v.owner ? present(id, viewer) : [];
-        const etag = `"${v.revision}.${role}.${hash(names.join('\n')).slice(0, 12)}"`; res.setHeader('etag', etag);
+        const assignments = named && role === 'edit' && (named.email === v.owner?.email || v.people?.[named.email]) ? emailPeople(accessOf(v)) : [];
+        const etag = `"${v.revision}.${role}.${hash(JSON.stringify([names, assignments])).slice(0, 12)}"`; res.setHeader('etag', etag);
         if (req.headers['if-none-match'] === etag) return res.writeHead(304).end();
-        // who is here stands in for the map's people, the only people a visitor is sent
-        return json(200, { ...viewData(v.data, role), ...(v.owner ? { people: names.map((n) => ({ id: n })), here: names } : {}), cloudRevision: v.revision });
+        // Presence is separate from assignment choices, which only invited editors receive.
+        return json(200, { ...viewData(v.data, role), assignmentPeople: assignments, ...(v.owner ? { people: names.map((n) => ({ id: n })), here: names } : {}), cloudRevision: v.revision });
       }
       if (p === '/api/version' && req.method === 'GET') return json(200, { latest: true, version: 'cloud' });
       if (p === '/api/history' && req.method === 'GET') return json(200, []);
@@ -238,7 +241,7 @@ export function createCloudServer({ store, publishKey, publicUrl, googleClientId
       // Every browser has its own undo history; names supplied in a request cannot impersonate someone.
       if (!guestId && !mac && !named) throw fail(401, 'Open the shared map first.');
       const by = mac ? 'Owner' : named ? named.name : `Guest ${guestId.slice(0, 6)}`;
-      const engine = openMap({ home: '/tmp/living-map-memory', memory: true, initialState: viewData(v.data, v.mode), undoState: v.undo });
+      const engine = openMap({ home: '/tmp/living-map-memory', memory: true, initialState: { ...viewData(v.data, v.mode), assignmentPeople: emailPeople(accessOf(v)) }, undoState: v.undo });
       try {
         const result = engine.editShared({ ...a, by });
         if (!result.ok) throw fail(400, result.error || 'That change could not be saved.');
