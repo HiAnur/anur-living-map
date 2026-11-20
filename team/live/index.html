@@ -293,7 +293,7 @@ body.mind-view #rubber:has(.attach-target) .drag-ghost{opacity:0}
 .node.mind-root .nt,.node.mind-topic .nt,.node.mind-leaf .nt{white-space:pre-wrap;overflow:visible}
 .node.mind-root.sel{outline-offset:2px}
 .node.mind-pending{pointer-events:none}
-body.mind-view #tidyb,body.mind-view #pins,body.mind-view #curs{display:none}
+body.mind-view #tidyb,body.mind-view #pins,body.mind-view #tools [data-tool="box"],body.mind-view #tools [data-tool="arrow"],body.mind-view #tools .drawing-divider{display:none}
 /* the account menu's choice of how maps are drawn */
 .pm-view{display:flex;align-items:center;gap:8px;margin-top:4px;padding:8px;border-top:1px solid var(--rule)}
 .pm-view > span{flex:1;font-size:12.5px;color:var(--text-2)}
@@ -436,7 +436,10 @@ body.mind-view .node.mind-leaf:not(.mind-action) .fold{top:100%}
 .warn{position:absolute;font:500 12px/1.35 var(--plex);color:#8a6100;white-space:normal;overflow-wrap:break-word;pointer-events:none}
 .d-warn{margin:10px 0;padding:8px 10px;border:1px solid rgba(217,164,0,.55);border-radius:8px;background:#fff8e1;font:13px/1.4 var(--plex);color:var(--text)}
 .d-warn b{display:block;font-weight:500;color:#8a6100}.d-warn span{display:block;margin-top:2px;color:var(--text-2)}
-.cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform .12s linear;z-index:5}
+#curs{pointer-events:none}
+#curs .cur{position:absolute;left:0;top:0;pointer-events:none;transition:transform 45ms linear;z-index:5}
+#curs .cur-mark{display:block;position:relative;transform-origin:0 0;transform:scale(calc(1 / var(--map-zoom,1)))}
+@media (prefers-reduced-motion:reduce){#curs .cur{transition:none}}
 .cur .tag{position:absolute;left:14px;top:14px;font:500 11px/1 var(--plex);color:#fff;background:#141413;border-radius:6px;padding:4px 7px;white-space:nowrap}
 
 /* cards over the map */
@@ -1184,10 +1187,10 @@ body.paned #tidyb{right:calc(132px + var(--pane-width))}
 <div id="tools">
   <span class="tb on" data-tool="select" title="Select (⌘ V)"><svg viewBox="0 0 20 20"><path d="M5 3l10 6.5-4.3 1.1L8.4 15z"/></svg><kbd class="tk">⌘ V</kbd></span>
   <span class="tb" data-tool="hand" title="Pan: drag the map (⌘ H)"><svg viewBox="0 0 20 20"><path d="M7 10V5.5a1.2 1.2 0 012.4 0V9m0-4.5V4a1.2 1.2 0 012.4 0v5m0-3.5a1.2 1.2 0 012.4 0V12c0 3-2 5-4.8 5-2 0-3.2-1-4.3-2.7L3.6 11a1.2 1.2 0 012-1.2L7 11.5"/></svg><kbd class="tk">⌘ H</kbd></span>
-  <i class="tdiv"></i>
+  <i class="tdiv drawing-divider"></i>
   <span class="tb" data-tool="box" title="Box: drag one out (⌘ R)"><svg viewBox="0 0 20 20"><rect x="4" y="5" width="12" height="10" rx="2"/></svg><kbd class="tk">⌘ R</kbd></span>
   <span class="tb" data-tool="arrow" title="Line: drag from one box to another (⌘ A)"><svg viewBox="0 0 20 20"><path d="M4 16L16 4m0 0h-6m6 0v6"/></svg><kbd class="tk">⌘ A</kbd></span>
-  <i class="tdiv"></i>
+  <i class="tdiv drawing-divider"></i>
   <span class="tb" data-tool="comment" title="Comment: click where it goes (⌘ C)"><svg viewBox="0 0 20 20"><path d="M3.5 16.5V10a6.5 6.5 0 116.5 6.5z"/></svg><kbd class="tk">⌘ C</kbd></span>
   <i class="tdiv"></i>
   <button class="tb history-tool" data-map-history="undo" title="Undo (⌘ Z)" aria-label="Undo" aria-keyshortcuts="Meta+Z Control+Z"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4L3 8l4 4M3 8h8a5 5 0 015 5v3"/></svg><kbd class="tk">⌘ Z</kbd></button>
@@ -1243,7 +1246,7 @@ import { historyScreens } from './page-history.js';
 import { drawingPanel } from './page-drawing.js';
 import { wrapWords } from './page-words.js';
 import { HUB_SIZE, LEVEL_CENTRE, hubHint, hubLevel, isHub, levelGraph } from './page-hub.js';
-import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindView } from './page-mind.js';
+import { MIND_LAYOUTS, MIND_VIEW_KEY, mindBranch, mindLayout, mindLayoutChoice, mindLayoutIcon, mindTree, mindView } from './page-mind.js';
 // how wide a line's words may run before they wrap
 const LABEL_WIDTH = 150;
 const $ = (id) => document.getElementById(id);
@@ -1525,6 +1528,7 @@ const place = () => {
   stage.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.z})`;
   // Keep the dots anchored to the same map coordinates as the boxes.
   canvas.style.setProperty('--map-zoom', String(cam.z));
+  if (CLOUD && pointerScreen) schedulePointer();
   canvas.style.backgroundPosition = `${cam.x}px ${cam.y}px`;
   positionDeletePrompt();
   if (S && (openThread || draft)) renderComments();
@@ -1578,8 +1582,8 @@ const scope = () => {
 /* The PM view (page-mind.js): the same level drawn as a mind map. Its places are worked out on every drawing and
    never stored, so a box keeps its place in the Engineer view; `mindPos` holds them as of the last drawing. */
 let MIND_LAYOUT_KEY = `lm.mind-layout:${location.pathname}`;
-let MIND_LAYOUT = 'right';
-try { MIND_LAYOUT = mindLayoutChoice(localStorage.getItem(MIND_LAYOUT_KEY)); } catch { /* the choice still applies to this page */ }
+let MIND_LAYOUT = 'right', migrateLayout = false;
+try { const saved = localStorage.getItem(MIND_LAYOUT_KEY); MIND_LAYOUT = mindLayoutChoice(saved); migrateLayout = !!saved && !CLOUD && !SHARED && !FILE; } catch { /* the choice still applies to this page */ }
 let VIEW_MODE = 'engineer', mindPos = new Map();
 const savedMapView = document.querySelector('meta[name="lm-map-view"]');
 let browserMapView = null;
@@ -1721,9 +1725,11 @@ let fold = { start: null, kids: new Map(), depth: new Map(), hides: new Map() };
 function unfolded({ nodes, edges, lines = edges, centre = null }){
   // Each view remembers its own branches, so existing Engineer folds do not hide PM topics.
   const collapsed = activeFolds();
+  const tree = mindOn() ? mindTree({ nodes, lines, centre }) : null;
+  const branchLines = tree ? [...tree.parent].map(([to, from]) => ({ from, to })) : lines;
   const ids = new Set(nodes.map((n) => n.id)), kids = new Map(), into = new Set();
   // a box's children are what the tree hangs under it, a person under the repo they use among them
-  for (const e of lines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
+  for (const e of branchLines) if (ids.has(e.from) && ids.has(e.to) && e.from !== e.to){ if (!kids.has(e.from)) kids.set(e.from, []); kids.get(e.from).push(e.to); into.add(e.to); }
   const walk = (starts, stop = () => false) => {
     const seen = new Set(starts), q = [...starts];
     while (q.length){ const id = q.shift(); if (stop(id)) continue; for (const k of kids.get(id) || []) if (!seen.has(k)){ seen.add(k); q.push(k); } }
@@ -1734,7 +1740,7 @@ function unfolded({ nodes, edges, lines = edges, centre = null }){
   const reached = walk(roots); roots = roots.concat([...ids].filter((id) => !reached.has(id)));
   const shown = walk(roots, (id) => collapsed.has(id));
   // each box's level: how many lines out from where the map starts (0 for a starting box), counted with nothing folded
-  const { depth, parents } = numberingTree({ nodes, lines, centre });
+  const { depth, parents } = tree ? { depth: tree.depth, parents: tree.parent } : numberingTree({ nodes, lines, centre });
   // the level's start: its circle
   fold = { start: centre, kids, depth, parents, hides: new Map([...collapsed].filter((id) => shown.has(id) && kids.has(id)).map((id) => [id, [...walk(kids.get(id))].filter((k) => !shown.has(k))])) };
   const showing = (e) => shown.has(e.from) && shown.has(e.to);
@@ -1845,7 +1851,7 @@ function renderLevels(){
   el.innerHTML = `<span class="lv-h">Level ${now}</span><button data-level="${now - 1}" ${now <= 0 ? 'disabled' : ''} title="One level less" aria-label="One level less">−</button><button data-level="${Math.min(now + 1, max)}" ${now >= max && !hidden ? 'disabled' : ''} title="One level more" aria-label="One level more">+</button>`;
 }
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-level]'); if (b) setLevel(Number(b.dataset.level)); });
-// the button sits on the side a box's lines leave from: − shows on hover, a folded box shows how many it hides
+// The button sits where the children branch out. Its count is direct children, not every descendant it hides.
 // the side of a box its fold button sits on: the side its boxes hang from; null for a box with nothing under it
 function foldSide(n, at){
   const kids = fold.kids.get(n.id); if (!kids?.length || n.proposed) return null;
@@ -1857,8 +1863,8 @@ function foldSide(n, at){
 }
 function foldButton(n, at){
   const side = foldSide(n, at); if (!side) return '';
-  const shut = activeFolds().has(n.id), hid = fold.hides.get(n.id)?.length || 0;
-  const label = shut ? `Expand ${n.label}: show ${hid} hidden topic${hid === 1 ? '' : 's'}` : `Collapse ${n.label}`;
+  const shut = activeFolds().has(n.id), hid = new Set(fold.kids.get(n.id) || []).size;
+  const label = shut ? `Expand ${n.label}: show ${hid} child topic${hid === 1 ? '' : 's'}` : `Collapse ${n.label}`;
   return `<button type="button" class="fold ${side} ${shut ? 'shut' : ''}" data-fold="${esc(n.id)}" aria-label="${esc(label)}" aria-expanded="${!shut}" title="${esc(label)}">${shut ? hid || '+' : '−'}</button>`;
 }
 // what Claude proposed in your open chat or a box's chat that you have not applied: its new boxes and lines, drawn blue
@@ -2394,6 +2400,14 @@ function render(){
   if (!S) return;
   noteWorkspace?.update(S);
   noteFiles?.renameCurrent(S.title, { at: S.modifiedAt, created: S.createdAt });
+  if (S.mindLayout) {
+    MIND_LAYOUT = mindLayoutChoice(S.mindLayout);
+    if (!CLOUD && !SHARED && !FILE && !PREVIEW && LIVE?.mindLayout) {
+      try { localStorage.removeItem(MIND_LAYOUT_KEY); } catch { /* browser storage can be unavailable */ }
+    }
+  }
+  else if (!migrateLayout && !FILE) MIND_LAYOUT = 'right';
+
   renderMapSearch();
   if (selected && nodeById(selected)) lastTopics.set(view, selected);
   const fb = flowBox();
@@ -3483,7 +3497,7 @@ function renderDesign(){
   const flags = BOX_FLAGS.map((value) => choice('flag', value, `${value[0].toUpperCase() + value.slice(1)} flag`, flagIcon(value), matches('flag', value))).join('');
   const people = BOX_PEOPLE.map((value) => choice('person', value, `${value[0].toUpperCase() + value.slice(1)} person`, personIcon(value), matches('person', value))).join('');
   const progress = BOX_PROGRESS.map((value) => choice('progress', value, `${value}% progress`, progressIcon(value), matches('progress', value))).join('');
-  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
+  const layouts = MIND_LAYOUTS.map(([value, label]) => `<button type="button" id="design-layout-${value}" data-mind-layout="${value}" ${READ_ONLY || PREVIEW ? 'disabled' : ''} aria-label="${label}" title="${label}" aria-pressed="${mindOn() && MIND_LAYOUT === value}">${mindLayoutIcon(value)}</button>`).join('');
   const html = `<header class="ct"><h2 id="design-heading">Design</h2><button type="button" id="design-close" class="design-close" aria-label="Close Design" data-close-rail>×</button></header>
     <section aria-labelledby="design-layout"><h3 id="design-layout">Mindmap (Logic Map)</h3>
       <div class="design-layouts" role="group" aria-labelledby="design-layout">${layouts}</div>
@@ -3530,7 +3544,9 @@ $('design').addEventListener('click', (e) => {
   const layout = e.target.closest('[data-mind-layout]');
   if (layout){
     MIND_LAYOUT = mindLayoutChoice(layout.dataset.mindLayout);
-    try { localStorage.setItem(MIND_LAYOUT_KEY, MIND_LAYOUT); } catch { /* the choice still applies to this page */ }
+    if (READ_ONLY || PREVIEW) return;
+    S.mindLayout = MIND_LAYOUT;
+    if (!FILE) saveDesign('designmap', 'layout', MIND_LAYOUT);
     mindLevel = null;
     setViewMode('pm');
     return;
@@ -3694,9 +3710,42 @@ function renderPrs(){
     <div class="mono" style="margin-top:6px">${p.files.join(' · ')}</div></div>`).join('');
 }
 
+const cursorView = () => mindOn() ? 'pm:' + view : view;
+let expireCursors;
+function cursorPoint(x, y){
+  let anchor, nearest = Infinity;
+  if (mindOn()) for (const [id, point] of mindPos){
+    if (id === MIND_DRAFT) continue;
+    const distance = Math.hypot(x - point.x, y - point.y);
+    if (distance < nearest){ nearest = distance; anchor = id; }
+  }
+  const base = mindPos.get(anchor);
+  return { x: Math.round(x - (base?.x || 0)), y: Math.round(y - (base?.y || 0)), view: cursorView(), anchor };
+}
+const cursorElements = new Map();
 function renderCursors(){
-  $('curs').innerHTML = Object.entries(cursors).filter(([who, c]) => who !== ME && c.view === view && Date.now() - c.at < 15000)
-    .map(([who, c]) => `<div class="cur" style="transform:translate(${c.x}px,${c.y}px)"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="${pcol(who)}" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag" style="background:${pcol(who)}">${who}</span></div>`).join('');
+  clearTimeout(expireCursors);
+  const now = Date.now(), visible = new Set();
+  let nextExpiry = Infinity;
+  for (const [id, c] of Object.entries(cursors)){
+    const remaining = CLOUD && pointerKey && pointerLimit > 1 ? Infinity : c.at + 15000 - now, base = mindPos.get(c.anchor);
+    if (remaining <= 0 || (!c.name && id === ME) || c.view !== cursorView() || (c.anchor && !base)) continue;
+    let el = cursorElements.get(id);
+    if (!el){
+      const name = c.name || id;
+      const colors = ['blue','purple','green','orange','indigo'];
+      const hash = Array.from(name).reduce((n, letter) => (31 * n + letter.charCodeAt(0)) >>> 0, 0);
+      const color = Object.hasOwn(PCOL, name) ? PCOL[name] : 'var(--flag-' + colors[hash % colors.length] + ')';
+      el = document.createElement('div'); el.className = 'cur'; el.style.color = color;
+      el.innerHTML = '<span class="cur-mark"><svg width="16" height="20" viewBox="0 0 16 20"><path d="M1 1L1 16L5 12L8 19L11 18L8 11L14 11Z" fill="currentColor" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><span class="tag"></span></span>';
+      const tag = el.querySelector('.tag'); tag.textContent = name; tag.style.background = color;
+      $('curs').append(el); cursorElements.set(id, el);
+    }
+    el.style.transform = `translate(${c.x + (base?.x || 0)}px,${c.y + (base?.y || 0)}px)`;
+    visible.add(id); nextExpiry = Math.min(nextExpiry, remaining);
+  }
+  for (const [id, el] of cursorElements) if (!visible.has(id)){ el.remove(); cursorElements.delete(id); }
+  if (Number.isFinite(nextExpiry)) expireCursors = setTimeout(renderCursors, nextExpiry + 1);
 }
 
 /* comments */
@@ -3905,7 +3954,7 @@ function takeTopicState(apply){
 }
 function flushTopicState(){ const apply = heldTopicState; heldTopicState = null; if (apply) takeTopicState(apply); }
 async function refreshMap(){
-  try { const r = await fetch('api/state'); if (!r.ok) return; const next = await r.json(); takeTopicState(() => { LIVE = next; hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); }); } catch {}
+  try { const r = await fetch('api/state'); if (!r.ok) return; const next = await r.json(); takeTopicState(() => { if (CLOUD && LIVE?.cloudRevision > next.cloudRevision) return; LIVE = next; hideRemoved(LIVE); if (!PREVIEW){ S = LIVE; syncTopicPreview(true); } render(); }); } catch {}
 }
 function hideRemoved(state){
   const clean = (s) => { s.nodes = s.nodes.filter((n) => !pendingRemovals.has(n.id)); s.edges = (s.edges || []).filter((e) => !pendingRemovals.has(e.from) && !pendingRemovals.has(e.to)); };
@@ -4480,9 +4529,36 @@ canvas.addEventListener('pointerdown', (e) => {
   else { const [sx, sy] = toStage(e.clientX, e.clientY); marquee = { x0: sx, y0: sy, x1: sx, y1: sy }; }
   canvas.setPointerCapture(e.pointerId);
 });
-let lastCur = 0;
+let lastCur = 0, trailingPointer, pointerScreen, pointerKey = '', pointerLimit = 1, pointerSequence = 0, pointerRequests = 0, newestPointer;
+function sendPointer(value){
+  if (FILE || PREVIEW) return;
+  if (!CLOUD){ if (!READ_ONLY) act('cursor', value); return; }
+  if (!pointerKey) return;
+  newestPointer = value;
+  flushPointer();
+}
+function flushPointer(){
+  if (!pointerKey || !newestPointer || pointerRequests >= pointerLimit) return;
+  const body = JSON.stringify({ ...newestPointer, sequence: ++pointerSequence });
+  newestPointer = null; pointerRequests++;
+  fetch('api/pointer', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pointer-key': pointerKey }, body })
+    .catch(() => { /* later samples replace dropped positions */ })
+    .finally(() => { pointerRequests--; flushPointer(); });
+}
+function schedulePointer(){
+  if (!pointerScreen || trailingPointer) return;
+  // Convert at send time: panning or zooming can move the map under a stationary mouse.
+  const flush = () => {
+    trailingPointer = null; lastCur = Date.now();
+    if (pointerScreen) sendPointer(cursorPoint(...toStage(...pointerScreen)));
+  };
+  const wait = (CLOUD ? 33 : 50) - (Date.now() - lastCur);
+  if (wait <= 0) flush(); else trailingPointer = setTimeout(flush, wait);
+}
 canvas.addEventListener('pointermove', (e) => {
   const [sx, sy] = toStage(e.clientX, e.clientY);
+  pointerScreen = [e.clientX, e.clientY];
+  schedulePointer();
   if (drawing){ if (drawing.box){ drawing.x1 = sx; drawing.y1 = sy; } else { drawing.x = sx; drawing.y = sy; }
     if (drawing.dot){ drawing.far ||= Math.hypot(sx - drawing.x0, sy - drawing.y0) > 12; const f = drawing.from; drawing.home = Math.abs(sx - f.x) <= W(f) / 2 && Math.abs(sy - f.y) <= HT(f) / 2; drawing.to = drawing.far && !drawing.home ? boxNear(sx, sy, f) : null; }
     drawRubber(); return; }
@@ -4499,7 +4575,6 @@ canvas.addEventListener('pointermove', (e) => {
   if (drag?.many && !drag.source){ moved = true; for (const m of drag.many){ m.n.x = Math.round(sx + m.dx); m.n.y = Math.round(sy + m.dy); } render(); }
   else if (drag) moveTopicDrag(sx,sy);
   else if (panning){ moved = true; cam.x = e.clientX - panning.x; cam.y = e.clientY - panning.y; place(); }
-  if (!mindOn() && Date.now() - lastCur > 50){ lastCur = Date.now(); act('cursor', { x: Math.round(sx), y: Math.round(sy), view }); }
 });
 // Recognize double clicks even if a live update replaces a box between taps.
 let lastTap = { id: null, at: 0 };
@@ -4612,7 +4687,7 @@ canvas.addEventListener('pointerup', (e) => {
   }
   if (panning){ panning = null; canvas.classList.remove('grabbing'); if (!moved){ selected = null; pickedLine = null; render(); } }
 });
-canvas.addEventListener('pointerleave', () => act('cursor', { x: null }));
+canvas.addEventListener('pointerleave', () => { clearTimeout(trailingPointer); trailingPointer = null; pointerScreen = null; sendPointer({ x: null }); });
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey){
@@ -5013,7 +5088,7 @@ window.addEventListener('message', (e) => {
 function showVersion(id){
   const v = HIST.find((h) => h.id === id); if (!v) return;
   fetch(`api/history/${id}`).then((r) => r.json()).then((content) => {
-    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, ...content }; selected = null; renderHistBar(); render();
+    PREVIEW = { ...v, content }; S = { ...LIVE, numbering: undefined, mindLayout: undefined, ...content }; selected = null; renderHistBar(); render();
   }).catch(() => toast('That version could not be opened.'));
 }
 function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHistBar(); render(); }
@@ -5021,24 +5096,51 @@ function backToNow(){ if (!PREVIEW) return; PREVIEW = null; S = LIVE; renderHist
 let toastT; function toast(t){ $('toast').textContent = t; $('toast').classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => $('toast').classList.remove('on'), 2600); }
 
 function cloudEvents(){
-  const listeners = new Map(); let stopped = false, revision = -1, etag = '', timer;
-  const es = { addEventListener: (name, fn) => listeners.set(name, fn), close(){ stopped = true; clearTimeout(timer); } };
-  const poll = async () => {
+  const listeners = new Map(), pointers = Object.create(null);
+  let stopped = false, revision = -1, etag = '', reading = false, again = false, timer;
+  let stream;
+  function emit(name, value){ listeners.get(name)?.({ data: JSON.stringify(value) }); }
+  function close(){ stopped = true; window.removeEventListener('online', connect); clearTimeout(timer); stream.close(); pointerKey = ''; newestPointer = null; }
+  async function read(){
+    if (stopped) return;
+    if (reading){ again = true; return; }
+    reading = true; clearTimeout(timer);
     try {
       const r = await fetch('api/state', { headers: etag ? { 'if-none-match': etag } : {} });
-      if (r.status === 304) { if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 3000); return; }
-      if (r.status === 401 || r.status === 403 || r.status === 404){ stopped = true; toast('This shared link is no longer available to you.'); document.body.classList.add('view-only'); return; }
+      if (stopped || r.status === 304) return;
+      if ([401,403,404].includes(r.status)){ close(); location.reload(); return; }
       if (!r.ok) throw new Error();
       etag = r.headers.get('etag') || '';
       const next = await r.json();
-      // who else has this copy open, by name, for the faces in the top bar
-      if (next.here) listeners.get('here')?.({ data: JSON.stringify(next.here) });
-      if (next.linkSharing.mode !== (READ_ONLY ? 'view' : 'edit')){ location.reload(); return; }
-      if (revision !== next.cloudRevision){ revision = next.cloudRevision; listeners.get('state')?.({ data: JSON.stringify(next) }); }
+      if (next.here) emit('here', next.here);
+      if (next.linkSharing.mode !== (READ_ONLY ? 'view' : 'edit')){ close(); location.reload(); return; }
+      if (revision !== next.cloudRevision){ revision = next.cloudRevision; emit('state', next); }
     } catch { toast('Reconnecting to the cloud…'); }
-    if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 3000);
-  };
-  setTimeout(poll, 0); return es;
+    finally {
+      reading = false;
+      if (!stopped){ timer = setTimeout(read, again ? 0 : pointerKey ? 12000 : 3000); again = false; }
+    }
+  }
+  function connect(){
+    stream?.close(); pointerKey = ''; newestPointer = null;
+    stream = new EventSource(mapURL('api/live'));
+    stream.onmessage = (event) => {
+      const m = JSON.parse(event.data);
+      if (m.kind === 'cursor'){
+        if (m.x === null) delete pointers[m.pointer];
+        else pointers[m.pointer] = { ...m, at: Date.now() };
+        emit('cursors', pointers);
+      } else {
+        if (m.kind === 'ready'){ pointerKey = m.key; pointerLimit = m.orderedPointers ? 2 : 1; schedulePointer(); for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); }
+        read();
+      }
+    };
+    stream.onerror = () => { pointerKey = ''; newestPointer = null; for (const id of Object.keys(pointers)) delete pointers[id]; emit('cursors', pointers); read(); };
+    read();
+  }
+  window.addEventListener('online', connect);
+  connect();
+  return { addEventListener: (name, fn) => listeners.set(name, fn), close };
 }
 /* follow the server */
 // A browser keeps six connections to one site, and a map's live line holds one for as long as it is open: with six
@@ -5064,6 +5166,7 @@ function listen(prepared = null){
     if (line !== es) return;
     const next = JSON.parse(m.data);
     takeTopicState(() => {
+    if (CLOUD && LIVE?.cloudRevision > next.cloudRevision) return;
     const arrived = new Set(allBoxesOf(next).map((n) => n.id));
     for (const n of pendingTopics) if (arrived.has(n.id)) pendingTopics.delete(n);
     for (const id of pendingRemovals) if (!allBoxesOf(next).some((n) => n.id === id)) pendingRemovals.delete(id);
@@ -5078,14 +5181,18 @@ function listen(prepared = null){
     if (pendingOpen && next.comments?.length){ const mine = next.comments.filter((c) => c.msgs[0].who === ME).at(-1); if (mine) openThread = mine.id; pendingOpen = false; }
     // typing a reply, or the next question to Claude while it is still answering, survives the redraw
     const ae = document.activeElement;
-    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value } : null;
+    const typing = ae?.closest?.('#thread, #cpanel, #side, #chat, #mem') ? { sel: ae.id || (ae.closest('#thread') ? '#thread input' : ae.closest('#side') ? '#side form[data-ask] textarea' : ae.closest('#chat') ? '#chat form[data-chat] textarea' : null), val: ae.value, start: ae.selectionStart, end: ae.selectionEnd, direction: ae.selectionDirection } : null;
     // an earlier version on show stays on show: the live map waits underneath until Back to now
-    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, ...PREVIEW.content } : next;
+    LIVE = next; S = PREVIEW ? { ...next, numbering: undefined, mindLayout: undefined, ...PREVIEW.content } : next;
     if (!PREVIEW) syncTopicPreview(true);
     render();
     if (railTab === 'history') fetchHist();
-    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el){ el.value = typing.val; el.focus(); if (el.tagName === 'TEXTAREA') fitBox(el); } }
+    if (typing?.sel){ const el = typing.sel.includes(' ') ? document.querySelector(typing.sel) : $(typing.sel); if (el && typeof typing.val === 'string'){ if (el.value !== typing.val) el.value = typing.val;
+      el.focus({ preventScroll: true }); if (typeof typing.start === 'number') el.setSelectionRange(typing.start, typing.end, typing.direction);
+      if (el.tagName === 'TEXTAREA') fitBox(el); } }
     if (firstState){
+      if (migrateLayout && !next.mindLayout && MIND_LAYOUT !== 'right') saveDesign('designmap', 'layout', MIND_LAYOUT);
+      migrateLayout = false;
       firstState = false; fit(); openBrainBox(); openNewMap();
       const resumePublish = location.hash === '#publish';
       if (resumePublish || location.hash === '#share'){ history.replaceState(null, '', location.pathname + location.search); openShare(resumePublish); }
@@ -5162,14 +5269,16 @@ async function applyFileSwitch(url, prepared){
   lockWhy = {asked:false,linked:null,pending:null}; rcSystem = undefined; rcBusy = false; rcError = rcShown = ''; sdNews = {at:0,asked:0,repos:[]};
   for (const cache of [lastTopics, wraps, routes, histOpen, infoMore, openSecs, autoPlanning, decOpen, pendingRemovals, pendingTopics, topicIds, group]) cache.clear();
   const path = url.pathname; SYS_MAP = path.split('/')[1]; MIND_LAYOUT_KEY = `lm.mind-layout:${path}`; FOLD_KEY = `lm.folded:${path}`; PM_FOLD_KEY = `lm.pm-folded:${path}`; DRAFTS_KEY = `lm-drafts-${SYS_MAP}`;
-  MIND_LAYOUT = 'right'; folded = new Set(); pmFolded = new Set(); drafts.clear();
-  try { MIND_LAYOUT = mindLayoutChoice(localStorage.getItem(MIND_LAYOUT_KEY)); folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); pmFolded = new Set(JSON.parse(localStorage.getItem(PM_FOLD_KEY) || '[]')); for (const [key,value] of Object.entries(JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}'))) drafts.set(key,value); } catch { /* each file still opens with its own empty local preferences */ }
+  MIND_LAYOUT = 'right'; migrateLayout = false; folded = new Set(); pmFolded = new Set(); drafts.clear();
+  try { const saved = localStorage.getItem(MIND_LAYOUT_KEY); MIND_LAYOUT = mindLayoutChoice(saved); migrateLayout = !!saved; folded = new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || '[]')); pmFolded = new Set(JSON.parse(localStorage.getItem(PM_FOLD_KEY) || '[]')); for (const [key,value] of Object.entries(JSON.parse(localStorage.getItem(DRAFTS_KEY) || '{}'))) drafts.set(key,value); } catch { /* each file still opens with its own empty local preferences */ }
   $('newbox').classList.remove('on'); $('newbox').innerHTML = ''; $('rubber').innerHTML = ''; $('box-metadata')?.hidePopover();
   canvas.classList.remove('drawing', 'hand', 'grabbing', 'spacepan', 'commenting'); document.querySelectorAll('.tb').forEach((b) => b.classList.toggle('on', b.dataset.tool === 'select'));
   document.body.classList.remove('previewing', 'paned', 'design-open'); LIVE = S = prepared.state; renderHistBar(); noteWorkspace.reset(path); noteFiles.setCurrent(SYS_MAP);
   const remembered = filePlaces.get(SYS_MAP);
   if (remembered){ view = remembered.view; selected = allBoxesOf(prepared.state).some((n) => n.id === remembered.selected) ? remembered.selected : null; chatPics = remembered.chatPics; }
   firstState = false; listen(prepared);
+  if (migrateLayout && !prepared.state.mindLayout && MIND_LAYOUT !== 'right') saveDesign('designmap', 'layout', MIND_LAYOUT);
+  migrateLayout = false;
   if (remembered){ Object.assign(cam,remembered.cam); place(); }
   else fit();
 }

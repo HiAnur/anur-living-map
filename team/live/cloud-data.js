@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { allBoxesOf } from './map-walk.js';
+import { MIND_LAYOUTS } from './page-mind.js';
 import { savedDesign, savedNumbering } from './page-design.js';
 
 /** @param {string} id @param {string} token @param {string} key */
@@ -49,7 +50,7 @@ export function mapData(input, depth = 0) {
     return { ...pick(c, ['id','node','x','y','view','resolved','at']), msgs };
   });
   const numbering = input.numbering ? savedNumbering(input.numbering) : {};
-  return { title, desc, nodes, edges, comments, ...(Object.keys(numbering).length ? { numbering } : {}), ...(identifier(input.start) ? { start: input.start } : {}) };
+  return { title, desc, nodes, edges, comments, ...(MIND_LAYOUTS.some(([id]) => id === input.mindLayout) ? { mindLayout: input.mindLayout } : {}), ...(Object.keys(numbering).length ? { numbering } : {}), ...(identifier(input.start) ? { start: input.start } : {}) };
 }
 /** @param {object} data @param {string} mode */
 export function viewData(data, mode) {

@@ -58,7 +58,7 @@ for (const layout of ["right", "left"]) {
     await collapse.click();
     await expect(growth).toHaveCount(0);
     const expand = page.getByRole("button", {
-      name: "Expand Books: show 1 hidden topic",
+      name: "Expand Books: show 1 child topic",
       exact: true,
     });
     await expect(expand).toHaveText("1");
@@ -75,10 +75,10 @@ for (const layout of ["right", "left"]) {
     await expect(books).toHaveCount(0);
     await page.reload();
     const expandCategories = page.getByRole("button", {
-      name: "Expand Categories: show 2 hidden topics",
+      name: "Expand Categories: show 1 child topic",
       exact: true,
     });
-    await expect(expandCategories).toHaveText("2");
+    await expect(expandCategories).toHaveText("1");
     await expandCategories.click();
     await expect(expand).toBeVisible();
     await expect(growth).toHaveCount(0);
@@ -114,4 +114,67 @@ test("adding a PM child expands its collapsed parent", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Collapse Books", exact: true }),
   ).toBeVisible();
+});
+
+test("PM cross-links do not add empty collapse buttons or keep a collapsed child visible", async ({
+  page,
+}) => {
+  await openSample(page, {
+    ...SAMPLE,
+    nodes: SAMPLE.nodes.map((n) => ({
+      ...n,
+      label:
+        {
+          launch: "Get $$$",
+          pricing: "Angel Investors",
+          audience: "Raising",
+          trial: "Build Network List",
+        }[n.id] || n.label,
+    })),
+    edges: [
+      { from: "launch", to: "pricing" },
+      { from: "launch", to: "audience" },
+      { from: "pricing", to: "trial" },
+      { from: "audience", to: "trial" },
+    ],
+  });
+  await page.locator("#peopleb").click();
+  await page.getByRole("radio", { name: "PM", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Collapse Raising", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Collapse Angel Investors", exact: true })
+    .click();
+  await expect(page.locator('#nodes [data-id="trial"]')).toHaveCount(0);
+  await expect(page.locator('#nodes [data-id="audience"]')).toBeVisible();
+  await expect(page.locator('#nodes [data-id="audience"] .fold')).toHaveCount(
+    0,
+  );
+  const expand = page.getByRole("button", {
+    name: "Expand Angel Investors: show 1 child topic",
+    exact: true,
+  });
+  await expect(expand).toHaveText("1");
+  await expand.click();
+  await expect(page.locator('#nodes [data-id="trial"]')).toBeVisible();
+});
+
+test("Engineer badges also count direct children while collapsing the whole branch", async ({
+  page,
+}) => {
+  await openSample(page, reading);
+  await page
+    .getByRole("button", { name: "Collapse Categories", exact: true })
+    .click();
+  await expect(page.locator('#nodes [data-id="audience"]')).toHaveCount(0);
+  await expect(page.locator('#nodes [data-id="trial"]')).toHaveCount(0);
+  const expand = page.getByRole("button", {
+    name: "Expand Categories: show 1 child topic",
+    exact: true,
+  });
+  await expect(expand).toHaveText("1");
+  await expand.click();
+  await expect(page.locator('#nodes [data-id="audience"]')).toBeVisible();
+  await expect(page.locator('#nodes [data-id="trial"]')).toBeVisible();
 });

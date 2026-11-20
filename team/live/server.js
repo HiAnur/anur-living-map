@@ -177,6 +177,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   for (const n of allBoxesOf(state)) recoverAction(n);
   oneChat(state);
   const clients = new Set();
+  /** @type {Record<string, any>} */ const remotePointers = Object.create(null);
   const activeAsks = new Set();
   const clientAccess = new Map();
   const cursors = /** @type {Record<string, any>} */ ({}); // by name: {x, y, view, at}; never saved
@@ -191,7 +192,8 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   /** @param {string} by @param {() => any} change */
   const actingAs = (by, change) => { const was = acting; acting = by; try { return change(); } finally { acting = was; } };
   // a named map gets its folder the first time something is written to it
-  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); updateFileDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); };
+  let scheduleCloud = () => {};
+  const save = () => { updateBoxDates(state, undefined, acting || 'Claude'); updateFileDates(state); if (memory || closed) return; fs.mkdirSync(home, { recursive: true }); writeWhole(STATE, JSON.stringify(state)); scheduleCloud(); };
   const send = (/** @type {any} */ res, /** @type {any} */ ev, /** @type {any} */ data) => res.write(`event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`);
   const push = () => { for (const r of clients) {
     const c = clientAccess.get(r), role = permission(state, c.who, c.req);
@@ -202,8 +204,15 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
 
   /** @type {any} */ const cloud = !memory ? cloudMirror({ home, read: () => state,
     write: (data) => { actingAs('Guest', () => { installCloudData(state, data); save(); }); push(); },
+    pointer: (m) => {
+      if (!m) { for (const id of Object.keys(remotePointers)) delete remotePointers[id]; }
+      else if (m.x === null) delete remotePointers[m.pointer];
+      else remotePointers[m.pointer] = { name: m.name, anchor: m.anchor, x: m.x, y: m.y, view: m.view, at: Date.now() };
+      for (const r of clients) send(r, 'cursors', { ...cursors, ...remotePointers });
+    },
     notify: () => { for (const r of clients) send(r, 'cloud', cloudFor(clientAccess.get(r)?.role)); }
   }) : null;
+  if (cloud) scheduleCloud = cloud.changed;
   // Everyone's Share says where the map is kept; only an owner, who can publish or delete the online copy, is sent
   // its link and what went wrong with it.
   const cloudFor = (/** @type {any} */ role) => {
@@ -555,7 +564,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
   // kept in history/<id>.json with the list in history/index.json, newest first. A version is the map itself,
   // its boxes, lines and questions; chats, comments, people and the linked chat are not part of it.
   const HIST = path.join(home, 'history'), HIST_LIST = path.join(HIST, 'index.json'), KEEP_VERSIONS = 500;
-  const CONTENT = ['desc', 'numbering', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
+  const CONTENT = ['desc', 'numbering', 'mindLayout', 'nodes', 'edges', 'calls', 'prs', 'pr', 'executed', 'ticket', 'prompt', 'answers'];
   const contentOf = (/** @type {any} */ s) => JSON.stringify(Object.fromEntries(CONTENT.filter((k) => s[k] !== undefined).map((k) => [k, s[k]])));
   const clock = (/** @type {any} */ t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
   let history = fs.existsSync(HIST_LIST) ? JSON.parse(fs.readFileSync(HIST_LIST, 'utf8')) : [];
@@ -646,6 +655,7 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (!file || !fs.existsSync(file)) return false;
       const restored = JSON.parse(fs.readFileSync(file, 'utf8'));
       boxDates(restored);
+      if (!restored.mindLayout) delete state.mindLayout;
       if (!restored.numbering) delete state.numbering;
       Object.assign(state, restored);
       // a version from before the system map had its centre comes back with it
@@ -713,10 +723,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       if (one && (one.picture || '') !== face) { if (face) one.picture = face; else delete one.picture; save(); push(); }
       const mine = access(who, req);
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', cursors);
+      send(res, 'state', sharedState(state, mine === 'owner', guest, who, hiddenFor(guest ? null : who))); send(res, 'cursors', { ...cursors, ...remotePointers });
       if (cloud) send(res, 'cloud', cloudFor(mine));
       if (who && !guest) { const v = mirrorView(); if (v?.owner === who) send(res, 'mirror', v); }
       clients.add(res); clientAccess.set(res, { req, who, role: mine, guest }); req.on('close', () => { clients.delete(res); clientAccess.delete(res); });
+      cloud?.watch(true); res.on('close', () => { if (!clients.size) cloud?.watch(false); });
       if (who && !guest) { viewers.set(res, who); res.on('close', () => { viewers.delete(res); clients.delete(res); here(); }); }
       here();
       return true;
@@ -755,8 +766,11 @@ export function openMap({ project = '', name = '', at = '', home, initialState, 
       // a chat linked from this Mac is yours, whatever name the script sent
       if (a.type === 'link' && !guest && !who) a.by = me() || a.by;
       if (a.type === 'cursor') { // ephemeral: where each person's pointer is, in map coordinates
-        if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { x: a.x, y: a.y, view: a.view, at: Date.now() };
-        for (const r of clients) send(r, 'cursors', cursors);
+        if (a.x !== null && !(Number.isFinite(a.x) && Number.isFinite(a.y) && typeof a.view === 'string' && /^[\w:.-]{1,160}$/.test(a.view))) return deny();
+        const anchor = typeof a.anchor === 'string' && /^[\w.@-]{1,120}$/.test(a.anchor) ? a.anchor : undefined;
+        if (!guest && who && access(who, req) === 'owner') void cloud?.move({ x: a.x, y: a.y, view: a.view, anchor });
+        if (a.x === null) delete cursors[a.by]; else cursors[a.by] = { anchor, x: a.x, y: a.y, view: a.view, at: Date.now() };
+        for (const r of clients) send(r, 'cursors', { ...cursors, ...remotePointers });
         res.writeHead(200).end('{}');
         return true;
       }

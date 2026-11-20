@@ -10,7 +10,7 @@ import { actionExecuted } from './page-action.js';
 import { levelGraph } from './page-hub.js';
 import { numberingTree } from './page-design.js';
 import { layoutFor } from './page-layout.js';
-import { MIND_VIEW_KEY, mindLayout, mindView } from './page-mind.js';
+import { MIND_VIEW_KEY, mindLayout, mindTree, mindView } from './page-mind.js';
 
 // Exercise the page's handlers with delayed saves, without requiring a browser in CI.
 const html = fs.readFileSync(new URL('./index.html', import.meta.url), 'utf8');
@@ -19,7 +19,7 @@ const livePreviewStart = html.indexOf('    if (!PREVIEW)', html.indexOf('    LIV
 const livePreview = html.slice(livePreviewStart, html.indexOf('    render();', livePreviewStart));
 function harness(pm = false){
   let input, handler, pickTimer;
-  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana', numberingTree });
+  const ctx = vm.createContext({ console, Promise, Set, Map, actionLeaving, actionExecuted, allBoxesOf, allLinesOf, graphsOf, ME: 'Ana', numberingTree, mindTree });
   const editor = { style: {}, classList: { add(){}, remove(){}, toggle(){} }, set innerHTML(v){ if (v) input = { value:'', style:{}, scrollHeight:47, focus(options){ this.focusOptions = options; }, select(){ this.selected = true; }, classList:{add(){},remove(){}}, addEventListener(type, f){ this[type] = f; } }; }, querySelector(){ return input; } };
   const rubber = { innerHTML: '', classList:{contains:()=>false} };
   const controls = {getBoundingClientRect:()=>({top:740,width:300,height:44})};
@@ -81,7 +81,7 @@ describe('keyboard brainstorming',()=>{
     expect(h.ctx.foldButton(h.ctx.nodeById('child'),{})).toContain('aria-label="Collapse Child"');
     h.ctx.pmFolded.add('child');
     expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child']);
-    expect(h.ctx.foldButton(h.ctx.shown(h.ctx.nodeById('child')),{})).toContain('aria-label="Expand Child: show 1 hidden topic"');
+    expect(h.ctx.foldButton(h.ctx.shown(h.ctx.nodeById('child')),{})).toContain('aria-label="Expand Child: show 1 child topic"');
     h.ctx.pmFolded.clear();
     vm.runInContext("VIEW_MODE = 'engineer'",h.ctx);
     expect(h.ctx.scope().nodes.map(n=>n.id)).toEqual(['root','child']);

@@ -74,7 +74,7 @@ export function boxDates(state, fresh = false, now = Date.now()) {
   });
 }
 /** @param {MapState} state */
-export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edges: state.edges, title: state.title, renamed: state.renamed, desc: state.desc, start: state.start, numbering: state.numbering });
+export const editSnapshot = (state) => structuredClone({ nodes: state.nodes, edges: state.edges, title: state.title, renamed: state.renamed, desc: state.desc, start: state.start, numbering: state.numbering, mindLayout: state.mindLayout });
 // Apply only the entities this action changed. Another person's unrelated edits stay intact;
 // a conflicting edit blocks the operation instead of being overwritten.
 /** @param {any} state @param {any} from @param {any} to two snapshots, read by field name @param {(n?: any) => boolean} canEdit */
@@ -96,7 +96,7 @@ function applyEdit(state, from, to, canEdit) {
     }
     next[field] = [...current.values()];
   }
-  for (const field of ['title', 'renamed', 'desc', 'start', 'numbering']) if (!equal(from[field], to[field])) {
+  for (const field of ['title', 'renamed', 'desc', 'start', 'numbering', 'mindLayout']) if (!equal(from[field], to[field])) {
     if (!equal(state[field], from[field])) return false;
     next[field] = to[field];
   }

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { mapData, mergeMap, signedLink } from './cloud-data.js';
+import { cloudLive } from './cloud-live.js';
 import { DATA } from './data-dir.js';
 
 export function cloudConfig() {
@@ -31,14 +32,15 @@ export function installCloudData(state, data) {
   const graph = nodes(state.nodes, data.nodes);
   Object.assign(state, data, { nodes: graph });
   if (!data.start) delete state.start;
+  if (!data.mindLayout) delete state.mindLayout;
   if (!data.numbering) delete state.numbering;
 }
 /** @typedef {{ idToken: string, needs?: string }} Google the Google ID token this Mac's owner signed in with (googleIdentity in google.js) */
 /**
  * @param {{ home: string, read: () => MapState, write: (data: any) => void, notify: () => void,
- *   config?: { url: string, publishKey: string, [more: string]: any } | null }} map
+ *   pointer?: (message:any) => void, config?: { url: string, publishKey: string, [more: string]: any } | null }} map
  */
-export function cloudMirror({ home, read, write, notify, config = cloudConfig() }) {
+export function cloudMirror({ home, read, write, notify, pointer = () => {}, config = cloudConfig() }) {
   // An explicitly cloud-enabled preview owns separate records, even when its map folder was copied from the everyday app.
   const records = process.env.LIVING_MAP_CLOUD_COPIES;
   const file = records ? path.join(records, crypto.createHash('sha256').update(path.resolve(home)).digest('hex') + '.json') : path.join(home, 'cloud.json');
@@ -83,15 +85,23 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     busy = (async () => {
       try {
         const sent = mapData(read());
+        const base = { ...saved.base };
+        if (saved.legacyLayout) delete base.mindLayout;
+        const sendChanges = () => request(`/m/${saved.id}/api/sync`, { base, data: sent, sharedLayout: true });
         let got;
         if (JSON.stringify(sent) === JSON.stringify(saved.base)) {
           const state = await request(`/m/${saved.id}/api/state`, undefined, stateEtag || undefined);
           if (!state) { error = ''; return; }
-          got = { data: mapData(state), revision: state.cloudRevision };
-        } else got = await request(`/m/${saved.id}/api/sync`, { base: saved.base, data: sent });
+          got = { data: mapData(state), revision: state.cloudRevision, sharedLayout: state.sharedLayout };
+          if (state.sharedLayout && saved.legacyLayout && sent.mindLayout && !got.data.mindLayout) {
+            got = await sendChanges();
+          }
+        } else got = await sendChanges();
         if (closed) return;
+        // During a rolling upgrade the old cloud omits layout from every response.
+        if (!got.sharedLayout && sent.mindLayout && !got.data.mindLayout) got.data.mindLayout = sent.mindLayout;
         const merged = mergeMap(sent, mapData(read()), got.data);
-        saved.base = got.data; saved.revision = got.revision; persist();
+        saved.legacyLayout = !got.sharedLayout && !!sent.mindLayout; saved.base = got.data; saved.revision = got.revision; persist();
         if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
         error = '';
       } catch (/** @type {any} */ e) { error = e.message; here = []; }
@@ -118,8 +128,9 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     const sent = mapData(read()); saved.base ||= sent; persist();
     const got = await request('/api/maps', { id: saved.id, ownerKey: saved.ownerKey, linkKey: saved.linkKey, mode, linkView: true, linkRole: mode, data: sent }, undefined, false, idToken);
     if (closed) return status();
+    if (!got.sharedLayout && sent.mindLayout && !got.data.mindLayout) got.data.mindLayout = sent.mindLayout;
     const merged = mergeMap(sent, mapData(read()), got.data);
-    saved = { ...saved, published: true, mode: got.mode || mode, base: got.data, revision: got.revision, access: got.access ?? null }; persist();
+    saved = { ...saved, published: true, legacyLayout: !got.sharedLayout && !!sent.mindLayout, mode: got.mode || mode, base: got.data, revision: got.revision, access: got.access ?? null }; persist();
     if (JSON.stringify(merged) !== JSON.stringify(mapData(read()))) write(merged);
     error = ''; notify(); return status();
   }
@@ -140,17 +151,32 @@ export function cloudMirror({ home, read, write, notify, config = cloudConfig() 
     try {
       // A lost response can leave the remote copy already deleted; retrying is safe.
       await request(`/m/${saved.id}/api/delete`, {}, undefined, true, proof(google, !!saved.access?.owner));
-      saved = null; persist(); error = ''; here = []; stateEtag = ''; notify();
+      saved = null; live.refresh(); persist(); error = ''; here = []; stateEtag = ''; notify();
       return status();
     } catch (/** @type {any} */ e) { error = e.message; notify(); throw e; }
   }
+  // Coalesce edits made during a request and reconcile the final state once that request completes.
+  let dirty = false;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */ let wake;
+  function changed() {
+    if (closed || !config || !saved?.published) return;
+    dirty = true;
+    if (!wake) wake = setTimeout(async () => {
+      dirty = false;
+      try { await pending; await busy; if (!closed) await sync(); }
+      finally { wake = undefined; if (dirty) changed(); }
+    }, 20);
+  }
+  const live = cloudLive(() => config && saved?.published && saved.mode !== 'restricted' ? {
+    url: config.url + '/m/' + saved.id + '/api', headers: { authorization: 'Bearer ' + config.publishKey, 'x-map-owner': saved.ownerKey },
+  } : null, changed, pointer);
   // Poll only already-published maps. Each exchange merges changes made while offline.
   const timer = setInterval(() => { void sync(); }, 5000); timer.unref();
-  return { status,
+  return { status, changed, watch: live.watch, move: live.move,
     /** @param {string} mode @param {Google} [google] */
-    publish: (mode, google) => exclusive(() => publish(mode, google)),
+    publish: (mode, google) => exclusive(() => publish(mode, google)).then((result) => { live.refresh(); return result; }),
     /** @param {any} change @param {Google} [google] */
     share: (change, google) => exclusive(() => share(change, google)),
     /** @param {Google} [google] */
-    remove: (google) => exclusive(() => remove(google)), sync, close() { closed = true; clearInterval(timer); } };
+    remove: (google) => exclusive(() => remove(google)), sync, close() { closed = true; clearInterval(timer); clearTimeout(wake); live.watch(false); } };
 }

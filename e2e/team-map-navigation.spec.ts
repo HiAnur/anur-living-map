@@ -39,6 +39,10 @@ test("file switching saves the right notes and keeps the sidebar and editor moun
   const first = await openSample(page),
     second = `${first}-second`;
   another(second, "Second file");
+  await page.evaluate(
+    (second) => localStorage.setItem(`lm.mind-layout:/${second}/`, "left"),
+    second,
+  );
   await refresh(page);
   await page.evaluate(() => {
     document.body.dataset.fileSwitchMarker = "kept";
@@ -49,6 +53,9 @@ test("file switching saves the right notes and keeps the sidebar and editor moun
   await noteBody(page, "pricing").fill("This belongs to the first file.");
   await link(page, second).click();
   await expect(page.locator("#crumbs .nm")).toHaveText("Second file");
+  await expect
+    .poll(async () => (await state(page, second)).mindLayout)
+    .toBe("left");
   await expect(page.locator("body")).toHaveAttribute(
     "data-file-switch-marker",
     "kept",
