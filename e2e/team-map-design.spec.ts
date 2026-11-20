@@ -57,6 +57,12 @@ for (const view of ["Engineer", "PM"]) {
       ).toHaveCount(0);
     }
 
+    await expect(panel.getByRole("button", { name: "Clear flag" })).toHaveCount(
+      0,
+    );
+    await expect(
+      panel.getByRole("button", { name: "Clear progress" }),
+    ).toHaveCount(0);
     await panel.getByRole("button", { name: "Green flag" }).click();
     await expect(topics.getByRole("img", { name: "green flag" })).toHaveCount(
       3,
@@ -64,10 +70,29 @@ for (const view of ["Engineer", "PM"]) {
     await expect(
       panel.getByRole("button", { name: "Green flag" }),
     ).toHaveAttribute("aria-pressed", "true");
-    await panel.getByRole("button", { name: "Blue person" }).click();
-    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
-      3,
-    );
+    await panel
+      .getByRole("button", { name: "High priority", exact: true })
+      .click();
+    await expect(
+      topics.getByRole("img", { name: "High priority", exact: true }),
+    ).toHaveCount(3);
+    await panel
+      .getByRole("button", { name: "High priority", exact: true })
+      .click();
+    await expect(topics.locator(".design-mark.priority")).toHaveCount(0);
+    for (const label of ["One thing", "Medium", "Low", "High"]) {
+      await panel
+        .getByRole("button", { name: `${label} priority`, exact: true })
+        .click();
+      await expect(
+        topics.getByRole("img", { name: `${label} priority`, exact: true }),
+      ).toHaveCount(3);
+    }
+    await expect(
+      panel
+        .getByRole("group", { name: "Person", exact: true })
+        .getByRole("button"),
+    ).toHaveCount(0);
     await panel
       .getByRole("button", { name: "50% progress", exact: true })
       .click();
@@ -85,16 +110,18 @@ for (const view of ["Engineer", "PM"]) {
       path: test.info().outputPath("three-selected.png"),
     });
 
-    await panel.getByRole("button", { name: "Clear flag" }).click();
+    await panel.getByRole("button", { name: "Green flag" }).click();
     await expect(topics.locator(".design-mark.flag")).toHaveCount(0);
     await expect(
-      panel.getByRole("button", { name: "Clear flag" }),
-    ).toHaveAttribute("aria-pressed", "true");
-    await panel.getByRole("button", { name: "Clear progress" }).click();
+      panel.getByRole("button", { name: "Green flag" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await panel
+      .getByRole("button", { name: "50% progress", exact: true })
+      .click();
     await expect(topics.locator(".design-mark.progress")).toHaveCount(0);
     await expect(
-      panel.getByRole("button", { name: "Clear progress" }),
-    ).toHaveAttribute("aria-pressed", "true");
+      panel.getByRole("button", { name: "50% progress", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(
       topics.getByRole("img", { name: "50% progress", exact: true }),
@@ -122,19 +149,9 @@ for (const view of ["Engineer", "PM"]) {
     await expect(page.locator('#nodes .node[data-align="bottom"]')).toHaveCount(
       3,
     );
-    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
-      3,
-    );
-    await topics.first().click();
-    await page.getByRole("button", { name: "Design", exact: true }).click();
-    await panel.getByRole("button", { name: "Clear person" }).click();
-    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
-      2,
-    );
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
-    await expect(topics.getByRole("img", { name: "blue person" })).toHaveCount(
-      3,
-    );
+    await expect(
+      topics.getByRole("img", { name: "High priority", exact: true }),
+    ).toHaveCount(3);
   });
 }
 
@@ -174,10 +191,9 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await expect(pricing).toHaveAttribute("data-align", "top");
   await panel.getByRole("button", { name: "Green flag" }).click();
   await expect(pricing.getByRole("img", { name: "green flag" })).toBeVisible();
-  await panel.getByRole("button", { name: "Orange person" }).click();
   await expect(
-    pricing.getByRole("img", { name: "orange person" }),
-  ).toBeVisible();
+    panel.getByRole("button", { name: "Orange person" }),
+  ).toHaveCount(0);
   await panel.getByRole("button", { name: "62.5% progress" }).click();
   await expect(
     pricing.getByRole("img", { name: "62.5% progress" }),
@@ -199,8 +215,10 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await trial.click();
   await expect(panel.getByText("Free trial", { exact: true })).toBeVisible();
   await expect(
-    panel.getByRole("button", { name: "Clear flag" }),
-  ).toHaveAttribute("aria-pressed", "true");
+    panel
+      .getByRole("group", { name: "Flag", exact: true })
+      .locator('[aria-pressed="true"]'),
+  ).toHaveCount(0);
   await panel.getByRole("button", { name: "Purple flag" }).click();
   await expect(trial.getByRole("img", { name: "purple flag" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -210,16 +228,16 @@ test("designs a map and its selected boxes, with changes saved on reload", async
   await page.reload();
   await expect(pricing.locator(".nt")).toHaveText("I. Pricing");
   await expect(pricing).toHaveAttribute("data-align", "top");
-  await expect(
-    pricing.getByRole("img", { name: "orange person" }),
-  ).toBeVisible();
+
   await expect(
     pricing.getByRole("img", { name: "62.5% progress" }),
   ).toBeVisible();
   await expect(trial.getByRole("img", { name: "purple flag" })).toBeVisible();
   await pricing.click();
   await rail.click();
-  await panel.getByRole("button", { name: "Clear progress" }).click();
+  await panel
+    .getByRole("button", { name: "62.5% progress", exact: true })
+    .click();
   await expect(pricing.locator(".design-mark.progress")).toHaveCount(0);
   await expect(pricing.getByRole("img", { name: "green flag" })).toBeVisible();
 });

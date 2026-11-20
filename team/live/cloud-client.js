@@ -141,7 +141,9 @@ export function cloudMirror({ home, read, write, notify, pointer = () => {}, con
     if (busy) await busy;
     if (!saved?.published) throw new Error('Publish this map online first.');
     const idToken = proof(google, true);
-    const got = await request(`/m/${saved.id}/api/sharing`, change, undefined, false, idToken);
+    const linkKey = saved.mode === 'restricted' && change.person?.role ? crypto.randomBytes(32).toString('hex') : saved.linkKey;
+    const got = await request(`/m/${saved.id}/api/sharing`, { ...change, ...(saved.mode === 'restricted' && change.person?.role ? {mode:'view',linkView:false,linkKey} : {}) }, undefined, false, idToken);
+    saved.linkKey = linkKey;
     saved.mode = got.mode || saved.mode; persist(); notify(); return status();
   }
   /** @param {Google} [google] */

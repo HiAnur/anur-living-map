@@ -10,6 +10,7 @@ export const BOX_ALIGNMENTS = [['top', 'Top'], ['center', 'Center'], ['bottom', 
 export const BOX_FLAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'purple'];
 export const BOX_PEOPLE = BOX_FLAGS;
 export const BOX_PROGRESS = ['0', '12.5', '25', '37.5', '50', '62.5', '75', '87.5', '100'];
+export const BOX_PRIORITIES = [['one-thing', 'One thing'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']];
 
 const DESIGN_FIELDS = {
   format: NUMBER_FORMATS.map(([key]) => key),
@@ -18,12 +19,19 @@ const DESIGN_FIELDS = {
   flag: ['', ...BOX_FLAGS],
   person: ['', ...BOX_PEOPLE],
   progress: ['', ...BOX_PROGRESS],
+  priority: ['', ...BOX_PRIORITIES.map(([value]) => value)],
 };
 
 /** @param {string} field @param {unknown} value @returns {value is string} */
 export function validDesignValue(field, value) {
+  if (field === 'person' && personEmail(value)) return true;
   return typeof value === 'string' && Object.hasOwn(DESIGN_FIELDS, field) &&
     DESIGN_FIELDS[/** @type {keyof typeof DESIGN_FIELDS} */ (field)].includes(value);
+}
+
+/** @param {unknown} value @returns {value is string} */
+export function personEmail(value) {
+  return typeof value === 'string' && value.length <= 254 && /^[a-z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(value);
 }
 
 /** @param {unknown} record @param {string[]} fields */
@@ -140,8 +148,15 @@ export function flagIcon(color) {
   return `<span class="design-mark flag" data-flag="${color}" role="img" aria-label="${color} flag" title="${color} flag"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 13V3m0 .5c3-2 4 2 8 0V9c-4 2-5-2-8 0" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></span>`;
 }
 
-/** @param {string} color */
-export function personIcon(color) {
+/** @param {string} color @param {string} [name] */
+export function personIcon(color, name = color) {
+  if (personEmail(color)) {
+    const safe = color.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const title = name.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const initial = ([...name.trim()][0] || color[0]).toUpperCase().replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    const index = [...color.toLowerCase()].reduce((sum, c) => sum + c.charCodeAt(0), 0) % BOX_FLAGS.length;
+    return `<span class="design-mark person named" data-flag="${BOX_FLAGS[index]}" role="img" aria-label="${safe}" title="${title}">${initial}</span>`;
+  }
   if (!BOX_PEOPLE.includes(color)) return '';
   return `<span class="design-mark person" data-flag="${color}" role="img" aria-label="${color} person" title="${color} person"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5" r="2.5" fill="currentColor"/><path d="M3.5 12c0-2.2 2-3.5 4.5-3.5s4.5 1.3 4.5 3.5v1h-9z" fill="currentColor"/></svg></span>`;
 }
@@ -157,4 +172,12 @@ export function progressIcon(value) {
       ? '<path d="M6 4.5v7l5-3.5z" fill="currentColor"/>'
       : `<circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="6.4" pathLength="100" stroke-dasharray="${value} 100" transform="rotate(-90 8 8)"/>`;
   return `<span class="design-mark progress" role="img" aria-label="${label}" title="${label}"><svg viewBox="0 0 16 16" aria-hidden="true">${track}${mark}</svg></span>`;
+}
+
+/** @param {string} value */
+export function priorityIcon(value) {
+  const priority = BOX_PRIORITIES.find(([key]) => key === value);
+  if (!priority) return '';
+  const label = `${priority[1]} priority`;
+  return `<span class="design-mark priority" data-priority="${value}" role="img" aria-label="${label}" title="${label}"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg></span>`;
 }

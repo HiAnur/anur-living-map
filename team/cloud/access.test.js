@@ -221,16 +221,22 @@ describe('access by email', () => {
     expect((await c.access({ mode: 'view', linkKey: 'f'.repeat(64) })).status).toBe(200);
     expect((await c.visit('api/state', { email: 'teammate@example.com' })).status).toBe(403);
   });
-  it('sends visitors who is here by name, never the people list or anyone\'s address', async () => {
+  it('shares assignment identities with invited editors while keeping viewers and guests out of the email list', async () => {
     const c = await cloud(); await c.publish(google.token(OWNER, { name: 'Ana' }));
     await c.access({ person: { email: 'teammate@example.com', role: 'edit' } });
     await c.access({ person: { email: 'viewer@example.com', role: 'view' } });
-    await c.visit('api/state', { email: 'viewer@example.com' });
+    const viewer = await c.visit('api/state', { email: 'viewer@example.com' });
+    expect(await viewer.text()).not.toContain('@example.com');
     const r = await c.visit('api/state', { email: 'teammate@example.com' });
     const text = await r.text(), state = JSON.parse(text);
     expect(state.here).toEqual(['teammate', 'viewer']);
     expect(state.people).toEqual([{ id: 'teammate' }, { id: 'viewer' }]);
-    expect(text).not.toContain('@example.com');
+    expect(state.assignmentPeople.map((p) => p.email)).toEqual([OWNER,'teammate@example.com','viewer@example.com']);
+    await c.access({linkView:true});
+    const anonymous = await c.visit('api/state');
+    expect((await anonymous.json()).assignmentPeople).toEqual([]);
+    const unlisted = await c.visit('api/state',{email:'other@example.com'});
+    expect((await unlisted.json()).assignmentPeople).toEqual([]);
     // the owner's Mac is told the list
     expect((await (await c.mac(`/m/${ID}/api/state`, undefined)).json()).access.people).toEqual({ 'teammate@example.com': 'edit', 'viewer@example.com': 'view' });
   });
